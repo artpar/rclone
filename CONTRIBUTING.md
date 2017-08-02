@@ -29,12 +29,12 @@ You'll need a Go environment set up with GOPATH set.  See [the Go
 getting started docs](https://golang.org/doc/install) for more info.
 
 First in your web browser press the fork button on [rclone's Github
-page](https://github.com/ncw/rclone).
+page](https://github.com/artpar/rclone).
 
 Now in your terminal
 
-    go get github.com/ncw/rclone
-    cd $GOPATH/src/github.com/ncw/rclone
+    go get github.com/artpar/rclone
+    cd $GOPATH/src/github.com/artpar/rclone
     git remote rename origin upstream
     git remote add origin git@github.com:YOURUSER/rclone.git
 

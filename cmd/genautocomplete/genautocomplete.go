@@ -3,7 +3,7 @@ package genautocomplete
 import (
 	"log"
 
-	"github.com/ncw/rclone/cmd"
+	"github.com/artpar/rclone/cmd"
 	"github.com/spf13/cobra"
 )
 

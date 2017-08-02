@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/ncw/rclone/cmd/mountlib/mounttest"
+	"github.com/artpar/rclone/cmd/mountlib/mounttest"
 )
 
 func notWin(t *testing.T) {

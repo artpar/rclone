@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/fs"
 	"github.com/ncw/swift"
 	"github.com/pkg/errors"
 )

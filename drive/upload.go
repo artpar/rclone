@@ -19,7 +19,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
 	"google.golang.org/api/drive/v2"
 	"google.golang.org/api/googleapi"

@@ -32,9 +32,9 @@ import (
 
 	"github.com/ncw/dropbox-sdk-go-unofficial/dropbox"
 	"github.com/ncw/dropbox-sdk-go-unofficial/dropbox/files"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/oauthutil"
-	"github.com/ncw/rclone/pacer"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/oauthutil"
+	"github.com/artpar/rclone/pacer"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 )

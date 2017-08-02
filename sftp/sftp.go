@@ -11,7 +11,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
 	"github.com/pkg/sftp"
 	sshagent "github.com/xanzy/ssh-agent"

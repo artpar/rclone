@@ -7,9 +7,9 @@ package ftp_test
 import (
 	"testing"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fstest/fstests"
-	"github.com/ncw/rclone/ftp"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest/fstests"
+	"github.com/artpar/rclone/ftp"
 )
 
 func TestSetup(t *testing.T) {

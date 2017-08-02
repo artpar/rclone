@@ -11,9 +11,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ncw/rclone/cmd"
-	"github.com/ncw/rclone/cmd/ncdu/scan"
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/cmd/ncdu/scan"
+	"github.com/artpar/rclone/fs"
 	termbox "github.com/nsf/termbox-go"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"

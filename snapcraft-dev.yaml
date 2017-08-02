@@ -15,7 +15,7 @@ apps:
 parts:
   rclone:
     plugin: go
-    source: https://github.com/ncw/rclone
+    source: https://github.com/artpar/rclone
     source-type: git
-    go-importpath: github.com/ncw/rclone
+    go-importpath: github.com/artpar/rclone
     build-packages: [gcc, libgudev-1.0-dev]

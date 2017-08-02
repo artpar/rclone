@@ -16,7 +16,7 @@ Forum for general discussions and questions:
 
 The project website is at:
 
-  * https://github.com/ncw/rclone
+  * https://github.com/artpar/rclone
 
 There you can file bug reports, ask for help or contribute pull
 requests.

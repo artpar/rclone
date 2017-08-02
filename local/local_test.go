@@ -7,9 +7,9 @@ package local_test
 import (
 	"testing"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fstest/fstests"
-	"github.com/ncw/rclone/local"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest/fstests"
+	"github.com/artpar/rclone/local"
 )
 
 func TestSetup(t *testing.T) {

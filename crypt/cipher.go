@@ -13,7 +13,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/ncw/rclone/crypt/pkcs7"
+	"github.com/artpar/rclone/crypt/pkcs7"
 	"github.com/pkg/errors"
 
 	"golang.org/x/crypto/nacl/secretbox"

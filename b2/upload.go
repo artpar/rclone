@@ -11,9 +11,9 @@ import (
 	"io"
 	"sync"
 
-	"github.com/ncw/rclone/b2/api"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/rest"
+	"github.com/artpar/rclone/b2/api"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/rest"
 	"github.com/pkg/errors"
 )
 

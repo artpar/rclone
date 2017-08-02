@@ -39,7 +39,7 @@ Features
 Links
 
   * [Home page](https://rclone.org/)
-  * [Github project page for source and bug tracker](https://github.com/ncw/rclone)
+  * [Github project page for source and bug tracker](https://github.com/artpar/rclone)
   * [Rclone Forum](https://forum.rclone.org)
   * <a href="https://google.com/+RcloneOrg" rel="publisher">Google+ page</a>
   * [Downloads](https://rclone.org/downloads/)
@@ -110,13 +110,13 @@ Run `rclone config` to setup. See [rclone config docs](https://rclone.org/docs/)
 Make sure you have at least [Go](https://golang.org/) 1.6 installed.
 Make sure your `GOPATH` is set, then:
 
-    go get -u -v github.com/ncw/rclone
+    go get -u -v github.com/artpar/rclone
 
 and this will build the binary in `$GOPATH/bin`.  If you have built
 rclone before then you will want to update its dependencies first with
 this
 
-    go get -u -v github.com/ncw/rclone/...
+    go get -u -v github.com/artpar/rclone/...
 
 ## Installation with Ansible ##
 
@@ -1240,7 +1240,7 @@ If your names have spaces in you need to put them in `"`, eg
     rclone copy "E:\folder name\folder name\folder name" remote:backup
 
 If you are using the root directory on its own then don't quote it
-(see [#464](https://github.com/ncw/rclone/issues/464) for why), eg
+(see [#464](https://github.com/artpar/rclone/issues/464) for why), eg
 
     rclone copy E:\ remote:backup
 
@@ -1479,7 +1479,7 @@ after transfer.
 
 This can be useful for transferring files to and from OneDrive which
 occasionally misreports the size of image files (see
-[#399](https://github.com/ncw/rclone/issues/399) for more info).
+[#399](https://github.com/artpar/rclone/issues/399) for more info).
 
 ### -I, --ignore-times ###
 
@@ -2718,16 +2718,16 @@ operations more efficient.
 
 | Name                   | Purge | Copy | Move | DirMove | CleanUp | ListR |
 | ---------------------- |:-----:|:----:|:----:|:-------:|:-------:|:-----:|
-| Google Drive           | Yes   | Yes  | Yes  | Yes     | No  [#575](https://github.com/ncw/rclone/issues/575) |  No    |
+| Google Drive           | Yes   | Yes  | Yes  | Yes     | No  [#575](https://github.com/artpar/rclone/issues/575) |  No    |
 | Amazon S3              | No    | Yes  | No   | No      | No      | Yes   |
 | Openstack Swift        | Yes † | Yes  | No   | No      | No      | Yes   |
-| Dropbox                | Yes   | Yes  | Yes  | Yes     | No  [#575](https://github.com/ncw/rclone/issues/575) | No    |
+| Dropbox                | Yes   | Yes  | Yes  | Yes     | No  [#575](https://github.com/artpar/rclone/issues/575) | No    |
 | Google Cloud Storage   | Yes   | Yes  | No   | No      | No      | Yes   |
-| Amazon Drive           | Yes   | No   | Yes  | Yes     | No [#575](https://github.com/ncw/rclone/issues/575) | No    |
-| Microsoft OneDrive     | Yes   | Yes  | Yes  | No [#197](https://github.com/ncw/rclone/issues/197)    | No [#575](https://github.com/ncw/rclone/issues/575) | No    |
+| Amazon Drive           | Yes   | No   | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No    |
+| Microsoft OneDrive     | Yes   | Yes  | Yes  | No [#197](https://github.com/artpar/rclone/issues/197)    | No [#575](https://github.com/artpar/rclone/issues/575) | No    |
 | Hubic                  | Yes † | Yes  | No   | No      | No      | Yes   |
 | Backblaze B2           | No    | No   | No   | No      | Yes     | Yes   |
-| Yandex Disk            | Yes   | No   | No   | No      | No  [#575](https://github.com/ncw/rclone/issues/575) | Yes   |
+| Yandex Disk            | Yes   | No   | No   | No      | No  [#575](https://github.com/artpar/rclone/issues/575) | Yes   |
 | SFTP                   | No    | No   | Yes  | Yes     | No      | No    |
 | FTP                    | No    | No   | Yes  | Yes     | No      | No    |
 | HTTP                   | No    | No   | No   | No      | No      | No    |
@@ -4849,7 +4849,7 @@ All copy commands send the following 4 requests:
 The `b2_list_file_names` request will be sent once for every 1k files
 in the remote path, providing the checksum and modification time of
 the listed files. As of version 1.33 issue
-[#818](https://github.com/ncw/rclone/issues/818) causes extra requests
+[#818](https://github.com/artpar/rclone/issues/818) causes extra requests
 to be sent when using B2 with Crypt. When a copy operation does not
 require any files to be uploaded, no more requests will be sent.
 
@@ -5929,7 +5929,7 @@ converted to the UNC path `\\?\c:\files` in the output,
 and `\\server\share` is converted to `\\?\UNC\server\share`.
 
 However, in rare cases this may cause problems with buggy file
-system drivers like [EncFS](https://github.com/ncw/rclone/issues/261).
+system drivers like [EncFS](https://github.com/artpar/rclone/issues/261).
 To disable UNC conversion globally, add this to your `.rclone.conf` file:
 
 ```
@@ -6775,7 +6775,7 @@ You can work round this to some extent with the`purge` command which
 will delete everything under the path, **inluding** empty directories.
 
 This may be fixed at some point in
-[Issue #100](https://github.com/ncw/rclone/issues/100)
+[Issue #100](https://github.com/artpar/rclone/issues/100)
 
 ### Directory timestamps aren't preserved ##
 
@@ -7051,7 +7051,7 @@ Forum for general discussions and questions:
 
 The project website is at:
 
-  * https://github.com/ncw/rclone
+  * https://github.com/artpar/rclone
 
 There you can file bug reports, ask for help or contribute pull
 requests.

@@ -48,7 +48,7 @@
 <p>Links</p>
 <ul>
 <li><a href="https://rclone.org/">Home page</a></li>
-<li><a href="https://github.com/ncw/rclone">Github project page for source and bug tracker</a></li>
+<li><a href="https://github.com/artpar/rclone">Github project page for source and bug tracker</a></li>
 <li><a href="https://forum.rclone.org">Rclone Forum</a></li>
 <li><a href="https://google.com/+RcloneOrg" rel="publisher">Google+ page</a></li>
 <li><a href="https://rclone.org/downloads/">Downloads</a></li>
@@ -91,9 +91,9 @@ sudo mandb </code></pre>
 <pre><code>rclone config</code></pre>
 <h2 id="install-from-source">Install from source</h2>
 <p>Make sure you have at least <a href="https://golang.org/">Go</a> 1.6 installed. Make sure your <code>GOPATH</code> is set, then:</p>
-<pre><code>go get -u -v github.com/ncw/rclone</code></pre>
+<pre><code>go get -u -v github.com/artpar/rclone</code></pre>
 <p>and this will build the binary in <code>$GOPATH/bin</code>. If you have built rclone before then you will want to update its dependencies first with this</p>
-<pre><code>go get -u -v github.com/ncw/rclone/...</code></pre>
+<pre><code>go get -u -v github.com/artpar/rclone/...</code></pre>
 <h2 id="installation-with-ansible">Installation with Ansible</h2>
 <p>This can be done with <a href="https://github.com/stefangweichinger/ansible-rclone">Stefan Weichinger's ansible role</a>.</p>
 <p>Instructions</p>
@@ -568,7 +568,7 @@ if src is directory
 <h3 id="windows">Windows</h3>
 <p>If your names have spaces in you need to put them in <code>&quot;</code>, eg</p>
 <pre><code>rclone copy &quot;E:\folder name\folder name\folder name&quot; remote:backup</code></pre>
-<p>If you are using the root directory on its own then don't quote it (see <a href="https://github.com/ncw/rclone/issues/464">#464</a> for why), eg</p>
+<p>If you are using the root directory on its own then don't quote it (see <a href="https://github.com/artpar/rclone/issues/464">#464</a> for why), eg</p>
 <pre><code>rclone copy E:\ remote:backup</code></pre>
 <h2 id="copying-files-or-directories-with-in-the-names">Copying files or directories with <code>:</code> in the names</h2>
 <p>rclone uses <code>:</code> to mark a remote name. This is, however, a valid filename component in non-Windows OSes. The remote name parser will only search for a <code>:</code> up to the first <code>/</code> so if you need to act on a file or directory like this then use the full path starting with a <code>/</code>, or use <code>./</code> as a current directory prefix.</p>
@@ -645,7 +645,7 @@ rclone sync /path/to/files remote:current-backup</code></pre>
 <h3 id="ignore-size">--ignore-size</h3>
 <p>Normally rclone will look at modification time and size of files to see if they are equal. If you set this flag then rclone will check only the modification time. If <code>--checksum</code> is set then it only checks the checksum.</p>
 <p>It will also cause rclone to skip verifying the sizes are the same after transfer.</p>
-<p>This can be useful for transferring files to and from OneDrive which occasionally misreports the size of image files (see <a href="https://github.com/ncw/rclone/issues/399">#399</a> for more info).</p>
+<p>This can be useful for transferring files to and from OneDrive which occasionally misreports the size of image files (see <a href="https://github.com/artpar/rclone/issues/399">#399</a> for more info).</p>
 <h3 id="i---ignore-times">-I, --ignore-times</h3>
 <p>Using this option will cause rclone to unconditionally upload all files regardless of the state of files on the destination.</p>
 <p>Normally rclone would skip any files that have the same modification time and are the same size (or have the same checksum if using <code>--checksum</code>).</p>
@@ -1324,7 +1324,7 @@ The hashes are used when transferring data as an integrity check and can be spec
 <td align="center">Yes</td>
 <td align="center">Yes</td>
 <td align="center">Yes</td>
-<td align="center">No <a href="https://github.com/ncw/rclone/issues/575">#575</a></td>
+<td align="center">No <a href="https://github.com/artpar/rclone/issues/575">#575</a></td>
 <td align="center">No</td>
 </tr>
 <tr class="even">
@@ -1351,7 +1351,7 @@ The hashes are used when transferring data as an integrity check and can be spec
 <td align="center">Yes</td>
 <td align="center">Yes</td>
 <td align="center">Yes</td>
-<td align="center">No <a href="https://github.com/ncw/rclone/issues/575">#575</a></td>
+<td align="center">No <a href="https://github.com/artpar/rclone/issues/575">#575</a></td>
 <td align="center">No</td>
 </tr>
 <tr class="odd">
@@ -1369,7 +1369,7 @@ The hashes are used when transferring data as an integrity check and can be spec
 <td align="center">No</td>
 <td align="center">Yes</td>
 <td align="center">Yes</td>
-<td align="center">No <a href="https://github.com/ncw/rclone/issues/575">#575</a></td>
+<td align="center">No <a href="https://github.com/artpar/rclone/issues/575">#575</a></td>
 <td align="center">No</td>
 </tr>
 <tr class="odd">
@@ -1377,8 +1377,8 @@ The hashes are used when transferring data as an integrity check and can be spec
 <td align="center">Yes</td>
 <td align="center">Yes</td>
 <td align="center">Yes</td>
-<td align="center">No <a href="https://github.com/ncw/rclone/issues/197">#197</a></td>
-<td align="center">No <a href="https://github.com/ncw/rclone/issues/575">#575</a></td>
+<td align="center">No <a href="https://github.com/artpar/rclone/issues/197">#197</a></td>
+<td align="center">No <a href="https://github.com/artpar/rclone/issues/575">#575</a></td>
 <td align="center">No</td>
 </tr>
 <tr class="even">
@@ -1405,7 +1405,7 @@ The hashes are used when transferring data as an integrity check and can be spec
 <td align="center">No</td>
 <td align="center">No</td>
 <td align="center">No</td>
-<td align="center">No <a href="https://github.com/ncw/rclone/issues/575">#575</a></td>
+<td align="center">No <a href="https://github.com/artpar/rclone/issues/575">#575</a></td>
 <td align="center">Yes</td>
 </tr>
 <tr class="odd">
@@ -2900,7 +2900,7 @@ $ rclone -q --b2-versions ls b2:cleanup-test
 /b2api/v1/b2_create_bucket
 /b2api/v1/b2_list_buckets
 /b2api/v1/b2_list_file_names</code></pre>
-<p>The <code>b2_list_file_names</code> request will be sent once for every 1k files in the remote path, providing the checksum and modification time of the listed files. As of version 1.33 issue <a href="https://github.com/ncw/rclone/issues/818">#818</a> causes extra requests to be sent when using B2 with Crypt. When a copy operation does not require any files to be uploaded, no more requests will be sent.</p>
+<p>The <code>b2_list_file_names</code> request will be sent once for every 1k files in the remote path, providing the checksum and modification time of the listed files. As of version 1.33 issue <a href="https://github.com/artpar/rclone/issues/818">#818</a> causes extra requests to be sent when using B2 with Crypt. When a copy operation does not require any files to be uploaded, no more requests will be sent.</p>
 <p>Uploading files that do not require chunking, will send 2 requests per file upload:</p>
 <pre><code>/b2api/v1/b2_get_upload_url
 /b2api/v1/b2_upload_file/</code></pre>
@@ -3568,7 +3568,7 @@ $ rclone -q ls secret:
 <h3 id="long-paths-on-windows">Long paths on Windows</h3>
 <p>Rclone handles long paths automatically, by converting all paths to long <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx#maxpath">UNC paths</a> which allows paths up to 32,767 characters.</p>
 <p>This is why you will see that your paths, for instance <code>c:\files</code> is converted to the UNC path <code>\\?\c:\files</code> in the output, and <code>\\server\share</code> is converted to <code>\\?\UNC\server\share</code>.</p>
-<p>However, in rare cases this may cause problems with buggy file system drivers like <a href="https://github.com/ncw/rclone/issues/261">EncFS</a>. To disable UNC conversion globally, add this to your <code>.rclone.conf</code> file:</p>
+<p>However, in rare cases this may cause problems with buggy file system drivers like <a href="https://github.com/artpar/rclone/issues/261">EncFS</a>. To disable UNC conversion globally, add this to your <code>.rclone.conf</code> file:</p>
 <pre><code>[local]
 nounc = true</code></pre>
 <p>If you want to selectively disable UNC, you can add it to a separate entry like this:</p>
@@ -4500,7 +4500,7 @@ nounc = true</code></pre>
 <p>With remotes that have a concept of directory, eg Local and Drive, empty directories may be left behind, or not created when one was expected.</p>
 <p>This is because rclone doesn't have a concept of a directory - it only works on objects. Most of the object storage systems can't actually store a directory so there is nowhere for rclone to store anything about directories.</p>
 <p>You can work round this to some extent with the<code>purge</code> command which will delete everything under the path, <strong>inluding</strong> empty directories.</p>
-<p>This may be fixed at some point in <a href="https://github.com/ncw/rclone/issues/100">Issue #100</a></p>
+<p>This may be fixed at some point in <a href="https://github.com/artpar/rclone/issues/100">Issue #100</a></p>
 <h3 id="directory-timestamps-arent-preserved">Directory timestamps aren't preserved</h3>
 <p>For the same reason as the above, rclone doesn't have a concept of a directory - it only works on objects, therefore it can't preserve the timestamps of directories.</p>
 <h2 id="frequently-asked-questions">Frequently Asked Questions</h2>
@@ -4668,7 +4668,7 @@ THE SOFTWARE.</code></pre>
 <h2 id="gitub-project">Gitub project</h2>
 <p>The project website is at:</p>
 <ul>
-<li>https://github.com/ncw/rclone</li>
+<li>https://github.com/artpar/rclone</li>
 </ul>
 <p>There you can file bug reports, ask for help or contribute pull requests.</p>
 <h2 id="google">Google+</h2>

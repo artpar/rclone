@@ -21,12 +21,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ncw/rclone/box/api"
-	"github.com/ncw/rclone/dircache"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/oauthutil"
-	"github.com/ncw/rclone/pacer"
-	"github.com/ncw/rclone/rest"
+	"github.com/artpar/rclone/box/api"
+	"github.com/artpar/rclone/dircache"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/oauthutil"
+	"github.com/artpar/rclone/pacer"
+	"github.com/artpar/rclone/rest"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 )

@@ -23,7 +23,7 @@ When a ticket is tagged it should be added to a milestone, either the next relea
 
 ***FIXME*** I don't think I've quite got the milestone thing sorted yet. I was wondering about classifying them into priority, or what?
 
-Tickets [with no milestone](https://github.com/ncw/rclone/issues?utf8=✓&q=is%3Aissue%20is%3Aopen%20no%3Amile) are good candidates for ones that have slipped between the gaps and need following up.
+Tickets [with no milestone](https://github.com/artpar/rclone/issues?utf8=✓&q=is%3Aissue%20is%3Aopen%20no%3Amile) are good candidates for ones that have slipped between the gaps and need following up.
 
 ## Closing Tickets ##
 
