@@ -29,6 +29,7 @@ import (
 	"github.com/artpar/rclone/rest"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
+	//"golang.org/x/oauth2/google"
 )
 
 const (
@@ -232,7 +233,19 @@ func NewFs(name, root string) (fs.Fs, error) {
 	}
 
 	root = parsePath(root)
-	oAuthClient, ts, err := oauthutil.NewClient(name, oauthConfig)
+
+	oauthConf1 := oauth2.Config{
+		ClientID:     fs.ConfigFileGet(name, "client_id"),
+		ClientSecret: fs.ConfigFileGet(name, "client_secret"),
+		Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://app.box.com/api/oauth2/authorize",
+			TokenURL: "https://app.box.com/api/oauth2/token",
+		},
+		RedirectURL: fs.ConfigFileGet(name, "redirect_url"),
+	}
+
+	oAuthClient, ts, err := oauthutil.NewClient(name, &oauthConf1)
 	if err != nil {
 		log.Fatalf("Failed to configure Box: %v", err)
 	}
@@ -987,8 +1000,8 @@ func (o *Object) upload(in io.Reader, leaf, directoryID string, size int64, modT
 	var resp *http.Response
 	var result api.FolderItems
 	opts := rest.Opts{
-		Method: "POST",
-		Body:   in,
+		Method:                "POST",
+		Body:                  in,
 		MultipartMetadataName: "attributes",
 		MultipartContentName:  "contents",
 		MultipartFileName:     upload.Name,

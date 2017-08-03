@@ -391,7 +391,15 @@ func NewFs(name, path string) (fs.Fs, error) {
 		return nil, errors.Errorf("drive: chunk size can't be less than 256k - was %v", chunkSize)
 	}
 
-	oAuthClient, _, err := oauthutil.NewClient(name, driveConfig)
+	oauthConf1 := oauth2.Config{
+		ClientID:     fs.ConfigFileGet(name, "client_id"),
+		ClientSecret: fs.ConfigFileGet(name, "client_secret"),
+		Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
+		Endpoint:     google.Endpoint,
+		RedirectURL:  fs.ConfigFileGet(name, "redirect_url"),
+	}
+
+	oAuthClient, _, err := oauthutil.NewClient(name, &oauthConf1)
 	if err != nil {
 		log.Fatalf("Failed to configure drive: %v", err)
 	}

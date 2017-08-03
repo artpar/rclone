@@ -37,6 +37,7 @@ import (
 	"github.com/artpar/rclone/pacer"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
+	//"golang.org/x/oauth2/google"
 )
 
 // Constants
@@ -169,7 +170,15 @@ func NewFs(name, root string) (fs.Fs, error) {
 		}
 	}
 
-	oAuthClient, _, err := oauthutil.NewClient(name, dropboxConfig)
+	oauthConf1 := oauth2.Config{
+		ClientID:     fs.ConfigFileGet(name, "client_id"),
+		ClientSecret: fs.ConfigFileGet(name, "client_secret"),
+		Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
+		Endpoint:     dropbox.OAuthEndpoint(""),
+		RedirectURL:  fs.ConfigFileGet(name, "redirect_url"),
+	}
+
+	oAuthClient, _, err := oauthutil.NewClient(name, &oauthConf1)
 	if err != nil {
 		log.Fatalf("Failed to configure dropbox: %v", err)
 	}

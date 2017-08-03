@@ -194,7 +194,19 @@ func errorHandler(resp *http.Response) error {
 // NewFs constructs an Fs from the path, container:path
 func NewFs(name, root string) (fs.Fs, error) {
 	root = parsePath(root)
-	oAuthClient, ts, err := oauthutil.NewClient(name, oauthConfig)
+
+	oauthConf1 := oauth2.Config{
+		ClientID:     fs.ConfigFileGet(name, "client_id"),
+		ClientSecret: fs.ConfigFileGet(name, "client_secret"),
+		Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://login.live.com/oauth20_authorize.srf",
+			TokenURL: "https://login.live.com/oauth20_token.srf",
+		},
+		RedirectURL: fs.ConfigFileGet(name, "redirect_url"),
+	}
+
+	oAuthClient, ts, err := oauthutil.NewClient(name, &oauthConf1)
 	if err != nil {
 		log.Fatalf("Failed to configure OneDrive: %v", err)
 	}

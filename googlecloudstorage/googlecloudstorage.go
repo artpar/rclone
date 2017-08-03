@@ -296,7 +296,16 @@ func NewFs(name, root string) (fs.Fs, error) {
 			log.Fatalf("Failed configuring Google Cloud Storage Service Account: %v", err)
 		}
 	} else {
-		oAuthClient, _, err = oauthutil.NewClient(name, storageConfig)
+
+		oauthConf1 := oauth2.Config{
+			ClientID:     fs.ConfigFileGet(name, "client_id"),
+			ClientSecret: fs.ConfigFileGet(name, "client_secret"),
+			Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
+			Endpoint:     google.Endpoint,
+			RedirectURL:  fs.ConfigFileGet(name, "redirect_url"),
+		}
+
+		oAuthClient, _, err = oauthutil.NewClient(name, &oauthConf1)
 		if err != nil {
 			log.Fatalf("Failed to configure Google Cloud Storage: %v", err)
 		}

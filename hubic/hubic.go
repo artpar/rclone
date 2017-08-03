@@ -19,6 +19,7 @@ import (
 	swiftLib "github.com/ncw/swift"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
+	"strings"
 )
 
 const (
@@ -143,7 +144,19 @@ func (f *Fs) getCredentials() (err error) {
 
 // NewFs constructs an Fs from the path, container:path
 func NewFs(name, root string) (fs.Fs, error) {
-	client, _, err := oauthutil.NewClient(name, oauthConfig)
+
+	oauthConf1 := oauth2.Config{
+		ClientID:     fs.ConfigFileGet(name, "client_id"),
+		ClientSecret: fs.ConfigFileGet(name, "client_secret"),
+		Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://api.hubic.com/oauth/auth/",
+			TokenURL: "https://api.hubic.com/oauth/token/",
+		},
+		RedirectURL: fs.ConfigFileGet(name, "redirect_url"),
+	}
+
+	client, _, err := oauthutil.NewClient(name, &oauthConf1)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to configure Hubic")
 	}
