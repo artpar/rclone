@@ -3,3 +3,4 @@ _junk/
 rclone
 build
 docs/public
+.idea/
