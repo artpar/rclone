@@ -258,7 +258,7 @@ func NewMountCommand(commandName string, hidden bool, mount MountFn) *cobra.Comm
 				atexit.Unregister(handle)
 			}
 			if err != nil {
-				log.Fatalf("Fatal error: %v", err)
+				log.Printf("Fatal error: %v", err)
 			}
 		},
 	}

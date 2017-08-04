@@ -80,7 +80,7 @@ files, use:
 		usedHead := head > 0
 		usedTail := tail > 0
 		if usedHead && usedTail || usedHead && usedOffset || usedTail && usedOffset {
-			log.Fatalf("Can only use one of  --head, --tail or --offset with --count")
+			log.Printf("Can only use one of  --head, --tail or --offset with --count")
 		}
 		if head > 0 {
 			offset = 0
