@@ -53,6 +53,7 @@ from various cloud storage systems and using file transfer services, such as:
   * Hubic
   * Microsoft OneDrive
   * Openstack Swift / Rackspace cloud files / Memset Memstore
+  * QingStor
   * SFTP
   * Yandex Disk
   * The local filesystem
@@ -99,6 +100,8 @@ func init() {
 // ShowVersion prints the version to stdout
 func ShowVersion() {
 	fmt.Printf("rclone %s\n", fs.Version)
+	fmt.Printf("- os/arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	fmt.Printf("- go version: %s\n", runtime.Version())
 }
 
 // newFsFile creates a dst Fs from a name but may point to a file.
@@ -201,6 +204,20 @@ func NewFsDst(args []string) fs.Fs {
 	fdst := newFsDst(args[0])
 	fs.CalculateModifyWindow(fdst)
 	return fdst
+}
+
+// NewFsDstFile creates a new dst fs with a destination file name from the arguments
+func NewFsDstFile(args []string) (fdst fs.Fs, dstFileName string) {
+	dstRemote, dstFileName := fs.RemoteSplit(args[0])
+	if dstRemote == "" {
+		dstRemote = "."
+	}
+	if dstFileName == "" {
+		log.Fatalf("%q is a directory", args[0])
+	}
+	fdst = newFsDst(dstRemote)
+	fs.CalculateModifyWindow(fdst)
+	return
 }
 
 // ShowStats returns true if the user added a `--stats` flag to the command line.

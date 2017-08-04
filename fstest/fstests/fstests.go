@@ -54,6 +54,22 @@ var (
 // ExtraConfigItem describes a config item added on the fly while testing
 type ExtraConfigItem struct{ Name, Key, Value string }
 
+// Make the Fs we are testing with, initialising the global variables
+// subRemoteName - name of the remote after the TestRemote:
+// subRemoteLeaf - a subdirectory to use under that
+// remote - the result of  fs.NewFs(TestRemote:subRemoteName)
+func newFs(t *testing.T) {
+	var err error
+	subRemoteName, subRemoteLeaf, err = fstest.RandomRemoteName(RemoteName)
+	require.NoError(t, err)
+	remote, err = fs.NewFs(subRemoteName)
+	if err == fs.ErrorNotFoundInConfigFile {
+		t.Logf("Didn't find %q in config file - skipping tests", RemoteName)
+		return
+	}
+	require.NoError(t, err, fmt.Sprintf("unexpected error: %v", err))
+}
+
 // TestInit tests basic intitialisation
 func TestInit(t *testing.T) {
 	var err error
@@ -79,15 +95,10 @@ func TestInit(t *testing.T) {
 		require.NoError(t, err)
 		isLocalRemote = true
 	}
-	subRemoteName, subRemoteLeaf, err = fstest.RandomRemoteName(RemoteName)
-	require.NoError(t, err)
 
-	remote, err = fs.NewFs(subRemoteName)
-	if err == fs.ErrorNotFoundInConfigFile {
-		t.Logf("Didn't find %q in config file - skipping tests", RemoteName)
-		return
-	}
-	require.NoError(t, err, fmt.Sprintf("unexpected error: %v", err))
+	newFs(t)
+
+	skipIfNotOk(t)
 	fstest.TestMkdir(t, remote)
 }
 
@@ -158,6 +169,12 @@ func TestFsRmdirNotFound(t *testing.T) {
 // TestFsMkdir tests tests making a directory
 func TestFsMkdir(t *testing.T) {
 	skipIfNotOk(t)
+
+	// Use a new directory here.  This is for the container based
+	// remotes which take time to create and destroy a container
+	// (eg azure blob)
+	newFs(t)
+
 	fstest.TestMkdir(t, remote)
 	fstest.TestMkdir(t, remote)
 }
@@ -858,6 +875,47 @@ func TestObjectRemove(t *testing.T) {
 	err := obj.Remove()
 	require.NoError(t, err)
 	fstest.CheckListing(t, remote, []fstest.Item{file2})
+}
+
+// TestFsPutUnknownLengthFile tests uploading files when size is not known in advance
+func TestFsPutUnknownLengthFile(t *testing.T) {
+	skipIfNotOk(t)
+
+	file := fstest.Item{
+		ModTime: fstest.Time("2001-02-03T04:05:06.499999999Z"),
+		Path:    "piped data.txt",
+		Size:    -1, // use unknown size during upload
+	}
+
+	tries := 1
+	const maxTries = 10
+again:
+	contentSize := 100
+	contents := fstest.RandomString(contentSize)
+	buf := bytes.NewBufferString(contents)
+	hash := fs.NewMultiHasher()
+	in := io.TeeReader(buf, hash)
+
+	file.Size = -1
+	obji := fs.NewStaticObjectInfo(file.Path, file.ModTime, file.Size, true, nil, nil)
+	obj, err := remote.Put(in, obji)
+	if err != nil {
+		// Retry if err returned a retry error
+		if fs.IsRetryError(err) && tries < maxTries {
+			t.Logf("Put error: %v - low level retry %d/%d", err, tries, maxTries)
+			time.Sleep(2 * time.Second)
+
+			tries++
+			goto again
+		}
+		require.NoError(t, err, fmt.Sprintf("Put Unknown Length error: %v", err))
+	}
+	file.Hashes = hash.Sums()
+	file.Size = int64(contentSize) // use correct size when checking
+	file.Check(t, obj, remote.Precision())
+	// Re-read the object and check again
+	obj = findObject(t, file.Path)
+	file.Check(t, obj, remote.Precision())
 }
 
 // TestObjectPurge tests Purge
