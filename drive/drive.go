@@ -338,7 +338,17 @@ func configTeamDrive(name string) error {
 	if !fs.Confirm() {
 		return nil
 	}
-	client, _, err := oauthutil.NewClient(name, driveConfig)
+
+	oauthConf1 := oauth2.Config{
+		ClientID:     fs.ConfigFileGet(name, "client_id"),
+		ClientSecret: fs.ConfigFileGet(name, "client_secret"),
+		Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
+		Endpoint:     google.Endpoint,
+		RedirectURL:  fs.ConfigFileGet(name, "redirect_url"),
+	}
+
+
+	client, _, err := oauthutil.NewClient(name, &oauthConf1)
 	if err != nil {
 		return errors.Wrap(err, "config team drive failed to make oauth client")
 	}
