@@ -20,7 +20,7 @@ func ReadPassword() string {
 	line, err := terminal.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Fprintln(os.Stderr)
 	if err != nil {
-		log.Fatalf("Failed to read password: %v", err)
+		log.Printf("Failed to read password: %v", err)
 	}
 	return strings.TrimSpace(string(line))
 }

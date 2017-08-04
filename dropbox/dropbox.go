@@ -80,7 +80,7 @@ func init() {
 		Config: func(name string) {
 			err := oauthutil.ConfigNoOffline("dropbox", name, dropboxConfig)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 			}
 		},
 		Options: []fs.Option{{
@@ -180,7 +180,7 @@ func NewFs(name, root string) (fs.Fs, error) {
 
 	oAuthClient, _, err := oauthutil.NewClient(name, &oauthConf1)
 	if err != nil {
-		log.Fatalf("Failed to configure dropbox: %v", err)
+		log.Printf("Failed to configure dropbox: %v", err)
 	}
 
 	config := dropbox.Config{

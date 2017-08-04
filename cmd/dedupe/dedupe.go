@@ -101,7 +101,7 @@ Or
 		if len(args) > 1 {
 			err := dedupeMode.Set(args[0])
 			if err != nil {
-				log.Fatal(err)
+				log.Print(err)
 			}
 			args = args[1:]
 		}

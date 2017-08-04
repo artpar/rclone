@@ -1204,7 +1204,7 @@ func dedupeRename(remote string, objs []Object) {
 	f := objs[0].Fs()
 	doMove := f.Features().Move
 	if doMove == nil {
-		log.Fatalf("Fs %v doesn't support Move", f)
+		log.Printf("Fs %v doesn't support Move", f)
 	}
 	ext := path.Ext(remote)
 	base := remote[:len(remote)-len(ext)]

@@ -167,7 +167,7 @@ func Obscure(x string) (string, error) {
 func MustObscure(x string) string {
 	out, err := Obscure(x)
 	if err != nil {
-		log.Fatalf("Obscure failed: %v", err)
+		log.Printf("Obscure failed: %v", err)
 	}
 	return out
 }
@@ -193,7 +193,7 @@ func Reveal(x string) (string, error) {
 func MustReveal(x string) string {
 	out, err := Reveal(x)
 	if err != nil {
-		log.Fatalf("Reveal failed: %v", err)
+		log.Printf("Reveal failed: %v", err)
 	}
 	return out
 }
@@ -331,17 +331,17 @@ func LoadConfig() {
 	}
 	if *quiet {
 		if *verbose > 0 {
-			log.Fatalf("Can't set -v and -q")
+			log.Printf("Can't set -v and -q")
 		}
 		Config.LogLevel = LogLevelError
 	}
 	logLevelFlag := pflag.Lookup("log-level")
 	if logLevelFlag != nil && logLevelFlag.Changed {
 		if *verbose > 0 {
-			log.Fatalf("Can't set -v and --log-level")
+			log.Printf("Can't set -v and --log-level")
 		}
 		if *quiet {
-			log.Fatalf("Can't set -q and --log-level")
+			log.Printf("Can't set -q and --log-level")
 		}
 		Config.LogLevel = logLevel
 	}
@@ -382,7 +382,7 @@ func LoadConfig() {
 	switch {
 	case *deleteBefore && (*deleteDuring || *deleteAfter),
 		*deleteDuring && *deleteAfter:
-		log.Fatalf(`Only one of --delete-before, --delete-during or --delete-after can be used.`)
+		log.Printf(`Only one of --delete-before, --delete-during or --delete-after can be used.`)
 	case *deleteBefore:
 		Config.DeleteMode = DeleteModeBefore
 	case *deleteDuring:
@@ -394,20 +394,20 @@ func LoadConfig() {
 	}
 
 	if Config.IgnoreSize && Config.SizeOnly {
-		log.Fatalf(`Can't use --size-only and --ignore-size together.`)
+		log.Printf(`Can't use --size-only and --ignore-size together.`)
 	}
 
 	if Config.Suffix != "" && Config.BackupDir == "" {
-		log.Fatalf(`Can only use --suffix with --backup-dir.`)
+		log.Printf(`Can only use --suffix with --backup-dir.`)
 	}
 
 	if *bindAddr != "" {
 		addrs, err := net.LookupIP(*bindAddr)
 		if err != nil {
-			log.Fatalf("--bind: Failed to parse %q as IP address: %v", *bindAddr, err)
+			log.Printf("--bind: Failed to parse %q as IP address: %v", *bindAddr, err)
 		}
 		if len(addrs) != 1 {
-			log.Fatalf("--bind: Expecting 1 IP address for %q but got %d", *bindAddr, len(addrs))
+			log.Printf("--bind: Expecting 1 IP address for %q but got %d", *bindAddr, len(addrs))
 		}
 		Config.BindAddr = addrs[0]
 	}
@@ -419,13 +419,13 @@ func LoadConfig() {
 		Logf(nil, "Config file %q not found - using defaults", ConfigPath)
 		configData, _ = goconfig.LoadFromReader(&bytes.Buffer{})
 	} else if err != nil {
-		log.Fatalf("Failed to load config file %q: %v", ConfigPath, err)
+		log.Printf("Failed to load config file %q: %v", ConfigPath, err)
 	}
 
 	// Load filters
 	Config.Filter, err = NewFilter()
 	if err != nil {
-		log.Fatalf("Failed to load filters: %v", err)
+		log.Printf("Failed to load filters: %v", err)
 	}
 
 	// Start the token bucket limiter
@@ -617,7 +617,7 @@ func SaveConfig() {
 	dir, name := filepath.Split(ConfigPath)
 	f, err := ioutil.TempFile(dir, name)
 	if err != nil {
-		log.Fatalf("Failed to create temp file for new config: %v", err)
+		log.Printf("Failed to create temp file for new config: %v", err)
 		return
 	}
 	defer func() {
@@ -629,12 +629,12 @@ func SaveConfig() {
 	var buf bytes.Buffer
 	err = goconfig.SaveConfigData(configData, &buf)
 	if err != nil {
-		log.Fatalf("Failed to save config file: %v", err)
+		log.Printf("Failed to save config file: %v", err)
 	}
 
 	if len(configKey) == 0 {
 		if _, err := buf.WriteTo(f); err != nil {
-			log.Fatalf("Failed to write temp config file: %v", err)
+			log.Printf("Failed to write temp config file: %v", err)
 		}
 	} else {
 		fmt.Fprintln(f, "# Encrypted rclone configuration File")
@@ -645,12 +645,12 @@ func SaveConfig() {
 		var nonce [24]byte
 		n, _ := rand.Read(nonce[:])
 		if n != 24 {
-			log.Fatalf("nonce short read: %d", n)
+			log.Printf("nonce short read: %d", n)
 		}
 		enc := base64.NewEncoder(base64.StdEncoding, f)
 		_, err = enc.Write(nonce[:])
 		if err != nil {
-			log.Fatalf("Failed to write temp config file: %v", err)
+			log.Printf("Failed to write temp config file: %v", err)
 		}
 
 		var key [32]byte
@@ -659,14 +659,14 @@ func SaveConfig() {
 		b := secretbox.Seal(nil, buf.Bytes(), &nonce, &key)
 		_, err = enc.Write(b)
 		if err != nil {
-			log.Fatalf("Failed to write temp config file: %v", err)
+			log.Printf("Failed to write temp config file: %v", err)
 		}
 		_ = enc.Close()
 	}
 
 	err = f.Close()
 	if err != nil {
-		log.Fatalf("Failed to close config file: %v", err)
+		log.Printf("Failed to close config file: %v", err)
 	}
 
 	var fileMode os.FileMode = 0600
@@ -686,10 +686,10 @@ func SaveConfig() {
 	}
 
 	if err = os.Rename(ConfigPath, ConfigPath+".old"); err != nil && !os.IsNotExist(err) {
-		log.Fatalf("Failed to move previous config to backup location: %v", err)
+		log.Printf("Failed to move previous config to backup location: %v", err)
 	}
 	if err = os.Rename(f.Name(), ConfigPath); err != nil {
-		log.Fatalf("Failed to move newly written config from %s to final location: %v", f.Name(), err)
+		log.Printf("Failed to move newly written config from %s to final location: %v", f.Name(), err)
 	}
 	if err := os.Remove(ConfigPath + ".old"); err != nil && !os.IsNotExist(err) {
 		Errorf(nil, "Failed to remove backup config file: %v", err)
@@ -750,7 +750,7 @@ var ReadLine = func() string {
 	buf := bufio.NewReader(os.Stdin)
 	line, err := buf.ReadString('\n')
 	if err != nil {
-		log.Fatalf("Failed to read line: %v", err)
+		log.Printf("Failed to read line: %v", err)
 	}
 	return strings.TrimSpace(line)
 }
@@ -904,7 +904,7 @@ func OkRemote(name string) bool {
 func MustFindByName(name string) *RegInfo {
 	fsType := ConfigFileGet(name, "type")
 	if fsType == "" {
-		log.Fatalf("Couldn't find type of fs for %q", name)
+		log.Printf("Couldn't find type of fs for %q", name)
 	}
 	return MustFind(fsType)
 }
@@ -941,7 +941,7 @@ func ChooseOption(o *Option) string {
 				var pw = make([]byte, bytes)
 				n, _ := rand.Read(pw)
 				if n != bytes {
-					log.Fatalf("password short read: %d", n)
+					log.Printf("password short read: %d", n)
 				}
 				password = base64.RawURLEncoding.EncodeToString(pw)
 				fmt.Printf("Your password is: %s\n", password)
@@ -1165,12 +1165,12 @@ func Authorize(args []string) {
 	switch len(args) {
 	case 1, 3:
 	default:
-		log.Fatalf("Invalid number of arguments: %d", len(args))
+		log.Printf("Invalid number of arguments: %d", len(args))
 	}
 	newType := args[0]
 	fs := MustFind(newType)
 	if fs.Config == nil {
-		log.Fatalf("Can't authorize fs %q", newType)
+		log.Printf("Can't authorize fs %q", newType)
 	}
 	// Name used for temporary fs
 	name := "**temp-fs**"

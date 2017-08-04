@@ -300,10 +300,10 @@ func makeTestBinary() {
 	log.Printf("Making test binary %q", binary)
 	err := exec.Command("go", "test", "-c", "-o", binary).Run()
 	if err != nil {
-		log.Fatalf("Failed to make test binary: %v", err)
+		log.Printf("Failed to make test binary: %v", err)
 	}
 	if _, err := os.Stat(binary); err != nil {
-		log.Fatalf("Couldn't find test binary %q", binary)
+		log.Printf("Couldn't find test binary %q", binary)
 	}
 }
 

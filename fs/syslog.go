@@ -11,6 +11,6 @@ import (
 
 // Starts syslog if configured, returns true if it was started
 func startSysLog() bool {
-	log.Fatalf("--syslog not supported on %s platform", runtime.GOOS)
+	log.Printf("--syslog not supported on %s platform", runtime.GOOS)
 	return false
 }

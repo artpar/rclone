@@ -167,7 +167,7 @@ like this:
 
 			err := Mount(fdst, args[1])
 			if err != nil {
-				log.Fatalf("Fatal error: %v", err)
+				log.Printf("Fatal error: %v", err)
 			}
 		},
 	}

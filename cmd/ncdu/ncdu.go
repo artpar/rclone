@@ -463,7 +463,7 @@ func NewUI(f fs.Fs) *UI {
 func (u *UI) Show() error {
 	err := termbox.Init()
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 	defer termbox.Close()
 

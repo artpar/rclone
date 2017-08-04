@@ -248,11 +248,11 @@ func setDefaultFromEnv(name string) {
 	if found {
 		flag := pflag.Lookup(name)
 		if flag == nil {
-			log.Fatalf("Couldn't find flag %q", name)
+			log.Printf("Couldn't find flag %q", name)
 		}
 		err := flag.Value.Set(newValue)
 		if err != nil {
-			log.Fatalf("Invalid value for environment variable %q: %v", key, err)
+			log.Printf("Invalid value for environment variable %q: %v", key, err)
 		}
 		Debugf(nil, "Set default for %q from %q to %q (%v)", name, key, newValue, flag.Value)
 		flag.DefValue = newValue

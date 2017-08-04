@@ -98,11 +98,11 @@ func init() {
 		Config: func(name string) {
 			err := oauthutil.Config("drive", name, driveConfig)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 			}
 			err = configTeamDrive(name)
 			if err != nil {
-				log.Fatalf("Failed to configure team drive: %v", err)
+				log.Printf("Failed to configure team drive: %v", err)
 			}
 		},
 		Options: []fs.Option{{
@@ -401,7 +401,7 @@ func NewFs(name, path string) (fs.Fs, error) {
 
 	oAuthClient, _, err := oauthutil.NewClient(name, &oauthConf1)
 	if err != nil {
-		log.Fatalf("Failed to configure drive: %v", err)
+		log.Printf("Failed to configure drive: %v", err)
 	}
 
 	root, err := parseDrivePath(path)

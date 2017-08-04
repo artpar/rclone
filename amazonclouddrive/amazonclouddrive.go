@@ -69,7 +69,7 @@ func init() {
 		Config: func(name string) {
 			err := oauthutil.Config("amazon cloud drive", name, acdConfig)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 			}
 		},
 		Options: []fs.Option{{
@@ -179,7 +179,7 @@ func NewFs(name, root string) (fs.Fs, error) {
 	root = parsePath(root)
 	oAuthClient, ts, err := oauthutil.NewClient(name, acdConfig)
 	if err != nil {
-		log.Fatalf("Failed to configure Amazon Drive: %v", err)
+		log.Printf("Failed to configure Amazon Drive: %v", err)
 	}
 
 	c := acd.NewClient(oAuthClient)

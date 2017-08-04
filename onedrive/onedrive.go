@@ -63,7 +63,7 @@ func init() {
 		Config: func(name string) {
 			err := oauthutil.Config("onedrive", name, oauthConfig)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 			}
 		},
 		Options: []fs.Option{{
@@ -208,7 +208,7 @@ func NewFs(name, root string) (fs.Fs, error) {
 
 	oAuthClient, ts, err := oauthutil.NewClient(name, &oauthConf1)
 	if err != nil {
-		log.Fatalf("Failed to configure OneDrive: %v", err)
+		log.Printf("Failed to configure OneDrive: %v", err)
 	}
 
 	f := &Fs{

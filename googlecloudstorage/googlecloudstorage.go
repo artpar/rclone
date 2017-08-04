@@ -70,7 +70,7 @@ func init() {
 			}
 			err := oauthutil.Config("google cloud storage", name, storageConfig)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 			}
 		},
 		Options: []fs.Option{{
@@ -293,7 +293,7 @@ func NewFs(name, root string) (fs.Fs, error) {
 	if serviceAccountPath != "" {
 		oAuthClient, err = getServiceAccountClient(serviceAccountPath)
 		if err != nil {
-			log.Fatalf("Failed configuring Google Cloud Storage Service Account: %v", err)
+			log.Printf("Failed configuring Google Cloud Storage Service Account: %v", err)
 		}
 	} else {
 
@@ -307,7 +307,7 @@ func NewFs(name, root string) (fs.Fs, error) {
 
 		oAuthClient, _, err = oauthutil.NewClient(name, &oauthConf1)
 		if err != nil {
-			log.Fatalf("Failed to configure Google Cloud Storage: %v", err)
+			log.Printf("Failed to configure Google Cloud Storage: %v", err)
 		}
 	}
 

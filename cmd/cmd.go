@@ -108,7 +108,7 @@ func newFsFile(remote string) (fs.Fs, string) {
 	fsInfo, configName, fsPath, err := fs.ParseRemote(remote)
 	if err != nil {
 		fs.Stats.Error()
-		log.Fatalf("Failed to create file system for %q: %v", remote, err)
+		log.Printf("Failed to create file system for %q: %v", remote, err)
 	}
 	f, err := fsInfo.NewFs(configName, fsPath)
 	switch err {
@@ -118,7 +118,7 @@ func newFsFile(remote string) (fs.Fs, string) {
 		return f, ""
 	default:
 		fs.Stats.Error()
-		log.Fatalf("Failed to create file system for %q: %v", remote, err)
+		log.Printf("Failed to create file system for %q: %v", remote, err)
 	}
 	return nil, ""
 }
@@ -133,13 +133,13 @@ func newFsSrc(remote string) (fs.Fs, string) {
 	if fileName != "" {
 		if !fs.Config.Filter.InActive() {
 			fs.Stats.Error()
-			log.Fatalf("Can't limit to single files when using filters: %v", remote)
+			log.Printf("Can't limit to single files when using filters: %v", remote)
 		}
 		// Limit transfers to this file
 		err := fs.Config.Filter.AddFile(fileName)
 		if err != nil {
 			fs.Stats.Error()
-			log.Fatalf("Failed to limit to single file %q: %v", remote, err)
+			log.Printf("Failed to limit to single file %q: %v", remote, err)
 		}
 		// Set --no-traverse as only one file
 		fs.Config.NoTraverse = true
@@ -154,7 +154,7 @@ func newFsDst(remote string) fs.Fs {
 	f, err := fs.NewFs(remote)
 	if err != nil {
 		fs.Stats.Error()
-		log.Fatalf("Failed to create file system for %q: %v", remote, err)
+		log.Printf("Failed to create file system for %q: %v", remote, err)
 	}
 	return f
 }
@@ -179,7 +179,7 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 			dstRemote = "."
 		}
 		if dstFileName == "" {
-			log.Fatalf("%q is a directory", args[1])
+			log.Printf("%q is a directory", args[1])
 		}
 	}
 	fdst = newFsDst(dstRemote)
@@ -251,7 +251,7 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 		close(stopStats)
 	}
 	if err != nil {
-		log.Fatalf("Failed to %s: %v", cmd.Name(), err)
+		log.Printf("Failed to %s: %v", cmd.Name(), err)
 	}
 	if showStats && (fs.Stats.Errored() || *statsInterval > 0) {
 		fs.Stats.Log()
@@ -314,12 +314,12 @@ func initConfig() {
 		f, err := os.Create(*cpuProfile)
 		if err != nil {
 			fs.Stats.Error()
-			log.Fatal(err)
+			log.Print(err)
 		}
 		err = pprof.StartCPUProfile(f)
 		if err != nil {
 			fs.Stats.Error()
-			log.Fatal(err)
+			log.Print(err)
 		}
 		AtExit(func() {
 			pprof.StopCPUProfile()
@@ -333,17 +333,17 @@ func initConfig() {
 			f, err := os.Create(*memProfile)
 			if err != nil {
 				fs.Stats.Error()
-				log.Fatal(err)
+				log.Print(err)
 			}
 			err = pprof.WriteHeapProfile(f)
 			if err != nil {
 				fs.Stats.Error()
-				log.Fatal(err)
+				log.Print(err)
 			}
 			err = f.Close()
 			if err != nil {
 				fs.Stats.Error()
-				log.Fatal(err)
+				log.Print(err)
 			}
 		})
 	}

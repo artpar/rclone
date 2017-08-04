@@ -13,6 +13,6 @@ import (
 
 func main() {
 	if err := cmd.Root.Execute(); err != nil {
-		log.Fatalf("Fatal error: %v", err)
+		log.Printf("Fatal error: %v", err)
 	}
 }

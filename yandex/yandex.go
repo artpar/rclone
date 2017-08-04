@@ -49,7 +49,7 @@ func init() {
 		Config: func(name string) {
 			err := oauthutil.Config("yandex", name, oauthConfig)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 			}
 		},
 		Options: []fs.Option{{

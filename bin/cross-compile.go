@@ -76,7 +76,7 @@ func runEnv(args, env []string) {
 	}
 	err := cmd.Run()
 	if err != nil {
-		log.Fatalf("Failed to run %v: %v", args, err)
+		log.Printf("Failed to run %v: %v", args, err)
 	}
 }
 
@@ -94,7 +94,7 @@ func compileArch(version, goos, goarch, dir string) {
 	}
 	err := os.MkdirAll(dir, 0777)
 	if err != nil {
-		log.Fatalf("Failed to mkdir: %v", err)
+		log.Printf("Failed to mkdir: %v", err)
 	}
 	args := []string{
 		"go", "build",
@@ -149,11 +149,11 @@ func compile(version string) {
 	}
 	includeRe, err := regexp.Compile(*include)
 	if err != nil {
-		log.Fatalf("Bad -include regexp: %v", err)
+		log.Printf("Bad -include regexp: %v", err)
 	}
 	excludeRe, err := regexp.Compile(*exclude)
 	if err != nil {
-		log.Fatalf("Bad -exclude regexp: %v", err)
+		log.Printf("Bad -exclude regexp: %v", err)
 	}
 	compiled := 0
 	for _, osarch := range osarches {
@@ -162,7 +162,7 @@ func compile(version string) {
 		}
 		parts := strings.Split(osarch, "/")
 		if len(parts) != 2 {
-			log.Fatalf("Bad osarch %q", osarch)
+			log.Printf("Bad osarch %q", osarch)
 		}
 		goos, goarch := parts[0], parts[1]
 		userGoos := goos
@@ -184,7 +184,7 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 	if len(args) != 1 {
-		log.Fatalf("Syntax: %s <version>", os.Args[0])
+		log.Printf("Syntax: %s <version>", os.Args[0])
 	}
 	version := args[0]
 	if !*noClean {
@@ -193,7 +193,7 @@ func main() {
 	}
 	err := os.Chdir("build")
 	if err != nil {
-		log.Fatalf("Couldn't cd into build dir: %v", err)
+		log.Printf("Couldn't cd into build dir: %v", err)
 	}
 	compile(version)
 }

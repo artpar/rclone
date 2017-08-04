@@ -75,18 +75,18 @@ func newRun() *Run {
 	var err error
 	r.fremote, r.fremoteName, r.cleanRemote, err = fstest.RandomRemote(*fstest.RemoteName, *fstest.SubDir)
 	if err != nil {
-		log.Fatalf("Failed to open remote %q: %v", *fstest.RemoteName, err)
+		log.Printf("Failed to open remote %q: %v", *fstest.RemoteName, err)
 	}
 
 	err = r.fremote.Mkdir("")
 	if err != nil {
-		log.Fatalf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
+		log.Printf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
 	}
 
 	if runtime.GOOS != "windows" {
 		r.mountPath, err = ioutil.TempDir("", "rclonefs-mount")
 		if err != nil {
-			log.Fatalf("Failed to create mount dir: %v", err)
+			log.Printf("Failed to create mount dir: %v", err)
 		}
 	} else {
 		// Find a free drive letter
@@ -98,7 +98,7 @@ func newRun() *Run {
 				goto found
 			}
 		}
-		log.Fatalf("Couldn't find free drive letter for test")
+		log.Printf("Couldn't find free drive letter for test")
 	found:
 		r.mountPath = drive
 	}
@@ -140,12 +140,12 @@ func (r *Run) umount() {
 		err = r.umountFn()
 	}
 	if err != nil {
-		log.Fatalf("signal to umount failed: %v", err)
+		log.Printf("signal to umount failed: %v", err)
 	}
 	log.Printf("Waiting for umount")
 	err = <-r.umountResult
 	if err != nil {
-		log.Fatalf("umount failed: %v", err)
+		log.Printf("umount failed: %v", err)
 	}
 }
 

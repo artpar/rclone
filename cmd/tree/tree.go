@@ -96,7 +96,7 @@ short options as they conflict with rclone's short options.
 			var err error
 			outFile, err = os.Create(outFileName)
 			if err != nil {
-				log.Fatalf("Failed to create output file: %v", err)
+				log.Printf("Failed to create output file: %v", err)
 			}
 		}
 		opts.VerSort = opts.VerSort || sort == "version"

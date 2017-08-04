@@ -31,11 +31,11 @@ func init() {
 func seekTest(n int, file string) {
 	in, err := os.Open(file)
 	if err != nil {
-		log.Fatalf("Couldn't open %q: %v", file, err)
+		log.Printf("Couldn't open %q: %v", file, err)
 	}
 	fi, err := in.Stat()
 	if err != nil {
-		log.Fatalf("Couldn't stat %q: %v", file, err)
+		log.Printf("Couldn't stat %q: %v", file, err)
 	}
 	size := fi.Size()
 
@@ -70,7 +70,7 @@ func seekTest(n int, file string) {
 
 		_, err = in.Seek(start, 0)
 		if err != nil {
-			log.Fatalf("Seek failed on %q: %v", file, err)
+			log.Printf("Seek failed on %q: %v", file, err)
 		}
 
 		buf := make([]byte, blockSize)
@@ -78,13 +78,13 @@ func seekTest(n int, file string) {
 		if beyondEnd && err == io.EOF {
 			// OK
 		} else if err != nil {
-			log.Fatalf("Read failed on %q: %v (%d)", file, err, n)
+			log.Printf("Read failed on %q: %v (%d)", file, err, n)
 		}
 	}
 
 	err = in.Close()
 	if err != nil {
-		log.Fatalf("Error closing %q: %v", file, err)
+		log.Printf("Error closing %q: %v", file, err)
 	}
 }
 
@@ -104,7 +104,7 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 	if len(args) != 1 {
-		log.Fatalf("Require a directory as argument")
+		log.Printf("Require a directory as argument")
 	}
 	dir := args[0]
 	files := findFiles(dir)
