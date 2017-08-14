@@ -4,7 +4,7 @@
 
 package oauthutil
 
-import "github.com/ncw/rclone/fs"
+import "github.com/artpar/rclone/fs"
 
 func (s *authServer) Stop() {
 	fs.Debugf(nil, "Closing auth server")

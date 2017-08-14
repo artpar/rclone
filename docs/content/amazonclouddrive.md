@@ -16,7 +16,7 @@ Amazon which you need to do in your browser.  `rclone config` walks
 you through it.
 
 The configuration process for Amazon Drive may involve using an [oauth
-proxy](https://github.com/ncw/oauthproxy). This is used to keep the
+proxy](https://github.com/artpar/oauthproxy). This is used to keep the
 Amazon credentials out of the source code.  The proxy runs in Google's
 very secure App Engine environment and doesn't store any credentials
 which pass through it.

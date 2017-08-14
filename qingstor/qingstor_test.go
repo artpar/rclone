@@ -10,9 +10,9 @@ package qingstor_test
 import (
 	"testing"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fstest/fstests"
-	"github.com/ncw/rclone/qingstor"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest/fstests"
+	"github.com/artpar/rclone/qingstor"
 )
 
 func TestSetup(t *testing.T) {

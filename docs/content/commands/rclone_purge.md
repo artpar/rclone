@@ -36,7 +36,7 @@ rclone purge remote:path
       --bwlimit BwTimetable               Bandwidth limit in kBytes/s, or use suffix b|k|M|G or a full timetable.
       --checkers int                      Number of checkers to run in parallel. (default 8)
   -c, --checksum                          Skip based on checksum & size, not mod-time & size
-      --config string                     Config file. (default "/home/ncw/.rclone.conf")
+      --config string                     Config file. (default "/home/artpar/.rclone.conf")
       --contimeout duration               Connect timeout (default 1m0s)
   -L, --copy-links                        Follow symlinks and copy the pointed to item.
       --cpuprofile string                 Write cpu profile to file
