@@ -100,7 +100,7 @@ func TestGlobToDirGlobs(t *testing.T) {
 		{`a**b/c**d`, []string{"a**b/c**/", "a**b/", "a**/"}},
 		{`/A/a**b/B/c**d/C/`, []string{"/A/a**b/B/c**d/C/", "/A/a**b/B/c**d/", "/A/a**b/B/c**/", "/A/a**b/B/", "/A/a**b/", "/A/a**/", "/A/", "/"}},
 		{`/var/spool/**/ncw`, []string{"/var/spool/**/", "/var/spool/", "/var/", "/"}},
-		{`var/spool/**/ncw/`, []string{"var/spool/**/ncw/", "var/spool/**/", "var/spool/", "var/"}},
+		{`var/spool/**/artpar/`, []string{"var/spool/**/artpar/", "var/spool/**/", "var/spool/", "var/"}},
 		{"/file1.jpg", []string{`/`}},
 		{"/file2.png", []string{`/`}},
 		{"/*.jpg", []string{`/`}},
