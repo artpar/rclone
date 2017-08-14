@@ -268,7 +268,11 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 		close(stopStats)
 	}
 	if err != nil {
-		log.Printf("Failed to %s: %v", cmd.Name(), err)
+		if cmd != nil {
+			log.Printf("Failed to %s: %v", cmd.Name(), err)
+		} else {
+			log.Printf("Failed to: %v", err)
+		}
 	}
 	if showStats && (fs.Stats.Errored() || *statsInterval > 0) {
 		fs.Stats.Log()
