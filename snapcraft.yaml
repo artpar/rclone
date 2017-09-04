@@ -9,15 +9,19 @@ grade: stable
 
 apps:
   rclone:
-    command: usr/bin/rclone
+    command: bin/rclone
     plugs: [home, network, network-bind, fuse-support]
 
 parts:
   rclone:
     plugin: go
     source: https://github.com/artpar/rclone
-    source-tag: v1.36
+    source-tag: v1.37
     source-type: git
     go-importpath: github.com/artpar/rclone
     stage-packages: [fuse]
     build-packages: [gcc, libgudev-1.0-dev, fuse]
+    go-importpath: github.com/artpar/rclone
+    # Snapcraft's go plugin tries to build binaries for all dependencies, but rclone doesn't need them.
+    # This instruct it to only build rclone.
+    go-packages: [github.com/artpar/rclone]

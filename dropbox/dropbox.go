@@ -17,7 +17,9 @@ casing. Changes to only the casing of paths won't be returned by
 list_folder/continue. This field will be null if the file or folder is
 not mounted. This field is optional.
 
-We solve this by not implementing the ListR interface.  The dropbox remote will recurse directory by directory and all will be well.
+We solve this by not implementing the ListR interface.  The dropbox
+remote will recurse directory by directory only using the last element
+of path_display and all will be well.
 */
 
 import (
@@ -194,7 +196,11 @@ func NewFs(name, root string) (fs.Fs, error) {
 		srv:   srv,
 		pacer: pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
 	}
-	f.features = (&fs.Features{CaseInsensitive: true, ReadMimeType: true}).Fill(f)
+	f.features = (&fs.Features{
+		CaseInsensitive:         true,
+		ReadMimeType:            true,
+		CanHaveEmptyDirectories: true,
+	}).Fill(f)
 	f.setRoot(root)
 
 	// See if the root is actually an object
@@ -300,29 +306,6 @@ func (f *Fs) NewObject(remote string) (fs.Object, error) {
 	return f.newObjectWithInfo(remote, nil)
 }
 
-// Strips the root off path and returns it
-func strip(path, root string) (string, error) {
-	if len(root) > 0 {
-		if root[0] != '/' {
-			root = "/" + root
-		}
-		if root[len(root)-1] != '/' {
-			root += "/"
-		}
-	} else if len(root) == 0 {
-		root = "/"
-	}
-	if !strings.HasPrefix(strings.ToLower(path), strings.ToLower(root)) {
-		return "", errors.Errorf("path %q is not under root %q", path, root)
-	}
-	return path[len(root):], nil
-}
-
-// Strips the root off path and returns it
-func (f *Fs) stripRoot(path string) (string, error) {
-	return strip(path, f.slashRootSlash)
-}
-
 // List the objects and directories in dir into entries.  The
 // entries can be returned in any order but should be for a
 // complete directory.
@@ -392,24 +375,15 @@ func (f *Fs) List(dir string) (entries fs.DirEntries, err error) {
 				continue
 			}
 
-			entryPath := metadata.PathDisplay // FIXME  PathLower
-
+			// Only the last element is reliably cased in PathDisplay
+			entryPath := metadata.PathDisplay
+			leaf := path.Base(entryPath)
+			remote := path.Join(dir, leaf)
 			if folderInfo != nil {
-				name, err := f.stripRoot(entryPath + "/")
-				if err != nil {
-					return nil, err
-				}
-				name = strings.Trim(name, "/")
-				if name != "" && name != dir {
-					d := fs.NewDir(name, time.Now())
-					entries = append(entries, d)
-				}
+				d := fs.NewDir(remote, time.Now())
+				entries = append(entries, d)
 			} else if fileInfo != nil {
-				path, err := f.stripRoot(entryPath)
-				if err != nil {
-					return nil, err
-				}
-				o, err := f.newObjectWithInfo(path, fileInfo)
+				o, err := f.newObjectWithInfo(remote, fileInfo)
 				if err != nil {
 					return nil, err
 				}
@@ -479,7 +453,7 @@ func (f *Fs) Mkdir(dir string) error {
 		Path: root,
 	}
 	err = f.pacer.Call(func() (bool, error) {
-		_, err = f.srv.CreateFolder(&arg2)
+		_, err = f.srv.CreateFolderV2(&arg2)
 		return shouldRetry(err)
 	})
 	return err
@@ -524,7 +498,7 @@ func (f *Fs) Rmdir(dir string) error {
 
 	// remove it
 	err = f.pacer.Call(func() (bool, error) {
-		_, err = f.srv.Delete(&files.DeleteArg{Path: root})
+		_, err = f.srv.DeleteV2(&files.DeleteArg{Path: root})
 		return shouldRetry(err)
 	})
 	return err
@@ -592,7 +566,7 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 func (f *Fs) Purge() (err error) {
 	// Let dropbox delete the filesystem tree
 	err = f.pacer.Call(func() (bool, error) {
-		_, err = f.srv.Delete(&files.DeleteArg{Path: f.slashRoot})
+		_, err = f.srv.DeleteV2(&files.DeleteArg{Path: f.slashRoot})
 		return shouldRetry(err)
 	})
 	return err
@@ -848,8 +822,7 @@ func (o *Object) uploadChunked(in0 io.Reader, commitInfo *files.CommitInfo, size
 	if size != -1 {
 		chunks = int(size/chunkSize) + 1
 	}
-	wc := &writeCounter{}
-	in := io.TeeReader(in0, wc)
+	in := fs.NewCountingReader(in0)
 
 	fmtChunk := func(cur int, last bool) {
 		if chunks == 0 && last {
@@ -888,12 +861,12 @@ func (o *Object) uploadChunked(in0 io.Reader, commitInfo *files.CommitInfo, size
 			// if the size is known, only upload full chunks. Remaining bytes are uploaded with
 			// the UploadSessionFinish request.
 			break
-		} else if chunks == 0 && wc.Written-cursor.Offset < uint64(chunkSize) {
+		} else if chunks == 0 && in.BytesRead()-cursor.Offset < uint64(chunkSize) {
 			// if the size is unknown, upload as long as we can read full chunks from the reader.
 			// The UploadSessionFinish request will not contain any payload.
 			break
 		}
-		cursor.Offset = wc.Written
+		cursor.Offset = in.BytesRead()
 		fmtChunk(currentChunk, false)
 		err = o.fs.pacer.CallNoRetry(func() (bool, error) {
 			err = o.fs.srv.UploadSessionAppendV2(&appendArg, &io.LimitedReader{R: in, N: chunkSize})
@@ -906,7 +879,7 @@ func (o *Object) uploadChunked(in0 io.Reader, commitInfo *files.CommitInfo, size
 	}
 
 	// write the remains
-	cursor.Offset = wc.Written
+	cursor.Offset = in.BytesRead()
 	args := &files.UploadSessionFinishArg{
 		Cursor: &cursor,
 		Commit: commitInfo,
@@ -958,21 +931,10 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 // Remove an object
 func (o *Object) Remove() (err error) {
 	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
-		_, err = o.fs.srv.Delete(&files.DeleteArg{Path: o.remotePath()})
+		_, err = o.fs.srv.DeleteV2(&files.DeleteArg{Path: o.remotePath()})
 		return shouldRetry(err)
 	})
 	return err
-}
-
-type writeCounter struct {
-	Written uint64
-}
-
-// Write implements the io.Writer interface.
-func (wc *writeCounter) Write(p []byte) (int, error) {
-	n := len(p)
-	wc.Written += uint64(n)
-	return n, nil
 }
 
 // Check the interfaces are satisfied

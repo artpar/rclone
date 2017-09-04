@@ -2,33 +2,20 @@ package genautocomplete
 
 import (
 	"log"
-
 	"github.com/artpar/rclone/cmd"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	cmd.Root.AddCommand(commandDefintion)
+	cmd.Root.AddCommand(completionDefinition)
 }
 
-var commandDefintion = &cobra.Command{
-	Use:   "genautocomplete [output_file]",
-	Short: `Output bash completion script for rclone.`,
+var completionDefinition = &cobra.Command{
+	Use:   "genautocomplete [shell]",
+	Short: `Output completion script for a given shell.`,
 	Long: `
-Generates a bash shell autocompletion script for rclone.
-
-This writes to /etc/bash_completion.d/rclone by default so will
-probably need to be run with sudo or as root, eg
-
-    sudo rclone genautocomplete
-
-Logout and login again to use the autocompletion scripts, or source
-them directly
-
-    . /etc/bash_completion
-
-If you supply a command line argument the script will be written
-there.
+Generates a shell completion script for rclone.
+Run with --help to list the supported shells.
 `,
 	Run: func(command *cobra.Command, args []string) {
 		cmd.CheckArgs(0, 1, command, args)

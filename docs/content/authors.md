@@ -93,3 +93,9 @@ Contributors
   * Andy Pilate <cubox@cubox.me>
   * Oliver Heyme <olihey@googlemail.com>
   * wuyu <wuyu@yunify.com>
+  * Andrei Dragomir <adragomi@adobe.com>
+  * Christian Brüggemann <mail@cbruegg.com>
+  * Alex McGrath Kraak <amkdude@gmail.com>
+  * bpicode <bjoern.pirnay@googlemail.com>
+  * Daniel Jagszent <daniel@jagszent.de>
+  * Josiah White <thegenius2009@gmail.com>
