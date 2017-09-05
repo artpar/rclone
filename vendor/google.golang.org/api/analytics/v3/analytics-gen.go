@@ -960,6 +960,9 @@ type CustomDataSource struct {
 	// source.
 	ProfilesLinked []string `json:"profilesLinked,omitempty"`
 
+	// Schema: Collection of schema headers of the custom data source.
+	Schema []string `json:"schema,omitempty"`
+
 	// SelfLink: Link for this Analytics custom data source.
 	SelfLink string `json:"selfLink,omitempty"`
 
@@ -969,6 +972,7 @@ type CustomDataSource struct {
 	// Updated: Time this custom data source was last modified.
 	Updated string `json:"updated,omitempty"`
 
+	// UploadType: Upload type of the custom data source.
 	UploadType string `json:"uploadType,omitempty"`
 
 	// WebPropertyId: Web property ID of the form UA-XXXXX-YY to which this
@@ -3473,7 +3477,8 @@ type LinkedForeignAccount struct {
 	// Status: The status of this foreign account link.
 	Status string `json:"status,omitempty"`
 
-	// Type: The type of the foreign account. For example `ADWORDS_LINKS`.
+	// Type: The type of the foreign account. For example, `ADWORDS_LINKS`,
+	// `DBM_LINKS`, `MCC_LINKS` or `OPTIMIZE`.
 	Type string `json:"type,omitempty"`
 
 	// WebPropertyId: Web property ID of the form UA-XXXXX-YY to which this
@@ -5075,6 +5080,9 @@ type Upload struct {
 	// Status: Upload status. Possible values: PENDING, COMPLETED, FAILED,
 	// DELETING, DELETED.
 	Status string `json:"status,omitempty"`
+
+	// UploadTime: Time this file is uploaded.
+	UploadTime string `json:"uploadTime,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.

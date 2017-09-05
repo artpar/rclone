@@ -78,22 +78,13 @@ class GoClientGenerator(CodeGenerator):
         signature = 'func (dbx *apiImpl) ' + self._generate_route_signature(
             namespace, route)
         with self.block(signature):
-            if route.deprecated is not None:
-                out('log.Printf("WARNING: API `%s` is deprecated")' % fn)
-                if route.deprecated.by is not None:
-                    out('log.Printf("Use API `%s` instead")' % fmt_var(route.deprecated.by.name))
-                out()
-
             out('cli := dbx.Client')
             out()
 
             self._generate_request(namespace, route)
             self._generate_post()
             self._generate_response(route)
-            ok_check = 'if resp.StatusCode == http.StatusOK'
-            if fn == "Download":
-                ok_check += ' || resp.StatusCode == http.StatusPartialContent'
-            with self.block(ok_check):
+            with self.block('if resp.StatusCode == http.StatusOK'):
                 self._generate_result(route)
             self._generate_error_handling(route)
 
@@ -107,8 +98,8 @@ class GoClientGenerator(CodeGenerator):
 
         body = 'nil'
         if not is_void_type(route.arg_data_type):
-            out('dbx.Config.TryLog("arg: %v", arg)')
-
+            with self.block('if dbx.Config.Verbose'):
+                out('log.Printf("arg: %v", arg)')
             out('b, err := json.Marshal(arg)')
             with self.block('if err != nil'):
                 out('return')
@@ -128,11 +119,9 @@ class GoClientGenerator(CodeGenerator):
             headers["Content-Type"] = '"application/octet-stream"'
 
         out('headers := map[string]string{')
-        for k, v in sorted(headers.items()):
+        for k, v in headers.items():
             out('\t"{}": {},'.format(k, v))
         out('}')
-        if fmt_var(route.name) == "Download":
-            out('for k, v := range arg.ExtraHeaders { headers[k] = v }')
         if auth != 'noauth' and auth != 'team':
             with self.block('if dbx.Config.AsMemberID != ""'):
                 out('headers["Dropbox-API-Select-User"] = dbx.Config.AsMemberID')
@@ -143,21 +132,20 @@ class GoClientGenerator(CodeGenerator):
             host, style, authed, namespace.name, route.name, body))
         with self.block('if err != nil'):
             out('return')
-
-        out('dbx.Config.TryLog("req: %v", req)')
-
+        with self.block('if dbx.Config.Verbose'):
+            out('log.Printf("req: %v", req)')
         out()
 
     def _generate_post(self):
         out = self.emit
 
         out('resp, err := cli.Do(req)')
+        with self.block('if dbx.Config.Verbose'):
+            out('log.Printf("resp: %v", resp)')
 
         with self.block('if err != nil'):
             out('return')
         out()
-
-        out('dbx.Config.TryLog("resp: %v", resp)')
 
     def _generate_response(self, route):
         out = self.emit
@@ -171,8 +159,8 @@ class GoClientGenerator(CodeGenerator):
                             'if err != nil'):
                 out('return')
             out()
-
-        out('dbx.Config.TryLog("body: %v", body)')
+        with self.block('if dbx.Config.Verbose'):
+            out('log.Printf("body: %s", body)')
 
     def _generate_error_handling(self, route):
         out = self.emit

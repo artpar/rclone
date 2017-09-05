@@ -245,6 +245,29 @@ type CloudFunction struct {
 	// defined.
 	SourceRepository *SourceRepository `json:"sourceRepository,omitempty"`
 
+	// SourceRepositoryUrl: The URL pointing to the hosted repository where
+	// the function is defined.
+	// There are supported Cloud Source Repository URLs in the
+	// following
+	// formats:
+	//
+	// To refer to a specific
+	// commit:
+	// `https://source.developers.google.com/projects/*/repos/*/revis
+	// ions/*/paths/*`
+	// To refer to a moveable alias
+	// (branch):
+	// `https://source.developers.google.com/projects/*/repos/*/ali
+	// ases/movable/*/paths/*`
+	// In particular, to refer to HEAD use `master` moveable alias.
+	// To refer to a specific fixed alias
+	// (tag):
+	// `https://source.developers.google.com/projects/*/repos/*/aliase
+	// s/fixed/*/paths/*`
+	//
+	// You may omit `paths/*` if you want to use the main directory.
+	SourceRepositoryUrl string `json:"sourceRepositoryUrl,omitempty"`
+
 	// Status: Output only. Status of the function deployment.
 	//
 	// Possible values:
@@ -316,6 +339,9 @@ type EventTrigger struct {
 	//      `providers/firebase.database/eventTypes/data.write`
 	EventType string `json:"eventType,omitempty"`
 
+	// FailurePolicy: Specifies policy for failed executions.
+	FailurePolicy *FailurePolicy `json:"failurePolicy,omitempty"`
+
 	// Resource: Which instance of the source's service should send events.
 	// E.g. for Pub/Sub
 	// this would be a Pub/Sub topic at `projects/*/topics/*`. For Google
@@ -346,6 +372,38 @@ type EventTrigger struct {
 
 func (s *EventTrigger) MarshalJSON() ([]byte, error) {
 	type noMethod EventTrigger
+	raw := noMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// FailurePolicy: Describes the policy in case of function's execution
+// failure.
+// If empty, then defaults to ignoring failures (i.e. not retrying
+// them).
+type FailurePolicy struct {
+	// Retry: If specified, then the function will be retried in case of a
+	// failure.
+	Retry *Retry `json:"retry,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Retry") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Retry") to include in API
+	// requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *FailurePolicy) MarshalJSON() ([]byte, error) {
+	type noMethod FailurePolicy
 	raw := noMethod(*s)
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
@@ -543,8 +601,8 @@ func (s *Location) MarshalJSON() ([]byte, error) {
 type Operation struct {
 	// Done: If the value is `false`, it means the operation is still in
 	// progress.
-	// If true, the operation is completed, and either `error` or `response`
-	// is
+	// If `true`, the operation is completed, and either `error` or
+	// `response` is
 	// available.
 	Done bool `json:"done,omitempty"`
 
@@ -652,6 +710,16 @@ func (s *OperationMetadataV1Beta2) MarshalJSON() ([]byte, error) {
 	type noMethod OperationMetadataV1Beta2
 	raw := noMethod(*s)
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// Retry: Describes the retry policy in case of function's execution
+// failure.
+// A function execution will be retried on any failure.
+// A failed execution will be retried up to 7 days with an exponential
+// backoff
+// (capped at 10 seconds).
+// Retried execution is charged as any other execution.
+type Retry struct {
 }
 
 // SourceRepository: Describes the location of the function source in a
@@ -805,9 +873,9 @@ type Status struct {
 	// google.rpc.Code.
 	Code int64 `json:"code,omitempty"`
 
-	// Details: A list of messages that carry the error details.  There will
-	// be a
-	// common set of message types for APIs to use.
+	// Details: A list of messages that carry the error details.  There is a
+	// common set of
+	// message types for APIs to use.
 	Details []googleapi.RawMessage `json:"details,omitempty"`
 
 	// Message: A developer-facing error message, which should be in

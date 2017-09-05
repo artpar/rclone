@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
@@ -49,7 +50,9 @@ type TokenFromOauth1APIError struct {
 func (dbx *apiImpl) TokenFromOauth1(arg *TokenFromOAuth1Arg) (res *TokenFromOAuth1Result, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -66,21 +69,27 @@ func (dbx *apiImpl) TokenFromOauth1(arg *TokenFromOAuth1Arg) (res *TokenFromOAut
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -130,21 +139,27 @@ func (dbx *apiImpl) TokenRevoke() (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return
 	}

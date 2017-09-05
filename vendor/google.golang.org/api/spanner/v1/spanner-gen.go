@@ -319,6 +319,43 @@ func (s *AuditLogConfig) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
+// AuthorizationLoggingOptions: Authorization-related information used
+// by Cloud Audit Logging.
+type AuthorizationLoggingOptions struct {
+	// PermissionType: The type of the permission that was checked.
+	//
+	// Possible values:
+	//   "PERMISSION_TYPE_UNSPECIFIED" - Default. Should not be used.
+	//   "ADMIN_READ" - A read of admin (meta) data.
+	//   "ADMIN_WRITE" - A write of admin (meta) data.
+	//   "DATA_READ" - A read of standard data.
+	//   "DATA_WRITE" - A write of standard data.
+	PermissionType string `json:"permissionType,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "PermissionType") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "PermissionType") to
+	// include in API requests with the JSON null value. By default, fields
+	// with empty values are omitted from API requests. However, any field
+	// with an empty value appearing in NullFields will be sent to the
+	// server as null. It is an error if a field in this list has a
+	// non-empty value. This may be used to include null fields in Patch
+	// requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *AuthorizationLoggingOptions) MarshalJSON() ([]byte, error) {
+	type noMethod AuthorizationLoggingOptions
+	raw := noMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // BeginTransactionRequest: The request for BeginTransaction.
 type BeginTransactionRequest struct {
 	// Options: Required. Options for the new transaction.
@@ -478,6 +515,10 @@ func (s *ChildLink) MarshalJSON() ([]byte, error) {
 
 // CloudAuditOptions: Write a Cloud Audit log
 type CloudAuditOptions struct {
+	// AuthorizationLoggingOptions: Information used by the Cloud Audit
+	// Logging pipeline.
+	AuthorizationLoggingOptions *AuthorizationLoggingOptions `json:"authorizationLoggingOptions,omitempty"`
+
 	// LogName: The log_name to populate in the Cloud Audit Record.
 	//
 	// Possible values:
@@ -488,20 +529,22 @@ type CloudAuditOptions struct {
 	// "cloudaudit.googleapis.com/data_access"
 	LogName string `json:"logName,omitempty"`
 
-	// ForceSendFields is a list of field names (e.g. "LogName") to
-	// unconditionally include in API requests. By default, fields with
-	// empty values are omitted from API requests. However, any non-pointer,
-	// non-interface field appearing in ForceSendFields will be sent to the
-	// server regardless of whether the field is empty or not. This may be
-	// used to include empty fields in Patch requests.
+	// ForceSendFields is a list of field names (e.g.
+	// "AuthorizationLoggingOptions") to unconditionally include in API
+	// requests. By default, fields with empty values are omitted from API
+	// requests. However, any non-pointer, non-interface field appearing in
+	// ForceSendFields will be sent to the server regardless of whether the
+	// field is empty or not. This may be used to include empty fields in
+	// Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "LogName") to include in
-	// API requests with the JSON null value. By default, fields with empty
-	// values are omitted from API requests. However, any field with an
-	// empty value appearing in NullFields will be sent to the server as
-	// null. It is an error if a field in this list has a non-empty value.
-	// This may be used to include null fields in Patch requests.
+	// NullFields is a list of field names (e.g.
+	// "AuthorizationLoggingOptions") to include in API requests with the
+	// JSON null value. By default, fields with empty values are omitted
+	// from API requests. However, any field with an empty value appearing
+	// in NullFields will be sent to the server as null. It is an error if a
+	// field in this list has a non-empty value. This may be used to include
+	// null fields in Patch requests.
 	NullFields []string `json:"-"`
 }
 
@@ -1097,7 +1140,7 @@ type Expr struct {
 	Description string `json:"description,omitempty"`
 
 	// Expression: Textual representation of an expression in
-	// [Common Expression Language](http://go/api-expr) syntax.
+	// Common Expression Language syntax.
 	//
 	// The application context of the containing message determines
 	// which
@@ -1278,7 +1321,29 @@ type Instance struct {
 
 	// NodeCount: Required. The number of nodes allocated to this instance.
 	// This may be zero
-	// in API responses for instances that are not yet in state `READY`.
+	// in API responses for instances that are not yet in state
+	// `READY`.
+	//
+	// Each Spanner node can provide up to 10,000 QPS of reads or 2000 QPS
+	// of
+	// writes (writing single rows at 1KB data per row), and 2 TiB
+	// storage.
+	//
+	// For optimal performance, we recommend provisioning enough nodes to
+	// keep
+	// overall CPU utilization under 75%.
+	//
+	// A minimum of 3 nodes is recommended for production environments.
+	// This
+	// minimum is required for SLAs to apply to your instance.
+	//
+	// Note that Cloud Spanner performance is highly dependent on workload,
+	// schema
+	// design, and dataset characteristics. The performance numbers above
+	// are
+	// estimates, and assume [best
+	// practices](https://cloud.google.com/spanner/docs/bulk-loading)
+	// are followed.
 	NodeCount int64 `json:"nodeCount,omitempty"`
 
 	// State: Output only. The current instance state. For
@@ -1716,6 +1781,35 @@ func (s *ListOperationsResponse) MarshalJSON() ([]byte, error) {
 }
 
 // LogConfig: Specifies what kind of log the caller must write
+// Increment a streamz counter with the specified metric and field
+// names.
+//
+// Metric names should start with a '/', generally be
+// lowercase-only,
+// and end in "_count". Field names should not contain an initial
+// slash.
+// The actual exported metric names will have "/iam/policy"
+// prepended.
+//
+// Field names correspond to IAM request parameters and field values
+// are
+// their respective values.
+//
+// At present the only supported field names are
+//    - "iam_principal", corresponding to IAMContext.principal;
+//    - "" (empty string), resulting in one aggretated counter with no
+// field.
+//
+// Examples:
+//   counter { metric: "/debug_access_count"  field: "iam_principal" }
+//   ==> increment counter /iam/policy/backend_debug_access_count
+//                         {iam_principal=[value of
+// IAMContext.principal]}
+//
+// At this time we do not support:
+// * multiple field names (though this may be supported in the future)
+// * decrementing the counter
+// * incrementing it by anything other than 1
 type LogConfig struct {
 	// CloudAudit: Cloud audit options.
 	CloudAudit *CloudAuditOptions `json:"cloudAudit,omitempty"`
@@ -2866,9 +2960,9 @@ type Status struct {
 	// google.rpc.Code.
 	Code int64 `json:"code,omitempty"`
 
-	// Details: A list of messages that carry the error details.  There will
-	// be a
-	// common set of message types for APIs to use.
+	// Details: A list of messages that carry the error details.  There is a
+	// common set of
+	// message types for APIs to use.
 	Details []googleapi.RawMessage `json:"details,omitempty"`
 
 	// Message: A developer-facing error message, which should be in

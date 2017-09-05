@@ -698,6 +698,14 @@ func (s *ErrorProto) MarshalJSON() ([]byte, error) {
 }
 
 type ExplainQueryStage struct {
+	// ComputeMsAvg: Milliseconds the average shard spent on CPU-bound
+	// tasks.
+	ComputeMsAvg int64 `json:"computeMsAvg,omitempty,string"`
+
+	// ComputeMsMax: Milliseconds the slowest shard spent on CPU-bound
+	// tasks.
+	ComputeMsMax int64 `json:"computeMsMax,omitempty,string"`
+
 	// ComputeRatioAvg: Relative amount of time the average shard spent on
 	// CPU-bound tasks.
 	ComputeRatioAvg float64 `json:"computeRatioAvg,omitempty"`
@@ -711,6 +719,12 @@ type ExplainQueryStage struct {
 
 	// Name: Human-readable name for stage.
 	Name string `json:"name,omitempty"`
+
+	// ReadMsAvg: Milliseconds the average shard spent reading input.
+	ReadMsAvg int64 `json:"readMsAvg,omitempty,string"`
+
+	// ReadMsMax: Milliseconds the slowest shard spent reading input.
+	ReadMsMax int64 `json:"readMsMax,omitempty,string"`
 
 	// ReadRatioAvg: Relative amount of time the average shard spent reading
 	// input.
@@ -726,12 +740,27 @@ type ExplainQueryStage struct {
 	// RecordsWritten: Number of records written by the stage.
 	RecordsWritten int64 `json:"recordsWritten,omitempty,string"`
 
+	// ShuffleOutputBytes: Total number of bytes written to shuffle.
+	ShuffleOutputBytes int64 `json:"shuffleOutputBytes,omitempty,string"`
+
+	// ShuffleOutputBytesSpilled: Total number of bytes written to shuffle
+	// and spilled to disk.
+	ShuffleOutputBytesSpilled int64 `json:"shuffleOutputBytesSpilled,omitempty,string"`
+
 	// Status: Current status for the stage.
 	Status string `json:"status,omitempty"`
 
 	// Steps: List of operations within the stage in dependency order
 	// (approximately chronological).
 	Steps []*ExplainQueryStep `json:"steps,omitempty"`
+
+	// WaitMsAvg: Milliseconds the average shard spent waiting to be
+	// scheduled.
+	WaitMsAvg int64 `json:"waitMsAvg,omitempty,string"`
+
+	// WaitMsMax: Milliseconds the slowest shard spent waiting to be
+	// scheduled.
+	WaitMsMax int64 `json:"waitMsMax,omitempty,string"`
 
 	// WaitRatioAvg: Relative amount of time the average shard spent waiting
 	// to be scheduled.
@@ -741,6 +770,12 @@ type ExplainQueryStage struct {
 	// to be scheduled.
 	WaitRatioMax float64 `json:"waitRatioMax,omitempty"`
 
+	// WriteMsAvg: Milliseconds the average shard spent on writing output.
+	WriteMsAvg int64 `json:"writeMsAvg,omitempty,string"`
+
+	// WriteMsMax: Milliseconds the slowest shard spent on writing output.
+	WriteMsMax int64 `json:"writeMsMax,omitempty,string"`
+
 	// WriteRatioAvg: Relative amount of time the average shard spent on
 	// writing output.
 	WriteRatioAvg float64 `json:"writeRatioAvg,omitempty"`
@@ -749,7 +784,7 @@ type ExplainQueryStage struct {
 	// writing output.
 	WriteRatioMax float64 `json:"writeRatioMax,omitempty"`
 
-	// ForceSendFields is a list of field names (e.g. "ComputeRatioAvg") to
+	// ForceSendFields is a list of field names (e.g. "ComputeMsAvg") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
 	// non-interface field appearing in ForceSendFields will be sent to the
@@ -757,13 +792,12 @@ type ExplainQueryStage struct {
 	// used to include empty fields in Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "ComputeRatioAvg") to
-	// include in API requests with the JSON null value. By default, fields
-	// with empty values are omitted from API requests. However, any field
-	// with an empty value appearing in NullFields will be sent to the
-	// server as null. It is an error if a field in this list has a
-	// non-empty value. This may be used to include null fields in Patch
-	// requests.
+	// NullFields is a list of field names (e.g. "ComputeMsAvg") to include
+	// in API requests with the JSON null value. By default, fields with
+	// empty values are omitted from API requests. However, any field with
+	// an empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
 	NullFields []string `json:"-"`
 }
 
@@ -894,8 +928,8 @@ type ExternalDataConfiguration struct {
 	// data sources. For Google Cloud Bigtable URIs: Exactly one URI can be
 	// specified and it has be a fully specified and valid HTTPS URL for a
 	// Google Cloud Bigtable table. For Google Cloud Datastore backups,
-	// exactly one URI can be specified, and it must end with
-	// '.backup_info'. Also, the '*' wildcard character is not allowed.
+	// exactly one URI can be specified. Also, the '*' wildcard character is
+	// not allowed.
 	SourceUris []string `json:"sourceUris,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "Autodetect") to
@@ -1350,15 +1384,16 @@ type JobConfigurationLoad struct {
 	SchemaInlineFormat string `json:"schemaInlineFormat,omitempty"`
 
 	// SchemaUpdateOptions: [Experimental] Allows the schema of the
-	// desitination table to be updated as a side effect of the load job.
-	// Schema update options are supported in two cases: when
-	// writeDisposition is WRITE_APPEND; when writeDisposition is
-	// WRITE_TRUNCATE and the destination table is a partition of a table,
-	// specified by partition decorators. For normal tables, WRITE_TRUNCATE
-	// will always overwrite the schema. One or more of the following values
-	// are specified: ALLOW_FIELD_ADDITION: allow adding a nullable field to
-	// the schema. ALLOW_FIELD_RELAXATION: allow relaxing a required field
-	// in the original schema to nullable.
+	// desitination table to be updated as a side effect of the load job if
+	// a schema is autodetected or supplied in the job configuration. Schema
+	// update options are supported in two cases: when writeDisposition is
+	// WRITE_APPEND; when writeDisposition is WRITE_TRUNCATE and the
+	// destination table is a partition of a table, specified by partition
+	// decorators. For normal tables, WRITE_TRUNCATE will always overwrite
+	// the schema. One or more of the following values are specified:
+	// ALLOW_FIELD_ADDITION: allow adding a nullable field to the schema.
+	// ALLOW_FIELD_RELAXATION: allow relaxing a required field in the
+	// original schema to nullable.
 	SchemaUpdateOptions []string `json:"schemaUpdateOptions,omitempty"`
 
 	// SkipLeadingRows: [Optional] The number of rows at the top of a CSV
@@ -1374,9 +1409,19 @@ type JobConfigurationLoad struct {
 	SourceFormat string `json:"sourceFormat,omitempty"`
 
 	// SourceUris: [Required] The fully-qualified URIs that point to your
-	// data in Google Cloud Storage. Each URI can contain one '*' wildcard
-	// character and it must come after the 'bucket' name.
+	// data in Google Cloud. For Google Cloud Storage URIs: Each URI can
+	// contain one '*' wildcard character and it must come after the
+	// 'bucket' name. Size limits related to load jobs apply to external
+	// data sources. For Google Cloud Bigtable URIs: Exactly one URI can be
+	// specified and it has be a fully specified and valid HTTPS URL for a
+	// Google Cloud Bigtable table. For Google Cloud Datastore backups:
+	// Exactly one URI can be specified. Also, the '*' wildcard character is
+	// not allowed.
 	SourceUris []string `json:"sourceUris,omitempty"`
+
+	// TimePartitioning: [Experimental] If specified, configures time-based
+	// partitioning for the destination table.
+	TimePartitioning *TimePartitioning `json:"timePartitioning,omitempty"`
 
 	// WriteDisposition: [Optional] Specifies the action that occurs if the
 	// destination table already exists. The following values are supported:
@@ -1503,13 +1548,16 @@ type JobConfigurationQuery struct {
 	// source can then be queried as if it were a standard BigQuery table.
 	TableDefinitions map[string]ExternalDataConfiguration `json:"tableDefinitions,omitempty"`
 
+	// TimePartitioning: [Experimental] If specified, configures time-based
+	// partitioning for the destination table.
+	TimePartitioning *TimePartitioning `json:"timePartitioning,omitempty"`
+
 	// UseLegacySql: Specifies whether to use BigQuery's legacy SQL dialect
 	// for this query. The default value is true. If set to false, the query
 	// will use BigQuery's standard SQL:
 	// https://cloud.google.com/bigquery/sql-reference/ When useLegacySql is
-	// set to false, the values of allowLargeResults and flattenResults are
-	// ignored; query will be run as if allowLargeResults is true and
-	// flattenResults is false.
+	// set to false, the value of flattenResults is ignored; query will be
+	// run as if flattenResults is false.
 	UseLegacySql bool `json:"useLegacySql,omitempty"`
 
 	// UseQueryCache: [Optional] Whether to look for the result in the query
@@ -1528,13 +1576,13 @@ type JobConfigurationQuery struct {
 	// WriteDisposition: [Optional] Specifies the action that occurs if the
 	// destination table already exists. The following values are supported:
 	// WRITE_TRUNCATE: If the table already exists, BigQuery overwrites the
-	// table data. WRITE_APPEND: If the table already exists, BigQuery
-	// appends the data to the table. WRITE_EMPTY: If the table already
-	// exists and contains data, a 'duplicate' error is returned in the job
-	// result. The default value is WRITE_EMPTY. Each action is atomic and
-	// only occurs if BigQuery is able to complete the job successfully.
-	// Creation, truncation and append actions occur as one atomic update
-	// upon job completion.
+	// table data and uses the schema from the query result. WRITE_APPEND:
+	// If the table already exists, BigQuery appends the data to the table.
+	// WRITE_EMPTY: If the table already exists and contains data, a
+	// 'duplicate' error is returned in the job result. The default value is
+	// WRITE_EMPTY. Each action is atomic and only occurs if BigQuery is
+	// able to complete the job successfully. Creation, truncation and
+	// append actions occur as one atomic update upon job completion.
 	WriteDisposition string `json:"writeDisposition,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "AllowLargeResults")
@@ -1859,6 +1907,13 @@ func (s *JobStatistics2) MarshalJSON() ([]byte, error) {
 }
 
 type JobStatistics3 struct {
+	// BadRecords: [Output-only] The number of bad records encountered. Note
+	// that if the job has failed because of more bad records encountered
+	// than the maximum allowed in the load job configuration, then this
+	// number can be less than the total number of bad records present in
+	// the input data.
+	BadRecords int64 `json:"badRecords,omitempty,string"`
+
 	// InputFileBytes: [Output-only] Number of bytes of source data in a
 	// load job.
 	InputFileBytes int64 `json:"inputFileBytes,omitempty,string"`
@@ -1875,7 +1930,7 @@ type JobStatistics3 struct {
 	// change.
 	OutputRows int64 `json:"outputRows,omitempty,string"`
 
-	// ForceSendFields is a list of field names (e.g. "InputFileBytes") to
+	// ForceSendFields is a list of field names (e.g. "BadRecords") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
 	// non-interface field appearing in ForceSendFields will be sent to the
@@ -1883,13 +1938,12 @@ type JobStatistics3 struct {
 	// used to include empty fields in Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "InputFileBytes") to
-	// include in API requests with the JSON null value. By default, fields
-	// with empty values are omitted from API requests. However, any field
-	// with an empty value appearing in NullFields will be sent to the
-	// server as null. It is an error if a field in this list has a
-	// non-empty value. This may be used to include null fields in Patch
-	// requests.
+	// NullFields is a list of field names (e.g. "BadRecords") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
 	NullFields []string `json:"-"`
 }
 
@@ -2269,9 +2323,8 @@ type QueryRequest struct {
 	// for this query. The default value is true. If set to false, the query
 	// will use BigQuery's standard SQL:
 	// https://cloud.google.com/bigquery/sql-reference/ When useLegacySql is
-	// set to false, the values of allowLargeResults and flattenResults are
-	// ignored; query will be run as if allowLargeResults is true and
-	// flattenResults is false.
+	// set to false, the value of flattenResults is ignored; query will be
+	// run as if flattenResults is false.
 	//
 	// Default: true
 	UseLegacySql *bool `json:"useLegacySql,omitempty"`
@@ -3028,8 +3081,14 @@ type TimePartitioning struct {
 	// storage for a partition.
 	ExpirationMs int64 `json:"expirationMs,omitempty,string"`
 
+	// Field: [Experimental] [Optional] If not set, the table is partitioned
+	// by pseudo column '_PARTITIONTIME'; if set, the table is partitioned
+	// by this field. The field must be a top-level TIMESTAMP or DATE field.
+	// Its mode must be NULLABLE or REQUIRED.
+	Field string `json:"field,omitempty"`
+
 	// Type: [Required] The only type supported is DAY, which will generate
-	// one partition per day based on data loading time.
+	// one partition per day.
 	Type string `json:"type,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "ExpirationMs") to

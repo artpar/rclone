@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
@@ -104,7 +105,9 @@ type DocsArchiveAPIError struct {
 func (dbx *apiImpl) DocsArchive(arg *RefPaperDoc) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -121,21 +124,27 @@ func (dbx *apiImpl) DocsArchive(arg *RefPaperDoc) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -171,7 +180,9 @@ type DocsDownloadAPIError struct {
 func (dbx *apiImpl) DocsDownload(arg *PaperDocExport) (res *PaperDocExportResult, content io.ReadCloser, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -188,17 +199,23 @@ func (dbx *apiImpl) DocsDownload(arg *PaperDocExport) (res *PaperDocExportResult
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	body := []byte(resp.Header.Get("Dropbox-API-Result"))
 	content = resp.Body
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -239,7 +256,9 @@ type DocsFolderUsersListAPIError struct {
 func (dbx *apiImpl) DocsFolderUsersList(arg *ListUsersOnFolderArgs) (res *ListUsersOnFolderResponse, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -256,21 +275,27 @@ func (dbx *apiImpl) DocsFolderUsersList(arg *ListUsersOnFolderArgs) (res *ListUs
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -311,7 +336,9 @@ type DocsFolderUsersListContinueAPIError struct {
 func (dbx *apiImpl) DocsFolderUsersListContinue(arg *ListUsersOnFolderContinueArgs) (res *ListUsersOnFolderResponse, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -328,21 +355,27 @@ func (dbx *apiImpl) DocsFolderUsersListContinue(arg *ListUsersOnFolderContinueAr
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -383,7 +416,9 @@ type DocsGetFolderInfoAPIError struct {
 func (dbx *apiImpl) DocsGetFolderInfo(arg *RefPaperDoc) (res *FoldersContainingPaperDoc, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -400,21 +435,27 @@ func (dbx *apiImpl) DocsGetFolderInfo(arg *RefPaperDoc) (res *FoldersContainingP
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -455,7 +496,9 @@ type DocsListAPIError struct {
 func (dbx *apiImpl) DocsList(arg *ListPaperDocsArgs) (res *ListPaperDocsResponse, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -472,21 +515,27 @@ func (dbx *apiImpl) DocsList(arg *ListPaperDocsArgs) (res *ListPaperDocsResponse
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -527,7 +576,9 @@ type DocsListContinueAPIError struct {
 func (dbx *apiImpl) DocsListContinue(arg *ListPaperDocsContinueArgs) (res *ListPaperDocsResponse, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -544,21 +595,27 @@ func (dbx *apiImpl) DocsListContinue(arg *ListPaperDocsContinueArgs) (res *ListP
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -599,7 +656,9 @@ type DocsPermanentlyDeleteAPIError struct {
 func (dbx *apiImpl) DocsPermanentlyDelete(arg *RefPaperDoc) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -616,21 +675,27 @@ func (dbx *apiImpl) DocsPermanentlyDelete(arg *RefPaperDoc) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -666,7 +731,9 @@ type DocsSharingPolicyGetAPIError struct {
 func (dbx *apiImpl) DocsSharingPolicyGet(arg *RefPaperDoc) (res *SharingPolicy, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -683,21 +750,27 @@ func (dbx *apiImpl) DocsSharingPolicyGet(arg *RefPaperDoc) (res *SharingPolicy, 
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -738,7 +811,9 @@ type DocsSharingPolicySetAPIError struct {
 func (dbx *apiImpl) DocsSharingPolicySet(arg *PaperDocSharingPolicy) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -755,21 +830,27 @@ func (dbx *apiImpl) DocsSharingPolicySet(arg *PaperDocSharingPolicy) (err error)
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -805,7 +886,9 @@ type DocsUsersAddAPIError struct {
 func (dbx *apiImpl) DocsUsersAdd(arg *AddPaperDocUser) (res []*AddPaperDocUserMemberResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -822,21 +905,27 @@ func (dbx *apiImpl) DocsUsersAdd(arg *AddPaperDocUser) (res []*AddPaperDocUserMe
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -877,7 +966,9 @@ type DocsUsersListAPIError struct {
 func (dbx *apiImpl) DocsUsersList(arg *ListUsersOnPaperDocArgs) (res *ListUsersOnPaperDocResponse, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -894,21 +985,27 @@ func (dbx *apiImpl) DocsUsersList(arg *ListUsersOnPaperDocArgs) (res *ListUsersO
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -949,7 +1046,9 @@ type DocsUsersListContinueAPIError struct {
 func (dbx *apiImpl) DocsUsersListContinue(arg *ListUsersOnPaperDocContinueArgs) (res *ListUsersOnPaperDocResponse, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -966,21 +1065,27 @@ func (dbx *apiImpl) DocsUsersListContinue(arg *ListUsersOnPaperDocContinueArgs) 
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1021,7 +1126,9 @@ type DocsUsersRemoveAPIError struct {
 func (dbx *apiImpl) DocsUsersRemove(arg *RemovePaperDocUser) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1038,21 +1145,27 @@ func (dbx *apiImpl) DocsUsersRemove(arg *RemovePaperDocUser) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return
 	}

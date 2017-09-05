@@ -283,6 +283,15 @@
       "input":{"shape":"CreateCustomerGatewayRequest"},
       "output":{"shape":"CreateCustomerGatewayResult"}
     },
+    "CreateDefaultVpc":{
+      "name":"CreateDefaultVpc",
+      "http":{
+        "method":"POST",
+        "requestUri":"/"
+      },
+      "input":{"shape":"CreateDefaultVpcRequest"},
+      "output":{"shape":"CreateDefaultVpcResult"}
+    },
     "CreateDhcpOptions":{
       "name":"CreateDhcpOptions",
       "http":{
@@ -842,6 +851,15 @@
       },
       "input":{"shape":"DescribeEgressOnlyInternetGatewaysRequest"},
       "output":{"shape":"DescribeEgressOnlyInternetGatewaysResult"}
+    },
+    "DescribeElasticGpus":{
+      "name":"DescribeElasticGpus",
+      "http":{
+        "method":"POST",
+        "requestUri":"/"
+      },
+      "input":{"shape":"DescribeElasticGpusRequest"},
+      "output":{"shape":"DescribeElasticGpusResult"}
     },
     "DescribeExportTasks":{
       "name":"DescribeExportTasks",
@@ -2037,6 +2055,24 @@
       },
       "input":{"shape":"UnmonitorInstancesRequest"},
       "output":{"shape":"UnmonitorInstancesResult"}
+    },
+    "UpdateSecurityGroupRuleDescriptionsEgress":{
+      "name":"UpdateSecurityGroupRuleDescriptionsEgress",
+      "http":{
+        "method":"POST",
+        "requestUri":"/"
+      },
+      "input":{"shape":"UpdateSecurityGroupRuleDescriptionsEgressRequest"},
+      "output":{"shape":"UpdateSecurityGroupRuleDescriptionsEgressResult"}
+    },
+    "UpdateSecurityGroupRuleDescriptionsIngress":{
+      "name":"UpdateSecurityGroupRuleDescriptionsIngress",
+      "http":{
+        "method":"POST",
+        "requestUri":"/"
+      },
+      "input":{"shape":"UpdateSecurityGroupRuleDescriptionsIngressRequest"},
+      "output":{"shape":"UpdateSecurityGroupRuleDescriptionsIngressResult"}
     }
   },
   "shapes":{
@@ -2228,6 +2264,7 @@
       "type":"structure",
       "members":{
         "Domain":{"shape":"DomainType"},
+        "Address":{"shape":"String"},
         "DryRun":{
           "shape":"Boolean",
           "locationName":"dryRun"
@@ -2510,6 +2547,7 @@
           "shape":"Boolean",
           "locationName":"amazonProvidedIpv6CidrBlock"
         },
+        "CidrBlock":{"shape":"String"},
         "VpcId":{
           "shape":"String",
           "locationName":"vpcId"
@@ -2522,6 +2560,10 @@
         "Ipv6CidrBlockAssociation":{
           "shape":"VpcIpv6CidrBlockAssociation",
           "locationName":"ipv6CidrBlockAssociation"
+        },
+        "CidrBlockAssociation":{
+          "shape":"VpcCidrBlockAssociation",
+          "locationName":"cidrBlockAssociation"
         },
         "VpcId":{
           "shape":"String",
@@ -3258,6 +3300,22 @@
         "locationName":"item"
       }
     },
+    "CidrBlock":{
+      "type":"structure",
+      "members":{
+        "CidrBlock":{
+          "shape":"String",
+          "locationName":"cidrBlock"
+        }
+      }
+    },
+    "CidrBlockSet":{
+      "type":"list",
+      "member":{
+        "shape":"CidrBlock",
+        "locationName":"item"
+      }
+    },
     "ClassicLinkDnsSupport":{
       "type":"structure",
       "members":{
@@ -3503,6 +3561,21 @@
         "CustomerGateway":{
           "shape":"CustomerGateway",
           "locationName":"customerGateway"
+        }
+      }
+    },
+    "CreateDefaultVpcRequest":{
+      "type":"structure",
+      "members":{
+        "DryRun":{"shape":"Boolean"}
+      }
+    },
+    "CreateDefaultVpcResult":{
+      "type":"structure",
+      "members":{
+        "Vpc":{
+          "shape":"Vpc",
+          "locationName":"vpc"
         }
       }
     },
@@ -5027,6 +5100,39 @@
         "EgressOnlyInternetGateways":{
           "shape":"EgressOnlyInternetGatewayList",
           "locationName":"egressOnlyInternetGatewaySet"
+        },
+        "NextToken":{
+          "shape":"String",
+          "locationName":"nextToken"
+        }
+      }
+    },
+    "DescribeElasticGpusRequest":{
+      "type":"structure",
+      "members":{
+        "ElasticGpuIds":{
+          "shape":"ElasticGpuIdSet",
+          "locationName":"ElasticGpuId"
+        },
+        "DryRun":{"shape":"Boolean"},
+        "Filters":{
+          "shape":"FilterList",
+          "locationName":"Filter"
+        },
+        "MaxResults":{"shape":"Integer"},
+        "NextToken":{"shape":"String"}
+      }
+    },
+    "DescribeElasticGpusResult":{
+      "type":"structure",
+      "members":{
+        "ElasticGpuSet":{
+          "shape":"ElasticGpuSet",
+          "locationName":"elasticGpuSet"
+        },
+        "MaxResults":{
+          "shape":"Integer",
+          "locationName":"maxResults"
         },
         "NextToken":{
           "shape":"String",
@@ -7103,6 +7209,10 @@
           "shape":"VpcIpv6CidrBlockAssociation",
           "locationName":"ipv6CidrBlockAssociation"
         },
+        "CidrBlockAssociation":{
+          "shape":"VpcCidrBlockAssociation",
+          "locationName":"cidrBlockAssociation"
+        },
         "VpcId":{
           "shape":"String",
           "locationName":"vpcId"
@@ -7288,6 +7398,108 @@
       "member":{
         "shape":"EgressOnlyInternetGateway",
         "locationName":"item"
+      }
+    },
+    "ElasticGpuAssociation":{
+      "type":"structure",
+      "members":{
+        "ElasticGpuId":{
+          "shape":"String",
+          "locationName":"elasticGpuId"
+        },
+        "ElasticGpuAssociationId":{
+          "shape":"String",
+          "locationName":"elasticGpuAssociationId"
+        },
+        "ElasticGpuAssociationState":{
+          "shape":"String",
+          "locationName":"elasticGpuAssociationState"
+        },
+        "ElasticGpuAssociationTime":{
+          "shape":"String",
+          "locationName":"elasticGpuAssociationTime"
+        }
+      }
+    },
+    "ElasticGpuAssociationList":{
+      "type":"list",
+      "member":{
+        "shape":"ElasticGpuAssociation",
+        "locationName":"item"
+      }
+    },
+    "ElasticGpuHealth":{
+      "type":"structure",
+      "members":{
+        "Status":{
+          "shape":"ElasticGpuStatus",
+          "locationName":"status"
+        }
+      }
+    },
+    "ElasticGpuIdSet":{
+      "type":"list",
+      "member":{
+        "shape":"String",
+        "locationName":"item"
+      }
+    },
+    "ElasticGpuSet":{
+      "type":"list",
+      "member":{"shape":"ElasticGpus"}
+    },
+    "ElasticGpuSpecification":{
+      "type":"structure",
+      "required":["Type"],
+      "members":{
+        "Type":{"shape":"String"}
+      }
+    },
+    "ElasticGpuSpecifications":{
+      "type":"list",
+      "member":{
+        "shape":"ElasticGpuSpecification",
+        "locationName":"item"
+      }
+    },
+    "ElasticGpuState":{
+      "type":"string",
+      "enum":["ATTACHED"]
+    },
+    "ElasticGpuStatus":{
+      "type":"string",
+      "enum":[
+        "OK",
+        "IMPAIRED"
+      ]
+    },
+    "ElasticGpus":{
+      "type":"structure",
+      "members":{
+        "ElasticGpuId":{
+          "shape":"String",
+          "locationName":"elasticGpuId"
+        },
+        "AvailabilityZone":{
+          "shape":"String",
+          "locationName":"availabilityZone"
+        },
+        "ElasticGpuType":{
+          "shape":"String",
+          "locationName":"elasticGpuType"
+        },
+        "ElasticGpuHealth":{
+          "shape":"ElasticGpuHealth",
+          "locationName":"elasticGpuHealth"
+        },
+        "ElasticGpuState":{
+          "shape":"ElasticGpuState",
+          "locationName":"elasticGpuState"
+        },
+        "InstanceId":{
+          "shape":"String",
+          "locationName":"instanceId"
+        }
       }
     },
     "EnableVgwRoutePropagationRequest":{
@@ -8110,7 +8322,10 @@
     },
     "HostReservationSet":{
       "type":"list",
-      "member":{"shape":"HostReservation"}
+      "member":{
+        "shape":"HostReservation",
+        "locationName":"item"
+      }
     },
     "HostTenancy":{
       "type":"string",
@@ -8986,6 +9201,10 @@
           "shape":"InstanceLifecycleType",
           "locationName":"instanceLifecycle"
         },
+        "ElasticGpuAssociations":{
+          "shape":"ElasticGpuAssociationList",
+          "locationName":"elasticGpuAssociationSet"
+        },
         "NetworkInterfaces":{
           "shape":"InstanceNetworkInterfaceList",
           "locationName":"networkInterfaceSet"
@@ -9821,6 +10040,10 @@
         "CidrIp":{
           "shape":"String",
           "locationName":"cidrIp"
+        },
+        "Description":{
+          "shape":"String",
+          "locationName":"description"
         }
       }
     },
@@ -9868,6 +10091,10 @@
         "CidrIpv6":{
           "shape":"String",
           "locationName":"cidrIpv6"
+        },
+        "Description":{
+          "shape":"String",
+          "locationName":"description"
         }
       }
     },
@@ -11264,6 +11491,10 @@
     "PrefixListId":{
       "type":"structure",
       "members":{
+        "Description":{
+          "shape":"String",
+          "locationName":"description"
+        },
         "PrefixListId":{
           "shape":"String",
           "locationName":"prefixListId"
@@ -13125,6 +13356,7 @@
           "shape":"String",
           "locationName":"privateIpAddress"
         },
+        "ElasticGpuSpecification":{"shape":"ElasticGpuSpecifications"},
         "TagSpecifications":{
           "shape":"TagSpecificationList",
           "locationName":"TagSpecification"
@@ -13894,6 +14126,10 @@
         "WeightedCapacity":{
           "shape":"Double",
           "locationName":"weightedCapacity"
+        },
+        "TagSpecifications":{
+          "shape":"SpotFleetTagSpecificationList",
+          "locationName":"tagSpecificationSet"
         }
       }
     },
@@ -14004,6 +14240,26 @@
       "type":"list",
       "member":{
         "shape":"SpotFleetRequestConfig",
+        "locationName":"item"
+      }
+    },
+    "SpotFleetTagSpecification":{
+      "type":"structure",
+      "members":{
+        "ResourceType":{
+          "shape":"ResourceType",
+          "locationName":"resourceType"
+        },
+        "Tags":{
+          "shape":"TagList",
+          "locationName":"tag"
+        }
+      }
+    },
+    "SpotFleetTagSpecificationList":{
+      "type":"list",
+      "member":{
+        "shape":"SpotFleetTagSpecification",
         "locationName":"item"
       }
     },
@@ -14783,6 +15039,44 @@
         "locationName":"item"
       }
     },
+    "UpdateSecurityGroupRuleDescriptionsEgressRequest":{
+      "type":"structure",
+      "required":["IpPermissions"],
+      "members":{
+        "DryRun":{"shape":"Boolean"},
+        "GroupId":{"shape":"String"},
+        "GroupName":{"shape":"String"},
+        "IpPermissions":{"shape":"IpPermissionList"}
+      }
+    },
+    "UpdateSecurityGroupRuleDescriptionsEgressResult":{
+      "type":"structure",
+      "members":{
+        "Return":{
+          "shape":"Boolean",
+          "locationName":"return"
+        }
+      }
+    },
+    "UpdateSecurityGroupRuleDescriptionsIngressRequest":{
+      "type":"structure",
+      "required":["IpPermissions"],
+      "members":{
+        "DryRun":{"shape":"Boolean"},
+        "GroupId":{"shape":"String"},
+        "GroupName":{"shape":"String"},
+        "IpPermissions":{"shape":"IpPermissionList"}
+      }
+    },
+    "UpdateSecurityGroupRuleDescriptionsIngressResult":{
+      "type":"structure",
+      "members":{
+        "Return":{
+          "shape":"Boolean",
+          "locationName":"return"
+        }
+      }
+    },
     "UserBucket":{
       "type":"structure",
       "members":{
@@ -14822,6 +15116,10 @@
     "UserIdGroupPair":{
       "type":"structure",
       "members":{
+        "Description":{
+          "shape":"String",
+          "locationName":"description"
+        },
         "GroupId":{
           "shape":"String",
           "locationName":"groupId"
@@ -15301,6 +15599,10 @@
           "shape":"VpcIpv6CidrBlockAssociationSet",
           "locationName":"ipv6CidrBlockAssociationSet"
         },
+        "CidrBlockAssociationSet":{
+          "shape":"VpcCidrBlockAssociationSet",
+          "locationName":"cidrBlockAssociationSet"
+        },
         "IsDefault":{
           "shape":"Boolean",
           "locationName":"isDefault"
@@ -15337,6 +15639,30 @@
         "enableDnsSupport",
         "enableDnsHostnames"
       ]
+    },
+    "VpcCidrBlockAssociation":{
+      "type":"structure",
+      "members":{
+        "AssociationId":{
+          "shape":"String",
+          "locationName":"associationId"
+        },
+        "CidrBlock":{
+          "shape":"String",
+          "locationName":"cidrBlock"
+        },
+        "CidrBlockState":{
+          "shape":"VpcCidrBlockState",
+          "locationName":"cidrBlockState"
+        }
+      }
+    },
+    "VpcCidrBlockAssociationSet":{
+      "type":"list",
+      "member":{
+        "shape":"VpcCidrBlockAssociation",
+        "locationName":"item"
+      }
     },
     "VpcCidrBlockState":{
       "type":"structure",
@@ -15561,6 +15887,10 @@
         "Ipv6CidrBlockSet":{
           "shape":"Ipv6CidrBlockSet",
           "locationName":"ipv6CidrBlockSet"
+        },
+        "CidrBlockSet":{
+          "shape":"CidrBlockSet",
+          "locationName":"cidrBlockSet"
         },
         "OwnerId":{
           "shape":"String",

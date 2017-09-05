@@ -335,6 +335,9 @@ type AccountStatus struct {
 	// AccountId: The ID of the account for which the status is reported.
 	AccountId string `json:"accountId,omitempty"`
 
+	// AccountLevelIssues: A list of account level issues.
+	AccountLevelIssues []*AccountStatusAccountLevelIssue `json:"accountLevelIssues,omitempty"`
+
 	// DataQualityIssues: A list of data quality issues.
 	DataQualityIssues []*AccountStatusDataQualityIssue `json:"dataQualityIssues,omitempty"`
 
@@ -368,6 +371,45 @@ type AccountStatus struct {
 
 func (s *AccountStatus) MarshalJSON() ([]byte, error) {
 	type noMethod AccountStatus
+	raw := noMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+type AccountStatusAccountLevelIssue struct {
+	// Country: Country for which this issue is reported.
+	Country string `json:"country,omitempty"`
+
+	// Detail: Additional details about the issue.
+	Detail string `json:"detail,omitempty"`
+
+	// Id: Issue identifier.
+	Id string `json:"id,omitempty"`
+
+	// Severity: Severity of the issue.
+	Severity string `json:"severity,omitempty"`
+
+	// Title: Short description of the issue.
+	Title string `json:"title,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Country") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Country") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *AccountStatusAccountLevelIssue) MarshalJSON() ([]byte, error) {
+	type noMethod AccountStatusAccountLevelIssue
 	raw := noMethod(*s)
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
@@ -698,6 +740,10 @@ type AccountsCustomBatchRequestEntry struct {
 
 	// BatchId: An entry ID, unique within the batch request.
 	BatchId int64 `json:"batchId,omitempty"`
+
+	// Force: Whether the account should be deleted if the account has
+	// offers. Only applicable if the method is delete.
+	Force bool `json:"force,omitempty"`
 
 	// MerchantId: The ID of the managing account.
 	MerchantId uint64 `json:"merchantId,omitempty,string"`
@@ -1381,6 +1427,9 @@ type DatafeedFetchSchedule struct {
 
 	// Password: An optional password for fetch_url.
 	Password string `json:"password,omitempty"`
+
+	// Paused: Whether the scheduled fetch is paused or not.
+	Paused bool `json:"paused,omitempty"`
 
 	// TimeZone: Time zone used for schedule. UTC by default. E.g.,
 	// "America/Los_Angeles".
@@ -2583,7 +2632,7 @@ type Order struct {
 	PlacedDate string `json:"placedDate,omitempty"`
 
 	// Promotions: The details of the merchant provided promotions applied
-	// to the order. More details about the program are  here.
+	// to the order. More details about the program are here.
 	Promotions []*OrderPromotion `json:"promotions,omitempty"`
 
 	// Refunds: Refunds for the order.
@@ -5115,8 +5164,7 @@ type ProductShipping struct {
 	// Price: Fixed shipping price, represented as a number.
 	Price *Price `json:"price,omitempty"`
 
-	// Region: The geographic region to which a shipping rate applies (e.g.
-	// zip code).
+	// Region: The geographic region to which a shipping rate applies.
 	Region string `json:"region,omitempty"`
 
 	// Service: A free-form description of the service class or delivery
@@ -5268,6 +5316,9 @@ type ProductStatus struct {
 
 	// Link: The link to the product.
 	Link string `json:"link,omitempty"`
+
+	// Product: Product data after applying all the join inputs.
+	Product *Product `json:"product,omitempty"`
 
 	// ProductId: The id of the product for which status is reported.
 	ProductId string `json:"productId,omitempty"`
@@ -5736,6 +5787,8 @@ type ProductstatusesCustomBatchRequestEntry struct {
 	// BatchId: An entry ID, unique within the batch request.
 	BatchId int64 `json:"batchId,omitempty"`
 
+	IncludeAttributes bool `json:"includeAttributes,omitempty"`
+
 	// MerchantId: The ID of the managing account.
 	MerchantId uint64 `json:"merchantId,omitempty,string"`
 
@@ -5973,6 +6026,11 @@ type Service struct {
 	// DeliveryTime: Time spent in various aspects from order to the
 	// delivery of the product. Required.
 	DeliveryTime *DeliveryTime `json:"deliveryTime,omitempty"`
+
+	// MinimumOrderValue: Minimum order value for this service. If set,
+	// indicates that customers will have to spend at least this amount. All
+	// prices within a service must have the same currency.
+	MinimumOrderValue *Price `json:"minimumOrderValue,omitempty"`
 
 	// Name: Free-form name of the service. Must be unique within target
 	// account. Required.
@@ -6323,7 +6381,7 @@ type TestOrder struct {
 	PredefinedDeliveryAddress string `json:"predefinedDeliveryAddress,omitempty"`
 
 	// Promotions: The details of the merchant provided promotions applied
-	// to the order. More details about the program are  here.
+	// to the order. More details about the program are here.
 	Promotions []*OrderPromotion `json:"promotions,omitempty"`
 
 	// ShippingCost: The total cost of shipping for all items.
@@ -6756,8 +6814,9 @@ type AccountsClaimwebsiteCall struct {
 
 // Claimwebsite: Claims the website of a Merchant Center sub-account.
 // This method can only be called for accounts to which the managing
-// account has access: either the managing account itself or
-// sub-accounts if the managing account is a multi-client account.
+// account has access: either the managing account itself for any
+// Merchant Center account, or any sub-account when the managing account
+// is a multi-client account.
 func (r *AccountsService) Claimwebsite(merchantId uint64, accountId uint64) *AccountsClaimwebsiteCall {
 	c := &AccountsClaimwebsiteCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -6765,9 +6824,10 @@ func (r *AccountsService) Claimwebsite(merchantId uint64, accountId uint64) *Acc
 	return c
 }
 
-// Overwrite sets the optional parameter "overwrite": Flag to remove any
-// existing claim on the requested website by another account and
-// replace it with a claim from this account.
+// Overwrite sets the optional parameter "overwrite": Only available to
+// selected merchants. When set to True, this flag removes any existing
+// claim on the requested website by another account and replaces it
+// with a claim from this account.
 func (c *AccountsClaimwebsiteCall) Overwrite(overwrite bool) *AccountsClaimwebsiteCall {
 	c.urlParams_.Set("overwrite", fmt.Sprint(overwrite))
 	return c
@@ -6855,7 +6915,7 @@ func (c *AccountsClaimwebsiteCall) Do(opts ...googleapi.CallOption) (*AccountsCl
 	}
 	return ret, nil
 	// {
-	//   "description": "Claims the website of a Merchant Center sub-account. This method can only be called for accounts to which the managing account has access: either the managing account itself or sub-accounts if the managing account is a multi-client account.",
+	//   "description": "Claims the website of a Merchant Center sub-account. This method can only be called for accounts to which the managing account has access: either the managing account itself for any Merchant Center account, or any sub-account when the managing account is a multi-client account.",
 	//   "httpMethod": "POST",
 	//   "id": "content.accounts.claimwebsite",
 	//   "parameterOrder": [
@@ -6878,7 +6938,7 @@ func (c *AccountsClaimwebsiteCall) Do(opts ...googleapi.CallOption) (*AccountsCl
 	//       "type": "string"
 	//     },
 	//     "overwrite": {
-	//       "description": "Flag to remove any existing claim on the requested website by another account and replace it with a claim from this account.",
+	//       "description": "Only available to selected merchants. When set to True, this flag removes any existing claim on the requested website by another account and replaces it with a claim from this account.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }
@@ -7053,6 +7113,14 @@ func (c *AccountsDeleteCall) DryRun(dryRun bool) *AccountsDeleteCall {
 	return c
 }
 
+// Force sets the optional parameter "force": Flag to delete
+// sub-accounts with products. The default value of false will become
+// active on September 28, 2017.
+func (c *AccountsDeleteCall) Force(force bool) *AccountsDeleteCall {
+	c.urlParams_.Set("force", fmt.Sprint(force))
+	return c
+}
+
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
 // for more information.
@@ -7130,6 +7198,12 @@ func (c *AccountsDeleteCall) Do(opts ...googleapi.CallOption) error {
 	//       "location": "query",
 	//       "type": "boolean"
 	//     },
+	//     "force": {
+	//       "default": "true",
+	//       "description": "Flag to delete sub-accounts with products. The default value of false will become active on September 28, 2017.",
+	//       "location": "query",
+	//       "type": "boolean"
+	//     },
 	//     "merchantId": {
 	//       "description": "The ID of the managing account.",
 	//       "format": "uint64",
@@ -7160,8 +7234,8 @@ type AccountsGetCall struct {
 
 // Get: Retrieves a Merchant Center account. This method can only be
 // called for accounts to which the managing account has access: either
-// the managing account itself or sub-accounts if the managing account
-// is a multi-client account.
+// the managing account itself for any Merchant Center account, or any
+// sub-account when the managing account is a multi-client account.
 func (r *AccountsService) Get(merchantId uint64, accountId uint64) *AccountsGetCall {
 	c := &AccountsGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -7264,7 +7338,7 @@ func (c *AccountsGetCall) Do(opts ...googleapi.CallOption) (*Account, error) {
 	}
 	return ret, nil
 	// {
-	//   "description": "Retrieves a Merchant Center account. This method can only be called for accounts to which the managing account has access: either the managing account itself or sub-accounts if the managing account is a multi-client account.",
+	//   "description": "Retrieves a Merchant Center account. This method can only be called for accounts to which the managing account has access: either the managing account itself for any Merchant Center account, or any sub-account when the managing account is a multi-client account.",
 	//   "httpMethod": "GET",
 	//   "id": "content.accounts.get",
 	//   "parameterOrder": [
@@ -7644,8 +7718,9 @@ type AccountsPatchCall struct {
 
 // Patch: Updates a Merchant Center account. This method can only be
 // called for accounts to which the managing account has access: either
-// the managing account itself or sub-accounts if the managing account
-// is a multi-client account. This method supports patch semantics.
+// the managing account itself for any Merchant Center account, or any
+// sub-account when the managing account is a multi-client account. This
+// method supports patch semantics.
 func (r *AccountsService) Patch(merchantId uint64, accountId uint64, account *Account) *AccountsPatchCall {
 	c := &AccountsPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -7748,7 +7823,7 @@ func (c *AccountsPatchCall) Do(opts ...googleapi.CallOption) (*Account, error) {
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a Merchant Center account. This method can only be called for accounts to which the managing account has access: either the managing account itself or sub-accounts if the managing account is a multi-client account. This method supports patch semantics.",
+	//   "description": "Updates a Merchant Center account. This method can only be called for accounts to which the managing account has access: either the managing account itself for any Merchant Center account, or any sub-account when the managing account is a multi-client account. This method supports patch semantics.",
 	//   "httpMethod": "PATCH",
 	//   "id": "content.accounts.patch",
 	//   "parameterOrder": [
@@ -7804,8 +7879,8 @@ type AccountsUpdateCall struct {
 
 // Update: Updates a Merchant Center account. This method can only be
 // called for accounts to which the managing account has access: either
-// the managing account itself or sub-accounts if the managing account
-// is a multi-client account.
+// the managing account itself for any Merchant Center account, or any
+// sub-account when the managing account is a multi-client account.
 func (r *AccountsService) Update(merchantId uint64, accountId uint64, account *Account) *AccountsUpdateCall {
 	c := &AccountsUpdateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -7908,7 +7983,7 @@ func (c *AccountsUpdateCall) Do(opts ...googleapi.CallOption) (*Account, error) 
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a Merchant Center account. This method can only be called for accounts to which the managing account has access: either the managing account itself or sub-accounts if the managing account is a multi-client account.",
+	//   "description": "Updates a Merchant Center account. This method can only be called for accounts to which the managing account has access: either the managing account itself for any Merchant Center account, or any sub-account when the managing account is a multi-client account.",
 	//   "httpMethod": "PUT",
 	//   "id": "content.accounts.update",
 	//   "parameterOrder": [
@@ -8081,8 +8156,9 @@ type AccountstatusesGetCall struct {
 
 // Get: Retrieves the status of a Merchant Center account. This method
 // can only be called for accounts to which the managing account has
-// access: either the managing account itself or sub-accounts if the
-// managing account is a multi-client account.
+// access: either the managing account itself for any Merchant Center
+// account, or any sub-account when the managing account is a
+// multi-client account.
 func (r *AccountstatusesService) Get(merchantId uint64, accountId uint64) *AccountstatusesGetCall {
 	c := &AccountstatusesGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -8185,7 +8261,7 @@ func (c *AccountstatusesGetCall) Do(opts ...googleapi.CallOption) (*AccountStatu
 	}
 	return ret, nil
 	// {
-	//   "description": "Retrieves the status of a Merchant Center account. This method can only be called for accounts to which the managing account has access: either the managing account itself or sub-accounts if the managing account is a multi-client account.",
+	//   "description": "Retrieves the status of a Merchant Center account. This method can only be called for accounts to which the managing account has access: either the managing account itself for any Merchant Center account, or any sub-account when the managing account is a multi-client account.",
 	//   "httpMethod": "GET",
 	//   "id": "content.accountstatuses.get",
 	//   "parameterOrder": [
@@ -8551,8 +8627,9 @@ type AccounttaxGetCall struct {
 
 // Get: Retrieves the tax settings of the account. This method can only
 // be called for accounts to which the managing account has access:
-// either the managing account itself or sub-accounts if the managing
-// account is a multi-client account.
+// either the managing account itself for any Merchant Center account,
+// or any sub-account when the managing account is a multi-client
+// account.
 func (r *AccounttaxService) Get(merchantId uint64, accountId uint64) *AccounttaxGetCall {
 	c := &AccounttaxGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -8655,7 +8732,7 @@ func (c *AccounttaxGetCall) Do(opts ...googleapi.CallOption) (*AccountTax, error
 	}
 	return ret, nil
 	// {
-	//   "description": "Retrieves the tax settings of the account. This method can only be called for accounts to which the managing account has access: either the managing account itself or sub-accounts if the managing account is a multi-client account.",
+	//   "description": "Retrieves the tax settings of the account. This method can only be called for accounts to which the managing account has access: either the managing account itself for any Merchant Center account, or any sub-account when the managing account is a multi-client account.",
 	//   "httpMethod": "GET",
 	//   "id": "content.accounttax.get",
 	//   "parameterOrder": [
@@ -8889,9 +8966,9 @@ type AccounttaxPatchCall struct {
 
 // Patch: Updates the tax settings of the account. This method can only
 // be called for accounts to which the managing account has access:
-// either the managing account itself or sub-accounts if the managing
-// account is a multi-client account. This method supports patch
-// semantics.
+// either the managing account itself for any Merchant Center account,
+// or any sub-account when the managing account is a multi-client
+// account. This method supports patch semantics.
 func (r *AccounttaxService) Patch(merchantId uint64, accountId uint64, accounttax *AccountTax) *AccounttaxPatchCall {
 	c := &AccounttaxPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -8994,7 +9071,7 @@ func (c *AccounttaxPatchCall) Do(opts ...googleapi.CallOption) (*AccountTax, err
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates the tax settings of the account. This method can only be called for accounts to which the managing account has access: either the managing account itself or sub-accounts if the managing account is a multi-client account. This method supports patch semantics.",
+	//   "description": "Updates the tax settings of the account. This method can only be called for accounts to which the managing account has access: either the managing account itself for any Merchant Center account, or any sub-account when the managing account is a multi-client account. This method supports patch semantics.",
 	//   "httpMethod": "PATCH",
 	//   "id": "content.accounttax.patch",
 	//   "parameterOrder": [
@@ -9050,8 +9127,9 @@ type AccounttaxUpdateCall struct {
 
 // Update: Updates the tax settings of the account. This method can only
 // be called for accounts to which the managing account has access:
-// either the managing account itself or sub-accounts if the managing
-// account is a multi-client account.
+// either the managing account itself for any Merchant Center account,
+// or any sub-account when the managing account is a multi-client
+// account.
 func (r *AccounttaxService) Update(merchantId uint64, accountId uint64, accounttax *AccountTax) *AccounttaxUpdateCall {
 	c := &AccounttaxUpdateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -9154,7 +9232,7 @@ func (c *AccounttaxUpdateCall) Do(opts ...googleapi.CallOption) (*AccountTax, er
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates the tax settings of the account. This method can only be called for accounts to which the managing account has access: either the managing account itself or sub-accounts if the managing account is a multi-client account.",
+	//   "description": "Updates the tax settings of the account. This method can only be called for accounts to which the managing account has access: either the managing account itself for any Merchant Center account, or any sub-account when the managing account is a multi-client account.",
 	//   "httpMethod": "PUT",
 	//   "id": "content.accounttax.update",
 	//   "parameterOrder": [
@@ -14730,8 +14808,9 @@ type ShippingsettingsGetCall struct {
 
 // Get: Retrieves the shipping settings of the account. This method can
 // only be called for accounts to which the managing account has access:
-// either the managing account itself or sub-accounts if the managing
-// account is a multi-client account.
+// either the managing account itself for any Merchant Center account,
+// or any sub-account when the managing account is a multi-client
+// account.
 func (r *ShippingsettingsService) Get(merchantId uint64, accountId uint64) *ShippingsettingsGetCall {
 	c := &ShippingsettingsGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -14834,7 +14913,7 @@ func (c *ShippingsettingsGetCall) Do(opts ...googleapi.CallOption) (*ShippingSet
 	}
 	return ret, nil
 	// {
-	//   "description": "Retrieves the shipping settings of the account. This method can only be called for accounts to which the managing account has access: either the managing account itself or sub-accounts if the managing account is a multi-client account.",
+	//   "description": "Retrieves the shipping settings of the account. This method can only be called for accounts to which the managing account has access: either the managing account itself for any Merchant Center account, or any sub-account when the managing account is a multi-client account.",
 	//   "httpMethod": "GET",
 	//   "id": "content.shippingsettings.get",
 	//   "parameterOrder": [
@@ -15210,9 +15289,9 @@ type ShippingsettingsPatchCall struct {
 
 // Patch: Updates the shipping settings of the account. This method can
 // only be called for accounts to which the managing account has access:
-// either the managing account itself or sub-accounts if the managing
-// account is a multi-client account. This method supports patch
-// semantics.
+// either the managing account itself for any Merchant Center account,
+// or any sub-account when the managing account is a multi-client
+// account. This method supports patch semantics.
 func (r *ShippingsettingsService) Patch(merchantId uint64, accountId uint64, shippingsettings *ShippingSettings) *ShippingsettingsPatchCall {
 	c := &ShippingsettingsPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -15315,7 +15394,7 @@ func (c *ShippingsettingsPatchCall) Do(opts ...googleapi.CallOption) (*ShippingS
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates the shipping settings of the account. This method can only be called for accounts to which the managing account has access: either the managing account itself or sub-accounts if the managing account is a multi-client account. This method supports patch semantics.",
+	//   "description": "Updates the shipping settings of the account. This method can only be called for accounts to which the managing account has access: either the managing account itself for any Merchant Center account, or any sub-account when the managing account is a multi-client account. This method supports patch semantics.",
 	//   "httpMethod": "PATCH",
 	//   "id": "content.shippingsettings.patch",
 	//   "parameterOrder": [
@@ -15371,8 +15450,9 @@ type ShippingsettingsUpdateCall struct {
 
 // Update: Updates the shipping settings of the account. This method can
 // only be called for accounts to which the managing account has access:
-// either the managing account itself or sub-accounts if the managing
-// account is a multi-client account.
+// either the managing account itself for any Merchant Center account,
+// or any sub-account when the managing account is a multi-client
+// account.
 func (r *ShippingsettingsService) Update(merchantId uint64, accountId uint64, shippingsettings *ShippingSettings) *ShippingsettingsUpdateCall {
 	c := &ShippingsettingsUpdateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.merchantId = merchantId
@@ -15475,7 +15555,7 @@ func (c *ShippingsettingsUpdateCall) Do(opts ...googleapi.CallOption) (*Shipping
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates the shipping settings of the account. This method can only be called for accounts to which the managing account has access: either the managing account itself or sub-accounts if the managing account is a multi-client account.",
+	//   "description": "Updates the shipping settings of the account. This method can only be called for accounts to which the managing account has access: either the managing account itself for any Merchant Center account, or any sub-account when the managing account is a multi-client account.",
 	//   "httpMethod": "PUT",
 	//   "id": "content.shippingsettings.update",
 	//   "parameterOrder": [

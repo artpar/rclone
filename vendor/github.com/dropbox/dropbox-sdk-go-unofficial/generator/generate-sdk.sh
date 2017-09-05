@@ -20,7 +20,6 @@ pushd ${spec_dir}
 spec_version=$(git rev-parse --short HEAD)
 popd
 
-sed -i.bak -e "s/UNKNOWN SDK VERSION/${sdk_version}/" \
-    -e "s/UNKNOWN SPEC VERSION/${spec_version}/" ${gen_dir}/sdk.go
-rm ${gen_dir}/sdk.go.bak
+sed -i '' -e "s/UNKNOWN SDK VERSION/${sdk_version}/" \
+	-e "s/UNKNOWN SPEC VERSION/${spec_version}/" ${gen_dir}/sdk.go
 goimports -l -w ${gen_dir}

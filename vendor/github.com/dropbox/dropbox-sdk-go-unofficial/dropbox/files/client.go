@@ -47,7 +47,6 @@ type Client interface {
 	AlphaUpload(arg *CommitInfoWithProperties, content io.Reader) (res *FileMetadata, err error)
 	// Copy : Copy a file or folder to a different location in the user's
 	// Dropbox. If the source path is a folder all its contents will be copied.
-	// Deprecated: Use `CopyV2` instead
 	Copy(arg *RelocationArg) (res IsMetadata, err error)
 	// CopyBatch : Copy multiple files or folders to different locations at once
 	// in the user's Dropbox. If `RelocationBatchArg.allow_shared_folder` is
@@ -72,7 +71,6 @@ type Client interface {
 	// Dropbox. If the source path is a folder all its contents will be copied.
 	CopyV2(arg *RelocationArg) (res *RelocationResult, err error)
 	// CreateFolder : Create a folder at a given path.
-	// Deprecated: Use `CreateFolderV2` instead
 	CreateFolder(arg *CreateFolderArg) (res *FolderMetadata, err error)
 	// CreateFolderV2 : Create a folder at a given path.
 	CreateFolderV2(arg *CreateFolderArg) (res *CreateFolderResult, err error)
@@ -81,7 +79,6 @@ type Client interface {
 	// indicates that the file or folder was deleted. The returned metadata will
 	// be the corresponding `FileMetadata` or `FolderMetadata` for the item at
 	// time of deletion, and not a `DeletedMetadata` object.
-	// Deprecated: Use `DeleteV2` instead
 	Delete(arg *DeleteArg) (res IsMetadata, err error)
 	// DeleteBatch : Delete multiple files/folders at once. This route is
 	// asynchronous, which returns a job ID immediately and runs the delete
@@ -162,7 +159,6 @@ type Client interface {
 	ListRevisions(arg *ListRevisionsArg) (res *ListRevisionsResult, err error)
 	// Move : Move a file or folder to a different location in the user's
 	// Dropbox. If the source path is a folder all its contents will be moved.
-	// Deprecated: Use `MoveV2` instead
 	Move(arg *RelocationArg) (res IsMetadata, err error)
 	// MoveBatch : Move multiple files or folders to different locations at once
 	// in the user's Dropbox. This route is 'all or nothing', which means if one
@@ -219,7 +215,6 @@ type Client interface {
 	Upload(arg *CommitInfo, content io.Reader) (res *FileMetadata, err error)
 	// UploadSessionAppend : Append more data to an upload session. A single
 	// request should not upload more than 150 MB.
-	// Deprecated: Use `UploadSessionAppendV2` instead
 	UploadSessionAppend(arg *UploadSessionCursor, content io.Reader) (err error)
 	// UploadSessionAppendV2 : Append more data to an upload session. When the
 	// parameter close is set, this call will close the session. A single
@@ -271,7 +266,9 @@ type AlphaGetMetadataAPIError struct {
 func (dbx *apiImpl) AlphaGetMetadata(arg *AlphaGetMetadataArg) (res IsMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -288,21 +285,27 @@ func (dbx *apiImpl) AlphaGetMetadata(arg *AlphaGetMetadataArg) (res IsMetadata, 
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		var tmp metadataUnion
 		err = json.Unmarshal(body, &tmp)
@@ -354,15 +357,17 @@ type AlphaUploadAPIError struct {
 func (dbx *apiImpl) AlphaUpload(arg *CommitInfoWithProperties, content io.Reader) (res *FileMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
 	}
 
 	headers := map[string]string{
-		"Content-Type":    "application/octet-stream",
 		"Dropbox-API-Arg": string(b),
+		"Content-Type":    "application/octet-stream",
 	}
 	if dbx.Config.AsMemberID != "" {
 		headers["Dropbox-API-Select-User"] = dbx.Config.AsMemberID
@@ -372,21 +377,27 @@ func (dbx *apiImpl) AlphaUpload(arg *CommitInfoWithProperties, content io.Reader
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -425,12 +436,11 @@ type CopyAPIError struct {
 }
 
 func (dbx *apiImpl) Copy(arg *RelocationArg) (res IsMetadata, err error) {
-	log.Printf("WARNING: API `Copy` is deprecated")
-	log.Printf("Use API `CopyV2` instead")
-
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -447,21 +457,27 @@ func (dbx *apiImpl) Copy(arg *RelocationArg) (res IsMetadata, err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		var tmp metadataUnion
 		err = json.Unmarshal(body, &tmp)
@@ -513,7 +529,9 @@ type CopyBatchAPIError struct {
 func (dbx *apiImpl) CopyBatch(arg *RelocationBatchArg) (res *RelocationBatchLaunch, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -530,21 +548,27 @@ func (dbx *apiImpl) CopyBatch(arg *RelocationBatchArg) (res *RelocationBatchLaun
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -585,7 +609,9 @@ type CopyBatchCheckAPIError struct {
 func (dbx *apiImpl) CopyBatchCheck(arg *async.PollArg) (res *RelocationBatchJobStatus, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -602,21 +628,27 @@ func (dbx *apiImpl) CopyBatchCheck(arg *async.PollArg) (res *RelocationBatchJobS
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -657,7 +689,9 @@ type CopyReferenceGetAPIError struct {
 func (dbx *apiImpl) CopyReferenceGet(arg *GetCopyReferenceArg) (res *GetCopyReferenceResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -674,21 +708,27 @@ func (dbx *apiImpl) CopyReferenceGet(arg *GetCopyReferenceArg) (res *GetCopyRefe
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -729,7 +769,9 @@ type CopyReferenceSaveAPIError struct {
 func (dbx *apiImpl) CopyReferenceSave(arg *SaveCopyReferenceArg) (res *SaveCopyReferenceResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -746,21 +788,27 @@ func (dbx *apiImpl) CopyReferenceSave(arg *SaveCopyReferenceArg) (res *SaveCopyR
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -801,7 +849,9 @@ type CopyV2APIError struct {
 func (dbx *apiImpl) CopyV2(arg *RelocationArg) (res *RelocationResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -818,21 +868,27 @@ func (dbx *apiImpl) CopyV2(arg *RelocationArg) (res *RelocationResult, err error
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -871,12 +927,11 @@ type CreateFolderAPIError struct {
 }
 
 func (dbx *apiImpl) CreateFolder(arg *CreateFolderArg) (res *FolderMetadata, err error) {
-	log.Printf("WARNING: API `CreateFolder` is deprecated")
-	log.Printf("Use API `CreateFolderV2` instead")
-
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -893,21 +948,27 @@ func (dbx *apiImpl) CreateFolder(arg *CreateFolderArg) (res *FolderMetadata, err
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -948,7 +1009,9 @@ type CreateFolderV2APIError struct {
 func (dbx *apiImpl) CreateFolderV2(arg *CreateFolderArg) (res *CreateFolderResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -965,21 +1028,27 @@ func (dbx *apiImpl) CreateFolderV2(arg *CreateFolderArg) (res *CreateFolderResul
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1018,12 +1087,11 @@ type DeleteAPIError struct {
 }
 
 func (dbx *apiImpl) Delete(arg *DeleteArg) (res IsMetadata, err error) {
-	log.Printf("WARNING: API `Delete` is deprecated")
-	log.Printf("Use API `DeleteV2` instead")
-
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1040,21 +1108,27 @@ func (dbx *apiImpl) Delete(arg *DeleteArg) (res IsMetadata, err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		var tmp metadataUnion
 		err = json.Unmarshal(body, &tmp)
@@ -1106,7 +1180,9 @@ type DeleteBatchAPIError struct {
 func (dbx *apiImpl) DeleteBatch(arg *DeleteBatchArg) (res *DeleteBatchLaunch, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1123,21 +1199,27 @@ func (dbx *apiImpl) DeleteBatch(arg *DeleteBatchArg) (res *DeleteBatchLaunch, er
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1178,7 +1260,9 @@ type DeleteBatchCheckAPIError struct {
 func (dbx *apiImpl) DeleteBatchCheck(arg *async.PollArg) (res *DeleteBatchJobStatus, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1195,21 +1279,27 @@ func (dbx *apiImpl) DeleteBatchCheck(arg *async.PollArg) (res *DeleteBatchJobSta
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1250,7 +1340,9 @@ type DeleteV2APIError struct {
 func (dbx *apiImpl) DeleteV2(arg *DeleteArg) (res *DeleteResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1267,21 +1359,27 @@ func (dbx *apiImpl) DeleteV2(arg *DeleteArg) (res *DeleteResult, err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1322,7 +1420,9 @@ type DownloadAPIError struct {
 func (dbx *apiImpl) Download(arg *DownloadArg) (res *FileMetadata, content io.ReadCloser, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1330,9 +1430,6 @@ func (dbx *apiImpl) Download(arg *DownloadArg) (res *FileMetadata, content io.Re
 
 	headers := map[string]string{
 		"Dropbox-API-Arg": string(b),
-	}
-	for k, v := range arg.ExtraHeaders {
-		headers[k] = v
 	}
 	if dbx.Config.AsMemberID != "" {
 		headers["Dropbox-API-Select-User"] = dbx.Config.AsMemberID
@@ -1342,18 +1439,24 @@ func (dbx *apiImpl) Download(arg *DownloadArg) (res *FileMetadata, content io.Re
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	body := []byte(resp.Header.Get("Dropbox-API-Result"))
 	content = resp.Body
-	dbx.Config.TryLog("body: %v", body)
-	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent {
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
+	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
 			return
@@ -1393,7 +1496,9 @@ type GetMetadataAPIError struct {
 func (dbx *apiImpl) GetMetadata(arg *GetMetadataArg) (res IsMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1410,21 +1515,27 @@ func (dbx *apiImpl) GetMetadata(arg *GetMetadataArg) (res IsMetadata, err error)
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		var tmp metadataUnion
 		err = json.Unmarshal(body, &tmp)
@@ -1476,7 +1587,9 @@ type GetPreviewAPIError struct {
 func (dbx *apiImpl) GetPreview(arg *PreviewArg) (res *FileMetadata, content io.ReadCloser, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1493,17 +1606,23 @@ func (dbx *apiImpl) GetPreview(arg *PreviewArg) (res *FileMetadata, content io.R
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	body := []byte(resp.Header.Get("Dropbox-API-Result"))
 	content = resp.Body
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1544,7 +1663,9 @@ type GetTemporaryLinkAPIError struct {
 func (dbx *apiImpl) GetTemporaryLink(arg *GetTemporaryLinkArg) (res *GetTemporaryLinkResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1561,21 +1682,27 @@ func (dbx *apiImpl) GetTemporaryLink(arg *GetTemporaryLinkArg) (res *GetTemporar
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1616,7 +1743,9 @@ type GetThumbnailAPIError struct {
 func (dbx *apiImpl) GetThumbnail(arg *ThumbnailArg) (res *FileMetadata, content io.ReadCloser, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1633,17 +1762,23 @@ func (dbx *apiImpl) GetThumbnail(arg *ThumbnailArg) (res *FileMetadata, content 
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	body := []byte(resp.Header.Get("Dropbox-API-Result"))
 	content = resp.Body
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1684,7 +1819,9 @@ type ListFolderAPIError struct {
 func (dbx *apiImpl) ListFolder(arg *ListFolderArg) (res *ListFolderResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1701,21 +1838,27 @@ func (dbx *apiImpl) ListFolder(arg *ListFolderArg) (res *ListFolderResult, err e
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1756,7 +1899,9 @@ type ListFolderContinueAPIError struct {
 func (dbx *apiImpl) ListFolderContinue(arg *ListFolderContinueArg) (res *ListFolderResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1773,21 +1918,27 @@ func (dbx *apiImpl) ListFolderContinue(arg *ListFolderContinueArg) (res *ListFol
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1828,7 +1979,9 @@ type ListFolderGetLatestCursorAPIError struct {
 func (dbx *apiImpl) ListFolderGetLatestCursor(arg *ListFolderArg) (res *ListFolderGetLatestCursorResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1845,21 +1998,27 @@ func (dbx *apiImpl) ListFolderGetLatestCursor(arg *ListFolderArg) (res *ListFold
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1900,7 +2059,9 @@ type ListFolderLongpollAPIError struct {
 func (dbx *apiImpl) ListFolderLongpoll(arg *ListFolderLongpollArg) (res *ListFolderLongpollResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1914,21 +2075,27 @@ func (dbx *apiImpl) ListFolderLongpoll(arg *ListFolderLongpollArg) (res *ListFol
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1969,7 +2136,9 @@ type ListRevisionsAPIError struct {
 func (dbx *apiImpl) ListRevisions(arg *ListRevisionsArg) (res *ListRevisionsResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1986,21 +2155,27 @@ func (dbx *apiImpl) ListRevisions(arg *ListRevisionsArg) (res *ListRevisionsResu
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2039,12 +2214,11 @@ type MoveAPIError struct {
 }
 
 func (dbx *apiImpl) Move(arg *RelocationArg) (res IsMetadata, err error) {
-	log.Printf("WARNING: API `Move` is deprecated")
-	log.Printf("Use API `MoveV2` instead")
-
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2061,21 +2235,27 @@ func (dbx *apiImpl) Move(arg *RelocationArg) (res IsMetadata, err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		var tmp metadataUnion
 		err = json.Unmarshal(body, &tmp)
@@ -2127,7 +2307,9 @@ type MoveBatchAPIError struct {
 func (dbx *apiImpl) MoveBatch(arg *RelocationBatchArg) (res *RelocationBatchLaunch, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2144,21 +2326,27 @@ func (dbx *apiImpl) MoveBatch(arg *RelocationBatchArg) (res *RelocationBatchLaun
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2199,7 +2387,9 @@ type MoveBatchCheckAPIError struct {
 func (dbx *apiImpl) MoveBatchCheck(arg *async.PollArg) (res *RelocationBatchJobStatus, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2216,21 +2406,27 @@ func (dbx *apiImpl) MoveBatchCheck(arg *async.PollArg) (res *RelocationBatchJobS
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2271,7 +2467,9 @@ type MoveV2APIError struct {
 func (dbx *apiImpl) MoveV2(arg *RelocationArg) (res *RelocationResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2288,21 +2486,27 @@ func (dbx *apiImpl) MoveV2(arg *RelocationArg) (res *RelocationResult, err error
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2343,7 +2547,9 @@ type PermanentlyDeleteAPIError struct {
 func (dbx *apiImpl) PermanentlyDelete(arg *DeleteArg) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2360,21 +2566,27 @@ func (dbx *apiImpl) PermanentlyDelete(arg *DeleteArg) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2410,7 +2622,9 @@ type PropertiesAddAPIError struct {
 func (dbx *apiImpl) PropertiesAdd(arg *PropertyGroupWithPath) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2427,21 +2641,27 @@ func (dbx *apiImpl) PropertiesAdd(arg *PropertyGroupWithPath) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2477,7 +2697,9 @@ type PropertiesOverwriteAPIError struct {
 func (dbx *apiImpl) PropertiesOverwrite(arg *PropertyGroupWithPath) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2494,21 +2716,27 @@ func (dbx *apiImpl) PropertiesOverwrite(arg *PropertyGroupWithPath) (err error) 
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2544,7 +2772,9 @@ type PropertiesRemoveAPIError struct {
 func (dbx *apiImpl) PropertiesRemove(arg *RemovePropertiesArg) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2561,21 +2791,27 @@ func (dbx *apiImpl) PropertiesRemove(arg *RemovePropertiesArg) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2611,7 +2847,9 @@ type PropertiesTemplateGetAPIError struct {
 func (dbx *apiImpl) PropertiesTemplateGet(arg *properties.GetPropertyTemplateArg) (res *properties.GetPropertyTemplateResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2628,21 +2866,27 @@ func (dbx *apiImpl) PropertiesTemplateGet(arg *properties.GetPropertyTemplateArg
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2692,21 +2936,27 @@ func (dbx *apiImpl) PropertiesTemplateList() (res *properties.ListPropertyTempla
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2747,7 +2997,9 @@ type PropertiesUpdateAPIError struct {
 func (dbx *apiImpl) PropertiesUpdate(arg *UpdatePropertyGroupArg) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2764,21 +3016,27 @@ func (dbx *apiImpl) PropertiesUpdate(arg *UpdatePropertyGroupArg) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2814,7 +3072,9 @@ type RestoreAPIError struct {
 func (dbx *apiImpl) Restore(arg *RestoreArg) (res *FileMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2831,21 +3091,27 @@ func (dbx *apiImpl) Restore(arg *RestoreArg) (res *FileMetadata, err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2886,7 +3152,9 @@ type SaveUrlAPIError struct {
 func (dbx *apiImpl) SaveUrl(arg *SaveUrlArg) (res *SaveUrlResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2903,21 +3171,27 @@ func (dbx *apiImpl) SaveUrl(arg *SaveUrlArg) (res *SaveUrlResult, err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2958,7 +3232,9 @@ type SaveUrlCheckJobStatusAPIError struct {
 func (dbx *apiImpl) SaveUrlCheckJobStatus(arg *async.PollArg) (res *SaveUrlJobStatus, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2975,21 +3251,27 @@ func (dbx *apiImpl) SaveUrlCheckJobStatus(arg *async.PollArg) (res *SaveUrlJobSt
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3030,7 +3312,9 @@ type SearchAPIError struct {
 func (dbx *apiImpl) Search(arg *SearchArg) (res *SearchResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3047,21 +3331,27 @@ func (dbx *apiImpl) Search(arg *SearchArg) (res *SearchResult, err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3102,15 +3392,17 @@ type UploadAPIError struct {
 func (dbx *apiImpl) Upload(arg *CommitInfo, content io.Reader) (res *FileMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
 	}
 
 	headers := map[string]string{
-		"Content-Type":    "application/octet-stream",
 		"Dropbox-API-Arg": string(b),
+		"Content-Type":    "application/octet-stream",
 	}
 	if dbx.Config.AsMemberID != "" {
 		headers["Dropbox-API-Select-User"] = dbx.Config.AsMemberID
@@ -3120,21 +3412,27 @@ func (dbx *apiImpl) Upload(arg *CommitInfo, content io.Reader) (res *FileMetadat
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3173,20 +3471,19 @@ type UploadSessionAppendAPIError struct {
 }
 
 func (dbx *apiImpl) UploadSessionAppend(arg *UploadSessionCursor, content io.Reader) (err error) {
-	log.Printf("WARNING: API `UploadSessionAppend` is deprecated")
-	log.Printf("Use API `UploadSessionAppendV2` instead")
-
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
 	}
 
 	headers := map[string]string{
-		"Content-Type":    "application/octet-stream",
 		"Dropbox-API-Arg": string(b),
+		"Content-Type":    "application/octet-stream",
 	}
 	if dbx.Config.AsMemberID != "" {
 		headers["Dropbox-API-Select-User"] = dbx.Config.AsMemberID
@@ -3196,21 +3493,27 @@ func (dbx *apiImpl) UploadSessionAppend(arg *UploadSessionCursor, content io.Rea
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -3246,15 +3549,17 @@ type UploadSessionAppendV2APIError struct {
 func (dbx *apiImpl) UploadSessionAppendV2(arg *UploadSessionAppendArg, content io.Reader) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
 	}
 
 	headers := map[string]string{
-		"Content-Type":    "application/octet-stream",
 		"Dropbox-API-Arg": string(b),
+		"Content-Type":    "application/octet-stream",
 	}
 	if dbx.Config.AsMemberID != "" {
 		headers["Dropbox-API-Select-User"] = dbx.Config.AsMemberID
@@ -3264,21 +3569,27 @@ func (dbx *apiImpl) UploadSessionAppendV2(arg *UploadSessionAppendArg, content i
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -3314,15 +3625,17 @@ type UploadSessionFinishAPIError struct {
 func (dbx *apiImpl) UploadSessionFinish(arg *UploadSessionFinishArg, content io.Reader) (res *FileMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
 	}
 
 	headers := map[string]string{
-		"Content-Type":    "application/octet-stream",
 		"Dropbox-API-Arg": string(b),
+		"Content-Type":    "application/octet-stream",
 	}
 	if dbx.Config.AsMemberID != "" {
 		headers["Dropbox-API-Select-User"] = dbx.Config.AsMemberID
@@ -3332,21 +3645,27 @@ func (dbx *apiImpl) UploadSessionFinish(arg *UploadSessionFinishArg, content io.
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3387,7 +3706,9 @@ type UploadSessionFinishBatchAPIError struct {
 func (dbx *apiImpl) UploadSessionFinishBatch(arg *UploadSessionFinishBatchArg) (res *UploadSessionFinishBatchLaunch, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3404,21 +3725,27 @@ func (dbx *apiImpl) UploadSessionFinishBatch(arg *UploadSessionFinishBatchArg) (
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3459,7 +3786,9 @@ type UploadSessionFinishBatchCheckAPIError struct {
 func (dbx *apiImpl) UploadSessionFinishBatchCheck(arg *async.PollArg) (res *UploadSessionFinishBatchJobStatus, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3476,21 +3805,27 @@ func (dbx *apiImpl) UploadSessionFinishBatchCheck(arg *async.PollArg) (res *Uplo
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3531,15 +3866,17 @@ type UploadSessionStartAPIError struct {
 func (dbx *apiImpl) UploadSessionStart(arg *UploadSessionStartArg, content io.Reader) (res *UploadSessionStartResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	if dbx.Config.Verbose {
+		log.Printf("arg: %v", arg)
+	}
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
 	}
 
 	headers := map[string]string{
-		"Content-Type":    "application/octet-stream",
 		"Dropbox-API-Arg": string(b),
+		"Content-Type":    "application/octet-stream",
 	}
 	if dbx.Config.AsMemberID != "" {
 		headers["Dropbox-API-Select-User"] = dbx.Config.AsMemberID
@@ -3549,21 +3886,27 @@ func (dbx *apiImpl) UploadSessionStart(arg *UploadSessionStartArg, content io.Re
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	if dbx.Config.Verbose {
+		log.Printf("req: %v", req)
+	}
 
 	resp, err := cli.Do(req)
+	if dbx.Config.Verbose {
+		log.Printf("resp: %v", resp)
+	}
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	if dbx.Config.Verbose {
+		log.Printf("body: %s", body)
+	}
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
