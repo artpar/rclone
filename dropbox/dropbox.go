@@ -59,7 +59,10 @@ var (
 		// 	AuthURL:  "https://www.dropbox.com/1/oauth2/authorize",
 		// 	TokenURL: "https://api.dropboxapi.com/1/oauth2/token",
 		// },
-		Endpoint:     dropbox.OAuthEndpoint(""),
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://www.dropbox.com/1/oauth2/authorize",
+			TokenURL: "https://api.dropboxapi.com/1/oauth2/token",
+		},
 		ClientID:     rcloneClientID,
 		ClientSecret: fs.MustReveal(rcloneEncryptedClientSecret),
 		RedirectURL:  oauthutil.RedirectLocalhostURL,
@@ -176,7 +179,10 @@ func NewFs(name, root string) (fs.Fs, error) {
 		ClientID:     fs.ConfigFileGet(name, "client_id"),
 		ClientSecret: fs.ConfigFileGet(name, "client_secret"),
 		Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
-		Endpoint:     dropbox.OAuthEndpoint(""),
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://www.dropbox.com/1/oauth2/authorize",
+			TokenURL: "https://api.dropboxapi.com/1/oauth2/token",
+		},
 		RedirectURL:  fs.ConfigFileGet(name, "redirect_url"),
 	}
 
