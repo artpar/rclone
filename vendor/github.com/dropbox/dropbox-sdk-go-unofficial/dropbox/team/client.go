@@ -39,6 +39,7 @@ type Client interface {
 	// DevicesListMembersDevices : List all device sessions of a team.
 	DevicesListMembersDevices(arg *ListMembersDevicesArg) (res *ListMembersDevicesResult, err error)
 	// DevicesListTeamDevices : List all device sessions of a team.
+	// Deprecated: Use `DevicesListMembersDevices` instead
 	DevicesListTeamDevices(arg *ListTeamDevicesArg) (res *ListTeamDevicesResult, err error)
 	// DevicesRevokeDeviceSession : Revoke a device session of a team's member
 	DevicesRevokeDeviceSession(arg *RevokeDeviceSessionArg) (err error)
@@ -109,6 +110,7 @@ type Client interface {
 	// LinkedAppsListTeamLinkedApps : List all applications linked to the team
 	// members' accounts. Note, this endpoint doesn't list any team-linked
 	// applications.
+	// Deprecated: Use `LinkedAppsListMembersLinkedApps` instead
 	LinkedAppsListTeamLinkedApps(arg *ListTeamAppsArg) (res *ListTeamAppsResult, err error)
 	// LinkedAppsRevokeLinkedApp : Revoke a linked application of the team
 	// member
@@ -260,9 +262,7 @@ type DevicesListMemberDevicesAPIError struct {
 func (dbx *apiImpl) DevicesListMemberDevices(arg *ListMemberDevicesArg) (res *ListMemberDevicesResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -276,27 +276,21 @@ func (dbx *apiImpl) DevicesListMemberDevices(arg *ListMemberDevicesArg) (res *Li
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -337,9 +331,7 @@ type DevicesListMembersDevicesAPIError struct {
 func (dbx *apiImpl) DevicesListMembersDevices(arg *ListMembersDevicesArg) (res *ListMembersDevicesResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -353,27 +345,21 @@ func (dbx *apiImpl) DevicesListMembersDevices(arg *ListMembersDevicesArg) (res *
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -412,11 +398,12 @@ type DevicesListTeamDevicesAPIError struct {
 }
 
 func (dbx *apiImpl) DevicesListTeamDevices(arg *ListTeamDevicesArg) (res *ListTeamDevicesResult, err error) {
+	log.Printf("WARNING: API `DevicesListTeamDevices` is deprecated")
+	log.Printf("Use API `DevicesListMembersDevices` instead")
+
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -430,27 +417,21 @@ func (dbx *apiImpl) DevicesListTeamDevices(arg *ListTeamDevicesArg) (res *ListTe
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -491,9 +472,7 @@ type DevicesRevokeDeviceSessionAPIError struct {
 func (dbx *apiImpl) DevicesRevokeDeviceSession(arg *RevokeDeviceSessionArg) (err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -507,27 +486,21 @@ func (dbx *apiImpl) DevicesRevokeDeviceSession(arg *RevokeDeviceSessionArg) (err
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -563,9 +536,7 @@ type DevicesRevokeDeviceSessionBatchAPIError struct {
 func (dbx *apiImpl) DevicesRevokeDeviceSessionBatch(arg *RevokeDeviceSessionBatchArg) (res *RevokeDeviceSessionBatchResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -579,27 +550,21 @@ func (dbx *apiImpl) DevicesRevokeDeviceSessionBatch(arg *RevokeDeviceSessionBatc
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -640,9 +605,7 @@ type FeaturesGetValuesAPIError struct {
 func (dbx *apiImpl) FeaturesGetValues(arg *FeaturesGetValuesBatchArg) (res *FeaturesGetValuesBatchResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -656,27 +619,21 @@ func (dbx *apiImpl) FeaturesGetValues(arg *FeaturesGetValuesBatchArg) (res *Feat
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -723,27 +680,21 @@ func (dbx *apiImpl) GetInfo() (res *TeamGetInfoResult, err error) {
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -784,9 +735,7 @@ type GroupsCreateAPIError struct {
 func (dbx *apiImpl) GroupsCreate(arg *GroupCreateArg) (res *GroupFullInfo, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -800,27 +749,21 @@ func (dbx *apiImpl) GroupsCreate(arg *GroupCreateArg) (res *GroupFullInfo, err e
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -861,9 +804,7 @@ type GroupsDeleteAPIError struct {
 func (dbx *apiImpl) GroupsDelete(arg *GroupSelector) (res *async.LaunchEmptyResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -877,27 +818,21 @@ func (dbx *apiImpl) GroupsDelete(arg *GroupSelector) (res *async.LaunchEmptyResu
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -938,9 +873,7 @@ type GroupsGetInfoAPIError struct {
 func (dbx *apiImpl) GroupsGetInfo(arg *GroupsSelector) (res []*GroupsGetInfoItem, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -954,27 +887,21 @@ func (dbx *apiImpl) GroupsGetInfo(arg *GroupsSelector) (res []*GroupsGetInfoItem
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1015,9 +942,7 @@ type GroupsJobStatusGetAPIError struct {
 func (dbx *apiImpl) GroupsJobStatusGet(arg *async.PollArg) (res *async.PollEmptyResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1031,27 +956,21 @@ func (dbx *apiImpl) GroupsJobStatusGet(arg *async.PollArg) (res *async.PollEmpty
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1092,9 +1011,7 @@ type GroupsListAPIError struct {
 func (dbx *apiImpl) GroupsList(arg *GroupsListArg) (res *GroupsListResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1108,27 +1025,21 @@ func (dbx *apiImpl) GroupsList(arg *GroupsListArg) (res *GroupsListResult, err e
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1169,9 +1080,7 @@ type GroupsListContinueAPIError struct {
 func (dbx *apiImpl) GroupsListContinue(arg *GroupsListContinueArg) (res *GroupsListResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1185,27 +1094,21 @@ func (dbx *apiImpl) GroupsListContinue(arg *GroupsListContinueArg) (res *GroupsL
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1246,9 +1149,7 @@ type GroupsMembersAddAPIError struct {
 func (dbx *apiImpl) GroupsMembersAdd(arg *GroupMembersAddArg) (res *GroupMembersChangeResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1262,27 +1163,21 @@ func (dbx *apiImpl) GroupsMembersAdd(arg *GroupMembersAddArg) (res *GroupMembers
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1323,9 +1218,7 @@ type GroupsMembersListAPIError struct {
 func (dbx *apiImpl) GroupsMembersList(arg *GroupsMembersListArg) (res *GroupsMembersListResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1339,27 +1232,21 @@ func (dbx *apiImpl) GroupsMembersList(arg *GroupsMembersListArg) (res *GroupsMem
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1400,9 +1287,7 @@ type GroupsMembersListContinueAPIError struct {
 func (dbx *apiImpl) GroupsMembersListContinue(arg *GroupsMembersListContinueArg) (res *GroupsMembersListResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1416,27 +1301,21 @@ func (dbx *apiImpl) GroupsMembersListContinue(arg *GroupsMembersListContinueArg)
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1477,9 +1356,7 @@ type GroupsMembersRemoveAPIError struct {
 func (dbx *apiImpl) GroupsMembersRemove(arg *GroupMembersRemoveArg) (res *GroupMembersChangeResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1493,27 +1370,21 @@ func (dbx *apiImpl) GroupsMembersRemove(arg *GroupMembersRemoveArg) (res *GroupM
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1554,9 +1425,7 @@ type GroupsMembersSetAccessTypeAPIError struct {
 func (dbx *apiImpl) GroupsMembersSetAccessType(arg *GroupMembersSetAccessTypeArg) (res []*GroupsGetInfoItem, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1570,27 +1439,21 @@ func (dbx *apiImpl) GroupsMembersSetAccessType(arg *GroupMembersSetAccessTypeArg
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1631,9 +1494,7 @@ type GroupsUpdateAPIError struct {
 func (dbx *apiImpl) GroupsUpdate(arg *GroupUpdateArgs) (res *GroupFullInfo, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1647,27 +1508,21 @@ func (dbx *apiImpl) GroupsUpdate(arg *GroupUpdateArgs) (res *GroupFullInfo, err 
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1708,9 +1563,7 @@ type LinkedAppsListMemberLinkedAppsAPIError struct {
 func (dbx *apiImpl) LinkedAppsListMemberLinkedApps(arg *ListMemberAppsArg) (res *ListMemberAppsResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1724,27 +1577,21 @@ func (dbx *apiImpl) LinkedAppsListMemberLinkedApps(arg *ListMemberAppsArg) (res 
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1785,9 +1632,7 @@ type LinkedAppsListMembersLinkedAppsAPIError struct {
 func (dbx *apiImpl) LinkedAppsListMembersLinkedApps(arg *ListMembersAppsArg) (res *ListMembersAppsResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1801,27 +1646,21 @@ func (dbx *apiImpl) LinkedAppsListMembersLinkedApps(arg *ListMembersAppsArg) (re
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1860,11 +1699,12 @@ type LinkedAppsListTeamLinkedAppsAPIError struct {
 }
 
 func (dbx *apiImpl) LinkedAppsListTeamLinkedApps(arg *ListTeamAppsArg) (res *ListTeamAppsResult, err error) {
+	log.Printf("WARNING: API `LinkedAppsListTeamLinkedApps` is deprecated")
+	log.Printf("Use API `LinkedAppsListMembersLinkedApps` instead")
+
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1878,27 +1718,21 @@ func (dbx *apiImpl) LinkedAppsListTeamLinkedApps(arg *ListTeamAppsArg) (res *Lis
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1939,9 +1773,7 @@ type LinkedAppsRevokeLinkedAppAPIError struct {
 func (dbx *apiImpl) LinkedAppsRevokeLinkedApp(arg *RevokeLinkedApiAppArg) (err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1955,27 +1787,21 @@ func (dbx *apiImpl) LinkedAppsRevokeLinkedApp(arg *RevokeLinkedApiAppArg) (err e
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2011,9 +1837,7 @@ type LinkedAppsRevokeLinkedAppBatchAPIError struct {
 func (dbx *apiImpl) LinkedAppsRevokeLinkedAppBatch(arg *RevokeLinkedApiAppBatchArg) (res *RevokeLinkedAppBatchResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2027,27 +1851,21 @@ func (dbx *apiImpl) LinkedAppsRevokeLinkedAppBatch(arg *RevokeLinkedApiAppBatchA
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2088,9 +1906,7 @@ type MembersAddAPIError struct {
 func (dbx *apiImpl) MembersAdd(arg *MembersAddArg) (res *MembersAddLaunch, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2104,27 +1920,21 @@ func (dbx *apiImpl) MembersAdd(arg *MembersAddArg) (res *MembersAddLaunch, err e
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2165,9 +1975,7 @@ type MembersAddJobStatusGetAPIError struct {
 func (dbx *apiImpl) MembersAddJobStatusGet(arg *async.PollArg) (res *MembersAddJobStatus, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2181,27 +1989,21 @@ func (dbx *apiImpl) MembersAddJobStatusGet(arg *async.PollArg) (res *MembersAddJ
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2242,9 +2044,7 @@ type MembersGetInfoAPIError struct {
 func (dbx *apiImpl) MembersGetInfo(arg *MembersGetInfoArgs) (res []*MembersGetInfoItem, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2258,27 +2058,21 @@ func (dbx *apiImpl) MembersGetInfo(arg *MembersGetInfoArgs) (res []*MembersGetIn
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2319,9 +2113,7 @@ type MembersListAPIError struct {
 func (dbx *apiImpl) MembersList(arg *MembersListArg) (res *MembersListResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2335,27 +2127,21 @@ func (dbx *apiImpl) MembersList(arg *MembersListArg) (res *MembersListResult, er
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2396,9 +2182,7 @@ type MembersListContinueAPIError struct {
 func (dbx *apiImpl) MembersListContinue(arg *MembersListContinueArg) (res *MembersListResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2412,27 +2196,21 @@ func (dbx *apiImpl) MembersListContinue(arg *MembersListContinueArg) (res *Membe
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2473,9 +2251,7 @@ type MembersRecoverAPIError struct {
 func (dbx *apiImpl) MembersRecover(arg *MembersRecoverArg) (err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2489,27 +2265,21 @@ func (dbx *apiImpl) MembersRecover(arg *MembersRecoverArg) (err error) {
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2545,9 +2315,7 @@ type MembersRemoveAPIError struct {
 func (dbx *apiImpl) MembersRemove(arg *MembersRemoveArg) (res *async.LaunchEmptyResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2561,27 +2329,21 @@ func (dbx *apiImpl) MembersRemove(arg *MembersRemoveArg) (res *async.LaunchEmpty
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2622,9 +2384,7 @@ type MembersRemoveJobStatusGetAPIError struct {
 func (dbx *apiImpl) MembersRemoveJobStatusGet(arg *async.PollArg) (res *async.PollEmptyResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2638,27 +2398,21 @@ func (dbx *apiImpl) MembersRemoveJobStatusGet(arg *async.PollArg) (res *async.Po
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2699,9 +2453,7 @@ type MembersSendWelcomeEmailAPIError struct {
 func (dbx *apiImpl) MembersSendWelcomeEmail(arg *UserSelectorArg) (err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2715,27 +2467,21 @@ func (dbx *apiImpl) MembersSendWelcomeEmail(arg *UserSelectorArg) (err error) {
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2771,9 +2517,7 @@ type MembersSetAdminPermissionsAPIError struct {
 func (dbx *apiImpl) MembersSetAdminPermissions(arg *MembersSetPermissionsArg) (res *MembersSetPermissionsResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2787,27 +2531,21 @@ func (dbx *apiImpl) MembersSetAdminPermissions(arg *MembersSetPermissionsArg) (r
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2848,9 +2586,7 @@ type MembersSetProfileAPIError struct {
 func (dbx *apiImpl) MembersSetProfile(arg *MembersSetProfileArg) (res *TeamMemberInfo, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2864,27 +2600,21 @@ func (dbx *apiImpl) MembersSetProfile(arg *MembersSetProfileArg) (res *TeamMembe
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2925,9 +2655,7 @@ type MembersSuspendAPIError struct {
 func (dbx *apiImpl) MembersSuspend(arg *MembersDeactivateArg) (err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2941,27 +2669,21 @@ func (dbx *apiImpl) MembersSuspend(arg *MembersDeactivateArg) (err error) {
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2997,9 +2719,7 @@ type MembersUnsuspendAPIError struct {
 func (dbx *apiImpl) MembersUnsuspend(arg *MembersUnsuspendArg) (err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3013,27 +2733,21 @@ func (dbx *apiImpl) MembersUnsuspend(arg *MembersUnsuspendArg) (err error) {
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -3069,9 +2783,7 @@ type NamespacesListAPIError struct {
 func (dbx *apiImpl) NamespacesList(arg *TeamNamespacesListArg) (res *TeamNamespacesListResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3085,27 +2797,21 @@ func (dbx *apiImpl) NamespacesList(arg *TeamNamespacesListArg) (res *TeamNamespa
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3146,9 +2852,7 @@ type NamespacesListContinueAPIError struct {
 func (dbx *apiImpl) NamespacesListContinue(arg *TeamNamespacesListContinueArg) (res *TeamNamespacesListResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3162,27 +2866,21 @@ func (dbx *apiImpl) NamespacesListContinue(arg *TeamNamespacesListContinueArg) (
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3223,9 +2921,7 @@ type PropertiesTemplateAddAPIError struct {
 func (dbx *apiImpl) PropertiesTemplateAdd(arg *AddPropertyTemplateArg) (res *AddPropertyTemplateResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3239,27 +2935,21 @@ func (dbx *apiImpl) PropertiesTemplateAdd(arg *AddPropertyTemplateArg) (res *Add
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3300,9 +2990,7 @@ type PropertiesTemplateGetAPIError struct {
 func (dbx *apiImpl) PropertiesTemplateGet(arg *properties.GetPropertyTemplateArg) (res *properties.GetPropertyTemplateResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3316,27 +3004,21 @@ func (dbx *apiImpl) PropertiesTemplateGet(arg *properties.GetPropertyTemplateArg
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3383,27 +3065,21 @@ func (dbx *apiImpl) PropertiesTemplateList() (res *properties.ListPropertyTempla
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3444,9 +3120,7 @@ type PropertiesTemplateUpdateAPIError struct {
 func (dbx *apiImpl) PropertiesTemplateUpdate(arg *UpdatePropertyTemplateArg) (res *UpdatePropertyTemplateResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3460,27 +3134,21 @@ func (dbx *apiImpl) PropertiesTemplateUpdate(arg *UpdatePropertyTemplateArg) (re
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3521,9 +3189,7 @@ type ReportsGetActivityAPIError struct {
 func (dbx *apiImpl) ReportsGetActivity(arg *DateRange) (res *GetActivityReport, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3537,27 +3203,21 @@ func (dbx *apiImpl) ReportsGetActivity(arg *DateRange) (res *GetActivityReport, 
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3598,9 +3258,7 @@ type ReportsGetDevicesAPIError struct {
 func (dbx *apiImpl) ReportsGetDevices(arg *DateRange) (res *GetDevicesReport, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3614,27 +3272,21 @@ func (dbx *apiImpl) ReportsGetDevices(arg *DateRange) (res *GetDevicesReport, er
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3675,9 +3327,7 @@ type ReportsGetMembershipAPIError struct {
 func (dbx *apiImpl) ReportsGetMembership(arg *DateRange) (res *GetMembershipReport, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3691,27 +3341,21 @@ func (dbx *apiImpl) ReportsGetMembership(arg *DateRange) (res *GetMembershipRepo
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3752,9 +3396,7 @@ type ReportsGetStorageAPIError struct {
 func (dbx *apiImpl) ReportsGetStorage(arg *DateRange) (res *GetStorageReport, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3768,27 +3410,21 @@ func (dbx *apiImpl) ReportsGetStorage(arg *DateRange) (res *GetStorageReport, er
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3829,9 +3465,7 @@ type TeamFolderActivateAPIError struct {
 func (dbx *apiImpl) TeamFolderActivate(arg *TeamFolderIdArg) (res *TeamFolderMetadata, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3845,27 +3479,21 @@ func (dbx *apiImpl) TeamFolderActivate(arg *TeamFolderIdArg) (res *TeamFolderMet
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3906,9 +3534,7 @@ type TeamFolderArchiveAPIError struct {
 func (dbx *apiImpl) TeamFolderArchive(arg *TeamFolderArchiveArg) (res *TeamFolderArchiveLaunch, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3922,27 +3548,21 @@ func (dbx *apiImpl) TeamFolderArchive(arg *TeamFolderArchiveArg) (res *TeamFolde
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3983,9 +3603,7 @@ type TeamFolderArchiveCheckAPIError struct {
 func (dbx *apiImpl) TeamFolderArchiveCheck(arg *async.PollArg) (res *TeamFolderArchiveJobStatus, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3999,27 +3617,21 @@ func (dbx *apiImpl) TeamFolderArchiveCheck(arg *async.PollArg) (res *TeamFolderA
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -4060,9 +3672,7 @@ type TeamFolderCreateAPIError struct {
 func (dbx *apiImpl) TeamFolderCreate(arg *TeamFolderCreateArg) (res *TeamFolderMetadata, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -4076,27 +3686,21 @@ func (dbx *apiImpl) TeamFolderCreate(arg *TeamFolderCreateArg) (res *TeamFolderM
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -4137,9 +3741,7 @@ type TeamFolderGetInfoAPIError struct {
 func (dbx *apiImpl) TeamFolderGetInfo(arg *TeamFolderIdListArg) (res []*TeamFolderGetInfoItem, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -4153,27 +3755,21 @@ func (dbx *apiImpl) TeamFolderGetInfo(arg *TeamFolderIdListArg) (res []*TeamFold
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -4214,9 +3810,7 @@ type TeamFolderListAPIError struct {
 func (dbx *apiImpl) TeamFolderList(arg *TeamFolderListArg) (res *TeamFolderListResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -4230,27 +3824,21 @@ func (dbx *apiImpl) TeamFolderList(arg *TeamFolderListArg) (res *TeamFolderListR
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -4291,9 +3879,7 @@ type TeamFolderListContinueAPIError struct {
 func (dbx *apiImpl) TeamFolderListContinue(arg *TeamFolderListContinueArg) (res *TeamFolderListResult, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -4307,27 +3893,21 @@ func (dbx *apiImpl) TeamFolderListContinue(arg *TeamFolderListContinueArg) (res 
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -4368,9 +3948,7 @@ type TeamFolderPermanentlyDeleteAPIError struct {
 func (dbx *apiImpl) TeamFolderPermanentlyDelete(arg *TeamFolderIdArg) (err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -4384,27 +3962,21 @@ func (dbx *apiImpl) TeamFolderPermanentlyDelete(arg *TeamFolderIdArg) (err error
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -4440,9 +4012,7 @@ type TeamFolderRenameAPIError struct {
 func (dbx *apiImpl) TeamFolderRename(arg *TeamFolderRenameArg) (res *TeamFolderMetadata, err error) {
 	cli := dbx.Client
 
-	if dbx.Config.Verbose {
-		log.Printf("arg: %v", arg)
-	}
+	dbx.Config.TryLog("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -4456,27 +4026,21 @@ func (dbx *apiImpl) TeamFolderRename(arg *TeamFolderRenameArg) (res *TeamFolderM
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -4523,27 +4087,21 @@ func (dbx *apiImpl) TokenGetAuthenticatedAdmin() (res *TokenGetAuthenticatedAdmi
 	if err != nil {
 		return
 	}
-	if dbx.Config.Verbose {
-		log.Printf("req: %v", req)
-	}
+	dbx.Config.TryLog("req: %v", req)
 
 	resp, err := cli.Do(req)
-	if dbx.Config.Verbose {
-		log.Printf("resp: %v", resp)
-	}
 	if err != nil {
 		return
 	}
 
+	dbx.Config.TryLog("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	if dbx.Config.Verbose {
-		log.Printf("body: %s", body)
-	}
+	dbx.Config.TryLog("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {

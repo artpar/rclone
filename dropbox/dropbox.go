@@ -32,14 +32,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ncw/dropbox-sdk-go-unofficial/dropbox"
-	"github.com/ncw/dropbox-sdk-go-unofficial/dropbox/files"
+	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
+	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/oauthutil"
 	"github.com/artpar/rclone/pacer"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
-	//"golang.org/x/oauth2/google"
 )
 
 // Constants
@@ -85,7 +84,7 @@ func init() {
 		Config: func(name string) {
 			err := oauthutil.ConfigNoOffline("dropbox", name, dropboxConfig)
 			if err != nil {
-				log.Printf("Failed to configure token: %v", err)
+				log.Fatalf("Failed to configure token: %v", err)
 			}
 		},
 		Options: []fs.Option{{
@@ -175,20 +174,9 @@ func NewFs(name, root string) (fs.Fs, error) {
 		}
 	}
 
-	oauthConf1 := oauth2.Config{
-		ClientID:     fs.ConfigFileGet(name, "client_id"),
-		ClientSecret: fs.ConfigFileGet(name, "client_secret"),
-		Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://www.dropbox.com/1/oauth2/authorize",
-			TokenURL: "https://api.dropboxapi.com/1/oauth2/token",
-		},
-		RedirectURL:  fs.ConfigFileGet(name, "redirect_url"),
-	}
-
-	oAuthClient, _, err := oauthutil.NewClient(name, &oauthConf1)
+	oAuthClient, _, err := oauthutil.NewClient(name, dropboxConfig)
 	if err != nil {
-		log.Printf("Failed to configure dropbox: %v", err)
+		log.Fatalf("Failed to configure dropbox: %v", err)
 	}
 
 	config := dropbox.Config{
