@@ -710,3 +710,14 @@ Changelog
     * Project named rclone
   * v0.00 - 2012-11-18
     * Project started
+  * v1.47 - 2017-09-12
+529a4a8 merge ncw/master
+80b1f2a rcat: configurable small files cutoff and implement proper upload verification
+5781739 rcat: directly upload small files without streaming them
+10fa2a7 snapd: remove snapd because the build fails (see #1188, #1595, #1618)
+9a62d2f Makefile: avoid using deprecated xargs arguments
+49816e6 yandex: implement cleanup (empty trash) - addresses #575
+fe536f3 Typo fix in changelog
+c54d513 Add ishuah91 to contributors
+dd975ab drive: implement cleanup (empty trash) - addresses #575
+2944f76 s3: read 1000 items in listings #1653

@@ -2,43 +2,43 @@
 title: "Rclone downloads"
 description: "Download rclone binaries for your OS."
 type: page
-date: "2017-07-22"
+date: "2017-09-12"
 ---
 
-Rclone Download v1.37
+Rclone Download v1.47
 =====================
 
   * Windows
-    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.37-windows-386.zip)
-    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.37-windows-amd64.zip)
+    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.47-windows-386.zip)
+    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.47-windows-amd64.zip)
   * OSX
-    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.37-osx-386.zip)
-    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.37-osx-amd64.zip)
+    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.47-osx-386.zip)
+    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.47-osx-amd64.zip)
   * Linux
-    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.37-linux-386.zip)
-    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.37-linux-amd64.zip)
-    * [ARM - 32 Bit](https://downloads.rclone.org/rclone-v1.37-linux-arm.zip)
-    * [ARM - 64 Bit](https://downloads.rclone.org/rclone-v1.37-linux-arm64.zip)
-    * [MIPS - Big Endian](https://downloads.rclone.org/rclone-v1.37-linux-mips.zip)
-    * [MIPS - Little Endian](https://downloads.rclone.org/rclone-v1.37-linux-mipsle.zip)
+    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.47-linux-386.zip)
+    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.47-linux-amd64.zip)
+    * [ARM - 32 Bit](https://downloads.rclone.org/rclone-v1.47-linux-arm.zip)
+    * [ARM - 64 Bit](https://downloads.rclone.org/rclone-v1.47-linux-arm64.zip)
+    * [MIPS - Big Endian](https://downloads.rclone.org/rclone-v1.47-linux-mips.zip)
+    * [MIPS - Little Endian](https://downloads.rclone.org/rclone-v1.47-linux-mipsle.zip)
   * FreeBSD
-    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.37-freebsd-386.zip)
-    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.37-freebsd-amd64.zip)
-    * [ARM - 32 Bit](https://downloads.rclone.org/rclone-v1.37-freebsd-arm.zip)
+    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.47-freebsd-386.zip)
+    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.47-freebsd-amd64.zip)
+    * [ARM - 32 Bit](https://downloads.rclone.org/rclone-v1.47-freebsd-arm.zip)
   * NetBSD
-    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.37-netbsd-386.zip)
-    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.37-netbsd-amd64.zip)
-    * [ARM - 32 Bit](https://downloads.rclone.org/rclone-v1.37-netbsd-arm.zip)
+    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.47-netbsd-386.zip)
+    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.47-netbsd-amd64.zip)
+    * [ARM - 32 Bit](https://downloads.rclone.org/rclone-v1.47-netbsd-arm.zip)
   * OpenBSD
-    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.37-openbsd-386.zip)
-    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.37-openbsd-amd64.zip)
+    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.47-openbsd-386.zip)
+    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.47-openbsd-amd64.zip)
   * Plan 9
-    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.37-plan9-386.zip)
-    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.37-plan9-amd64.zip)
+    * [386 - 32 Bit](https://downloads.rclone.org/rclone-v1.47-plan9-386.zip)
+    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.47-plan9-amd64.zip)
   * Solaris
-    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.37-solaris-amd64.zip)
+    * [AMD64 - 64 Bit](https://downloads.rclone.org/rclone-v1.47-solaris-amd64.zip)
 
-You can also find a [mirror of the downloads on github](https://github.com/artpar/rclone/releases/tag/v1.37).
+You can also find a [mirror of the downloads on github](https://github.com/artpar/rclone/releases/tag/v1.47).
 
 Beta releases
 =============

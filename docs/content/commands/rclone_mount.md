@@ -1,5 +1,5 @@
 ---
-date: 2017-07-22T18:15:25+01:00
+date: 2017-09-12T02:26:58+05:30
 title: "rclone mount"
 slug: rclone_mount
 url: /commands/rclone_mount/
@@ -38,6 +38,34 @@ When that happens, it is the user's responsibility to stop the mount manually wi
     fusermount -u /path/to/local/mount
     # OS X
     umount /path/to/local/mount
+
+### Installing on Windows ###
+
+To run rclone mount on Windows, you will need to
+download and install [WinFsp](http://www.secfs.net/winfsp/).
+
+WinFsp is an [open source](https://github.com/billziss-gh/winfsp)
+Windows File System Proxy which makes it easy to write user space file
+systems for Windows.  It provides a FUSE emulation layer which rclone
+uses combination with
+[cgofuse](https://github.com/billziss-gh/cgofuse).  Both of these
+packages are by Bill Zissimopoulos who was very helpful during the
+implementation of rclone mount for Windows.
+
+#### Windows caveats ####
+
+Note that drives created as Administrator are not visible by other
+accounts (including the account that was elevated as
+Administrator). So if you start a Windows drive from an Administrative
+Command Prompt and then try to access the same drive from Explorer
+(which does not run as Administrator), you will not be able to see the
+new drive.
+
+The easiest way around this is to start the drive from a normal
+command prompt. It is also possible to start a drive from the SYSTEM
+account (using [the WinFsp.Launcher
+infrastructure](https://github.com/billziss-gh/winfsp/wiki/WinFsp-Service-Architecture))
+which creates drives accessible for everyone on the system.
 
 ### Limitations ###
 
@@ -106,7 +134,8 @@ rclone mount remote:path /path/to/mountpoint [flags]
       --default-permissions       Makes kernel enforce access control based on the file mode.
       --dir-cache-time duration   Time to cache directory entries for. (default 5m0s)
       --fuse-flag stringArray     Flags or arguments to be passed direct to libfuse/WinFsp. Repeat if required.
-      --gid uint32                Override the gid field set by the filesystem. (default 502)
+      --gid uint32                Override the gid field set by the filesystem. (default 1000)
+  -h, --help                      help for mount
       --max-read-ahead int        The number of bytes that can be prefetched for sequential reads. (default 128k)
       --no-checksum               Don't compare checksums on up/download.
       --no-modtime                Don't read/write the modification time (can speed things up).
@@ -114,7 +143,7 @@ rclone mount remote:path /path/to/mountpoint [flags]
   -o, --option stringArray        Option for libfuse/WinFsp. Repeat if required.
       --poll-interval duration    Time to wait between polling for changes. Must be smaller than dir-cache-time. Only on supported remotes. Set to 0 to disable. (default 1m0s)
       --read-only                 Mount read-only.
-      --uid uint32                Override the uid field set by the filesystem. (default 502)
+      --uid uint32                Override the uid field set by the filesystem. (default 1000)
       --umask int                 Override the permission bits set by the filesystem.
       --write-back-cache          Makes kernel buffer writes before sending them to rclone. Without this, writethrough caching is used.
 ```
@@ -126,15 +155,18 @@ rclone mount remote:path /path/to/mountpoint [flags]
       --acd-upload-wait-per-gb duration   Additional time per GB to wait after a failed complete upload to see if it appears. (default 3m0s)
       --ask-password                      Allow prompt for password for encrypted configuration. (default true)
       --b2-chunk-size int                 Upload chunk size. Must fit in memory. (default 96M)
+      --b2-hard-delete                    Permanently delete files on remote removal, otherwise hide files.
       --b2-test-mode string               A flag string for X-Bz-Test-Mode header.
       --b2-upload-cutoff int              Cutoff for switching to chunked upload (default 190.735M)
       --b2-versions                       Include old versions in directory listings.
       --backup-dir string                 Make backups into hierarchy based in DIR.
+      --bind string                       Local address to bind to for outgoing connections, IPv4, IPv6 or name.
+      --box-upload-cutoff int             Cutoff for switching to multipart upload (default 50M)
       --buffer-size int                   Buffer size when copying files. (default 16M)
       --bwlimit BwTimetable               Bandwidth limit in kBytes/s, or use suffix b|k|M|G or a full timetable.
       --checkers int                      Number of checkers to run in parallel. (default 8)
   -c, --checksum                          Skip based on checksum & size, not mod-time & size
-      --config string                     Config file. (default "/home/artpar/.rclone.conf")
+      --config string                     Config file. (default "/home/artpar/.config/rclone/rclone.conf")
       --contimeout duration               Connect timeout (default 1m0s)
   -L, --copy-links                        Follow symlinks and copy the pointed to item.
       --cpuprofile string                 Write cpu profile to file
@@ -143,6 +175,7 @@ rclone mount remote:path /path/to/mountpoint [flags]
       --delete-before                     When synchronizing, delete files on destination before transfering
       --delete-during                     When synchronizing, delete files during transfer (default)
       --delete-excluded                   Delete files on dest excluded from sync
+      --disable string                    Disable a comma separated list of features.  Use help to see a list.
       --drive-auth-owner-only             Only consider files owned by the authenticated user.
       --drive-chunk-size int              Upload chunk size. Must a power of 2 >= 256k. (default 8M)
       --drive-formats string              Comma separated list of preferred formats for downloading Google docs. (default "docx,xlsx,pptx,svg")
@@ -196,9 +229,11 @@ rclone mount remote:path /path/to/mountpoint [flags]
       --s3-acl string                     Canned ACL used when creating buckets and/or storing objects in S3
       --s3-storage-class string           Storage class to use when uploading S3 objects (STANDARD|REDUCED_REDUNDANCY|STANDARD_IA)
       --size-only                         Skip based on size only, not mod-time or checksum
+      --skip-links                        Don't warn about skipped symlinks.
       --stats duration                    Interval between printing stats, e.g 500ms, 60s, 5m. (0 to disable) (default 1m0s)
       --stats-log-level string            Log level to show --stats output DEBUG|INFO|NOTICE|ERROR (default "INFO")
       --stats-unit string                 Show data rate in stats as either 'bits' or 'bytes'/s (default "bytes")
+      --streaming-upload-cutoff int       Cutoff for switching to chunked upload if file size is unknown. Upload starts after reaching cutoff or when file ends. (default 100k)
       --suffix string                     Suffix for use with --backup-dir.
       --swift-chunk-size int              Above this size files will be chunked into a _segments container. (default 5G)
       --syslog                            Use Syslog for logging
@@ -209,10 +244,11 @@ rclone mount remote:path /path/to/mountpoint [flags]
       --track-renames                     When synchronizing, track file renames and do a server side move if possible
       --transfers int                     Number of file transfers to run in parallel. (default 4)
   -u, --update                            Skip files that are newer on the destination.
+      --user-agent string                 Set the user-agent to a specified string. The default is rclone/ version (default "rclone/1.46-010-g529a4a8b")
   -v, --verbose count[=-1]                Print lots more stuff (repeat for more)
 ```
 
 ### SEE ALSO
-* [rclone](/commands/rclone/)	 - Sync files and directories to and from local and remote object stores - v1.37
+* [rclone](/commands/rclone/)	 - Sync files and directories to and from local and remote object stores - 1.46-010-g529a4a8b
 
-###### Auto generated by spf13/cobra on 22-Jul-2017
+###### Auto generated by spf13/cobra on 12-Sep-2017
