@@ -342,28 +342,33 @@ func NewFs(name, root string) (fs.Fs, error) {
 		// personal account setup
 		oauthConfig = oauthPersonalConfig
 		rootURL = rootURLPersonal
+
+		oauthConfig = &oauth2.Config{
+			ClientID:     fs.ConfigFileGet(name, "client_id"),
+			ClientSecret: fs.ConfigFileGet(name, "client_secret"),
+			Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
+			Endpoint:     oauthPersonalConfig.Endpoint,
+			RedirectURL:  fs.ConfigFileGet(name, "redirect_url"),
+		}
+
 	} else {
 		// business account setup
 		oauthConfig = oauthBusinessConfig
 		rootURL = resourceURL + "_api/v2.0/drives/me"
 
+		oauthConfig = &oauth2.Config{
+			ClientID:     fs.ConfigFileGet(name, "client_id"),
+			ClientSecret: fs.ConfigFileGet(name, "client_secret"),
+			Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
+			Endpoint:     oauthBusinessConfig.Endpoint,
+			RedirectURL:  fs.ConfigFileGet(name, "redirect_url"),
+		}
+
 		// update the URL in the AuthOptions
 		oauthBusinessResource = oauth2.SetAuthURLParam("resource", resourceURL)
 	}
 	root = parsePath(root)
-
-	oauthConf1 := oauth2.Config{
-		ClientID:     fs.ConfigFileGet(name, "client_id"),
-		ClientSecret: fs.ConfigFileGet(name, "client_secret"),
-		Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://login.live.com/oauth20_authorize.srf",
-			TokenURL: "https://login.live.com/oauth20_token.srf",
-		},
-		RedirectURL: fs.ConfigFileGet(name, "redirect_url"),
-	}
-
-	oAuthClient, ts, err := oauthutil.NewClient(name, &oauthConf1)
+	oAuthClient, ts, err := oauthutil.NewClient(name, oauthConfig)
 	if err != nil {
 		log.Printf("Failed to configure OneDrive: %v", err)
 	}

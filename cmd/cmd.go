@@ -367,12 +367,12 @@ func initConfig() {
 		f, err := os.Create(*cpuProfile)
 		if err != nil {
 			fs.Stats.Error(err)
-			log.Printf(err)
+			log.Printf("Fatal error: %v", err)
 		}
 		err = pprof.StartCPUProfile(f)
 		if err != nil {
 			fs.Stats.Error(err)
-			log.Printf(err)
+			log.Printf("Fatal error: %v", err)
 		}
 		AtExit(func() {
 			pprof.StopCPUProfile()
@@ -386,17 +386,17 @@ func initConfig() {
 			f, err := os.Create(*memProfile)
 			if err != nil {
 				fs.Stats.Error(err)
-				log.Printf(err)
+				log.Printf("Fatal error: %v", err)
 			}
 			err = pprof.WriteHeapProfile(f)
 			if err != nil {
 				fs.Stats.Error(err)
-				log.Printf(err)
+				log.Printf("Fatal error: %v", err)
 			}
 			err = f.Close()
 			if err != nil {
 				fs.Stats.Error(err)
-				log.Printf(err)
+				log.Printf("Fatal error: %v", err)
 			}
 		})
 	}
