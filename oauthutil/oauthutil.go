@@ -51,9 +51,9 @@ type oldToken struct {
 	Expiry       time.Time
 }
 
-// getToken returns the token saved in the config file under
+// GetToken returns the token saved in the config file under
 // section name.
-func getToken(name string) (*oauth2.Token, error) {
+func GetToken(name string) (*oauth2.Token, error) {
 	tokenString := fs.ConfigFileGet(name, fs.ConfigToken)
 	if tokenString == "" {
 		return nil, errors.New("empty token found - please run rclone config again")
@@ -78,17 +78,17 @@ func getToken(name string) (*oauth2.Token, error) {
 	token.RefreshToken = oldtoken.RefreshToken
 	token.Expiry = oldtoken.Expiry
 	// Save new format in config file
-	err = putToken(name, token, false)
+	err = PutToken(name, token, false)
 	if err != nil {
 		return nil, err
 	}
 	return token, nil
 }
 
-// putToken stores the token in the config file
+// PutToken stores the token in the config file
 //
 // This saves the config file if it changes
-func putToken(name string, token *oauth2.Token, newSection bool) error {
+func PutToken(name string, token *oauth2.Token, newSection bool) error {
 	tokenBytes, err := json.Marshal(token)
 	if err != nil {
 		return err
@@ -144,7 +144,7 @@ func (ts *TokenSource) Token() (*oauth2.Token, error) {
 		if ts.expiryTimer != nil {
 			ts.expiryTimer.Reset(ts.timeToExpiry())
 		}
-		err = putToken(ts.name, token, false)
+		err = PutToken(ts.name, token, false)
 		if err != nil {
 			return nil, err
 		}
@@ -189,8 +189,8 @@ func (ts *TokenSource) OnExpiry() <-chan time.Time {
 var _ oauth2.TokenSource = (*TokenSource)(nil)
 
 // Context returns a context with our HTTP Client baked in for oauth2
-func Context() context.Context {
-	return context.WithValue(context.Background(), oauth2.HTTPClient, fs.Config.Client())
+func Context(client *http.Client) context.Context {
+	return context.WithValue(context.Background(), oauth2.HTTPClient, client)
 }
 
 // overrideCredentials sets the ClientID and ClientSecret from the
@@ -224,17 +224,19 @@ func overrideCredentials(name string, origConfig *oauth2.Config) (config *oauth2
 	return config, changed
 }
 
-// NewClient gets a token from the config file and configures a Client
-// with it.  It returns the client and a TokenSource which Invalidate may need to be called on
-func NewClient(name string, config *oauth2.Config) (*http.Client, *TokenSource, error) {
+// NewClientWithBaseClient gets a token from the config file and
+// configures a Client with it.  It returns the client and a
+// TokenSource which Invalidate may need to be called on.  It uses the
+// httpClient passed in as the base client.
+func NewClientWithBaseClient(name string, config *oauth2.Config, baseClient *http.Client) (*http.Client, *TokenSource, error) {
 	config, _ = overrideCredentials(name, config)
-	token, err := getToken(name)
+	token, err := GetToken(name)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Set our own http client in the context
-	ctx := Context()
+	ctx := Context(baseClient)
 
 	// Wrap the TokenSource in our TokenSource which saves changed
 	// tokens in the config file
@@ -246,6 +248,12 @@ func NewClient(name string, config *oauth2.Config) (*http.Client, *TokenSource, 
 	}
 	return oauth2.NewClient(ctx, ts), ts, nil
 
+}
+
+// NewClient gets a token from the config file and configures a Client
+// with it.  It returns the client and a TokenSource which Invalidate may need to be called on
+func NewClient(name string, config *oauth2.Config) (*http.Client, *TokenSource, error) {
+	return NewClientWithBaseClient(name, config, fs.Config.Client())
 }
 
 // Config does the initial creation of the token
@@ -309,7 +317,7 @@ func doConfig(id, name string, config *oauth2.Config, offline bool, opts []oauth
 			if err != nil {
 				return err
 			}
-			return putToken(name, token, false)
+			return PutToken(name, token, false)
 		}
 	case TitleBarRedirectURL:
 		useWebServer = automatic
@@ -385,7 +393,7 @@ func doConfig(id, name string, config *oauth2.Config, offline bool, opts []oauth
 		}
 		fmt.Printf("Paste the following into your remote machine --->\n%s\n<---End paste", result)
 	}
-	return putToken(name, token, true)
+	return PutToken(name, token, true)
 }
 
 // Local web server for collecting auth
@@ -428,17 +436,18 @@ func (s *authServer) Start() {
 				fs.Debugf(nil, "Successfully got code")
 				if s.code != nil {
 					fmt.Fprintf(w, "<h1>Success</h1>\n<p>Go back to rclone to continue</p>")
-					s.code <- code
 				} else {
 					fmt.Fprintf(w, "<h1>Success</h1>\n<p>Cut and paste this code into rclone: <code>%s</code></p>", code)
 				}
 			}
-			return
+		} else {
+			fs.Debugf(nil, "No code found on request")
+			w.WriteHeader(500)
+			fmt.Fprintf(w, "<h1>Failed!</h1>\nNo code found returned by remote server.")
 		}
-		fs.Debugf(nil, "No code found on request")
-		w.WriteHeader(500)
-		fmt.Fprintf(w, "<h1>Failed!</h1>\nNo code found returned by remote server.")
-
+		if s.code != nil {
+			s.code <- code
+		}
 	})
 
 	var err error

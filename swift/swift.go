@@ -2,6 +2,7 @@
 package swift
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -48,13 +49,13 @@ func init() {
 			},
 		}, {
 			Name: "user",
-			Help: "User name to log in.",
+			Help: "User name to log in (OS_USERNAME).",
 		}, {
 			Name: "key",
-			Help: "API key or password.",
+			Help: "API key or password (OS_PASSWORD).",
 		}, {
 			Name: "auth",
-			Help: "Authentication URL for server.",
+			Help: "Authentication URL for server (OS_AUTH_URL).",
 			Examples: []fs.OptionExample{{
 				Help:  "Rackspace US",
 				Value: "https://auth.api.rackspacecloud.com/v1.0",
@@ -75,26 +76,35 @@ func init() {
 				Value: "https://auth.cloud.ovh.net/v2.0",
 			}},
 		}, {
+			Name: "user_id",
+			Help: "User ID to log in - optional - most swift systems use user and leave this blank (v3 auth) (OS_USER_ID).",
+		}, {
 			Name: "domain",
-			Help: "User domain - optional (v3 auth)",
+			Help: "User domain - optional (v3 auth) (OS_USER_DOMAIN_NAME)",
 		}, {
 			Name: "tenant",
-			Help: "Tenant name - optional for v1 auth, required otherwise",
+			Help: "Tenant name - optional for v1 auth, this or tenant_id required otherwise (OS_TENANT_NAME or OS_PROJECT_NAME)",
+		}, {
+			Name: "tenant_id",
+			Help: "Tenant ID - optional for v1 auth, this or tenant required otherwise (OS_TENANT_ID)",
 		}, {
 			Name: "tenant_domain",
-			Help: "Tenant domain - optional (v3 auth)",
+			Help: "Tenant domain - optional (v3 auth) (OS_PROJECT_DOMAIN_NAME)",
 		}, {
 			Name: "region",
-			Help: "Region name - optional",
+			Help: "Region name - optional (OS_REGION_NAME)",
 		}, {
 			Name: "storage_url",
-			Help: "Storage URL - optional",
+			Help: "Storage URL - optional (OS_STORAGE_URL)",
+		}, {
+			Name: "auth_token",
+			Help: "Auth Token from alternate authentication - optional (OS_AUTH_TOKEN)",
 		}, {
 			Name: "auth_version",
-			Help: "AuthVersion - optional - set to (1,2,3) if your auth URL has no version",
+			Help: "AuthVersion - optional - set to (1,2,3) if your auth URL has no version (ST_AUTH_VERSION)",
 		}, {
 			Name: "endpoint_type",
-			Help: "Endpoint type to choose from the service catalogue",
+			Help: "Endpoint type to choose from the service catalogue (OS_ENDPOINT_TYPE)",
 			Examples: []fs.OptionExample{{
 				Help:  "Public (default, choose this if not sure)",
 				Value: "public",
@@ -180,14 +190,19 @@ func parsePath(path string) (container, directory string, err error) {
 // swiftConnection makes a connection to swift
 func swiftConnection(name string) (*swift.Connection, error) {
 	c := &swift.Connection{
+		// Keep these in the same order as the Config for ease of checking
 		UserName:       fs.ConfigFileGet(name, "user"),
 		ApiKey:         fs.ConfigFileGet(name, "key"),
 		AuthUrl:        fs.ConfigFileGet(name, "auth"),
-		AuthVersion:    fs.ConfigFileGetInt(name, "auth_version", 0),
-		Tenant:         fs.ConfigFileGet(name, "tenant"),
-		Region:         fs.ConfigFileGet(name, "region"),
+		UserId:         fs.ConfigFileGet(name, "user_id"),
 		Domain:         fs.ConfigFileGet(name, "domain"),
+		Tenant:         fs.ConfigFileGet(name, "tenant"),
+		TenantId:       fs.ConfigFileGet(name, "tenant_id"),
 		TenantDomain:   fs.ConfigFileGet(name, "tenant_domain"),
+		Region:         fs.ConfigFileGet(name, "region"),
+		StorageUrl:     fs.ConfigFileGet(name, "storage_url"),
+		AuthToken:      fs.ConfigFileGet(name, "auth_token"),
+		AuthVersion:    fs.ConfigFileGetInt(name, "auth_version", 0),
 		EndpointType:   swift.EndpointType(fs.ConfigFileGet(name, "endpoint_type", "public")),
 		ConnectTimeout: 10 * fs.Config.ConnectTimeout, // Use the timeouts in the transport
 		Timeout:        10 * fs.Config.Timeout,        // Use the timeouts in the transport
@@ -199,18 +214,25 @@ func swiftConnection(name string) (*swift.Connection, error) {
 			return nil, errors.Wrap(err, "failed to read environment variables")
 		}
 	}
-	if c.UserName == "" {
-		return nil, errors.New("user not found")
+	if !c.Authenticated() {
+		if c.UserName == "" && c.UserId == "" {
+			return nil, errors.New("user name or user id not found for authentication (and no storage_url+auth_token is provided)")
+		}
+		if c.ApiKey == "" {
+			return nil, errors.New("key not found")
+		}
+		if c.AuthUrl == "" {
+			return nil, errors.New("auth not found")
+		}
+		err := c.Authenticate()
+		if err != nil {
+			return nil, err
+		}
 	}
-	if c.ApiKey == "" {
-		return nil, errors.New("key not found")
-	}
-	if c.AuthUrl == "" {
-		return nil, errors.New("auth not found")
-	}
-	err := c.Authenticate()
-	if err != nil {
-		return nil, err
+	// Make sure we re-auth with the AuthToken and StorageUrl
+	// provided by wrapping the existing auth
+	if c.StorageUrl != "" || c.AuthToken != "" {
+		c.Auth = newAuth(c.Auth, c.StorageUrl, c.AuthToken)
 	}
 	return c, nil
 }
@@ -238,12 +260,6 @@ func NewFsWithConnection(name, root string, c *swift.Connection, noCheckContaine
 		WriteMimeType: true,
 		BucketBased:   true,
 	}).Fill(f)
-	// StorageURL overloading
-	storageURL := fs.ConfigFileGet(name, "storage_url")
-	if storageURL != "" {
-		f.c.StorageUrl = storageURL
-		f.c.Auth = newAuth(f.c.Auth, storageURL)
-	}
 	if f.root != "" {
 		f.root += "/"
 		// Check to see if the object exists - ignoring directory markers
@@ -359,23 +375,27 @@ type addEntryFn func(fs.DirEntry) error
 
 // list the objects into the function supplied
 func (f *Fs) list(dir string, recurse bool, fn addEntryFn) error {
-	return f.listContainerRoot(f.container, f.root, dir, recurse, func(remote string, object *swift.Object, isDirectory bool) (err error) {
+	err := f.listContainerRoot(f.container, f.root, dir, recurse, func(remote string, object *swift.Object, isDirectory bool) (err error) {
 		if isDirectory {
 			remote = strings.TrimRight(remote, "/")
 			d := fs.NewDir(remote, time.Time{}).SetSize(object.Bytes)
 			err = fn(d)
 		} else {
+			// newObjectWithInfo does a full metadata read on 0 size objects which might be dynamic large objects
 			o, err := f.newObjectWithInfo(remote, object)
 			if err != nil {
 				return err
 			}
-			// Storable does a full metadata read on 0 size objects which might be dynamic large objects
 			if o.Storable() {
 				err = fn(o)
 			}
 		}
 		return err
 	})
+	if err == swift.ContainerNotFound {
+		err = fs.ErrorDirNotFound
+	}
+	return err
 }
 
 // listDir lists a single directory
@@ -389,9 +409,6 @@ func (f *Fs) listDir(dir string) (entries fs.DirEntries, err error) {
 		return nil
 	})
 	if err != nil {
-		if err == swift.ContainerNotFound {
-			err = fs.ErrorDirNotFound
-		}
 		return nil, err
 	}
 	return entries, nil
@@ -471,6 +488,11 @@ func (f *Fs) Put(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.
 		remote: src.Remote(),
 	}
 	return fs, fs.Update(in, src, options...)
+}
+
+// PutStream uploads to the remote path with the modTime given of indeterminate size
+func (f *Fs) PutStream(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
+	return f.Put(in, src, options...)
 }
 
 // Mkdir creates the container if it doesn't exist
@@ -779,9 +801,13 @@ func urlEncode(str string) string {
 
 // updateChunks updates the existing object using chunks to a separate
 // container.  It returns a string which prefixes current segments.
-func (o *Object) updateChunks(in io.Reader, headers swift.Headers, size int64, contentType string) (string, error) {
+func (o *Object) updateChunks(in0 io.Reader, headers swift.Headers, size int64, contentType string) (string, error) {
 	// Create the segmentsContainer if it doesn't exist
-	err := o.fs.c.ContainerCreate(o.fs.segmentsContainer, nil)
+	var err error = swift.ContainerNotFound
+	_, _, err = o.fs.c.Container(o.fs.segmentsContainer)
+	if err == swift.ContainerNotFound {
+		err = o.fs.c.ContainerCreate(o.fs.segmentsContainer, nil)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -790,9 +816,22 @@ func (o *Object) updateChunks(in io.Reader, headers swift.Headers, size int64, c
 	i := 0
 	uniquePrefix := fmt.Sprintf("%s/%d", swift.TimeToFloatString(time.Now()), size)
 	segmentsPath := fmt.Sprintf("%s%s/%s", o.fs.root, o.remote, uniquePrefix)
-	for left > 0 {
-		n := min(left, int64(chunkSize))
-		headers["Content-Length"] = strconv.FormatInt(n, 10) // set Content-Length as we know it
+	in := bufio.NewReader(in0)
+	for {
+		// can we read at least one byte?
+		if _, err := in.Peek(1); err != nil {
+			if left > 0 {
+				return "", err // read less than expected
+			}
+			fs.Debugf(o, "Uploading segments into %q seems done (%v)", o.fs.segmentsContainer, err)
+			break
+		}
+		n := int64(chunkSize)
+		if size != -1 {
+			n = min(left, n)
+			headers["Content-Length"] = strconv.FormatInt(n, 10) // set Content-Length as we know it
+			left -= n
+		}
 		segmentReader := io.LimitReader(in, n)
 		segmentPath := fmt.Sprintf("%s/%08d", segmentsPath, i)
 		fs.Debugf(o, "Uploading segment file %q into %q", segmentPath, o.fs.segmentsContainer)
@@ -800,7 +839,6 @@ func (o *Object) updateChunks(in io.Reader, headers swift.Headers, size int64, c
 		if err != nil {
 			return "", err
 		}
-		left -= n
 		i++
 	}
 	// Upload the manifest
@@ -838,7 +876,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 	contentType := fs.MimeType(src)
 	headers := m.ObjectHeaders()
 	uniquePrefix := ""
-	if size > int64(chunkSize) {
+	if size > int64(chunkSize) || size == -1 {
 		uniquePrefix, err = o.updateChunks(in, headers, size, contentType)
 		if err != nil {
 			return err
@@ -892,10 +930,11 @@ func (o *Object) MimeType() string {
 
 // Check the interfaces are satisfied
 var (
-	_ fs.Fs        = &Fs{}
-	_ fs.Purger    = &Fs{}
-	_ fs.Copier    = &Fs{}
-	_ fs.ListRer   = &Fs{}
-	_ fs.Object    = &Object{}
-	_ fs.MimeTyper = &Object{}
+	_ fs.Fs          = &Fs{}
+	_ fs.Purger      = &Fs{}
+	_ fs.PutStreamer = &Fs{}
+	_ fs.Copier      = &Fs{}
+	_ fs.ListRer     = &Fs{}
+	_ fs.Object      = &Object{}
+	_ fs.MimeTyper   = &Object{}
 )

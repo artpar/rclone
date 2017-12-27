@@ -99,4 +99,30 @@ Contributors
   * bpicode <bjoern.pirnay@googlemail.com>
   * Daniel Jagszent <daniel@jagszent.de>
   * Josiah White <thegenius2009@gmail.com>
-  * ishuah91 <ishuah91@gmail.com>
+  * Ishuah Kariuki <kariuki@ishuah.com> <ishuah91@gmail.com>
+  * Jan Varho <jan@varho.org>
+  * Girish Ramakrishnan <girish@cloudron.io>
+  * LingMan <LingMan@users.noreply.github.com>
+  * Jacob McNamee <jacobmcnamee@gmail.com>
+  * jersou <jertux@gmail.com>
+  * thierry <thierry@substantiel.fr>
+  * Simon Leinen <simon.leinen@gmail.com> <ubuntu@s3-test.novalocal>
+  * Dan Dascalescu <ddascalescu+github@gmail.com>
+  * Jason Rose <jason@jro.io>
+  * Andrew Starr-Bochicchio <a.starr.b@gmail.com>
+  * John Leach <john@johnleach.co.uk>
+  * Corban Raun <craun@instructure.com>
+  * Pierre Carlson <mpcarl@us.ibm.com>
+  * Ernest Borowski <er.borowski@gmail.com>
+  * Remus Bunduc <remus.bunduc@gmail.com>
+  * Iakov Davydov <iakov.davydov@unil.ch>
+  * Fabian Möller <f.moeller@nynex.de>
+  * Jakub Tasiemski <tasiemski@gmail.com>
+  * David Minor <dminor@saymedia.com>
+  * Tim Cooijmans <cooijmans.tim@gmail.com>
+  * Laurence <liuxy6@gmail.com>
+  * Giovanni Pizzi <gio.piz@gmail.com>
+  * Filip Bartodziej <filipbartodziej@gmail.com>
+  * Jon Fautley <jon@dead.li>
+  * lewapm <32110057+lewapm@users.noreply.github.com>
+  * Yassine Imounachen <yassine256@gmail.com>

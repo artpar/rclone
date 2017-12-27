@@ -18,8 +18,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
-
-	"golang.org/x/text/unicode/norm"
+	"golang.org/x/net/context"
 )
 
 // CalculateModifyWindow works out modify window for Fses passed in -
@@ -74,7 +73,7 @@ func CheckHashes(src ObjectInfo, dst Object) (equal bool, hash HashType, err err
 	hash = common.GetOne()
 	srcHash, err := src.Hash(hash)
 	if err != nil {
-		Stats.Error()
+		Stats.Error(err)
 		Errorf(src, "Failed to calculate src hash: %v", err)
 		return false, hash, err
 	}
@@ -83,7 +82,7 @@ func CheckHashes(src ObjectInfo, dst Object) (equal bool, hash HashType, err err
 	}
 	dstHash, err := dst.Hash(hash)
 	if err != nil {
-		Stats.Error()
+		Stats.Error(err)
 		Errorf(dst, "Failed to calculate dst hash: %v", err)
 		return false, hash, err
 	}
@@ -122,7 +121,7 @@ func Equal(src ObjectInfo, dst Object) bool {
 func equal(src ObjectInfo, dst Object, sizeOnly, checkSum bool) bool {
 	if !Config.IgnoreSize {
 		if src.Size() != dst.Size() {
-			Debugf(src, "Sizes differ")
+			Debugf(src, "Sizes differ (src %d vs dst %d)", src.Size(), dst.Size())
 			return false
 		}
 	}
@@ -181,8 +180,13 @@ func equal(src ObjectInfo, dst Object, sizeOnly, checkSum bool) bool {
 		if Config.DryRun {
 			Logf(src, "Not updating modification time as --dry-run")
 		} else {
-			// Size and hash the same but mtime different so update the
-			// mtime of the dst object here
+			// Size and hash the same but mtime different
+			// Error if objects are treated as immutable
+			if Config.Immutable {
+				Errorf(dst, "Timestamp mismatch between immutable objects")
+				return false
+			}
+			// Update the mtime of the dst object here
 			err := dst.SetModTime(srcModTime)
 			if err == ErrorCantSetModTime {
 				Debugf(dst, "src and dst identical but can't set mod time without re-uploading")
@@ -195,7 +199,7 @@ func equal(src ObjectInfo, dst Object, sizeOnly, checkSum bool) bool {
 				}
 				return false
 			} else if err != nil {
-				Stats.Error()
+				Stats.Error(err)
 				Errorf(dst, "Failed to set modification time: %v", err)
 			} else {
 				Infof(src, "Updated modification time in destination")
@@ -269,10 +273,14 @@ var _ MimeTyper = (*overrideRemoteObject)(nil)
 
 // Copy src object to dst or f if nil.  If dst is nil then it uses
 // remote as the name of the new object.
-func Copy(f Fs, dst Object, remote string, src Object) (err error) {
+//
+// It returns the destination object if possible.  Note that this may
+// be nil.
+func Copy(f Fs, dst Object, remote string, src Object) (newDst Object, err error) {
+	newDst = dst
 	if Config.DryRun {
 		Logf(src, "Not copying as --dry-run")
-		return nil
+		return newDst, nil
 	}
 	maxTries := Config.LowLevelRetries
 	tries := 0
@@ -294,7 +302,6 @@ func Copy(f Fs, dst Object, remote string, src Object) (err error) {
 		// is same underlying remote
 		actionTaken = "Copied (server side copy)"
 		if doCopy := f.Features().Copy; doCopy != nil && SameConfig(src.Fs(), f) {
-			var newDst Object
 			newDst, err = doCopy(src, remote)
 			if err == nil {
 				dst = newDst
@@ -324,6 +331,7 @@ func Copy(f Fs, dst Object, remote string, src Object) (err error) {
 				}
 				closeErr := in.Close()
 				if err == nil {
+					newDst = dst
 					err = closeErr
 				}
 			}
@@ -341,18 +349,18 @@ func Copy(f Fs, dst Object, remote string, src Object) (err error) {
 		break
 	}
 	if err != nil {
-		Stats.Error()
+		Stats.Error(err)
 		Errorf(src, "Failed to copy: %v", err)
-		return err
+		return newDst, err
 	}
 
 	// Verify sizes are the same after transfer
 	if !Config.IgnoreSize && src.Size() != dst.Size() {
-		Stats.Error()
 		err = errors.Errorf("corrupted on transfer: sizes differ %d vs %d", src.Size(), dst.Size())
 		Errorf(dst, "%v", err)
+		Stats.Error(err)
 		removeFailedCopy(dst)
-		return err
+		return newDst, err
 	}
 
 	// Verify hashes are the same after transfer - ignoring blank hashes
@@ -362,34 +370,38 @@ func Copy(f Fs, dst Object, remote string, src Object) (err error) {
 		var srcSum string
 		srcSum, err = src.Hash(hashType)
 		if err != nil {
-			Stats.Error()
+			Stats.Error(err)
 			Errorf(src, "Failed to read src hash: %v", err)
 		} else if srcSum != "" {
 			var dstSum string
 			dstSum, err = dst.Hash(hashType)
 			if err != nil {
-				Stats.Error()
+				Stats.Error(err)
 				Errorf(dst, "Failed to read hash: %v", err)
 			} else if !Config.IgnoreChecksum && !HashEquals(srcSum, dstSum) {
-				Stats.Error()
 				err = errors.Errorf("corrupted on transfer: %v hash differ %q vs %q", hashType, srcSum, dstSum)
 				Errorf(dst, "%v", err)
+				Stats.Error(err)
 				removeFailedCopy(dst)
-				return err
+				return newDst, err
 			}
 		}
 	}
 
 	Infof(src, actionTaken)
-	return err
+	return newDst, err
 }
 
 // Move src object to dst or fdst if nil.  If dst is nil then it uses
 // remote as the name of the new object.
-func Move(fdst Fs, dst Object, remote string, src Object) (err error) {
+//
+// It returns the destination object if possible.  Note that this may
+// be nil.
+func Move(fdst Fs, dst Object, remote string, src Object) (newDst Object, err error) {
+	newDst = dst
 	if Config.DryRun {
 		Logf(src, "Not moving as --dry-run")
-		return nil
+		return newDst, nil
 	}
 	// See if we have Move available
 	if doMove := fdst.Features().Move; doMove != nil && SameConfig(src.Fs(), fdst) {
@@ -397,31 +409,31 @@ func Move(fdst Fs, dst Object, remote string, src Object) (err error) {
 		if dst != nil {
 			err = DeleteFile(dst)
 			if err != nil {
-				return err
+				return newDst, err
 			}
 		}
 		// Move dst <- src
-		_, err := doMove(src, remote)
+		newDst, err = doMove(src, remote)
 		switch err {
 		case nil:
 			Infof(src, "Moved (server side)")
-			return nil
+			return newDst, nil
 		case ErrorCantMove:
 			Debugf(src, "Can't move, switching to copy")
 		default:
-			Stats.Error()
+			Stats.Error(err)
 			Errorf(src, "Couldn't move: %v", err)
-			return err
+			return newDst, err
 		}
 	}
 	// Move not found or didn't work so copy dst <- src
-	err = Copy(fdst, dst, remote, src)
+	newDst, err = Copy(fdst, dst, remote, src)
 	if err != nil {
 		Errorf(src, "Not deleting source as copy failed: %v", err)
-		return err
+		return newDst, err
 	}
 	// Delete src if no error on copy
-	return DeleteFile(src)
+	return newDst, DeleteFile(src)
 }
 
 // CanServerSideMove returns true if fdst support server side moves or
@@ -454,13 +466,13 @@ func deleteFileWithBackupDir(dst Object, backupDir Fs) (err error) {
 		} else {
 			remoteWithSuffix := dst.Remote() + Config.Suffix
 			overwritten, _ := backupDir.NewObject(remoteWithSuffix)
-			err = Move(backupDir, overwritten, remoteWithSuffix, dst)
+			_, err = Move(backupDir, overwritten, remoteWithSuffix, dst)
 		}
 	} else {
 		err = dst.Remove()
 	}
 	if err != nil {
-		Stats.Error()
+		Stats.Error(err)
 		Errorf(dst, "Couldn't %s: %v", action, err)
 	} else if !Config.DryRun {
 		Infof(dst, actioned)
@@ -618,13 +630,20 @@ func ListDirSorted(fs Fs, includeAll bool, dir string) (entries DirEntries, err 
 	if err != nil {
 		return nil, err
 	}
-	return filterAndSortDir(entries, includeAll, dir, Config.Filter.IncludeObject, Config.Filter.IncludeDirectory)
+	// This should happen only if exclude files lives in the
+	// starting directory, otherwise ListDirSorted should not be
+	// called.
+	if !includeAll && Config.Filter.ListContainsExcludeFile(entries) {
+		Debugf(dir, "Excluded from sync (and deletion)")
+		return nil, nil
+	}
+	return filterAndSortDir(entries, includeAll, dir, Config.Filter.IncludeObject, Config.Filter.IncludeDirectory(fs))
 }
 
 // filter (if required) and check the entries, then sort them
 func filterAndSortDir(entries DirEntries, includeAll bool, dir string,
 	IncludeObject func(o Object) bool,
-	IncludeDirectory func(remote string) bool) (newEntries DirEntries, err error) {
+	IncludeDirectory func(remote string) (bool, error)) (newEntries DirEntries, err error) {
 	newEntries = entries[:0] // in place filter
 	prefix := ""
 	if dir != "" {
@@ -641,9 +660,15 @@ func filterAndSortDir(entries DirEntries, includeAll bool, dir string,
 				Debugf(x, "Excluded from sync (and deletion)")
 			}
 		case Directory:
-			if !includeAll && !IncludeDirectory(x.Remote()) {
-				ok = false
-				Debugf(x, "Excluded from sync (and deletion)")
+			if !includeAll {
+				include, err := IncludeDirectory(x.Remote())
+				if err != nil {
+					return nil, err
+				}
+				if !include {
+					ok = false
+					Debugf(x, "Excluded from sync (and deletion)")
+				}
 			}
 		default:
 			return nil, errors.Errorf("unknown object type %T", entry)
@@ -680,68 +705,6 @@ func filterAndSortDir(entries DirEntries, includeAll bool, dir string,
 	// comparison.
 	sort.Stable(entries)
 	return entries, nil
-}
-
-// Read a map of Object.Remote to Object for the given Fs.
-// dir is the start directory, "" for root
-// If includeAll is specified all files will be added,
-// otherwise only files passing the filter will be added.
-//
-// This also detects duplicates and normalised duplicates
-func readFilesMap(fs Fs, includeAll bool, dir string) (files map[string]Object, err error) {
-	files = make(map[string]Object)
-	normalised := make(map[string]struct{})
-	err = readFilesFn(fs, includeAll, dir, func(o Object) error {
-		remote := o.Remote()
-		normalisedRemote := strings.ToLower(norm.NFC.String(remote))
-		if _, ok := files[remote]; !ok {
-			files[remote] = o
-			if _, ok := normalised[normalisedRemote]; ok {
-				Logf(o, "File found with same name but different case on %v", o.Fs())
-			}
-		} else {
-			Logf(o, "Duplicate file detected")
-		}
-		normalised[normalisedRemote] = struct{}{}
-		return nil
-	})
-	if err != nil {
-		err = errors.Wrapf(err, "error listing: %s", fs)
-	}
-	return files, err
-}
-
-// readFilesMaps runs readFilesMap on fdst and fsrc at the same time
-// dir is the start directory, "" for root
-func readFilesMaps(fdst Fs, fdstIncludeAll bool, fsrc Fs, fsrcIncludeAll bool, dir string) (dstFiles, srcFiles map[string]Object, err error) {
-	var wg sync.WaitGroup
-	var srcErr, dstErr error
-
-	list := func(fs Fs, includeAll bool, pMap *map[string]Object, pErr *error) {
-		defer wg.Done()
-		Infof(fs, "Building file list")
-		files, listErr := readFilesMap(fs, includeAll, dir)
-		if listErr != nil {
-			Errorf(fs, "Error building file list: %v", listErr)
-			*pErr = listErr
-		} else {
-			Debugf(fs, "Done building file list")
-			*pMap = files
-		}
-	}
-
-	wg.Add(2)
-	go list(fdst, fdstIncludeAll, &dstFiles, &srcErr)
-	go list(fsrc, fsrcIncludeAll, &srcFiles, &dstErr)
-	wg.Wait()
-
-	if srcErr != nil {
-		err = srcErr
-	}
-	if dstErr != nil {
-		err = dstErr
-	}
-	return dstFiles, srcFiles, err
 }
 
 // SameConfig returns true if fdst and fsrc are using the same config
@@ -788,11 +751,118 @@ func checkIdentical(dst, src Object) (differ bool, noHash bool) {
 		return false, true
 	}
 	if !same {
-		Stats.Error()
-		Errorf(src, "%v differ", hash)
+		err = errors.Errorf("%v differ", hash)
+		Errorf(src, "%v", err)
+		Stats.Error(err)
 		return true, false
 	}
 	return false, false
+}
+
+// checkFn is the the type of the checking function used in CheckFn()
+type checkFn func(a, b Object) (differ bool, noHash bool)
+
+// checkMarch is used to march over two Fses in the same way as
+// sync/copy
+type checkMarch struct {
+	fdst, fsrc      Fs
+	check           checkFn
+	differences     int32
+	noHashes        int32
+	srcFilesMissing int32
+	dstFilesMissing int32
+}
+
+// DstOnly have an object which is in the destination only
+func (c *checkMarch) DstOnly(dst DirEntry) (recurse bool) {
+	switch dst.(type) {
+	case Object:
+		err := errors.Errorf("File not in %v", c.fsrc)
+		Errorf(dst, "%v", err)
+		Stats.Error(err)
+		atomic.AddInt32(&c.differences, 1)
+		atomic.AddInt32(&c.srcFilesMissing, 1)
+	case Directory:
+		// Do the same thing to the entire contents of the directory
+		return true
+	default:
+		panic("Bad object in DirEntries")
+	}
+	return false
+}
+
+// SrcOnly have an object which is in the source only
+func (c *checkMarch) SrcOnly(src DirEntry) (recurse bool) {
+	switch src.(type) {
+	case Object:
+		err := errors.Errorf("File not in %v", c.fdst)
+		Errorf(src, "%v", err)
+		Stats.Error(err)
+		atomic.AddInt32(&c.differences, 1)
+		atomic.AddInt32(&c.dstFilesMissing, 1)
+	case Directory:
+		// Do the same thing to the entire contents of the directory
+		return true
+	default:
+		panic("Bad object in DirEntries")
+	}
+	return false
+}
+
+// check to see if two objects are identical using the check function
+func (c *checkMarch) checkIdentical(dst, src Object) (differ bool, noHash bool) {
+	Stats.Checking(src.Remote())
+	defer Stats.DoneChecking(src.Remote())
+	if !Config.IgnoreSize && src.Size() != dst.Size() {
+		err := errors.Errorf("Sizes differ")
+		Errorf(src, "%v", err)
+		Stats.Error(err)
+		return true, false
+	}
+	if Config.SizeOnly {
+		return false, false
+	}
+	return c.check(dst, src)
+}
+
+// Match is called when src and dst are present, so sync src to dst
+func (c *checkMarch) Match(dst, src DirEntry) (recurse bool) {
+	switch srcX := src.(type) {
+	case Object:
+		dstX, ok := dst.(Object)
+		if ok {
+			differ, noHash := c.checkIdentical(dstX, srcX)
+			if differ {
+				atomic.AddInt32(&c.differences, 1)
+			} else {
+				Debugf(dstX, "OK")
+			}
+			if noHash {
+				atomic.AddInt32(&c.noHashes, 1)
+			}
+		} else {
+			err := errors.Errorf("is file on %v but directory on %v", c.fsrc, c.fdst)
+			Errorf(src, "%v", err)
+			Stats.Error(err)
+			atomic.AddInt32(&c.differences, 1)
+			atomic.AddInt32(&c.dstFilesMissing, 1)
+		}
+	case Directory:
+		// Do the same thing to the entire contents of the directory
+		_, ok := dst.(Directory)
+		if ok {
+			return true
+		}
+		err := errors.Errorf("is file on %v but directory on %v", c.fdst, c.fsrc)
+		Errorf(dst, "%v", err)
+		Stats.Error(err)
+		atomic.AddInt32(&c.differences, 1)
+		atomic.AddInt32(&c.srcFilesMissing, 1)
+
+	default:
+		panic("Bad object in DirEntries")
+	}
+	return false
 }
 
 // CheckFn checks the files in fsrc and fdst according to Size and
@@ -802,91 +872,31 @@ func checkIdentical(dst, src Object) (differ bool, noHash bool) {
 //
 // it returns true if differences were found
 // it also returns whether it couldn't be hashed
-func CheckFn(fdst, fsrc Fs, checkFunction func(a, b Object) (differ bool, noHash bool)) error {
-	dstFiles, srcFiles, err := readFilesMaps(fdst, false, fsrc, false, "")
-	if err != nil {
-		return err
-	}
-	differences := int32(0)
-	noHashes := int32(0)
-
-	// FIXME could do this as it goes along and make it use less
-	// memory.
-
-	// Move all the common files into commonFiles and delete then
-	// from srcFiles and dstFiles
-	commonFiles := make(map[string][2]Object)
-	for remote, src := range srcFiles {
-		if dst, ok := dstFiles[remote]; ok {
-			commonFiles[remote] = [2]Object{dst, src}
-			delete(srcFiles, remote)
-			delete(dstFiles, remote)
-		}
+func CheckFn(fdst, fsrc Fs, check checkFn) error {
+	c := &checkMarch{
+		fdst:  fdst,
+		fsrc:  fsrc,
+		check: check,
 	}
 
-	Logf(fdst, "%d files not in %v", len(dstFiles), fsrc)
-	for _, dst := range dstFiles {
-		Stats.Error()
-		Errorf(dst, "File not in %v", fsrc)
-		atomic.AddInt32(&differences, 1)
-	}
-
-	Logf(fsrc, "%d files not in %s", len(srcFiles), fdst)
-	for _, src := range srcFiles {
-		Stats.Error()
-		Errorf(src, "File not in %v", fdst)
-		atomic.AddInt32(&differences, 1)
-	}
-
-	checks := make(chan [2]Object, Config.Transfers)
-	go func() {
-		for _, check := range commonFiles {
-			checks <- check
-		}
-		close(checks)
-	}()
-
-	checkIdentical := func(dst, src Object) (differ bool, noHash bool) {
-		Stats.Checking(src.Remote())
-		defer Stats.DoneChecking(src.Remote())
-		if !Config.IgnoreSize && src.Size() != dst.Size() {
-			Stats.Error()
-			Errorf(src, "Sizes differ")
-			return true, false
-		}
-		if Config.SizeOnly {
-			return false, false
-		}
-		return checkFunction(dst, src)
-	}
-
-	var checkerWg sync.WaitGroup
-	checkerWg.Add(Config.Checkers)
-	for i := 0; i < Config.Checkers; i++ {
-		go func() {
-			defer checkerWg.Done()
-			for check := range checks {
-				differ, noHash := checkIdentical(check[0], check[1])
-				if differ {
-					atomic.AddInt32(&differences, 1)
-				} else {
-					Debugf(check[0], "OK")
-				}
-				if noHash {
-					atomic.AddInt32(&noHashes, 1)
-				}
-			}
-		}()
-	}
-
+	// set up a march over fdst and fsrc
+	m := newMarch(context.Background(), fdst, fsrc, "", c)
 	Infof(fdst, "Waiting for checks to finish")
-	checkerWg.Wait()
-	Logf(fdst, "%d differences found", Stats.GetErrors())
-	if noHashes > 0 {
-		Logf(fdst, "%d hashes could not be checked", noHashes)
+	m.run()
+
+	if c.dstFilesMissing > 0 {
+		Logf(fdst, "%d files missing", c.dstFilesMissing)
 	}
-	if differences > 0 {
-		return errors.Errorf("%d differences found", differences)
+	if c.srcFilesMissing > 0 {
+		Logf(fsrc, "%d files missing", c.srcFilesMissing)
+	}
+
+	Logf(fdst, "%d differences found", Stats.GetErrors())
+	if c.noHashes > 0 {
+		Logf(fdst, "%d hashes could not be checked", c.noHashes)
+	}
+	if c.differences > 0 {
+		return errors.Errorf("%d differences found", c.differences)
 	}
 	return nil
 }
@@ -969,7 +979,7 @@ func CheckDownload(fdst, fsrc Fs) error {
 	check := func(a, b Object) (differ bool, noHash bool) {
 		differ, err := CheckIdentical(a, b)
 		if err != nil {
-			Stats.Error()
+			Stats.Error(err)
 			Errorf(a, "Failed to download: %v", err)
 			return true, true
 		}
@@ -1125,7 +1135,7 @@ func Mkdir(f Fs, dir string) error {
 	Debugf(logDirName(f, dir), "Making directory")
 	err := f.Mkdir(dir)
 	if err != nil {
-		Stats.Error()
+		Stats.Error(err)
 		return err
 	}
 	return nil
@@ -1146,7 +1156,7 @@ func TryRmdir(f Fs, dir string) error {
 func Rmdir(f Fs, dir string) error {
 	err := TryRmdir(f, dir)
 	if err != nil {
-		Stats.Error()
+		Stats.Error(err)
 		return err
 	}
 	return err
@@ -1173,10 +1183,10 @@ func Purge(f Fs) error {
 		if err != nil {
 			return err
 		}
-		err = Rmdirs(f, "")
+		err = Rmdirs(f, "", false)
 	}
 	if err != nil {
-		Stats.Error()
+		Stats.Error(err)
 		return err
 	}
 	return nil
@@ -1215,7 +1225,7 @@ func dedupeRename(remote string, objs []Object) {
 		if !Config.DryRun {
 			newObj, err := doMove(o, newName)
 			if err != nil {
-				Stats.Error()
+				Stats.Error(err)
 				Errorf(o, "Failed to rename: %v", err)
 				continue
 			}
@@ -1486,8 +1496,9 @@ func listToChan(f Fs) ObjectsChan {
 				if err == ErrorDirNotFound {
 					return nil
 				}
-				Stats.Error()
-				Errorf(nil, "Failed to list: %v", err)
+				err = errors.Errorf("Failed to list: %v", err)
+				Stats.Error(err)
+				Errorf(nil, "%v", err)
 				return nil
 			}
 			entries.ForObject(func(obj Object) {
@@ -1515,12 +1526,7 @@ func CleanUp(f Fs) error {
 // wrap a Reader and a Closer together into a ReadCloser
 type readCloser struct {
 	io.Reader
-	Closer io.Closer
-}
-
-// Close the Closer
-func (r *readCloser) Close() error {
-	return r.Closer.Close()
+	io.Closer
 }
 
 // Cat any files to the io.Writer
@@ -1552,7 +1558,7 @@ func Cat(f Fs, w io.Writer, offset, count int64) error {
 		}
 		in, err := o.Open(options...)
 		if err != nil {
-			Stats.Error()
+			Stats.Error(err)
 			Errorf(o, "Failed to open: %v", err)
 			return
 		}
@@ -1567,7 +1573,7 @@ func Cat(f Fs, w io.Writer, offset, count int64) error {
 		defer func() {
 			err = in.Close()
 			if err != nil {
-				Stats.Error()
+				Stats.Error(err)
 				Errorf(o, "Failed to close: %v", err)
 			}
 		}()
@@ -1576,18 +1582,19 @@ func Cat(f Fs, w io.Writer, offset, count int64) error {
 		defer mu.Unlock()
 		_, err = io.Copy(w, in)
 		if err != nil {
-			Stats.Error()
+			Stats.Error(err)
 			Errorf(o, "Failed to send to output: %v", err)
 		}
 	})
 }
 
 // Rcat reads data from the Reader until EOF and uploads it to a file on remote
-func Rcat(fdst Fs, dstFileName string, in0 io.ReadCloser, modTime time.Time) (err error) {
+func Rcat(fdst Fs, dstFileName string, in io.ReadCloser, modTime time.Time) (dst Object, err error) {
 	Stats.Transferring(dstFileName)
+	in = NewAccountSizeName(in, -1, dstFileName).WithBuffer()
 	defer func() {
 		Stats.DoneTransferring(dstFileName, err == nil)
-		if err = in0.Close(); err != nil {
+		if otherErr := in.Close(); otherErr != nil {
 			Debugf(fdst, "Rcat: failed to close source: %v", err)
 		}
 	}()
@@ -1595,16 +1602,16 @@ func Rcat(fdst Fs, dstFileName string, in0 io.ReadCloser, modTime time.Time) (er
 	hashOption := &HashesOption{Hashes: fdst.Hashes()}
 	hash, err := NewMultiHasherTypes(fdst.Hashes())
 	if err != nil {
-		return err
+		return nil, err
 	}
-	readCounter := NewCountingReader(in0)
+	readCounter := NewCountingReader(in)
 	trackingIn := io.TeeReader(readCounter, hash)
 
 	compare := func(dst Object) error {
 		src := NewStaticObjectInfo(dstFileName, modTime, int64(readCounter.BytesRead()), false, hash.Sums(), fdst)
 		if !Equal(src, dst) {
-			Stats.Error()
 			err = errors.Errorf("corrupted on transfer")
+			Stats.Error(err)
 			Errorf(dst, "%v", err)
 			return err
 		}
@@ -1615,16 +1622,15 @@ func Rcat(fdst Fs, dstFileName string, in0 io.ReadCloser, modTime time.Time) (er
 	buf := make([]byte, Config.StreamingUploadCutoff)
 	if n, err := io.ReadFull(trackingIn, buf); err == io.EOF || err == io.ErrUnexpectedEOF {
 		Debugf(fdst, "File to upload is small (%d bytes), uploading instead of streaming", n)
-		in := ioutil.NopCloser(bytes.NewReader(buf[:n]))
-		in = NewAccountSizeName(in, int64(n), dstFileName).WithBuffer()
-		objInfo := NewStaticObjectInfo(dstFileName, modTime, int64(n), false, nil, nil)
-		dst, err := fdst.Put(in, objInfo, hashOption)
-		if err != nil {
-			return err
-		}
-		return compare(dst)
+		src := NewMemoryObject(dstFileName, modTime, buf[:n])
+		return Copy(fdst, nil, dstFileName, src)
 	}
-	in := ioutil.NopCloser(io.MultiReader(bytes.NewReader(buf), trackingIn))
+
+	// Make a new ReadCloser with the bits we've already read
+	in = &readCloser{
+		Reader: io.MultiReader(bytes.NewReader(buf), trackingIn),
+		Closer: in,
+	}
 
 	fStreamTo := fdst
 	canStream := fdst.Features().PutStream != nil
@@ -1632,7 +1638,7 @@ func Rcat(fdst Fs, dstFileName string, in0 io.ReadCloser, modTime time.Time) (er
 		Debugf(fdst, "Target remote doesn't support streaming uploads, creating temporary local FS to spool file")
 		tmpLocalFs, err := temporaryLocalFs()
 		if err != nil {
-			return errors.Wrap(err, "Failed to create temporary local FS to spool file")
+			return nil, errors.Wrap(err, "Failed to create temporary local FS to spool file")
 		}
 		defer func() {
 			err := Purge(tmpLocalFs)
@@ -1643,37 +1649,35 @@ func Rcat(fdst Fs, dstFileName string, in0 io.ReadCloser, modTime time.Time) (er
 		fStreamTo = tmpLocalFs
 	}
 
-	in = NewAccountSizeName(in, -1, dstFileName).WithBuffer()
-
 	if Config.DryRun {
-		Logf("stdin", "Not copying as --dry-run")
+		Logf("stdin", "Not uploading as --dry-run")
 		// prevents "broken pipe" errors
 		_, err = io.Copy(ioutil.Discard, in)
-		return err
+		return nil, err
 	}
 
 	objInfo := NewStaticObjectInfo(dstFileName, modTime, -1, false, nil, nil)
-	tmpObj, err := fStreamTo.Features().PutStream(in, objInfo, hashOption)
-	if err != nil {
-		return err
+	if dst, err = fStreamTo.Features().PutStream(in, objInfo, hashOption); err != nil {
+		return dst, err
 	}
-	if err = compare(tmpObj); err != nil {
-		return err
+	if err = compare(dst); err != nil {
+		return dst, err
 	}
 	if !canStream {
-		return Copy(fdst, nil, dstFileName, tmpObj)
+		// copy dst (which is the local object we have just streamed to) to the remote
+		return Copy(fdst, nil, dstFileName, dst)
 	}
-	return nil
+	return dst, nil
 }
 
 // Rmdirs removes any empty directories (or directories only
 // containing empty directories) under f, including f.
-func Rmdirs(f Fs, dir string) error {
+func Rmdirs(f Fs, dir string, leaveRoot bool) error {
 	dirEmpty := make(map[string]bool)
-	dirEmpty[""] = true
+	dirEmpty[""] = !leaveRoot
 	err := Walk(f, dir, true, Config.MaxDepth, func(dirPath string, entries DirEntries, err error) error {
 		if err != nil {
-			Stats.Error()
+			Stats.Error(err)
 			Errorf(f, "Failed to list %q: %v", dirPath, err)
 			return nil
 		}
@@ -1720,7 +1724,7 @@ func Rmdirs(f Fs, dir string) error {
 		dir := toDelete[i]
 		err := TryRmdir(f, dir)
 		if err != nil {
-			Stats.Error()
+			Stats.Error(err)
 			Errorf(dir, "Failed to rmdir: %v", err)
 			return err
 		}
@@ -1730,7 +1734,9 @@ func Rmdirs(f Fs, dir string) error {
 
 // moveOrCopyFile moves or copies a single file possibly to a new name
 func moveOrCopyFile(fdst Fs, fsrc Fs, dstFileName string, srcFileName string, cp bool) (err error) {
-	if fdst.Name() == fsrc.Name() && dstFileName == srcFileName {
+	dstFilePath := path.Join(fdst.Root(), dstFileName)
+	srcFilePath := path.Join(fsrc.Root(), srcFileName)
+	if fdst.Name() == fsrc.Name() && dstFilePath == srcFilePath {
 		Debugf(fdst, "don't need to copy/move %s, it is already at target location", dstFileName)
 		return nil
 	}
@@ -1757,7 +1763,7 @@ func moveOrCopyFile(fdst Fs, fsrc Fs, dstFileName string, srcFileName string, cp
 
 	if NeedTransfer(dstObj, srcObj) {
 		Stats.Transferring(srcFileName)
-		err = Op(fdst, dstObj, dstFileName, srcObj)
+		_, err = Op(fdst, dstObj, dstFileName, srcObj)
 		Stats.DoneTransferring(srcFileName, err == nil)
 	} else {
 		Stats.Checking(srcFileName)

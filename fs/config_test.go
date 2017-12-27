@@ -107,9 +107,9 @@ func TestReveal(t *testing.T) {
 		in      string
 		wantErr string
 	}{
-		{"YmJiYmJiYmJiYmJiYmJiYp*gcEWbAw", "base64 decode failed: illegal base64 data at input byte 22"},
-		{"aGVsbG8", "input too short"},
-		{"", "input too short"},
+		{"YmJiYmJiYmJiYmJiYmJiYp*gcEWbAw", "base64 decode failed when revealing password - is it obscured?: illegal base64 data at input byte 22"},
+		{"aGVsbG8", "input too short when revealing password - is it obscured?"},
+		{"", "input too short when revealing password - is it obscured?"},
 	} {
 		gotString, gotErr := Reveal(test.in)
 		assert.Equal(t, "", gotString)
@@ -203,9 +203,6 @@ func TestPassword(t *testing.T) {
 	// Simple check of wrong passwords
 	hashedKeyCompare(t, "mis", "match", false)
 
-	// Check that passwords match with trimmed whitespace
-	hashedKeyCompare(t, "   abcdef   \t", "abcdef", true)
-
 	// Check that passwords match after unicode normalization
 	hashedKeyCompare(t, "ﬀ\u0041\u030A", "ffÅ", true)
 
@@ -228,4 +225,51 @@ func hashedKeyCompare(t *testing.T, a, b string, shouldMatch bool) {
 	} else {
 		assert.NotEqual(t, k1, k2)
 	}
+}
+
+func TestDumpFlagsString(t *testing.T) {
+	assert.Equal(t, "", DumpFlags(0).String())
+	assert.Equal(t, "headers", (DumpHeaders).String())
+	assert.Equal(t, "headers,bodies", (DumpHeaders | DumpBodies).String())
+	assert.Equal(t, "headers,bodies,requests,responses,auth,filters", (DumpHeaders | DumpBodies | DumpRequests | DumpResponses | DumpAuth | DumpFilters).String())
+	assert.Equal(t, "headers,Unknown-0x8000", (DumpHeaders | DumpFlags(0x8000)).String())
+}
+
+func TestDumpFlagsSet(t *testing.T) {
+	for _, test := range []struct {
+		in      string
+		want    DumpFlags
+		wantErr string
+	}{
+		{"", DumpFlags(0), ""},
+		{"bodies", DumpBodies, ""},
+		{"bodies,headers,auth", DumpBodies | DumpHeaders | DumpAuth, ""},
+		{"bodies,headers,auth", DumpBodies | DumpHeaders | DumpAuth, ""},
+		{"headers,bodies,requests,responses,auth,filters", DumpHeaders | DumpBodies | DumpRequests | DumpResponses | DumpAuth | DumpFilters, ""},
+		{"headers,bodies,unknown,auth", 0, "Unknown dump flag \"unknown\""},
+	} {
+		f := DumpFlags(-1)
+		initial := f
+		err := f.Set(test.in)
+		if err != nil {
+			if test.wantErr == "" {
+				t.Errorf("Got an error when not expecting one on %q: %v", test.in, err)
+			} else {
+				assert.Contains(t, err.Error(), test.wantErr)
+			}
+			assert.Equal(t, initial, f, test.want)
+		} else {
+			if test.wantErr != "" {
+				t.Errorf("Got no error when expecting one on %q", test.in)
+			} else {
+				assert.Equal(t, test.want, f)
+			}
+		}
+
+	}
+}
+
+func TestDumpFlagsType(t *testing.T) {
+	f := DumpFlags(0)
+	assert.Equal(t, "string", f.Type())
 }

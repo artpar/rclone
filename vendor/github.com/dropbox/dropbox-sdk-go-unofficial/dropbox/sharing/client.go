@@ -235,7 +235,7 @@ type AddFileMemberAPIError struct {
 func (dbx *apiImpl) AddFileMember(arg *AddFileMemberArgs) (res []*FileMemberActionResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -252,21 +252,21 @@ func (dbx *apiImpl) AddFileMember(arg *AddFileMemberArgs) (res []*FileMemberActi
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -285,7 +285,7 @@ func (dbx *apiImpl) AddFileMember(arg *AddFileMemberArgs) (res []*FileMemberActi
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -307,7 +307,7 @@ type AddFolderMemberAPIError struct {
 func (dbx *apiImpl) AddFolderMember(arg *AddFolderMemberArg) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -324,21 +324,21 @@ func (dbx *apiImpl) AddFolderMember(arg *AddFolderMemberArg) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -352,7 +352,7 @@ func (dbx *apiImpl) AddFolderMember(arg *AddFolderMemberArg) (err error) {
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -377,7 +377,7 @@ func (dbx *apiImpl) ChangeFileMemberAccess(arg *ChangeFileMemberAccessArgs) (res
 
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -394,21 +394,21 @@ func (dbx *apiImpl) ChangeFileMemberAccess(arg *ChangeFileMemberAccessArgs) (res
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -427,7 +427,7 @@ func (dbx *apiImpl) ChangeFileMemberAccess(arg *ChangeFileMemberAccessArgs) (res
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -449,7 +449,7 @@ type CheckJobStatusAPIError struct {
 func (dbx *apiImpl) CheckJobStatus(arg *async.PollArg) (res *JobStatus, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -466,21 +466,21 @@ func (dbx *apiImpl) CheckJobStatus(arg *async.PollArg) (res *JobStatus, err erro
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -499,7 +499,7 @@ func (dbx *apiImpl) CheckJobStatus(arg *async.PollArg) (res *JobStatus, err erro
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -521,7 +521,7 @@ type CheckRemoveMemberJobStatusAPIError struct {
 func (dbx *apiImpl) CheckRemoveMemberJobStatus(arg *async.PollArg) (res *RemoveMemberJobStatus, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -538,21 +538,21 @@ func (dbx *apiImpl) CheckRemoveMemberJobStatus(arg *async.PollArg) (res *RemoveM
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -571,7 +571,7 @@ func (dbx *apiImpl) CheckRemoveMemberJobStatus(arg *async.PollArg) (res *RemoveM
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -593,7 +593,7 @@ type CheckShareJobStatusAPIError struct {
 func (dbx *apiImpl) CheckShareJobStatus(arg *async.PollArg) (res *ShareFolderJobStatus, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -610,21 +610,21 @@ func (dbx *apiImpl) CheckShareJobStatus(arg *async.PollArg) (res *ShareFolderJob
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -643,7 +643,7 @@ func (dbx *apiImpl) CheckShareJobStatus(arg *async.PollArg) (res *ShareFolderJob
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -668,7 +668,7 @@ func (dbx *apiImpl) CreateSharedLink(arg *CreateSharedLinkArg) (res *PathLinkMet
 
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -685,21 +685,21 @@ func (dbx *apiImpl) CreateSharedLink(arg *CreateSharedLinkArg) (res *PathLinkMet
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -718,7 +718,7 @@ func (dbx *apiImpl) CreateSharedLink(arg *CreateSharedLinkArg) (res *PathLinkMet
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -740,7 +740,7 @@ type CreateSharedLinkWithSettingsAPIError struct {
 func (dbx *apiImpl) CreateSharedLinkWithSettings(arg *CreateSharedLinkWithSettingsArg) (res IsSharedLinkMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -757,21 +757,21 @@ func (dbx *apiImpl) CreateSharedLinkWithSettings(arg *CreateSharedLinkWithSettin
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		var tmp sharedLinkMetadataUnion
 		err = json.Unmarshal(body, &tmp)
@@ -798,7 +798,7 @@ func (dbx *apiImpl) CreateSharedLinkWithSettings(arg *CreateSharedLinkWithSettin
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -820,7 +820,7 @@ type GetFileMetadataAPIError struct {
 func (dbx *apiImpl) GetFileMetadata(arg *GetFileMetadataArg) (res *SharedFileMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -837,21 +837,21 @@ func (dbx *apiImpl) GetFileMetadata(arg *GetFileMetadataArg) (res *SharedFileMet
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -870,7 +870,7 @@ func (dbx *apiImpl) GetFileMetadata(arg *GetFileMetadataArg) (res *SharedFileMet
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -892,7 +892,7 @@ type GetFileMetadataBatchAPIError struct {
 func (dbx *apiImpl) GetFileMetadataBatch(arg *GetFileMetadataBatchArg) (res []*GetFileMetadataBatchResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -909,21 +909,21 @@ func (dbx *apiImpl) GetFileMetadataBatch(arg *GetFileMetadataBatchArg) (res []*G
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -942,7 +942,7 @@ func (dbx *apiImpl) GetFileMetadataBatch(arg *GetFileMetadataBatchArg) (res []*G
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -964,7 +964,7 @@ type GetFolderMetadataAPIError struct {
 func (dbx *apiImpl) GetFolderMetadata(arg *GetMetadataArgs) (res *SharedFolderMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -981,21 +981,21 @@ func (dbx *apiImpl) GetFolderMetadata(arg *GetMetadataArgs) (res *SharedFolderMe
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1014,7 +1014,7 @@ func (dbx *apiImpl) GetFolderMetadata(arg *GetMetadataArgs) (res *SharedFolderMe
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1036,7 +1036,7 @@ type GetSharedLinkFileAPIError struct {
 func (dbx *apiImpl) GetSharedLinkFile(arg *GetSharedLinkMetadataArg) (res IsSharedLinkMetadata, content io.ReadCloser, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1053,17 +1053,17 @@ func (dbx *apiImpl) GetSharedLinkFile(arg *GetSharedLinkMetadataArg) (res IsShar
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	body := []byte(resp.Header.Get("Dropbox-API-Result"))
 	content = resp.Body
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		var tmp sharedLinkMetadataUnion
 		err = json.Unmarshal(body, &tmp)
@@ -1081,6 +1081,11 @@ func (dbx *apiImpl) GetSharedLinkFile(arg *GetSharedLinkMetadataArg) (res IsShar
 		return
 	}
 	if resp.StatusCode == http.StatusConflict {
+		defer resp.Body.Close()
+		body, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return
+		}
 		var apiError GetSharedLinkFileAPIError
 		err = json.Unmarshal(body, &apiError)
 		if err != nil {
@@ -1090,7 +1095,7 @@ func (dbx *apiImpl) GetSharedLinkFile(arg *GetSharedLinkMetadataArg) (res IsShar
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1112,7 +1117,7 @@ type GetSharedLinkMetadataAPIError struct {
 func (dbx *apiImpl) GetSharedLinkMetadata(arg *GetSharedLinkMetadataArg) (res IsSharedLinkMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1129,21 +1134,21 @@ func (dbx *apiImpl) GetSharedLinkMetadata(arg *GetSharedLinkMetadataArg) (res Is
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		var tmp sharedLinkMetadataUnion
 		err = json.Unmarshal(body, &tmp)
@@ -1170,7 +1175,7 @@ func (dbx *apiImpl) GetSharedLinkMetadata(arg *GetSharedLinkMetadataArg) (res Is
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1195,7 +1200,7 @@ func (dbx *apiImpl) GetSharedLinks(arg *GetSharedLinksArg) (res *GetSharedLinksR
 
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1212,21 +1217,21 @@ func (dbx *apiImpl) GetSharedLinks(arg *GetSharedLinksArg) (res *GetSharedLinksR
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1245,7 +1250,7 @@ func (dbx *apiImpl) GetSharedLinks(arg *GetSharedLinksArg) (res *GetSharedLinksR
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1267,7 +1272,7 @@ type ListFileMembersAPIError struct {
 func (dbx *apiImpl) ListFileMembers(arg *ListFileMembersArg) (res *SharedFileMembers, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1284,21 +1289,21 @@ func (dbx *apiImpl) ListFileMembers(arg *ListFileMembersArg) (res *SharedFileMem
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1317,7 +1322,7 @@ func (dbx *apiImpl) ListFileMembers(arg *ListFileMembersArg) (res *SharedFileMem
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1339,7 +1344,7 @@ type ListFileMembersBatchAPIError struct {
 func (dbx *apiImpl) ListFileMembersBatch(arg *ListFileMembersBatchArg) (res []*ListFileMembersBatchResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1356,21 +1361,21 @@ func (dbx *apiImpl) ListFileMembersBatch(arg *ListFileMembersBatchArg) (res []*L
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1389,7 +1394,7 @@ func (dbx *apiImpl) ListFileMembersBatch(arg *ListFileMembersBatchArg) (res []*L
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1411,7 +1416,7 @@ type ListFileMembersContinueAPIError struct {
 func (dbx *apiImpl) ListFileMembersContinue(arg *ListFileMembersContinueArg) (res *SharedFileMembers, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1428,21 +1433,21 @@ func (dbx *apiImpl) ListFileMembersContinue(arg *ListFileMembersContinueArg) (re
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1461,7 +1466,7 @@ func (dbx *apiImpl) ListFileMembersContinue(arg *ListFileMembersContinueArg) (re
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1483,7 +1488,7 @@ type ListFolderMembersAPIError struct {
 func (dbx *apiImpl) ListFolderMembers(arg *ListFolderMembersArgs) (res *SharedFolderMembers, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1500,21 +1505,21 @@ func (dbx *apiImpl) ListFolderMembers(arg *ListFolderMembersArgs) (res *SharedFo
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1533,7 +1538,7 @@ func (dbx *apiImpl) ListFolderMembers(arg *ListFolderMembersArgs) (res *SharedFo
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1555,7 +1560,7 @@ type ListFolderMembersContinueAPIError struct {
 func (dbx *apiImpl) ListFolderMembersContinue(arg *ListFolderMembersContinueArg) (res *SharedFolderMembers, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1572,21 +1577,21 @@ func (dbx *apiImpl) ListFolderMembersContinue(arg *ListFolderMembersContinueArg)
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1605,7 +1610,7 @@ func (dbx *apiImpl) ListFolderMembersContinue(arg *ListFolderMembersContinueArg)
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1627,7 +1632,7 @@ type ListFoldersAPIError struct {
 func (dbx *apiImpl) ListFolders(arg *ListFoldersArgs) (res *ListFoldersResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1644,21 +1649,21 @@ func (dbx *apiImpl) ListFolders(arg *ListFoldersArgs) (res *ListFoldersResult, e
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1677,7 +1682,7 @@ func (dbx *apiImpl) ListFolders(arg *ListFoldersArgs) (res *ListFoldersResult, e
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1699,7 +1704,7 @@ type ListFoldersContinueAPIError struct {
 func (dbx *apiImpl) ListFoldersContinue(arg *ListFoldersContinueArg) (res *ListFoldersResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1716,21 +1721,21 @@ func (dbx *apiImpl) ListFoldersContinue(arg *ListFoldersContinueArg) (res *ListF
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1749,7 +1754,7 @@ func (dbx *apiImpl) ListFoldersContinue(arg *ListFoldersContinueArg) (res *ListF
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1771,7 +1776,7 @@ type ListMountableFoldersAPIError struct {
 func (dbx *apiImpl) ListMountableFolders(arg *ListFoldersArgs) (res *ListFoldersResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1788,21 +1793,21 @@ func (dbx *apiImpl) ListMountableFolders(arg *ListFoldersArgs) (res *ListFolders
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1821,7 +1826,7 @@ func (dbx *apiImpl) ListMountableFolders(arg *ListFoldersArgs) (res *ListFolders
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1843,7 +1848,7 @@ type ListMountableFoldersContinueAPIError struct {
 func (dbx *apiImpl) ListMountableFoldersContinue(arg *ListFoldersContinueArg) (res *ListFoldersResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1860,21 +1865,21 @@ func (dbx *apiImpl) ListMountableFoldersContinue(arg *ListFoldersContinueArg) (r
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1893,7 +1898,7 @@ func (dbx *apiImpl) ListMountableFoldersContinue(arg *ListFoldersContinueArg) (r
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1915,7 +1920,7 @@ type ListReceivedFilesAPIError struct {
 func (dbx *apiImpl) ListReceivedFiles(arg *ListFilesArg) (res *ListFilesResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1932,21 +1937,21 @@ func (dbx *apiImpl) ListReceivedFiles(arg *ListFilesArg) (res *ListFilesResult, 
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -1965,7 +1970,7 @@ func (dbx *apiImpl) ListReceivedFiles(arg *ListFilesArg) (res *ListFilesResult, 
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1987,7 +1992,7 @@ type ListReceivedFilesContinueAPIError struct {
 func (dbx *apiImpl) ListReceivedFilesContinue(arg *ListFilesContinueArg) (res *ListFilesResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2004,21 +2009,21 @@ func (dbx *apiImpl) ListReceivedFilesContinue(arg *ListFilesContinueArg) (res *L
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2037,7 +2042,7 @@ func (dbx *apiImpl) ListReceivedFilesContinue(arg *ListFilesContinueArg) (res *L
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2059,7 +2064,7 @@ type ListSharedLinksAPIError struct {
 func (dbx *apiImpl) ListSharedLinks(arg *ListSharedLinksArg) (res *ListSharedLinksResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2076,21 +2081,21 @@ func (dbx *apiImpl) ListSharedLinks(arg *ListSharedLinksArg) (res *ListSharedLin
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2109,7 +2114,7 @@ func (dbx *apiImpl) ListSharedLinks(arg *ListSharedLinksArg) (res *ListSharedLin
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2131,7 +2136,7 @@ type ModifySharedLinkSettingsAPIError struct {
 func (dbx *apiImpl) ModifySharedLinkSettings(arg *ModifySharedLinkSettingsArgs) (res IsSharedLinkMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2148,21 +2153,21 @@ func (dbx *apiImpl) ModifySharedLinkSettings(arg *ModifySharedLinkSettingsArgs) 
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		var tmp sharedLinkMetadataUnion
 		err = json.Unmarshal(body, &tmp)
@@ -2189,7 +2194,7 @@ func (dbx *apiImpl) ModifySharedLinkSettings(arg *ModifySharedLinkSettingsArgs) 
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2211,7 +2216,7 @@ type MountFolderAPIError struct {
 func (dbx *apiImpl) MountFolder(arg *MountFolderArg) (res *SharedFolderMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2228,21 +2233,21 @@ func (dbx *apiImpl) MountFolder(arg *MountFolderArg) (res *SharedFolderMetadata,
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2261,7 +2266,7 @@ func (dbx *apiImpl) MountFolder(arg *MountFolderArg) (res *SharedFolderMetadata,
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2283,7 +2288,7 @@ type RelinquishFileMembershipAPIError struct {
 func (dbx *apiImpl) RelinquishFileMembership(arg *RelinquishFileMembershipArg) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2300,21 +2305,21 @@ func (dbx *apiImpl) RelinquishFileMembership(arg *RelinquishFileMembershipArg) (
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2328,7 +2333,7 @@ func (dbx *apiImpl) RelinquishFileMembership(arg *RelinquishFileMembershipArg) (
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2350,7 +2355,7 @@ type RelinquishFolderMembershipAPIError struct {
 func (dbx *apiImpl) RelinquishFolderMembership(arg *RelinquishFolderMembershipArg) (res *async.LaunchEmptyResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2367,21 +2372,21 @@ func (dbx *apiImpl) RelinquishFolderMembership(arg *RelinquishFolderMembershipAr
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2400,7 +2405,7 @@ func (dbx *apiImpl) RelinquishFolderMembership(arg *RelinquishFolderMembershipAr
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2425,7 +2430,7 @@ func (dbx *apiImpl) RemoveFileMember(arg *RemoveFileMemberArg) (res *FileMemberA
 
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2442,21 +2447,21 @@ func (dbx *apiImpl) RemoveFileMember(arg *RemoveFileMemberArg) (res *FileMemberA
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2475,7 +2480,7 @@ func (dbx *apiImpl) RemoveFileMember(arg *RemoveFileMemberArg) (res *FileMemberA
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2497,7 +2502,7 @@ type RemoveFileMember2APIError struct {
 func (dbx *apiImpl) RemoveFileMember2(arg *RemoveFileMemberArg) (res *FileMemberRemoveActionResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2514,21 +2519,21 @@ func (dbx *apiImpl) RemoveFileMember2(arg *RemoveFileMemberArg) (res *FileMember
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2547,7 +2552,7 @@ func (dbx *apiImpl) RemoveFileMember2(arg *RemoveFileMemberArg) (res *FileMember
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2569,7 +2574,7 @@ type RemoveFolderMemberAPIError struct {
 func (dbx *apiImpl) RemoveFolderMember(arg *RemoveFolderMemberArg) (res *async.LaunchResultBase, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2586,21 +2591,21 @@ func (dbx *apiImpl) RemoveFolderMember(arg *RemoveFolderMemberArg) (res *async.L
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2619,7 +2624,7 @@ func (dbx *apiImpl) RemoveFolderMember(arg *RemoveFolderMemberArg) (res *async.L
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2641,7 +2646,7 @@ type RevokeSharedLinkAPIError struct {
 func (dbx *apiImpl) RevokeSharedLink(arg *RevokeSharedLinkArg) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2658,21 +2663,21 @@ func (dbx *apiImpl) RevokeSharedLink(arg *RevokeSharedLinkArg) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2686,7 +2691,7 @@ func (dbx *apiImpl) RevokeSharedLink(arg *RevokeSharedLinkArg) (err error) {
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2708,7 +2713,7 @@ type ShareFolderAPIError struct {
 func (dbx *apiImpl) ShareFolder(arg *ShareFolderArg) (res *ShareFolderLaunch, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2725,21 +2730,21 @@ func (dbx *apiImpl) ShareFolder(arg *ShareFolderArg) (res *ShareFolderLaunch, er
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -2758,7 +2763,7 @@ func (dbx *apiImpl) ShareFolder(arg *ShareFolderArg) (res *ShareFolderLaunch, er
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2780,7 +2785,7 @@ type TransferFolderAPIError struct {
 func (dbx *apiImpl) TransferFolder(arg *TransferFolderArg) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2797,21 +2802,21 @@ func (dbx *apiImpl) TransferFolder(arg *TransferFolderArg) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2825,7 +2830,7 @@ func (dbx *apiImpl) TransferFolder(arg *TransferFolderArg) (err error) {
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2847,7 +2852,7 @@ type UnmountFolderAPIError struct {
 func (dbx *apiImpl) UnmountFolder(arg *UnmountFolderArg) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2864,21 +2869,21 @@ func (dbx *apiImpl) UnmountFolder(arg *UnmountFolderArg) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2892,7 +2897,7 @@ func (dbx *apiImpl) UnmountFolder(arg *UnmountFolderArg) (err error) {
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2914,7 +2919,7 @@ type UnshareFileAPIError struct {
 func (dbx *apiImpl) UnshareFile(arg *UnshareFileArg) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2931,21 +2936,21 @@ func (dbx *apiImpl) UnshareFile(arg *UnshareFileArg) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -2959,7 +2964,7 @@ func (dbx *apiImpl) UnshareFile(arg *UnshareFileArg) (err error) {
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -2981,7 +2986,7 @@ type UnshareFolderAPIError struct {
 func (dbx *apiImpl) UnshareFolder(arg *UnshareFolderArg) (res *async.LaunchEmptyResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -2998,21 +3003,21 @@ func (dbx *apiImpl) UnshareFolder(arg *UnshareFolderArg) (res *async.LaunchEmpty
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3031,7 +3036,7 @@ func (dbx *apiImpl) UnshareFolder(arg *UnshareFolderArg) (res *async.LaunchEmpty
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -3053,7 +3058,7 @@ type UpdateFileMemberAPIError struct {
 func (dbx *apiImpl) UpdateFileMember(arg *UpdateFileMemberArgs) (res *MemberAccessLevelResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3070,21 +3075,21 @@ func (dbx *apiImpl) UpdateFileMember(arg *UpdateFileMemberArgs) (res *MemberAcce
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3103,7 +3108,7 @@ func (dbx *apiImpl) UpdateFileMember(arg *UpdateFileMemberArgs) (res *MemberAcce
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -3125,7 +3130,7 @@ type UpdateFolderMemberAPIError struct {
 func (dbx *apiImpl) UpdateFolderMember(arg *UpdateFolderMemberArg) (res *MemberAccessLevelResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3142,21 +3147,21 @@ func (dbx *apiImpl) UpdateFolderMember(arg *UpdateFolderMemberArg) (res *MemberA
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3175,7 +3180,7 @@ func (dbx *apiImpl) UpdateFolderMember(arg *UpdateFolderMemberArg) (res *MemberA
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -3197,7 +3202,7 @@ type UpdateFolderPolicyAPIError struct {
 func (dbx *apiImpl) UpdateFolderPolicy(arg *UpdateFolderPolicyArg) (res *SharedFolderMetadata, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -3214,21 +3219,21 @@ func (dbx *apiImpl) UpdateFolderPolicy(arg *UpdateFolderPolicyArg) (res *SharedF
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -3247,7 +3252,7 @@ func (dbx *apiImpl) UpdateFolderPolicy(arg *UpdateFolderPolicyArg) (res *SharedF
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -3261,7 +3266,7 @@ func (dbx *apiImpl) UpdateFolderPolicy(arg *UpdateFolderPolicyArg) (res *SharedF
 }
 
 // New returns a Client implementation for this namespace
-func New(c dropbox.Config) *apiImpl {
+func New(c dropbox.Config) Client {
 	ctx := apiImpl(dropbox.NewContext(c))
 	return &ctx
 }

@@ -23,7 +23,9 @@ See the following for detailed instructions for
   * [Amazon S3](/s3/)
   * [Backblaze B2](/b2/)
   * [Box](/box/)
+  * [Cache](/cache/)
   * [Crypt](/crypt/) - to encrypt other remotes
+  * [DigitalOcean Spaces](/s3/#digitalocean-spaces)
   * [Dropbox](/dropbox/)
   * [FTP](/ftp/)
   * [Google Cloud Storage](/googlecloudstorage/)
@@ -33,8 +35,10 @@ See the following for detailed instructions for
   * [Microsoft Azure Blob Storage](/azureblob/)
   * [Microsoft OneDrive](/onedrive/)
   * [Openstack Swift / Rackspace Cloudfiles / Memset Memstore](/swift/)
+  * [Pcloud](/pcloud/)
   * [QingStor](/qingstor/)
   * [SFTP](/sftp/)
+  * [WebDAV](/webdav/)
   * [Yandex Disk](/yandex/)
   * [The local filesystem](/local/)
 
@@ -255,7 +259,7 @@ you might want to pass `--suffix` with today's date.
 
 Local address to bind to for outgoing connections.  This can be an
 IPv4 address (1.2.3.4), an IPv6 address (1234::789A) or host name.  If
-the host name doesn't resolve or resoves to more than one IP address
+the host name doesn't resolve or resolves to more than one IP address
 it will give an error.
 
 ### --bwlimit=BANDWIDTH_SPEC ###
@@ -433,6 +437,30 @@ Normally rclone would skip any files that have the same
 modification time and are the same size (or have the same checksum if
 using `--checksum`).
 
+### --immutable ###
+
+Treat source and destination files as immutable and disallow
+modification.
+
+With this option set, files will be created and deleted as requested,
+but existing files will never be updated.  If an existing file does
+not match between the source and destination, rclone will give the error
+`Source and destination exist but do not match: immutable file modified`.
+
+Note that only commands which transfer files (e.g. `sync`, `copy`,
+`move`) are affected by this behavior, and only modification is
+disallowed.  Files may still be deleted explicitly (e.g. `delete`,
+`purge`) or implicitly (e.g. `sync`, `move`).  Use `copy --immutable`
+if it is desired to avoid deletion as well as modification.
+
+This can be useful as an additional layer of protection for immutable
+or append-only data sets (notably backup archives), where modification
+implies corruption and should not be propagated.
+
+## --leave-root ###
+
+During rmdirs it will not remove root directory, even if it's empty.
+
 ### --log-file=FILE ###
 
 Log all of rclone's output to FILE.  This is not active by default.
@@ -442,7 +470,7 @@ for more info.
 
 ### --log-level LEVEL ###
 
-This sets the log level for rclone.  The default log level is `INFO`.
+This sets the log level for rclone.  The default log level is `NOTICE`.
 
 `DEBUG` is equivalent to `-vv`. It outputs lots of debug info - useful
 for bug reports and really finding out what rclone is doing.
@@ -864,14 +892,20 @@ here which are used for testing.  These start with remote name eg
 
 Write CPU profile to file.  This can be analysed with `go tool pprof`.
 
-### --dump-auth ###
+#### --dump flag,flag,flag ####
 
-Dump HTTP headers - will contain sensitive info such as
-`Authorization:` headers - use `--dump-headers` to dump without
-`Authorization:` headers.  Can be very verbose.  Useful for debugging
+The `--dump` flag takes a comma separated list of flags to dump info
+about.  These are:
+
+#### --dump headers ####
+
+Dump HTTP headers with `Authorization:` lines removed. May still
+contain sensitive info.  Can be very verbose.  Useful for debugging
 only.
 
-### --dump-bodies ###
+Use `--dump auth` if you do want the `Authorization:` headers.
+
+#### --dump bodies ####
 
 Dump HTTP headers and bodies - may contain sensitive info.  Can be
 very verbose.  Useful for debugging only.
@@ -879,18 +913,27 @@ very verbose.  Useful for debugging only.
 Note that the bodies are buffered in memory so don't use this for
 enormous files.
 
-### --dump-filters ###
+#### --dump requests ####
+
+Like `--dump bodies` but dumps the request bodies and the response
+headers.  Useful for debugging download problems.
+
+#### --dump responses ####
+
+Like `--dump bodies` but dumps the response bodies and the request
+headers. Useful for debugging upload problems.
+
+#### --dump auth ####
+
+Dump HTTP headers - will contain sensitive info such as
+`Authorization:` headers - use `--dump headers` to dump without
+`Authorization:` headers.  Can be very verbose.  Useful for debugging
+only.
+
+#### --dump filters ####
 
 Dump the filters to the output.  Useful to see exactly what include
 and exclude options are filtering on.
-
-### --dump-headers ###
-
-Dump HTTP headers with `Authorization:` lines removed. May still
-contain sensitive info.  Can be very verbose.  Useful for debugging
-only.
-
-Use `--dump-auth` if you do want the `Authorization:` headers.
 
 ### --memprofile=FILE ###
 
@@ -945,7 +988,7 @@ For the filtering options
   * `--max-size`
   * `--min-age`
   * `--max-age`
-  * `--dump-filters`
+  * `--dump filters`
 
 See the [filtering section](/filtering/).
 
@@ -1000,6 +1043,16 @@ when starting a retry so the user can see that any previous error
 messages may not be valid after the retry. If rclone has done a retry
 it will log a high priority message if the retry was successful.
 
+### List of exit codes ###
+  * `0` - success
+  * `1` - Syntax or usage error
+  * `2` - Error not otherwise categorised
+  * `3` - Directory not found
+  * `4` - File not found
+  * `5` - Temporary error (one that more retries might fix) (Retry errors)
+  * `6` - Less serious errors (like 461 errors from dropbox) (NoRetry errors)
+  * `7` - Fatal error (one that more retries won't fix, like account suspended) (Fatal errors)
+
 Environment Variables
 ---------------------
 
@@ -1035,8 +1088,8 @@ file to see what the values are (the config file can be found by
 looking at the help for `--config` in `rclone help`).
 
 To find the name of the environment variable, you need to set, take
-`RCLONE_` + name of remote + `_` + name of config file option and make
-it all uppercase.
+`RCLONE_CONFIG_` + name of remote + `_` + name of config file option
+and make it all uppercase.
 
 For example, to configure an S3 remote named `mys3:` without a config
 file (using unix ways of setting environment variables):

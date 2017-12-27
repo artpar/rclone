@@ -35,6 +35,8 @@ type Client interface {
 	// DocsArchive : Marks the given Paper doc as archived. Note: This action
 	// can be performed or undone by anyone with edit permissions to the doc.
 	DocsArchive(arg *RefPaperDoc) (err error)
+	// DocsCreate : Creates a new Paper doc with the provided content.
+	DocsCreate(arg *PaperDocCreateArgs, content io.Reader) (res *PaperDocCreateUpdateResult, err error)
 	// DocsDownload : Exports and downloads Paper doc either as HTML or
 	// markdown.
 	DocsDownload(arg *PaperDocExport) (res *PaperDocExportResult, content io.ReadCloser, err error)
@@ -74,6 +76,8 @@ type Client interface {
 	// 'public_sharing_policy' cannot be set to the value 'disabled' because
 	// this setting can be changed only via the team admin console.
 	DocsSharingPolicySet(arg *PaperDocSharingPolicy) (err error)
+	// DocsUpdate : Updates an existing Paper doc with the provided content.
+	DocsUpdate(arg *PaperDocUpdateArgs, content io.Reader) (res *PaperDocCreateUpdateResult, err error)
 	// DocsUsersAdd : Allows an owner or editor to add users to a Paper doc or
 	// change their permissions using their email address or Dropbox account ID.
 	// Note: The Doc owner's permissions cannot be changed.
@@ -104,7 +108,7 @@ type DocsArchiveAPIError struct {
 func (dbx *apiImpl) DocsArchive(arg *RefPaperDoc) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -121,21 +125,21 @@ func (dbx *apiImpl) DocsArchive(arg *RefPaperDoc) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -149,7 +153,80 @@ func (dbx *apiImpl) DocsArchive(arg *RefPaperDoc) (err error) {
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
+		apiError.ErrorSummary = string(body)
+		err = apiError
+		return
+	}
+	err = json.Unmarshal(body, &apiError)
+	if err != nil {
+		return
+	}
+	err = apiError
+	return
+}
+
+//DocsCreateAPIError is an error-wrapper for the docs/create route
+type DocsCreateAPIError struct {
+	dropbox.APIError
+	EndpointError *PaperDocCreateError `json:"error"`
+}
+
+func (dbx *apiImpl) DocsCreate(arg *PaperDocCreateArgs, content io.Reader) (res *PaperDocCreateUpdateResult, err error) {
+	cli := dbx.Client
+
+	dbx.Config.LogDebug("arg: %v", arg)
+	b, err := json.Marshal(arg)
+	if err != nil {
+		return
+	}
+
+	headers := map[string]string{
+		"Content-Type":    "application/octet-stream",
+		"Dropbox-API-Arg": string(b),
+	}
+	if dbx.Config.AsMemberID != "" {
+		headers["Dropbox-API-Select-User"] = dbx.Config.AsMemberID
+	}
+
+	req, err := (*dropbox.Context)(dbx).NewRequest("api", "upload", true, "paper", "docs/create", headers, content)
+	if err != nil {
+		return
+	}
+	dbx.Config.LogInfo("req: %v", req)
+
+	resp, err := cli.Do(req)
+	if err != nil {
+		return
+	}
+
+	dbx.Config.LogInfo("resp: %v", resp)
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+
+	dbx.Config.LogDebug("body: %v", body)
+	if resp.StatusCode == http.StatusOK {
+		err = json.Unmarshal(body, &res)
+		if err != nil {
+			return
+		}
+
+		return
+	}
+	if resp.StatusCode == http.StatusConflict {
+		var apiError DocsCreateAPIError
+		err = json.Unmarshal(body, &apiError)
+		if err != nil {
+			return
+		}
+		err = apiError
+		return
+	}
+	var apiError dropbox.APIError
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -171,14 +248,14 @@ type DocsDownloadAPIError struct {
 func (dbx *apiImpl) DocsDownload(arg *PaperDocExport) (res *PaperDocExportResult, content io.ReadCloser, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
 	}
 
 	headers := map[string]string{
-		"Content-Type": "application/json",
+		"Dropbox-API-Arg": string(b),
 	}
 	if dbx.Config.AsMemberID != "" {
 		headers["Dropbox-API-Select-User"] = dbx.Config.AsMemberID
@@ -188,17 +265,17 @@ func (dbx *apiImpl) DocsDownload(arg *PaperDocExport) (res *PaperDocExportResult
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	body := []byte(resp.Header.Get("Dropbox-API-Result"))
 	content = resp.Body
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -208,6 +285,11 @@ func (dbx *apiImpl) DocsDownload(arg *PaperDocExport) (res *PaperDocExportResult
 		return
 	}
 	if resp.StatusCode == http.StatusConflict {
+		defer resp.Body.Close()
+		body, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return
+		}
 		var apiError DocsDownloadAPIError
 		err = json.Unmarshal(body, &apiError)
 		if err != nil {
@@ -217,7 +299,7 @@ func (dbx *apiImpl) DocsDownload(arg *PaperDocExport) (res *PaperDocExportResult
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -239,7 +321,7 @@ type DocsFolderUsersListAPIError struct {
 func (dbx *apiImpl) DocsFolderUsersList(arg *ListUsersOnFolderArgs) (res *ListUsersOnFolderResponse, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -256,21 +338,21 @@ func (dbx *apiImpl) DocsFolderUsersList(arg *ListUsersOnFolderArgs) (res *ListUs
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -289,7 +371,7 @@ func (dbx *apiImpl) DocsFolderUsersList(arg *ListUsersOnFolderArgs) (res *ListUs
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -311,7 +393,7 @@ type DocsFolderUsersListContinueAPIError struct {
 func (dbx *apiImpl) DocsFolderUsersListContinue(arg *ListUsersOnFolderContinueArgs) (res *ListUsersOnFolderResponse, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -328,21 +410,21 @@ func (dbx *apiImpl) DocsFolderUsersListContinue(arg *ListUsersOnFolderContinueAr
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -361,7 +443,7 @@ func (dbx *apiImpl) DocsFolderUsersListContinue(arg *ListUsersOnFolderContinueAr
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -383,7 +465,7 @@ type DocsGetFolderInfoAPIError struct {
 func (dbx *apiImpl) DocsGetFolderInfo(arg *RefPaperDoc) (res *FoldersContainingPaperDoc, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -400,21 +482,21 @@ func (dbx *apiImpl) DocsGetFolderInfo(arg *RefPaperDoc) (res *FoldersContainingP
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -433,7 +515,7 @@ func (dbx *apiImpl) DocsGetFolderInfo(arg *RefPaperDoc) (res *FoldersContainingP
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -455,7 +537,7 @@ type DocsListAPIError struct {
 func (dbx *apiImpl) DocsList(arg *ListPaperDocsArgs) (res *ListPaperDocsResponse, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -472,21 +554,21 @@ func (dbx *apiImpl) DocsList(arg *ListPaperDocsArgs) (res *ListPaperDocsResponse
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -505,7 +587,7 @@ func (dbx *apiImpl) DocsList(arg *ListPaperDocsArgs) (res *ListPaperDocsResponse
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -527,7 +609,7 @@ type DocsListContinueAPIError struct {
 func (dbx *apiImpl) DocsListContinue(arg *ListPaperDocsContinueArgs) (res *ListPaperDocsResponse, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -544,21 +626,21 @@ func (dbx *apiImpl) DocsListContinue(arg *ListPaperDocsContinueArgs) (res *ListP
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -577,7 +659,7 @@ func (dbx *apiImpl) DocsListContinue(arg *ListPaperDocsContinueArgs) (res *ListP
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -599,7 +681,7 @@ type DocsPermanentlyDeleteAPIError struct {
 func (dbx *apiImpl) DocsPermanentlyDelete(arg *RefPaperDoc) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -616,21 +698,21 @@ func (dbx *apiImpl) DocsPermanentlyDelete(arg *RefPaperDoc) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -644,7 +726,7 @@ func (dbx *apiImpl) DocsPermanentlyDelete(arg *RefPaperDoc) (err error) {
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -666,7 +748,7 @@ type DocsSharingPolicyGetAPIError struct {
 func (dbx *apiImpl) DocsSharingPolicyGet(arg *RefPaperDoc) (res *SharingPolicy, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -683,21 +765,21 @@ func (dbx *apiImpl) DocsSharingPolicyGet(arg *RefPaperDoc) (res *SharingPolicy, 
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -716,7 +798,7 @@ func (dbx *apiImpl) DocsSharingPolicyGet(arg *RefPaperDoc) (res *SharingPolicy, 
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -738,7 +820,7 @@ type DocsSharingPolicySetAPIError struct {
 func (dbx *apiImpl) DocsSharingPolicySet(arg *PaperDocSharingPolicy) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -755,21 +837,21 @@ func (dbx *apiImpl) DocsSharingPolicySet(arg *PaperDocSharingPolicy) (err error)
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -783,7 +865,80 @@ func (dbx *apiImpl) DocsSharingPolicySet(arg *PaperDocSharingPolicy) (err error)
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
+		apiError.ErrorSummary = string(body)
+		err = apiError
+		return
+	}
+	err = json.Unmarshal(body, &apiError)
+	if err != nil {
+		return
+	}
+	err = apiError
+	return
+}
+
+//DocsUpdateAPIError is an error-wrapper for the docs/update route
+type DocsUpdateAPIError struct {
+	dropbox.APIError
+	EndpointError *PaperDocUpdateError `json:"error"`
+}
+
+func (dbx *apiImpl) DocsUpdate(arg *PaperDocUpdateArgs, content io.Reader) (res *PaperDocCreateUpdateResult, err error) {
+	cli := dbx.Client
+
+	dbx.Config.LogDebug("arg: %v", arg)
+	b, err := json.Marshal(arg)
+	if err != nil {
+		return
+	}
+
+	headers := map[string]string{
+		"Content-Type":    "application/octet-stream",
+		"Dropbox-API-Arg": string(b),
+	}
+	if dbx.Config.AsMemberID != "" {
+		headers["Dropbox-API-Select-User"] = dbx.Config.AsMemberID
+	}
+
+	req, err := (*dropbox.Context)(dbx).NewRequest("api", "upload", true, "paper", "docs/update", headers, content)
+	if err != nil {
+		return
+	}
+	dbx.Config.LogInfo("req: %v", req)
+
+	resp, err := cli.Do(req)
+	if err != nil {
+		return
+	}
+
+	dbx.Config.LogInfo("resp: %v", resp)
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+
+	dbx.Config.LogDebug("body: %v", body)
+	if resp.StatusCode == http.StatusOK {
+		err = json.Unmarshal(body, &res)
+		if err != nil {
+			return
+		}
+
+		return
+	}
+	if resp.StatusCode == http.StatusConflict {
+		var apiError DocsUpdateAPIError
+		err = json.Unmarshal(body, &apiError)
+		if err != nil {
+			return
+		}
+		err = apiError
+		return
+	}
+	var apiError dropbox.APIError
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -805,7 +960,7 @@ type DocsUsersAddAPIError struct {
 func (dbx *apiImpl) DocsUsersAdd(arg *AddPaperDocUser) (res []*AddPaperDocUserMemberResult, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -822,21 +977,21 @@ func (dbx *apiImpl) DocsUsersAdd(arg *AddPaperDocUser) (res []*AddPaperDocUserMe
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -855,7 +1010,7 @@ func (dbx *apiImpl) DocsUsersAdd(arg *AddPaperDocUser) (res []*AddPaperDocUserMe
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -877,7 +1032,7 @@ type DocsUsersListAPIError struct {
 func (dbx *apiImpl) DocsUsersList(arg *ListUsersOnPaperDocArgs) (res *ListUsersOnPaperDocResponse, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -894,21 +1049,21 @@ func (dbx *apiImpl) DocsUsersList(arg *ListUsersOnPaperDocArgs) (res *ListUsersO
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -927,7 +1082,7 @@ func (dbx *apiImpl) DocsUsersList(arg *ListUsersOnPaperDocArgs) (res *ListUsersO
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -949,7 +1104,7 @@ type DocsUsersListContinueAPIError struct {
 func (dbx *apiImpl) DocsUsersListContinue(arg *ListUsersOnPaperDocContinueArgs) (res *ListUsersOnPaperDocResponse, err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -966,21 +1121,21 @@ func (dbx *apiImpl) DocsUsersListContinue(arg *ListUsersOnPaperDocContinueArgs) 
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		err = json.Unmarshal(body, &res)
 		if err != nil {
@@ -999,7 +1154,7 @@ func (dbx *apiImpl) DocsUsersListContinue(arg *ListUsersOnPaperDocContinueArgs) 
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1021,7 +1176,7 @@ type DocsUsersRemoveAPIError struct {
 func (dbx *apiImpl) DocsUsersRemove(arg *RemovePaperDocUser) (err error) {
 	cli := dbx.Client
 
-	dbx.Config.TryLog("arg: %v", arg)
+	dbx.Config.LogDebug("arg: %v", arg)
 	b, err := json.Marshal(arg)
 	if err != nil {
 		return
@@ -1038,21 +1193,21 @@ func (dbx *apiImpl) DocsUsersRemove(arg *RemovePaperDocUser) (err error) {
 	if err != nil {
 		return
 	}
-	dbx.Config.TryLog("req: %v", req)
+	dbx.Config.LogInfo("req: %v", req)
 
 	resp, err := cli.Do(req)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("resp: %v", resp)
+	dbx.Config.LogInfo("resp: %v", resp)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return
 	}
 
-	dbx.Config.TryLog("body: %v", body)
+	dbx.Config.LogDebug("body: %v", body)
 	if resp.StatusCode == http.StatusOK {
 		return
 	}
@@ -1066,7 +1221,7 @@ func (dbx *apiImpl) DocsUsersRemove(arg *RemovePaperDocUser) (err error) {
 		return
 	}
 	var apiError dropbox.APIError
-	if resp.StatusCode == http.StatusBadRequest {
+	if resp.StatusCode == http.StatusBadRequest || resp.StatusCode == http.StatusInternalServerError {
 		apiError.ErrorSummary = string(body)
 		err = apiError
 		return
@@ -1080,7 +1235,7 @@ func (dbx *apiImpl) DocsUsersRemove(arg *RemovePaperDocUser) (err error) {
 }
 
 // New returns a Client implementation for this namespace
-func New(c dropbox.Config) *apiImpl {
+func New(c dropbox.Config) Client {
 	ctx := apiImpl(dropbox.NewContext(c))
 	return &ctx
 }

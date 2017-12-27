@@ -36,6 +36,17 @@ const (
 	EmmStateOther    = "other"
 )
 
+// GroupCreation : has no documentation (yet)
+type GroupCreation struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for GroupCreation
+const (
+	GroupCreationAdminsAndMembers = "admins_and_members"
+	GroupCreationAdminsOnly       = "admins_only"
+)
+
 // OfficeAddInPolicy : has no documentation (yet)
 type OfficeAddInPolicy struct {
 	dropbox.Tagged
@@ -46,6 +57,56 @@ const (
 	OfficeAddInPolicyDisabled = "disabled"
 	OfficeAddInPolicyEnabled  = "enabled"
 	OfficeAddInPolicyOther    = "other"
+)
+
+// PaperDeploymentPolicy : has no documentation (yet)
+type PaperDeploymentPolicy struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for PaperDeploymentPolicy
+const (
+	PaperDeploymentPolicyFull    = "full"
+	PaperDeploymentPolicyPartial = "partial"
+	PaperDeploymentPolicyOther   = "other"
+)
+
+// PaperEnabledPolicy : has no documentation (yet)
+type PaperEnabledPolicy struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for PaperEnabledPolicy
+const (
+	PaperEnabledPolicyDisabled    = "disabled"
+	PaperEnabledPolicyEnabled     = "enabled"
+	PaperEnabledPolicyUnspecified = "unspecified"
+	PaperEnabledPolicyOther       = "other"
+)
+
+// PasswordStrengthPolicy : has no documentation (yet)
+type PasswordStrengthPolicy struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for PasswordStrengthPolicy
+const (
+	PasswordStrengthPolicyMinimalRequirements = "minimal_requirements"
+	PasswordStrengthPolicyModeratePassword    = "moderate_password"
+	PasswordStrengthPolicyStrongPassword      = "strong_password"
+	PasswordStrengthPolicyOther               = "other"
+)
+
+// RolloutMethod : has no documentation (yet)
+type RolloutMethod struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for RolloutMethod
+const (
+	RolloutMethodUnlinkAll             = "unlink_all"
+	RolloutMethodUnlinkMostInactive    = "unlink_most_inactive"
+	RolloutMethodAddMemberToExceptions = "add_member_to_exceptions"
 )
 
 // SharedFolderJoinPolicy : Policy governing which shared folders a team member
@@ -86,6 +147,31 @@ const (
 	SharedLinkCreatePolicyDefaultTeamOnly = "default_team_only"
 	SharedLinkCreatePolicyTeamOnly        = "team_only"
 	SharedLinkCreatePolicyOther           = "other"
+)
+
+// SmartSyncPolicy : has no documentation (yet)
+type SmartSyncPolicy struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for SmartSyncPolicy
+const (
+	SmartSyncPolicyLocal    = "local"
+	SmartSyncPolicyOnDemand = "on_demand"
+	SmartSyncPolicyOther    = "other"
+)
+
+// SsoPolicy : has no documentation (yet)
+type SsoPolicy struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for SsoPolicy
+const (
+	SsoPolicyDisabled = "disabled"
+	SsoPolicyOptional = "optional"
+	SsoPolicyRequired = "required"
+	SsoPolicyOther    = "other"
 )
 
 // TeamMemberPolicies : Policies governing team members.
@@ -132,3 +218,15 @@ func NewTeamSharingPolicies(SharedFolderMemberPolicy *SharedFolderMemberPolicy, 
 	s.SharedLinkCreatePolicy = SharedLinkCreatePolicy
 	return s
 }
+
+// TwoStepVerificationPolicy : has no documentation (yet)
+type TwoStepVerificationPolicy struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for TwoStepVerificationPolicy
+const (
+	TwoStepVerificationPolicyRequireTfaEnable  = "require_tfa_enable"
+	TwoStepVerificationPolicyRequireTfaDisable = "require_tfa_disable"
+	TwoStepVerificationPolicyOther             = "other"
+)

@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"path"
 	"regexp"
 	"strings"
@@ -29,12 +28,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws/corehandlers"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
+	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/rest"
 	"github.com/ncw/swift"
 	"github.com/pkg/errors"
 )
@@ -48,7 +49,7 @@ func init() {
 		// AWS endpoints: http://docs.amazonwebservices.com/general/latest/gr/rande.html#s3_region
 		Options: []fs.Option{{
 			Name: "env_auth",
-			Help: "Get AWS credentials from runtime (environment variables or EC2 meta data if no env vars). Only applies if access_key_id and secret_access_key is blank.",
+			Help: "Get AWS credentials from runtime (environment variables or EC2/ECS meta data if no env vars). Only applies if access_key_id and secret_access_key is blank.",
 			Examples: []fs.OptionExample{
 				{
 					Value: "false",
@@ -219,10 +220,11 @@ func init() {
 
 // Constants
 const (
-	metaMtime      = "Mtime"                // the meta key to store mtime in - eg X-Amz-Meta-Mtime
-	listChunkSize  = 1000                   // number of items to read at once
-	maxRetries     = 10                     // number of retries to make of operations
-	maxSizeForCopy = 5 * 1024 * 1024 * 1024 // The maximum size of object we can COPY
+	metaMtime      = "Mtime"                       // the meta key to store mtime in - eg X-Amz-Meta-Mtime
+	listChunkSize  = 1000                          // number of items to read at once
+	maxRetries     = 10                            // number of retries to make of operations
+	maxSizeForCopy = 5 * 1024 * 1024 * 1024        // The maximum size of object we can COPY
+	maxFileSize    = 5 * 1024 * 1024 * 1024 * 1024 // largest possible upload file size
 )
 
 // Globals
@@ -313,7 +315,12 @@ func s3Connection(name string) (*s3.S3, *session.Session, error) {
 	v := credentials.Value{
 		AccessKeyID:     fs.ConfigFileGet(name, "access_key_id"),
 		SecretAccessKey: fs.ConfigFileGet(name, "secret_access_key"),
+		SessionToken:    fs.ConfigFileGet(name, "session_token"),
 	}
+
+	lowTimeoutClient := &http.Client{Timeout: 1 * time.Second} // low timeout to ec2 metadata service
+	def := defaults.Get()
+	def.Config.HTTPClient = lowTimeoutClient
 
 	// first provider to supply a credential set "wins"
 	providers := []credentials.Provider{
@@ -324,10 +331,13 @@ func s3Connection(name string) (*s3.S3, *session.Session, error) {
 		// * Secret Access Key: AWS_SECRET_ACCESS_KEY or AWS_SECRET_KEY
 		&credentials.EnvProvider{},
 
+		// Pick up IAM role if we're in an ECS task
+		defaults.RemoteCredProvider(*def.Config, def.Handlers),
+
 		// Pick up IAM role in case we're on EC2
 		&ec2rolecreds.EC2RoleProvider{
 			Client: ec2metadata.New(session.New(), &aws.Config{
-				HTTPClient: &http.Client{Timeout: 1 * time.Second}, // low timeout to ec2 metadata service
+				HTTPClient: lowTimeoutClient,
 			}),
 			ExpiryWindow: 3,
 		},
@@ -544,6 +554,9 @@ func (f *Fs) list(dir string, recurse bool, fn listFn) error {
 		}
 		// Use NextMarker if set, otherwise use last Key
 		if resp.NextMarker == nil || *resp.NextMarker == "" {
+			if len(resp.Contents) == 0 {
+				return errors.New("s3 protocol error: received listing with IsTruncated set, no NextMarker and no Contents")
+			}
 			marker = resp.Contents[len(resp.Contents)-1].Key
 		} else {
 			marker = resp.NextMarker
@@ -665,6 +678,11 @@ func (f *Fs) Put(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.
 	return fs, fs.Update(in, src, options...)
 }
 
+// PutStream uploads to the remote path with the modTime given of indeterminate size
+func (f *Fs) PutStream(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
+	return f.Put(in, src, options...)
+}
+
 // Check if the bucket exists
 //
 // NB this can return incorrect results if called immediately after bucket deletion
@@ -768,7 +786,7 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	}
 	srcFs := srcObj.fs
 	key := f.root + remote
-	source := url.QueryEscape(srcFs.bucket + "/" + srcFs.root + srcObj.remote)
+	source := rest.URLEscape(srcFs.bucket + "/" + srcFs.root + srcObj.remote)
 	req := s3.CopyObjectInput{
 		Bucket:            &f.bucket,
 		Key:               &key,
@@ -917,7 +935,7 @@ func (o *Object) SetModTime(modTime time.Time) error {
 		ACL:               &o.fs.acl,
 		Key:               &key,
 		ContentType:       &mimeType,
-		CopySource:        aws.String(url.QueryEscape(sourceKey)),
+		CopySource:        aws.String(rest.URLEscape(sourceKey)),
 		Metadata:          o.meta,
 		MetadataDirective: &directive,
 	}
@@ -949,6 +967,11 @@ func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
 		}
 	}
 	resp, err := o.fs.c.GetObject(&req)
+	if err, ok := err.(awserr.RequestFailure); ok {
+		if err.Code() == "InvalidObjectState" {
+			return nil, errors.Errorf("Object in GLACIER, restore first: %v", key)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -970,6 +993,12 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		u.PartSize = s3manager.MinUploadPartSize
 		size := src.Size()
 
+		if size == -1 {
+			// Make parts as small as possible while still being able to upload to the
+			// S3 file size limit. Rounded up to nearest MB.
+			u.PartSize = (((maxFileSize / s3manager.MaxUploadParts) >> 20) + 1) << 20
+			return
+		}
 		// Adjust PartSize until the number of parts is small enough.
 		if size/u.PartSize >= s3manager.MaxUploadParts {
 			// Calculate partition size rounded up to the nearest MB
@@ -1035,9 +1064,10 @@ func (o *Object) MimeType() string {
 
 // Check the interfaces are satisfied
 var (
-	_ fs.Fs        = &Fs{}
-	_ fs.Copier    = &Fs{}
-	_ fs.ListRer   = &Fs{}
-	_ fs.Object    = &Object{}
-	_ fs.MimeTyper = &Object{}
+	_ fs.Fs          = &Fs{}
+	_ fs.Copier      = &Fs{}
+	_ fs.PutStreamer = &Fs{}
+	_ fs.ListRer     = &Fs{}
+	_ fs.Object      = &Object{}
+	_ fs.MimeTyper   = &Object{}
 )

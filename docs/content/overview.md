@@ -7,7 +7,7 @@ date: "2015-09-06"
 
 # Overview of cloud storage systems #
 
-Each cloud storage system is slighly different.  Rclone attempts to
+Each cloud storage system is slightly different.  Rclone attempts to
 provide a unified interface to them, but some underlying differences
 show through.
 
@@ -30,8 +30,10 @@ Here is an overview of the major features of each cloud storage system.
 | Microsoft Azure Blob Storage | MD5         | Yes     | No               | No              | R/W       |
 | Microsoft OneDrive           | SHA1        | Yes     | Yes              | No              | R         |
 | Openstack Swift              | MD5         | Yes     | No               | No              | R/W       |
+| pCloud                       | MD5, SHA1   | Yes     | No               | No              | W         |
 | QingStor                     | MD5         | No      | No               | No              | R/W       |
-| SFTP                         | MD5, SHA1 * | Yes     | Depends          | No              | -         |
+| SFTP                         | MD5, SHA1 ‡ | Yes     | Depends          | No              | -         |
+| WebDAV                       | -           | Yes ††  | Depends          | No              | -         |
 | Yandex Disk                  | MD5         | Yes     | No               | No              | R/W       |
 | The local filesystem         | All         | Yes     | Depends          | No              | -         |
 
@@ -49,8 +51,10 @@ systems they must support a common hash type.
 hash](https://www.dropbox.com/developers/reference/content-hash).
 This is an SHA256 sum of all the 4MB block SHA256s.
 
-* SFTP supports checksums if the same login has shell access and `md5sum`
+‡ SFTP supports checksums if the same login has shell access and `md5sum`
 or `sha1sum` as well as `echo` are in the remote's PATH.
+
+†† WebDAV supports modtimes when used with Owncloud and Nextcloud only.
 
 ### ModTime ###
 
@@ -118,21 +122,23 @@ operations more efficient.
 | Name                         | Purge | Copy | Move | DirMove | CleanUp | ListR | StreamUpload |
 | ---------------------------- |:-----:|:----:|:----:|:-------:|:-------:|:-----:|:------------:|
 | Amazon Drive                 | Yes   | No   | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | No  |
-| Amazon S3                    | No    | Yes  | No   | No      | No      | Yes   | No [#1614](https://github.com/artpar/rclone/issues/1614) |
-| Backblaze B2                 | No    | No   | No   | No      | Yes     | Yes   | No [#1614](https://github.com/artpar/rclone/issues/1614) |
+| Amazon S3                    | No    | Yes  | No   | No      | No      | Yes   | Yes          |
+| Backblaze B2                 | No    | No   | No   | No      | Yes     | Yes   | Yes          |
 | Box                          | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | Yes |
 | Dropbox                      | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | Yes |
 | FTP                          | No    | No   | Yes  | Yes     | No      | No    | Yes          |
-| Google Cloud Storage         | Yes   | Yes  | No   | No      | No      | Yes   | No [#1614](https://github.com/ncw/rclone/issues/1614) |
-| Google Drive                 | Yes   | Yes  | Yes  | Yes     | Yes     | No  | Yes |
+| Google Cloud Storage         | Yes   | Yes  | No   | No      | No      | Yes   | Yes          |
+| Google Drive                 | Yes   | Yes  | Yes  | Yes     | Yes     | No    | Yes          |
 | HTTP                         | No    | No   | No   | No      | No      | No    | No           |
-| Hubic                        | Yes † | Yes  | No   | No      | No      | Yes   | No [#1614](https://github.com/artpar/rclone/issues/1614) |
+| Hubic                        | Yes † | Yes  | No   | No      | No      | Yes   | Yes          |
 | Microsoft Azure Blob Storage | Yes   | Yes  | No   | No      | No      | Yes   | No           |
-| Microsoft OneDrive           | Yes   | Yes  | Yes  | No [#197](https://github.com/artpar/rclone/issues/197) | No [#575](https://github.com/artpar/rclone/issues/575) | No | No [#1614](https://github.com/artpar/rclone/issues/1614) |
-| Openstack Swift              | Yes † | Yes  | No   | No      | No      | Yes   | No [#1614](https://github.com/artpar/rclone/issues/1614) |
-| QingStor                     | No    | Yes  | No   | No      | No      | Yes   | No [#1614](https://github.com/artpar/rclone/issues/1614) |
+| Microsoft OneDrive           | Yes   | Yes  | Yes  | No [#197](https://github.com/artpar/rclone/issues/197) | No [#575](https://github.com/artpar/rclone/issues/575) | No | No |
+| Openstack Swift              | Yes † | Yes  | No   | No      | No      | Yes   | Yes          |
+| pCloud                       | Yes   | Yes  | Yes  | Yes     | Yes     | No    | No           |
+| QingStor                     | No    | Yes  | No   | No      | No      | Yes   | No           |
 | SFTP                         | No    | No   | Yes  | Yes     | No      | No    | Yes          |
-| Yandex Disk                  | Yes   | No   | No   | No      | Yes     | Yes | Yes  |
+| WebDAV                       | Yes   | Yes  | Yes  | Yes     | No      | No    | Yes ‡        |
+| Yandex Disk                  | Yes   | No   | No   | No      | Yes     | Yes   | Yes          |
 | The local filesystem         | Yes   | No   | Yes  | Yes     | No      | No    | Yes          |
 
 ### Purge ###
@@ -143,6 +149,8 @@ the directory.
 † Note Swift and Hubic implement this in order to delete directory
 markers but they don't actually have a quicker way of deleting files
 other than deleting them individually.
+
+‡ StreamUpload is not supported with Nextcloud
 
 ### Copy ###
 

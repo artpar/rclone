@@ -74,6 +74,13 @@ Choose a number from below, or type in your own value
  3 / Very simple filename obfuscation.
    \ "obfuscate"
 filename_encryption> 2
+Option to either encrypt directory names or leave them intact.
+Choose a number from below, or type in your own value
+ 1 / Encrypt directory names.
+   \ "true"
+ 2 / Don't encrypt directory names, leave them intact.
+   \ "false"
+filename_encryption> 1
 Password or pass phrase for encryption.
 y) Yes type in my own password
 g) Generate random password
@@ -223,7 +230,7 @@ Standard
   * file names encrypted
   * file names can't be as long (~156 characters)
   * can use sub paths and copy single files
-  * directory structure visibile
+  * directory structure visible
   * identical files names will have identical uploaded names
   * can use shortcuts to shorten the directory recursion
 
@@ -245,7 +252,7 @@ equivalents.  You can not rely on this for strong protection.
   * file names very lightly obfuscated
   * file names can be longer than standard encryption
   * can use sub paths and copy single files
-  * directory structure visibile
+  * directory structure visible
   * identical files names will have identical uploaded names
 
 Cloud storage systems have various limits on file name length and
@@ -255,6 +262,25 @@ characters in length then you should be OK on all providers.
 
 There may be an even more secure file name encryption mode in the
 future which will address the long file name problem.
+
+### Directory name encryption ###
+Crypt offers the option of encrypting dir names or leaving them intact.
+There are two options:
+
+True
+
+Encrypts the whole file path including directory names
+Example:
+`1/12/123.txt` is encrypted to
+`p0e52nreeaj0a5ea7s64m4j72s/l42g6771hnv3an9cgc8cr2n1ng/qgm4avr35m5loi1th53ato71v0`
+
+False
+
+Only encrypts file names, skips directory names
+Example:
+`1/12/123/txt` is encrypted to
+`1/12/qgm4avr35m5loi1th53ato71v0`
+
 
 ### Modified time and hashes ###
 
@@ -293,7 +319,7 @@ This will have the following advantages
 
   * `rclone sync` will check the checksums while copying
   * you can use `rclone check` between the encrypted remotes
-  * you don't decrypt and encrypt unecessarily
+  * you don't decrypt and encrypt unnecessarily
 
 For example, let's say you have your original remote at `remote:` with
 the encrypted version at `eremote:` with path `remote:crypt`.  You
@@ -322,9 +348,9 @@ has a header and is divided into chunks.
   * 24 bytes Nonce (IV)
 
 The initial nonce is generated from the operating systems crypto
-strong random number genrator.  The nonce is incremented for each
+strong random number generator.  The nonce is incremented for each
 chunk read making sure each nonce is unique for each block written.
-The chance of a nonce being re-used is miniscule.  If you wrote an
+The chance of a nonce being re-used is minuscule.  If you wrote an
 exabyte of data (10¹⁸ bytes) you would have a probability of
 approximately 2×10⁻³² of re-using a nonce.
 
@@ -376,7 +402,7 @@ They are then encrypted with EME using AES with 256 bit key. EME
 (ECB-Mix-ECB) is a wide-block encryption mode presented in the 2003
 paper "A Parallelizable Enciphering Mode" by Halevi and Rogaway.
 
-This makes for determinstic encryption which is what we want - the
+This makes for deterministic encryption which is what we want - the
 same filename must encrypt to the same thing otherwise we can't find
 it on the cloud storage system.
 
@@ -400,11 +426,11 @@ used on case insensitive remotes (eg Windows, Amazon Drive).
 
 ### Key derivation ###
 
-Rclone uses `scrypt` with parameters `N=16384, r=8, p=1` with a an
+Rclone uses `scrypt` with parameters `N=16384, r=8, p=1` with an
 optional user supplied salt (password2) to derive the 32+32+16 = 80
 bytes of key material required.  If the user doesn't supply a salt
 then rclone uses an internal one.
 
 `scrypt` makes it impractical to mount a dictionary attack on rclone
-encrypted data.  For full protection agains this you should always use
+encrypted data.  For full protection against this you should always use
 a salt.

@@ -4,36 +4,19 @@ package mount
 
 import (
 	"os"
-	"path"
 	"time"
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
-	"github.com/artpar/rclone/cmd/mountlib"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/vfs"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 )
 
-// DirEntry describes the contents of a directory entry
-//
-// It can be a file or a directory
-//
-// node may be nil, but o may not
-type DirEntry struct {
-	o    fs.DirEntry
-	node fusefs.Node
-}
-
 // Dir represents a directory entry
 type Dir struct {
-	*mountlib.Dir
-	// f       fs.Fs
-	// path    string
-	// modTime time.Time
-	// mu      sync.RWMutex // protects the following
-	// read    time.Time    // time directory entry last read
-	// items   map[string]*DirEntry
+	*vfs.Dir
 }
 
 // Check interface satsified
@@ -42,9 +25,9 @@ var _ fusefs.Node = (*Dir)(nil)
 // Attr updates the attributes of a directory
 func (d *Dir) Attr(ctx context.Context, a *fuse.Attr) (err error) {
 	defer fs.Trace(d, "")("attr=%+v, err=%v", a, &err)
-	a.Gid = mountlib.GID
-	a.Uid = mountlib.UID
-	a.Mode = os.ModeDir | mountlib.DirPerms
+	a.Gid = d.VFS().Opt.GID
+	a.Uid = d.VFS().Opt.UID
+	a.Mode = os.ModeDir | d.VFS().Opt.DirPerms
 	modTime := d.ModTime()
 	a.Atime = modTime
 	a.Mtime = modTime
@@ -61,7 +44,7 @@ var _ fusefs.NodeSetattrer = (*Dir)(nil)
 // Setattr handles attribute changes from FUSE. Currently supports ModTime only.
 func (d *Dir) Setattr(ctx context.Context, req *fuse.SetattrRequest, resp *fuse.SetattrResponse) (err error) {
 	defer fs.Trace(d, "stat=%+v", req)("err=%v", &err)
-	if mountlib.NoModTime {
+	if d.VFS().Opt.NoModTime {
 		return nil
 	}
 
@@ -85,14 +68,14 @@ var _ fusefs.NodeRequestLookuper = (*Dir)(nil)
 // Lookup need not to handle the names "." and "..".
 func (d *Dir) Lookup(ctx context.Context, req *fuse.LookupRequest, resp *fuse.LookupResponse) (node fusefs.Node, err error) {
 	defer fs.Trace(d, "name=%q", req.Name)("node=%+v, err=%v", &node, &err)
-	mnode, err := d.Dir.Lookup(req.Name)
+	mnode, err := d.Dir.Stat(req.Name)
 	if err != nil {
 		return nil, translateError(err)
 	}
 	switch x := mnode.(type) {
-	case *mountlib.File:
+	case *vfs.File:
 		return &File{x}, nil
-	case *mountlib.Dir:
+	case *vfs.Dir:
 		return &Dir{x}, nil
 	}
 	panic("bad type")
@@ -109,23 +92,14 @@ func (d *Dir) ReadDirAll(ctx context.Context) (dirents []fuse.Dirent, err error)
 	if err != nil {
 		return nil, translateError(err)
 	}
-	for _, item := range items {
-		var dirent fuse.Dirent
-		switch x := item.Obj.(type) {
-		case fs.Object:
-			dirent = fuse.Dirent{
-				// Inode FIXME ???
-				Type: fuse.DT_File,
-				Name: path.Base(x.Remote()),
-			}
-		case fs.Directory:
-			dirent = fuse.Dirent{
-				// Inode FIXME ???
-				Type: fuse.DT_Dir,
-				Name: path.Base(x.Remote()),
-			}
-		default:
-			return nil, errors.Errorf("unknown type %T", item)
+	for _, node := range items {
+		var dirent = fuse.Dirent{
+			// Inode FIXME ???
+			Type: fuse.DT_File,
+			Name: node.Name(),
+		}
+		if node.IsDir() {
+			dirent.Type = fuse.DT_Dir
 		}
 		dirents = append(dirents, dirent)
 	}
@@ -138,11 +112,15 @@ var _ fusefs.NodeCreater = (*Dir)(nil)
 // Create makes a new file
 func (d *Dir) Create(ctx context.Context, req *fuse.CreateRequest, resp *fuse.CreateResponse) (node fusefs.Node, handle fusefs.Handle, err error) {
 	defer fs.Trace(d, "name=%q", req.Name)("node=%v, handle=%v, err=%v", &node, &handle, &err)
-	file, fh, err := d.Dir.Create(req.Name)
+	file, err := d.Dir.Create(req.Name)
 	if err != nil {
 		return nil, nil, translateError(err)
 	}
-	return &File{file}, &WriteFileHandle{fh}, err
+	fh, err := file.Open(int(req.Flags) | os.O_CREATE)
+	if err != nil {
+		return nil, nil, translateError(err)
+	}
+	return &File{file}, &FileHandle{fh}, err
 }
 
 var _ fusefs.NodeMkdirer = (*Dir)(nil)
@@ -164,7 +142,7 @@ var _ fusefs.NodeRemover = (*Dir)(nil)
 // may correspond to a file (unlink) or to a directory (rmdir).
 func (d *Dir) Remove(ctx context.Context, req *fuse.RemoveRequest) (err error) {
 	defer fs.Trace(d, "name=%q", req.Name)("err=%v", &err)
-	err = d.Dir.Remove(req.Name)
+	err = d.Dir.RemoveName(req.Name)
 	if err != nil {
 		return translateError(err)
 	}
@@ -196,7 +174,7 @@ var _ fusefs.NodeFsyncer = (*Dir)(nil)
 // Fsync the directory
 func (d *Dir) Fsync(ctx context.Context, req *fuse.FsyncRequest) (err error) {
 	defer fs.Trace(d, "")("err=%v", &err)
-	err = d.Dir.Fsync()
+	err = d.Dir.Sync()
 	if err != nil {
 		return translateError(err)
 	}

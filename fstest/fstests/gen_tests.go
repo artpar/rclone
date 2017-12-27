@@ -66,7 +66,7 @@ import (
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fstest/fstests"
 	"github.com/artpar/rclone/{{ .FsName }}"
-{{ if eq .FsName "crypt" }}	_ "github.com/artpar/rclone/local"
+{{ if (or (eq .FsName "crypt") (eq .FsName "cache")) }}	_ "github.com/artpar/rclone/local"
 {{end}})
 
 func TestSetup{{ .Suffix }}(t *testing.T)() {
@@ -164,5 +164,8 @@ func main() {
 	generateTestProgram(t, fns, "Box")
 	generateTestProgram(t, fns, "QingStor", buildConstraint("!plan9"))
 	generateTestProgram(t, fns, "AzureBlob", buildConstraint("go1.7"))
+	generateTestProgram(t, fns, "Pcloud")
+	generateTestProgram(t, fns, "Webdav")
+	generateTestProgram(t, fns, "Cache", buildConstraint("!plan9,go1.7"))
 	log.Printf("Done")
 }

@@ -169,6 +169,7 @@ type StatsInfo struct {
 	lock         sync.RWMutex
 	bytes        int64
 	errors       int64
+	lastError    error
 	checks       int64
 	checking     stringSet
 	transfers    int64
@@ -251,6 +252,13 @@ func (s *StatsInfo) GetErrors() int64 {
 	return s.errors
 }
 
+// GetLastError returns the lastError
+func (s *StatsInfo) GetLastError() error {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	return s.lastError
+}
+
 // ResetCounters sets the counters (bytes, checks, errors, transfers) to 0
 func (s *StatsInfo) ResetCounters() {
 	s.lock.RLock()
@@ -275,11 +283,12 @@ func (s *StatsInfo) Errored() bool {
 	return s.errors != 0
 }
 
-// Error adds a single error into the stats
-func (s *StatsInfo) Error() {
+// Error adds a single error into the stats and assigns lastError
+func (s *StatsInfo) Error(err error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.errors++
+	s.lastError = err
 }
 
 // Checking adds a check into the stats
@@ -563,8 +572,8 @@ func (acc *Account) String() string {
 		}
 	}
 	name := []rune(acc.name)
-	if len(name) > 45 {
-		where := len(name) - 42
+	if len(name) > 40 {
+		where := len(name) - 37
 		name = append([]rune{'.', '.', '.'}, name[where:]...)
 	}
 
@@ -572,14 +581,17 @@ func (acc *Account) String() string {
 		cur = cur * 8
 	}
 
-	done := ""
+	percentageDone := 0
 	if b > 0 {
-		done = fmt.Sprintf("%2d%% done, ", int(100*float64(a)/float64(b)))
+		percentageDone = int(100 * float64(a) / float64(b))
 	}
-	return fmt.Sprintf("%45s: %s%s, ETA: %s",
+
+	done := fmt.Sprintf("%2d%% /%s", percentageDone, SizeSuffix(b))
+
+	return fmt.Sprintf("%45s: %s, %s/s, %s",
 		string(name),
 		done,
-		SizeSuffix(cur).Unit(strings.Title(Config.DataRateUnit)+"/s"),
+		SizeSuffix(cur),
 		etas,
 	)
 }

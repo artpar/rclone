@@ -13,6 +13,9 @@ import (
 	fusefs "bazil.org/fuse/fs"
 	"github.com/artpar/rclone/cmd/mountlib"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfsflags"
+	"github.com/okzk/sdnotify"
 	"github.com/pkg/errors"
 )
 
@@ -48,16 +51,16 @@ func mountOptions(device string) (options []fuse.MountOption) {
 	if mountlib.DefaultPermissions {
 		options = append(options, fuse.DefaultPermissions())
 	}
-	if mountlib.ReadOnly {
+	if vfsflags.Opt.ReadOnly {
 		options = append(options, fuse.ReadOnly())
 	}
 	if mountlib.WritebackCache {
 		options = append(options, fuse.WritebackCache())
 	}
-	if len(*mountlib.ExtraOptions) > 0 {
+	if len(mountlib.ExtraOptions) > 0 {
 		fs.Errorf(nil, "-o/--option not supported with this FUSE backend")
 	}
-	if len(*mountlib.ExtraOptions) > 0 {
+	if len(mountlib.ExtraOptions) > 0 {
 		fs.Errorf(nil, "--fuse-flag not supported with this FUSE backend")
 	}
 	return options
@@ -69,7 +72,7 @@ func mountOptions(device string) (options []fuse.MountOption) {
 //
 // returns an error, and an error channel for the serve process to
 // report an error when fusermount is called.
-func mount(f fs.Fs, mountpoint string) (*mountlib.FS, <-chan error, func() error, error) {
+func mount(f fs.Fs, mountpoint string) (*vfs.VFS, <-chan error, func() error, error) {
 	fs.Debugf(f, "Mounting on %q", mountpoint)
 	c, err := fuse.Mount(mountpoint, mountOptions(f.Name()+":"+f.Root())...)
 	if err != nil {
@@ -97,10 +100,12 @@ func mount(f fs.Fs, mountpoint string) (*mountlib.FS, <-chan error, func() error
 	}
 
 	unmount := func() error {
+		// Shutdown the VFS
+		filesys.VFS.Shutdown()
 		return fuse.Unmount(mountpoint)
 	}
 
-	return filesys.FS, errChan, unmount, nil
+	return filesys.VFS, errChan, unmount, nil
 }
 
 // Mount mounts the remote at mountpoint.
@@ -124,6 +129,10 @@ func Mount(f fs.Fs, mountpoint string) error {
 	sigHup := make(chan os.Signal, 1)
 	signal.Notify(sigHup, syscall.SIGHUP)
 
+	if err := sdnotify.SdNotifyReady(); err != nil && err != sdnotify.SdNotifyNoSocket {
+		return errors.Wrap(err, "failed to notify systemd")
+	}
+
 waitloop:
 	for {
 		select {
@@ -145,6 +154,7 @@ waitloop:
 		}
 	}
 
+	_ = sdnotify.SdNotifyStopping()
 	if err != nil {
 		return errors.Wrap(err, "failed to umount FUSE fs")
 	}

@@ -10,15 +10,17 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/artpar/rclone/cmd/mountlib"
 	"github.com/artpar/rclone/fs"
 	_ "github.com/artpar/rclone/fs/all" // import all the file systems
 	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +29,7 @@ type (
 	// UnmountFn is called to unmount the file system
 	UnmountFn func() error
 	// MountFn is called to mount the file system
-	MountFn func(f fs.Fs, mountpoint string) (*mountlib.FS, <-chan error, func() error, error)
+	MountFn func(f fs.Fs, mountpoint string) (*vfs.VFS, <-chan error, func() error, error)
 )
 
 var (
@@ -38,15 +40,30 @@ var (
 func TestMain(m *testing.M, fn MountFn) {
 	mountFn = fn
 	flag.Parse()
+	var rc int
+	cacheModes := []vfs.CacheMode{
+		vfs.CacheModeOff,
+		vfs.CacheModeMinimal,
+		vfs.CacheModeWrites,
+		vfs.CacheModeFull,
+	}
 	run = newRun()
-	rc := m.Run()
+	for _, cacheMode := range cacheModes {
+		run.cacheMode(cacheMode)
+		log.Printf("Starting test run with cache mode %v", cacheMode)
+		rc = m.Run()
+		log.Printf("Finished test run with cache mode %v", cacheMode)
+		if rc != 0 {
+			break
+		}
+	}
 	run.Finalise()
 	os.Exit(rc)
 }
 
 // Run holds the remotes for a test run
 type Run struct {
-	filesys      *mountlib.FS
+	vfs          *vfs.VFS
 	mountPath    string
 	fremote      fs.Fs
 	fremoteName  string
@@ -112,12 +129,13 @@ func newRun() *Run {
 func (r *Run) mount() {
 	log.Printf("mount %q %q", r.fremote, r.mountPath)
 	var err error
-	r.filesys, r.umountResult, r.umountFn, err = mountFn(r.fremote, r.mountPath)
+	r.vfs, r.umountResult, r.umountFn, err = mountFn(r.fremote, r.mountPath)
 	if err != nil {
-		log.Printf("mount failed: %v", err)
+		log.Printf("mount FAILED: %v", err)
 		r.skip = true
+	} else {
+		log.Printf("mount OK")
 	}
-	log.Printf("mount OK")
 }
 
 func (r *Run) umount() {
@@ -147,6 +165,38 @@ func (r *Run) umount() {
 	if err != nil {
 		log.Printf("umount failed: %v", err)
 	}
+
+	// Cleanup the VFS cache - umount has called Shutdown
+	err = r.vfs.CleanUp()
+	if err != nil {
+		log.Printf("Failed to cleanup the VFS cache: %v", err)
+	}
+}
+
+// cacheMode flushes the VFS and changes the CacheMode
+func (r *Run) cacheMode(cacheMode vfs.CacheMode) {
+	if r.skip {
+		log.Printf("FUSE not found so skipping cacheMode")
+		return
+	}
+	// Wait for writers to finish
+	r.vfs.WaitForWriters(30 * time.Second)
+	// Empty and remake the remote
+	r.cleanRemote()
+	err := r.fremote.Mkdir("")
+	if err != nil {
+		log.Fatalf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
+	}
+	// Empty the cache
+	err = r.vfs.CleanUp()
+	if err != nil {
+		log.Printf("Failed to cleanup the VFS cache: %v", err)
+	}
+	// Reset the cache mode
+	r.vfs.Opt.CacheMode = cacheMode
+	// Flush the directory cache
+	r.vfs.FlushDirCache()
+
 }
 
 func (r *Run) skipIfNoFUSE(t *testing.T) {
@@ -165,12 +215,13 @@ func (r *Run) Finalise() {
 	}
 }
 
-func (r *Run) path(filepath string) string {
-	// return windows drive letter root as E:/
-	if filepath == "" && runtime.GOOS == "windows" {
-		return run.mountPath + "/"
+// path returns an OS local path for filepath
+func (r *Run) path(filePath string) string {
+	// return windows drive letter root as E:\
+	if filePath == "" && runtime.GOOS == "windows" {
+		return run.mountPath + `\`
 	}
-	return path.Join(run.mountPath, filepath)
+	return filepath.Join(run.mountPath, filepath.FromSlash(filePath))
 }
 
 type dirMap map[string]struct{}
@@ -198,19 +249,19 @@ func (dm dirMap) filesOnly() dirMap {
 }
 
 // reads the local tree into dir
-func (r *Run) readLocal(t *testing.T, dir dirMap, filepath string) {
-	realPath := r.path(filepath)
+func (r *Run) readLocal(t *testing.T, dir dirMap, filePath string) {
+	realPath := r.path(filePath)
 	files, err := ioutil.ReadDir(realPath)
 	require.NoError(t, err)
 	for _, fi := range files {
-		name := path.Join(filepath, fi.Name())
+		name := path.Join(filePath, fi.Name())
 		if fi.IsDir() {
 			dir[name+"/"] = struct{}{}
 			r.readLocal(t, dir, name)
-			assert.Equal(t, mountlib.DirPerms, fi.Mode().Perm())
+			assert.Equal(t, run.vfs.Opt.DirPerms&os.ModePerm, fi.Mode().Perm())
 		} else {
 			dir[fmt.Sprintf("%s %d", name, fi.Size())] = struct{}{}
-			assert.Equal(t, mountlib.FilePerms, fi.Mode().Perm())
+			assert.Equal(t, run.vfs.Opt.FilePerms&os.ModePerm, fi.Mode().Perm())
 		}
 	}
 }
@@ -234,26 +285,47 @@ func (r *Run) readRemote(t *testing.T, dir dirMap, filepath string) {
 
 // checkDir checks the local and remote against the string passed in
 func (r *Run) checkDir(t *testing.T, dirString string) {
-	dm := newDirMap(dirString)
-	localDm := make(dirMap)
-	r.readLocal(t, localDm, "")
-	remoteDm := make(dirMap)
-	r.readRemote(t, remoteDm, "")
-	// Ignore directories for remote compare
+	var retries = *fstest.ListRetries
+	sleep := time.Second / 5
+	var remoteOK, fuseOK bool
+	var dm, localDm, remoteDm dirMap
+	for i := 1; i <= retries; i++ {
+		dm = newDirMap(dirString)
+		localDm = make(dirMap)
+		r.readLocal(t, localDm, "")
+		remoteDm = make(dirMap)
+		r.readRemote(t, remoteDm, "")
+		// Ignore directories for remote compare
+		remoteOK = reflect.DeepEqual(dm.filesOnly(), remoteDm.filesOnly())
+		fuseOK = reflect.DeepEqual(dm, localDm)
+		if remoteOK && fuseOK {
+			return
+		}
+		sleep *= 2
+		t.Logf("Sleeping for %v for list eventual consistency: %d/%d", sleep, i, retries)
+		time.Sleep(sleep)
+	}
 	assert.Equal(t, dm.filesOnly(), remoteDm.filesOnly(), "expected vs remote")
 	assert.Equal(t, dm, localDm, "expected vs fuse mount")
+}
+
+// wait for any files being written to be released by fuse
+func (r *Run) waitForWriters() {
+	run.vfs.WaitForWriters(10 * time.Second)
 }
 
 func (r *Run) createFile(t *testing.T, filepath string, contents string) {
 	filepath = r.path(filepath)
 	err := ioutil.WriteFile(filepath, []byte(contents), 0600)
 	require.NoError(t, err)
+	r.waitForWriters()
 }
 
 func (r *Run) readFile(t *testing.T, filepath string) string {
 	filepath = r.path(filepath)
 	result, err := ioutil.ReadFile(filepath)
 	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond) // FIXME wait for Release
 	return string(result)
 }
 
@@ -267,6 +339,16 @@ func (r *Run) rm(t *testing.T, filepath string) {
 	filepath = r.path(filepath)
 	err := os.Remove(filepath)
 	require.NoError(t, err)
+
+	// Wait for file to disappear from listing
+	for i := 0; i < 10; i++ {
+		_, err := os.Stat(filepath)
+		if os.IsNotExist(err) {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	assert.Fail(t, "failed to delete file", filepath)
 }
 
 func (r *Run) rmdir(t *testing.T, filepath string) {
@@ -279,6 +361,9 @@ func (r *Run) rmdir(t *testing.T, filepath string) {
 // is in the mount output
 func TestMount(t *testing.T) {
 	run.skipIfNoFUSE(t)
+	if runtime.GOOS == "windows" {
+		t.Skip("not running on windows")
+	}
 
 	out, err := exec.Command("mount").Output()
 	require.NoError(t, err)
@@ -292,5 +377,5 @@ func TestRoot(t *testing.T) {
 	fi, err := os.Lstat(run.mountPath)
 	require.NoError(t, err)
 	assert.True(t, fi.IsDir())
-	assert.Equal(t, fi.Mode().Perm(), mountlib.DirPerms)
+	assert.Equal(t, run.vfs.Opt.DirPerms&os.ModePerm, fi.Mode().Perm())
 }

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	"reflect"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -167,23 +167,75 @@ func IsNoRetryError(err error) bool {
 	return false
 }
 
-// isClosedConnError reports whether err is an error from use of a closed
-// network connection.
+// Cause is a souped up errors.Cause which can unwrap some standard
+// library errors too.  It returns true if any of the intermediate
+// errors had a Timeout() or Temporary() method which returned true.
+func Cause(cause error) (retriable bool, err error) {
+	err = cause
+	for prev := err; err != nil; prev = err {
+		// Check for net error Timeout()
+		if x, ok := err.(interface {
+			Timeout() bool
+		}); ok && x.Timeout() {
+			retriable = true
+		}
+
+		// Check for net error Temporary()
+		if x, ok := err.(interface {
+			Temporary() bool
+		}); ok && x.Temporary() {
+			retriable = true
+		}
+
+		// Unwrap 1 level if possible
+		err = errors.Cause(err)
+		if err == prev {
+			// Unpack any struct or *struct with a field
+			// of name Err which satisfies the error
+			// interface.  This includes *url.Error,
+			// *net.OpError, *os.SyscallError and many
+			// others in the stdlib
+			errType := reflect.TypeOf(err)
+			errValue := reflect.ValueOf(err)
+			if errType.Kind() == reflect.Ptr {
+				errType = errType.Elem()
+				errValue = errValue.Elem()
+			}
+			if errType.Kind() == reflect.Struct {
+				if errField := errValue.FieldByName("Err"); errField.IsValid() {
+					errFieldValue := errField.Interface()
+					if newErr, ok := errFieldValue.(error); ok {
+						err = newErr
+					}
+				}
+			}
+		}
+		if err == prev {
+			break
+		}
+	}
+	return retriable, err
+}
+
+// retriableErrorStrings is a list of phrases which when we find it
+// in an an error, we know it is a networking error which should be
+// retried.
 //
-// Code adapted from net/http
-func isClosedConnError(err error) bool {
-	if err == nil {
-		return false
-	}
+// This is incredibly ugly - if only errors.Cause worked for all
+// errors and all errors were exported from the stdlib.
+var retriableErrorStrings = []string{
+	"use of closed network connection", // internal/poll/fd.go
+	"unexpected EOF reading trailer",   // net/http/transfer.go
+	"transport connection broken",      // net/http/transport.go
+	"http: ContentLength=",             // net/http/transfer.go
+}
 
-	// Note that this error isn't exported so we have to do a
-	// string comparison :-(
-	str := err.Error()
-	if strings.Contains(str, "use of closed network connection") {
-		return true
-	}
-
-	return isClosedConnErrorPlatform(err)
+// Errors which indicate networking errors which should be retried
+//
+// These are added to in retriable_errors*.go
+var retriableErrors = []error{
+	io.EOF,
+	io.ErrUnexpectedEOF,
 }
 
 // ShouldRetry looks at an error and tries to work out if retrying the
@@ -196,30 +248,24 @@ func ShouldRetry(err error) bool {
 	}
 
 	// Find root cause if available
-	err = errors.Cause(err)
-
-	// Unwrap url.Error
-	if urlErr, ok := err.(*url.Error); ok {
-		err = urlErr.Err
-	}
-
-	// Look for premature closing of connection
-	if err == io.EOF || err == io.ErrUnexpectedEOF || isClosedConnError(err) {
+	retriable, err := Cause(err)
+	if retriable {
 		return true
 	}
 
-	// Check for net error Timeout()
-	if x, ok := err.(interface {
-		Timeout() bool
-	}); ok && x.Timeout() {
-		return true
+	// Check if it is a retriable error
+	for _, retriableErr := range retriableErrors {
+		if err == retriableErr {
+			return true
+		}
 	}
 
-	// Check for net error Temporary()
-	if x, ok := err.(interface {
-		Temporary() bool
-	}); ok && x.Temporary() {
-		return true
+	// Check error strings (yuch!) too
+	errString := err.Error()
+	for _, phrase := range retriableErrorStrings {
+		if strings.Contains(errString, phrase) {
+			return true
+		}
 	}
 
 	return false

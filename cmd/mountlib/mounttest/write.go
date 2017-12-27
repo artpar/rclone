@@ -1,9 +1,7 @@
 package mounttest
 
 import (
-	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,14 +11,13 @@ import (
 func TestWriteFileNoWrite(t *testing.T) {
 	run.skipIfNoFUSE(t)
 
-	fd, err := os.Create(run.path("testnowrite"))
+	fd, err := osCreate(run.path("testnowrite"))
 	assert.NoError(t, err)
 
 	err = fd.Close()
 	assert.NoError(t, err)
 
-	// FIXME - wait for the Release on the file
-	time.Sleep(10 * time.Millisecond)
+	run.waitForWriters()
 
 	run.checkDir(t, "testnowrite 0")
 
@@ -31,13 +28,15 @@ func TestWriteFileNoWrite(t *testing.T) {
 func FIXMETestWriteOpenFileInDirListing(t *testing.T) {
 	run.skipIfNoFUSE(t)
 
-	fd, err := os.Create(run.path("testnowrite"))
+	fd, err := osCreate(run.path("testnowrite"))
 	assert.NoError(t, err)
 
 	run.checkDir(t, "testnowrite 0")
 
 	err = fd.Close()
 	assert.NoError(t, err)
+
+	run.waitForWriters()
 
 	run.rm(t, "testnowrite")
 }
@@ -69,8 +68,10 @@ func TestWriteFileOverwrite(t *testing.T) {
 //
 // NB the code for this is in file.go rather than write.go
 func TestWriteFileFsync(t *testing.T) {
+	run.skipIfNoFUSE(t)
+
 	filepath := run.path("to be synced")
-	fd, err := os.Create(filepath)
+	fd, err := osCreate(filepath)
 	require.NoError(t, err)
 	_, err = fd.Write([]byte("hello"))
 	require.NoError(t, err)
@@ -78,4 +79,6 @@ func TestWriteFileFsync(t *testing.T) {
 	require.NoError(t, err)
 	err = fd.Close()
 	require.NoError(t, err)
+	run.waitForWriters()
+	run.rm(t, "to be synced")
 }

@@ -129,7 +129,7 @@ func (ci *ConfigInfo) Transport() http.RoundTripper {
 		//   t.ExpectContinueTimeout
 		ci.initTransport(t)
 		// Wrap that http.Transport in our own transport
-		transport = NewTransport(t, ci.DumpHeaders, ci.DumpBodies, ci.DumpAuth)
+		transport = NewTransport(t, ci.Dump)
 	})
 	return transport
 }
@@ -146,20 +146,22 @@ func (ci *ConfigInfo) Client() *http.Client {
 // * Does logging
 type Transport struct {
 	*http.Transport
-	logHeader bool
-	logBody   bool
-	logAuth   bool
+	dump          DumpFlags
+	filterRequest func(req *http.Request)
 }
 
 // NewTransport wraps the http.Transport passed in and logs all
 // roundtrips including the body if logBody is set.
-func NewTransport(transport *http.Transport, logHeader, logBody, logAuth bool) *Transport {
+func NewTransport(transport *http.Transport, dump DumpFlags) *Transport {
 	return &Transport{
 		Transport: transport,
-		logHeader: logHeader,
-		logBody:   logBody,
-		logAuth:   logAuth,
+		dump:      dump,
 	}
+}
+
+// SetRequestFilter sets a filter to be used on each request
+func (t *Transport) SetRequestFilter(f func(req *http.Request)) {
+	t.filterRequest = f
 }
 
 // A mutex to protect this map
@@ -199,10 +201,8 @@ func checkServerTime(req *http.Request, resp *http.Response) {
 	checkedHostMu.Unlock()
 }
 
-var authBuf = []byte("Authorization: ")
-
-// cleanAuth gets rid of one Authorization: header within the first 4k
-func cleanAuth(buf []byte) []byte {
+// cleanAuth gets rid of one authBuf header within the first 4k
+func cleanAuth(buf, authBuf []byte) []byte {
 	// Find how much buffer to check
 	n := 4096
 	if len(buf) < n {
@@ -231,6 +231,19 @@ func cleanAuth(buf []byte) []byte {
 	return buf[:i+n]
 }
 
+var authBufs = [][]byte{
+	[]byte("Authorization: "),
+	[]byte("X-Auth-Token: "),
+}
+
+// cleanAuths gets rid of all the possible Auth headers
+func cleanAuths(buf []byte) []byte {
+	for _, authBuf := range authBufs {
+		buf = cleanAuth(buf, authBuf)
+	}
+	return buf
+}
+
 // RoundTrip implements the RoundTripper interface.
 func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
 	// Get transactions per second token first if limiting
@@ -242,11 +255,15 @@ func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 	}
 	// Force user agent
 	req.Header.Set("User-Agent", *userAgent)
+	// Filter the request if required
+	if t.filterRequest != nil {
+		t.filterRequest(req)
+	}
 	// Logf request
-	if t.logHeader || t.logBody || t.logAuth {
-		buf, _ := httputil.DumpRequestOut(req, t.logBody)
-		if !t.logAuth {
-			buf = cleanAuth(buf)
+	if t.dump&(DumpHeaders|DumpBodies|DumpAuth|DumpRequests|DumpResponses) != 0 {
+		buf, _ := httputil.DumpRequestOut(req, t.dump&(DumpBodies|DumpRequests) != 0)
+		if t.dump&DumpAuth == 0 {
+			buf = cleanAuths(buf)
 		}
 		Debugf(nil, "%s", separatorReq)
 		Debugf(nil, "%s (req %p)", "HTTP REQUEST", req)
@@ -256,13 +273,13 @@ func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error
 	// Do round trip
 	resp, err = t.Transport.RoundTrip(req)
 	// Logf response
-	if t.logHeader || t.logBody || t.logAuth {
+	if t.dump&(DumpHeaders|DumpBodies|DumpAuth|DumpRequests|DumpResponses) != 0 {
 		Debugf(nil, "%s", separatorResp)
 		Debugf(nil, "%s (req %p)", "HTTP RESPONSE", req)
 		if err != nil {
 			Debugf(nil, "Error: %v", err)
 		} else {
-			buf, _ := httputil.DumpResponse(resp, t.logBody)
+			buf, _ := httputil.DumpResponse(resp, t.dump&(DumpBodies|DumpResponses) != 0)
 			Debugf(nil, "%s", string(buf))
 		}
 		Debugf(nil, "%s", separatorResp)

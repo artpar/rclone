@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,6 +20,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -59,10 +61,18 @@ const (
 var (
 	// configData is the config file data structure
 	configData *goconfig.ConfigFile
+
 	// ConfigPath points to the config file
 	ConfigPath = makeConfigPath()
+
+	// CacheDir points to the cache directory.  Users of this
+	// should make a subdirectory and use MkdirAll() to create it
+	// and any parents.
+	CacheDir = makeCacheDir()
+
 	// Config is the global config
 	Config = &ConfigInfo{}
+
 	// Flags
 	verbose               = CountP("verbose", "v", "Print lots more stuff (repeat for more)")
 	quiet                 = BoolP("quiet", "q", false, "Print as little stuff as possible")
@@ -70,6 +80,7 @@ var (
 	checkers              = IntP("checkers", "", 8, "Number of checkers to run in parallel.")
 	transfers             = IntP("transfers", "", 4, "Number of file transfers to run in parallel.")
 	configFile            = StringP("config", "", ConfigPath, "Config file.")
+	cacheDir              = StringP("cache-dir", "", CacheDir, "Directory rclone will use for caching.")
 	checkSum              = BoolP("checksum", "c", false, "Skip based on checksum & size, not mod-time & size")
 	sizeOnly              = BoolP("size-only", "", false, "Skip based on size only, not mod-time or checksum")
 	ignoreTimes           = BoolP("ignore-times", "I", false, "Don't skip files that match size and time - transfer all files")
@@ -79,7 +90,6 @@ var (
 	timeout               = DurationP("timeout", "", 5*60*time.Second, "IO idle timeout")
 	dumpHeaders           = BoolP("dump-headers", "", false, "Dump HTTP headers - may contain sensitive info")
 	dumpBodies            = BoolP("dump-bodies", "", false, "Dump HTTP headers and bodies - may contain sensitive info")
-	dumpAuth              = BoolP("dump-auth", "", false, "Dump HTTP headers with auth info")
 	skipVerify            = BoolP("no-check-certificate", "", false, "Do not verify the server SSL certificate. Insecure.")
 	AskPassword           = BoolP("ask-password", "", true, "Allow prompt for password for encrypted configuration.")
 	deleteBefore          = BoolP("delete-before", "", false, "When synchronizing, delete files on destination before transfering")
@@ -102,7 +112,10 @@ var (
 	bindAddr              = StringP("bind", "", "", "Local address to bind to for outgoing connections, IPv4, IPv6 or name.")
 	disableFeatures       = StringP("disable", "", "", "Disable a comma separated list of features.  Use help to see a list.")
 	userAgent             = StringP("user-agent", "", "rclone/"+Version, "Set the user-agent to a specified string. The default is rclone/ version")
+	immutable             = BoolP("immutable", "", false, "Do not modify files. Fail if existing files have been modified.")
+	autoConfirm           = BoolP("auto-confirm", "", false, "If enabled, do not request console confirmation.")
 	streamingUploadCutoff = SizeSuffix(100 * 1024)
+	dump                  DumpFlags
 	logLevel              = LogLevelNotice
 	statsLogLevel         = LogLevelInfo
 	bwLimit               BwTimetable
@@ -119,6 +132,7 @@ func init() {
 	VarP(&bwLimit, "bwlimit", "", "Bandwidth limit in kBytes/s, or use suffix b|k|M|G or a full timetable.")
 	VarP(&bufferSize, "buffer-size", "", "Buffer size when copying files.")
 	VarP(&streamingUploadCutoff, "streaming-upload-cutoff", "", "Cutoff for switching to chunked upload if file size is unknown. Upload starts after reaching cutoff or when file ends.")
+	VarP(&dump, "dump", "", "List of items to dump from: "+dumpFlagsList)
 }
 
 // crypt internals
@@ -180,15 +194,15 @@ func MustObscure(x string) string {
 func Reveal(x string) (string, error) {
 	ciphertext, err := base64.RawURLEncoding.DecodeString(x)
 	if err != nil {
-		return "", errors.Wrap(err, "base64 decode failed")
+		return "", errors.Wrap(err, "base64 decode failed when revealing password - is it obscured?")
 	}
 	if len(ciphertext) < aes.BlockSize {
-		return "", errors.New("input too short")
+		return "", errors.New("input too short when revealing password - is it obscured?")
 	}
 	buf := ciphertext[aes.BlockSize:]
 	iv := ciphertext[:aes.BlockSize]
 	if err := crypt(buf, buf, iv); err != nil {
-		return "", errors.Wrap(err, "decrypt failed")
+		return "", errors.Wrap(err, "decrypt failed when revealing password - is it obscured?")
 	}
 	return string(buf), nil
 }
@@ -216,9 +230,7 @@ type ConfigInfo struct {
 	Transfers             int
 	ConnectTimeout        time.Duration // Connect timeout
 	Timeout               time.Duration // Data channel timeout
-	DumpHeaders           bool
-	DumpBodies            bool
-	DumpAuth              bool
+	Dump                  DumpFlags
 	Filter                *Filter
 	InsecureSkipVerify    bool // Skip server certificate verification
 	DeleteMode            DeleteMode
@@ -240,6 +252,8 @@ type ConfigInfo struct {
 	TPSLimitBurst         int
 	BindAddr              net.IP
 	DisableFeatures       []string
+	Immutable             bool
+	AutoConfirm           bool
 	StreamingUploadCutoff SizeSuffix
 }
 
@@ -362,9 +376,6 @@ func LoadConfig() {
 	Config.SizeOnly = *sizeOnly
 	Config.IgnoreTimes = *ignoreTimes
 	Config.IgnoreExisting = *ignoreExisting
-	Config.DumpHeaders = *dumpHeaders
-	Config.DumpBodies = *dumpBodies
-	Config.DumpAuth = *dumpAuth
 	Config.InsecureSkipVerify = *skipVerify
 	Config.LowLevelRetries = *lowLevelRetries
 	Config.UpdateOlder = *updateOlder
@@ -379,8 +390,19 @@ func LoadConfig() {
 	Config.UseListR = *useListR
 	Config.TPSLimit = *tpsLimit
 	Config.TPSLimitBurst = *tpsLimitBurst
+	Config.Immutable = *immutable
+	Config.AutoConfirm = *autoConfirm
 	Config.BufferSize = bufferSize
 	Config.StreamingUploadCutoff = streamingUploadCutoff
+	Config.Dump = dump
+	if *dumpHeaders {
+		Config.Dump |= DumpHeaders
+		Infof(nil, "--dump-headers is obsolete - please use --dump headers instead")
+	}
+	if *dumpBodies {
+		Config.Dump |= DumpBodies
+		Infof(nil, "--dump-bodies is obsolete - please use --dump bodies instead")
+	}
 
 	Config.TrackRenames = *trackRenames
 
@@ -436,7 +458,12 @@ func LoadConfig() {
 		configData, _ = goconfig.LoadFromReader(&bytes.Buffer{})
 	} else if err != nil {
 		log.Printf("Failed to load config file %q: %v", ConfigPath, err)
+	} else {
+		Debugf(nil, "Using config file from %q", ConfigPath)
 	}
+
+	// Load cache directory from flags
+	CacheDir = *cacheDir
 
 	// Load filters
 	Config.Filter, err = NewFilter()
@@ -545,11 +572,15 @@ func checkPassword(password string) (string, error) {
 	if !utf8.ValidString(password) {
 		return "", errors.New("password contains invalid utf8 characters")
 	}
-	// Remove leading+trailing whitespace
-	password = strings.TrimSpace(password)
+	// Check for leading/trailing whitespace
+	trimmedPassword := strings.TrimSpace(password)
+	// Warn user if password has leading+trailing whitespace
+	if len(password) != len(trimmedPassword) {
+		fmt.Fprintln(os.Stderr, "Your password contains leading/trailing whitespace - in previous versions of rclone this was stripped")
+	}
 	// Normalize to reduce weird variations.
 	password = norm.NFKC.String(password)
-	if len(password) == 0 {
+	if len(password) == 0 || len(trimmedPassword) == 0 {
 		return "", errors.New("no characters in password")
 	}
 	return password, nil
@@ -795,6 +826,9 @@ func Command(commands []string) byte {
 
 // Confirm asks the user for Yes or No and returns true or false
 func Confirm() bool {
+	if Config.AutoConfirm {
+		return true
+	}
 	return Command([]string{"yYes", "nNo"}) == 'y'
 }
 
@@ -986,6 +1020,69 @@ func ChooseOption(o *Option) string {
 	return ReadLine()
 }
 
+// UpdateRemote adds the keyValues passed in to the remote of name.
+// keyValues should be key, value pairs.
+func UpdateRemote(name string, keyValues []string) error {
+	if len(keyValues)%2 != 0 {
+		return errors.New("found key without value")
+	}
+	// Set the config
+	for i := 0; i < len(keyValues); i += 2 {
+		configData.SetValue(name, keyValues[i], keyValues[i+1])
+	}
+	RemoteConfig(name)
+	ShowRemote(name)
+	SaveConfig()
+	return nil
+}
+
+// CreateRemote creates a new remote with name, provider and a list of
+// parameters which are key, value pairs.  If update is set then it
+// adds the new keys rather than replacing all of them.
+func CreateRemote(name string, provider string, keyValues []string) error {
+	// Suppress Confirm
+	Config.AutoConfirm = true
+	// Delete the old config if it exists
+	configData.DeleteSection(name)
+	// Set the type
+	configData.SetValue(name, "type", provider)
+	// Show this is automatically configured
+	configData.SetValue(name, ConfigAutomatic, "yes")
+	// Set the remaining values
+	return UpdateRemote(name, keyValues)
+}
+
+// PasswordRemote adds the keyValues passed in to the remote of name.
+// keyValues should be key, value pairs.
+func PasswordRemote(name string, keyValues []string) error {
+	if len(keyValues) != 2 {
+		return errors.New("found key without value")
+	}
+	// Suppress Confirm
+	Config.AutoConfirm = true
+	passwd := MustObscure(keyValues[1])
+	if passwd != "" {
+		configData.SetValue(name, keyValues[0], passwd)
+		RemoteConfig(name)
+		ShowRemote(name)
+		SaveConfig()
+	}
+	return nil
+}
+
+// JSONListProviders prints all the providers and options in JSON format
+func JSONListProviders() error {
+	b, err := json.MarshalIndent(fsRegistry, "", "    ")
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal examples")
+	}
+	_, err = os.Stdout.Write(b)
+	if err != nil {
+		return errors.Wrap(err, "failed to write providers list")
+	}
+	return nil
+}
+
 // fsOption returns an Option describing the possible remotes
 func fsOption() *Option {
 	o := &Option{
@@ -1053,12 +1150,12 @@ func EditRemote(fs *RegInfo, name string) {
 				configData.SetValue(name, key, newValue)
 			}
 		}
-		RemoteConfig(name)
 		if OkRemote(name) {
 			break
 		}
 	}
 	SaveConfig()
+	RemoteConfig(name)
 }
 
 // DeleteRemote gets the user to delete a remote
@@ -1094,6 +1191,29 @@ func CopyRemote(name string) {
 	fmt.Printf("Enter name for copy of %q remote.\n", name)
 	copyRemote(name)
 	SaveConfig()
+}
+
+// ShowConfigLocation prints the location of the config file in use
+func ShowConfigLocation() {
+	if _, err := os.Stat(ConfigPath); os.IsNotExist(err) {
+		fmt.Println("Configuration file doesn't exist, but rclone will use this path:")
+	} else {
+		fmt.Println("Configuration file is stored at:")
+	}
+	fmt.Printf("%s\n", ConfigPath)
+}
+
+// ShowConfig prints the (unencrypted) config options
+func ShowConfig() {
+	var buf bytes.Buffer
+	if err := goconfig.SaveConfigData(configData, &buf); err != nil {
+		log.Fatalf("Failed to serialize config: %v", err)
+	}
+	str := buf.String()
+	if str == "" {
+		str = "; empty config\n"
+	}
+	fmt.Printf("%s", str)
 }
 
 // EditConfig edits the config file interactively
@@ -1286,3 +1406,149 @@ func ConfigFileSections() []string {
 	}
 	return sections
 }
+
+// ConfigDump dumps all the config as a JSON file
+func ConfigDump() error {
+	dump := make(map[string]map[string]string)
+	for _, name := range configData.GetSectionList() {
+		params := make(map[string]string)
+		for _, key := range configData.GetKeyList(name) {
+			params[key] = ConfigFileGet(name, key)
+		}
+		dump[name] = params
+	}
+	b, err := json.MarshalIndent(dump, "", "    ")
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal config dump")
+	}
+	_, err = os.Stdout.Write(b)
+	if err != nil {
+		return errors.Wrap(err, "failed to write config dump")
+	}
+	return nil
+}
+
+// makeCacheDir returns a directory to use for caching.
+//
+// Code borrowed from go stdlib until it is made public
+func makeCacheDir() (dir string) {
+	// Compute default location.
+	switch runtime.GOOS {
+	case "windows":
+		dir = os.Getenv("LocalAppData")
+
+	case "darwin":
+		dir = os.Getenv("HOME")
+		if dir != "" {
+			dir += "/Library/Caches"
+		}
+
+	case "plan9":
+		dir = os.Getenv("home")
+		if dir != "" {
+			// Plan 9 has no established per-user cache directory,
+			// but $home/lib/xyz is the usual equivalent of $HOME/.xyz on Unix.
+			dir += "/lib/cache"
+		}
+
+	default: // Unix
+		// https://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html
+		dir = os.Getenv("XDG_CACHE_HOME")
+		if dir == "" {
+			dir = os.Getenv("HOME")
+			if dir != "" {
+				dir += "/.cache"
+			}
+		}
+	}
+
+	// if no dir found then use TempDir - we will have a cachedir!
+	if dir == "" {
+		dir = os.TempDir()
+	}
+	return filepath.Join(dir, "rclone")
+}
+
+// DumpFlags describes the Dump options in force
+type DumpFlags int
+
+// DumpFlags definitions
+const (
+	DumpHeaders DumpFlags = 1 << iota
+	DumpBodies
+	DumpRequests
+	DumpResponses
+	DumpAuth
+	DumpFilters
+)
+
+var dumpFlags = []struct {
+	flag DumpFlags
+	name string
+}{
+	{DumpHeaders, "headers"},
+	{DumpBodies, "bodies"},
+	{DumpRequests, "requests"},
+	{DumpResponses, "responses"},
+	{DumpAuth, "auth"},
+	{DumpFilters, "filters"},
+}
+
+// list of dump flags used in the help
+var dumpFlagsList string
+
+func init() {
+	// calculate the dump flags list
+	var out []string
+	for _, info := range dumpFlags {
+		out = append(out, info.name)
+	}
+	dumpFlagsList = strings.Join(out, ",")
+}
+
+// String turns a DumpFlags into a string
+func (f DumpFlags) String() string {
+	var out []string
+	for _, info := range dumpFlags {
+		if f&info.flag != 0 {
+			out = append(out, info.name)
+			f &^= info.flag
+		}
+	}
+	if f != 0 {
+		out = append(out, fmt.Sprintf("Unknown-0x%X", int(f)))
+	}
+	return strings.Join(out, ",")
+}
+
+// Set a DumpFlags as a comma separated list of flags
+func (f *DumpFlags) Set(s string) error {
+	var flags DumpFlags
+	parts := strings.Split(s, ",")
+	for _, part := range parts {
+		found := false
+		part = strings.ToLower(strings.TrimSpace(part))
+		if part == "" {
+			continue
+		}
+		for _, info := range dumpFlags {
+			if part == info.name {
+				found = true
+				flags |= info.flag
+			}
+		}
+		if !found {
+			return errors.Errorf("Unknown dump flag %q", part)
+		}
+	}
+	*f = flags
+	return nil
+}
+
+// Type of the value
+func (f *DumpFlags) Type() string {
+	return "string"
+}
+
+// Check it satisfies the interface
+var _ pflag.Value = (*DumpFlags)(nil)

@@ -140,14 +140,6 @@ func parsePath(path string) (root string) {
 	return
 }
 
-// mimics url.PathEscape which only available from go 1.8
-func pathEscape(path string) string {
-	u := url.URL{
-		Path: path,
-	}
-	return u.EscapedPath()
-}
-
 // retryErrorCodes is a slice of error codes that we will retry
 var retryErrorCodes = []int{
 	429, // Too Many Requests.
@@ -1045,7 +1037,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 
 	size := src.Size()
 	modTime := src.ModTime()
-	remote := src.Remote()
+	remote := o.Remote()
 
 	// Create the directory for the object if it doesn't exist
 	leaf, directoryID, err := o.fs.dirCache.FindRootAndPath(remote, true)

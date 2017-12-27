@@ -1,7 +1,6 @@
 package mounttest
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -78,17 +77,16 @@ func TestDirRenameFile(t *testing.T) {
 	require.NoError(t, err)
 	run.checkDir(t, "dir/|file2 6")
 
-	data, err := ioutil.ReadFile(run.path("file2"))
-	require.NoError(t, err)
-	assert.Equal(t, "potato", string(data))
+	data := run.readFile(t, "file2")
+	assert.Equal(t, "potato", data)
 
 	err = os.Rename(run.path("file2"), run.path("dir/file3"))
 	require.NoError(t, err)
 	run.checkDir(t, "dir/|dir/file3 6")
 
-	data, err = ioutil.ReadFile(run.path("dir/file3"))
+	data = run.readFile(t, "dir/file3")
 	require.NoError(t, err)
-	assert.Equal(t, "potato", string(data))
+	assert.Equal(t, "potato", data)
 
 	run.rm(t, "dir/file3")
 	run.rmdir(t, "dir")
@@ -176,7 +174,7 @@ func TestDirCacheFlush(t *testing.T) {
 	err := run.fremote.Mkdir("dir/subdir")
 	require.NoError(t, err)
 
-	root, err := run.filesys.Root()
+	root, err := run.vfs.Root()
 	require.NoError(t, err)
 
 	// expect newly created "subdir" on remote to not show up

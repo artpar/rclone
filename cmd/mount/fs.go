@@ -9,15 +9,16 @@ import (
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
-	"github.com/artpar/rclone/cmd/mountlib"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfsflags"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 )
 
 // FS represents the top level filing system
 type FS struct {
-	*mountlib.FS
+	*vfs.VFS
 	f fs.Fs
 }
 
@@ -27,8 +28,8 @@ var _ fusefs.FS = (*FS)(nil)
 // NewFS makes a new FS
 func NewFS(f fs.Fs) *FS {
 	fsys := &FS{
-		FS: mountlib.NewFS(f),
-		f:  f,
+		VFS: vfs.New(f, &vfsflags.Opt),
+		f:   f,
 	}
 	return fsys
 }
@@ -36,7 +37,7 @@ func NewFS(f fs.Fs) *FS {
 // Root returns the root node
 func (f *FS) Root() (node fusefs.Node, err error) {
 	defer fs.Trace("", "")("node=%+v, err=%v", &node, &err)
-	root, err := f.FS.Root()
+	root, err := f.VFS.Root()
 	if err != nil {
 		return nil, translateError(err)
 	}
@@ -68,24 +69,27 @@ func translateError(err error) error {
 	if err == nil {
 		return nil
 	}
-	cause := errors.Cause(err)
-	if mErr, ok := cause.(mountlib.Error); ok {
-		switch mErr {
-		case mountlib.OK:
-			return nil
-		case mountlib.ENOENT:
-			return fuse.ENOENT
-		case mountlib.ENOTEMPTY:
-			return fuse.Errno(syscall.ENOTEMPTY)
-		case mountlib.EEXIST:
-			return fuse.EEXIST
-		case mountlib.ESPIPE:
-			return fuse.Errno(syscall.ESPIPE)
-		case mountlib.EBADF:
-			return fuse.Errno(syscall.EBADF)
-		case mountlib.EROFS:
-			return fuse.Errno(syscall.EROFS)
-		}
+	switch errors.Cause(err) {
+	case vfs.OK:
+		return nil
+	case vfs.ENOENT:
+		return fuse.ENOENT
+	case vfs.EEXIST:
+		return fuse.EEXIST
+	case vfs.EPERM:
+		return fuse.EPERM
+	case vfs.ECLOSED:
+		return fuse.Errno(syscall.EBADF)
+	case vfs.ENOTEMPTY:
+		return fuse.Errno(syscall.ENOTEMPTY)
+	case vfs.ESPIPE:
+		return fuse.Errno(syscall.ESPIPE)
+	case vfs.EBADF:
+		return fuse.Errno(syscall.EBADF)
+	case vfs.EROFS:
+		return fuse.Errno(syscall.EROFS)
+	case vfs.ENOSYS:
+		return fuse.ENOSYS
 	}
 	return err
 }

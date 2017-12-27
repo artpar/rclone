@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
@@ -42,6 +44,19 @@ func init() {
 				},
 			},
 		}, {
+			Name: "directory_name_encryption",
+			Help: "Option to either encrypt directory names or leave them intact.",
+			Examples: []fs.OptionExample{
+				{
+					Value: "true",
+					Help:  "Encrypt directory names.",
+				},
+				{
+					Value: "false",
+					Help:  "Don't encrypt directory names, leave them intact.",
+				},
+			},
+		}, {
 			Name:       "password",
 			Help:       "Password or pass phrase for encryption.",
 			IsPassword: true,
@@ -60,6 +75,10 @@ func NewFs(name, rpath string) (fs.Fs, error) {
 	if err != nil {
 		return nil, err
 	}
+	dirNameEncrypt, err := strconv.ParseBool(fs.ConfigFileGet(name, "directory_name_encryption", "true"))
+	if err != nil {
+		return nil, err
+	}
 	password := fs.ConfigFileGet(name, "password", "")
 	if password == "" {
 		return nil, errors.New("password not set in config file")
@@ -75,7 +94,7 @@ func NewFs(name, rpath string) (fs.Fs, error) {
 			return nil, errors.Wrap(err, "failed to decrypt password2")
 		}
 	}
-	cipher, err := newCipher(mode, password, salt)
+	cipher, err := newCipher(mode, password, salt, dirNameEncrypt)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make cipher")
 	}
@@ -110,7 +129,23 @@ func NewFs(name, rpath string) (fs.Fs, error) {
 		WriteMimeType:           false,
 		BucketBased:             true,
 		CanHaveEmptyDirectories: true,
-	}).Fill(f).Mask(wrappedFs)
+	}).Fill(f).Mask(wrappedFs).WrapsFs(f, wrappedFs)
+
+	doDirChangeNotify := wrappedFs.Features().DirChangeNotify
+	if doDirChangeNotify != nil {
+		f.features.DirChangeNotify = func(notifyFunc func(string), pollInterval time.Duration) chan bool {
+			wrappedNotifyFunc := func(path string) {
+				decrypted, err := f.DecryptFileName(path)
+				if err != nil {
+					fs.Logf(f, "DirChangeNotify was unable to decrypt %q: %s", path, err)
+					return
+				}
+				notifyFunc(decrypted)
+			}
+			return doDirChangeNotify(wrappedNotifyFunc, pollInterval)
+		}
+	}
+
 	return f, err
 }
 
@@ -240,26 +275,33 @@ func (f *Fs) NewObject(remote string) (fs.Object, error) {
 	return f.newObject(o), nil
 }
 
-// Put in to the remote path with the modTime given of the given size
-//
-// May create the object even if it returns an error - if so
-// will return the object and the error, otherwise will return
-// nil and the error
-func (f *Fs) Put(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
+type putFn func(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error)
+
+// put implements Put or PutStream
+func (f *Fs) put(in io.Reader, src fs.ObjectInfo, options []fs.OpenOption, put putFn) (fs.Object, error) {
 	wrappedIn, err := f.cipher.EncryptData(in)
 	if err != nil {
 		return nil, err
 	}
-	o, err := f.Fs.Put(wrappedIn, f.newObjectInfo(src), options...)
+	o, err := put(wrappedIn, f.newObjectInfo(src), options...)
 	if err != nil {
 		return nil, err
 	}
 	return f.newObject(o), nil
 }
 
+// Put in to the remote path with the modTime given of the given size
+//
+// May create the object even if it returns an error - if so
+// will return the object and the error, otherwise will return
+// nil and the error
+func (f *Fs) Put(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
+	return f.put(in, src, options, f.Fs.Put)
+}
+
 // PutStream uploads to the remote path with the modTime given of indeterminate size
 func (f *Fs) PutStream(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
-	return f.Put(in, src, options...)
+	return f.put(in, src, options, f.Fs.Features().PutStream)
 }
 
 // Hashes returns the supported hash sets.
@@ -401,6 +443,11 @@ func (f *Fs) CleanUp() error {
 // UnWrap returns the Fs that this Fs is wrapping
 func (f *Fs) UnWrap() fs.Fs {
 	return f.Fs
+}
+
+// DecryptFileName returns a decrypted file name
+func (f *Fs) DecryptFileName(encryptedFileName string) (string, error) {
+	return f.cipher.DecryptFileName(encryptedFileName)
 }
 
 // ComputeHash takes the nonce from o, and encrypts the contents of
@@ -591,7 +638,11 @@ func (o *ObjectInfo) Remote() string {
 
 // Size returns the size of the file
 func (o *ObjectInfo) Size() int64 {
-	return o.f.cipher.EncryptedSize(o.ObjectInfo.Size())
+	size := o.ObjectInfo.Size()
+	if size < 0 {
+		return size
+	}
+	return o.f.cipher.EncryptedSize(size)
 }
 
 // Hash returns the selected checksum of the file

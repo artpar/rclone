@@ -858,8 +858,8 @@ func (s *Execution) MarshalJSON() ([]byte, error) {
 }
 
 type FailureDetail struct {
-	// Crashed: If the failure was severe because the system under test
-	// crashed.
+	// Crashed: If the failure was severe because the system (app) under
+	// test crashed.
 	Crashed bool `json:"crashed,omitempty"`
 
 	// NotInstalled: If an app is not installed and thus no test can be run
@@ -867,7 +867,8 @@ type FailureDetail struct {
 	// unsupported platform.
 	NotInstalled bool `json:"notInstalled,omitempty"`
 
-	// OtherNativeCrash: If a native process other than the app crashed.
+	// OtherNativeCrash: If a native process (including any other than the
+	// app) crashed.
 	OtherNativeCrash bool `json:"otherNativeCrash,omitempty"`
 
 	// TimedOut: If the test overran some time limit, and that is why it
@@ -5851,10 +5852,10 @@ type ProjectsHistoriesExecutionsStepsPerfMetricsSummaryCreateCall struct {
 	header_            http.Header
 }
 
-// Create: Creates a PerfMetricsSummary resource.
+// Create: Creates a PerfMetricsSummary resource. Returns the existing
+// one if it has already been created.
 //
-// May return any of the following error code(s): - ALREADY_EXISTS - A
-// PerfMetricSummary already exists for the given Step - NOT_FOUND - The
+// May return any of the following error code(s): - NOT_FOUND - The
 // containing Step does not exist
 func (r *ProjectsHistoriesExecutionsStepsPerfMetricsSummaryService) Create(projectId string, historyId string, executionId string, stepId string, perfmetricssummary *PerfMetricsSummary) *ProjectsHistoriesExecutionsStepsPerfMetricsSummaryCreateCall {
 	c := &ProjectsHistoriesExecutionsStepsPerfMetricsSummaryCreateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
@@ -5955,7 +5956,7 @@ func (c *ProjectsHistoriesExecutionsStepsPerfMetricsSummaryCreateCall) Do(opts .
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates a PerfMetricsSummary resource.\n\nMay return any of the following error code(s): - ALREADY_EXISTS - A PerfMetricSummary already exists for the given Step - NOT_FOUND - The containing Step does not exist",
+	//   "description": "Creates a PerfMetricsSummary resource. Returns the existing one if it has already been created.\n\nMay return any of the following error code(s): - NOT_FOUND - The containing Step does not exist",
 	//   "httpMethod": "POST",
 	//   "id": "toolresults.projects.histories.executions.steps.perfMetricsSummary.create",
 	//   "parameterOrder": [

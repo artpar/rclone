@@ -1,7 +1,6 @@
 // Package dropbox provides an interface to Dropbox object storage
 package dropbox
 
-// FIXME buffer chunks for retries in upload
 // FIXME dropbox for business would be quite easy to add
 
 /*
@@ -70,8 +69,29 @@ var (
 	// See https://www.dropbox.com/en/help/145 - Ignored files
 	ignoredFiles = regexp.MustCompile(`(?i)(^|/)(desktop\.ini|thumbs\.db|\.ds_store|icon\r|\.dropbox|\.dropbox.attr)$`)
 	// Upload chunk size - setting too small makes uploads slow.
-	// Chunks aren't buffered into memory though so can set large.
-	uploadChunkSize    = fs.SizeSuffix(128 * 1024 * 1024)
+	// Chunks are buffered into memory for retries.
+	//
+	// Speed vs chunk size uploading a 1 GB file on 2017-11-22
+	//
+	// Chunk Size MB, Speed Mbyte/s, % of max
+	// 1	1.364	11%
+	// 2	2.443	19%
+	// 4	4.288	33%
+	// 8	6.79	52%
+	// 16	8.916	69%
+	// 24	10.195	79%
+	// 32	10.427	81%
+	// 40	10.96	85%
+	// 48	11.828	91%
+	// 56	11.763	91%
+	// 64	12.047	93%
+	// 96	12.302	95%
+	// 128	12.945	100%
+	//
+	// Choose 48MB which is 91% of Maximum speed.  rclone by
+	// default does 4 transfers so this should use 4*48MB = 192MB
+	// by default.
+	uploadChunkSize    = fs.SizeSuffix(48 * 1024 * 1024)
 	maxUploadChunkSize = fs.SizeSuffix(150 * 1024 * 1024)
 )
 
@@ -180,8 +200,8 @@ func NewFs(name, root string) (fs.Fs, error) {
 	}
 
 	config := dropbox.Config{
-		Verbose: false,       // enables verbose logging in the SDK
-		Client:  oAuthClient, // maybe???
+		LogLevel: dropbox.LogOff, // logging in the SDK: LogOff, LogDebug, LogInfo
+		Client:   oAuthClient,    // maybe???
 	}
 	srv := files.New(config)
 
@@ -530,9 +550,9 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	arg.FromPath = srcObj.remotePath()
 	arg.ToPath = dstObj.remotePath()
 	var err error
-	var entry files.IsMetadata
+	var result *files.RelocationResult
 	err = f.pacer.Call(func() (bool, error) {
-		entry, err = f.srv.Copy(&arg)
+		result, err = f.srv.CopyV2(&arg)
 		return shouldRetry(err)
 	})
 	if err != nil {
@@ -540,7 +560,7 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	}
 
 	// Set the metadata
-	fileInfo, ok := entry.(*files.FileMetadata)
+	fileInfo, ok := result.Metadata.(*files.FileMetadata)
 	if !ok {
 		return nil, fs.ErrorNotAFile
 	}
@@ -593,9 +613,9 @@ func (f *Fs) Move(src fs.Object, remote string) (fs.Object, error) {
 	arg.FromPath = srcObj.remotePath()
 	arg.ToPath = dstObj.remotePath()
 	var err error
-	var entry files.IsMetadata
+	var result *files.RelocationResult
 	err = f.pacer.Call(func() (bool, error) {
-		entry, err = f.srv.Move(&arg)
+		result, err = f.srv.MoveV2(&arg)
 		return shouldRetry(err)
 	})
 	if err != nil {
@@ -603,7 +623,7 @@ func (f *Fs) Move(src fs.Object, remote string) (fs.Object, error) {
 	}
 
 	// Set the metadata
-	fileInfo, ok := entry.(*files.FileMetadata)
+	fileInfo, ok := result.Metadata.(*files.FileMetadata)
 	if !ok {
 		return nil, fs.ErrorNotAFile
 	}
@@ -632,7 +652,7 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 	dstPath := path.Join(f.slashRoot, dstRemote)
 
 	// Check if destination exists
-	_, err := f.getDirMetadata(f.slashRoot)
+	_, err := f.getDirMetadata(dstPath)
 	if err == nil {
 		return fs.ErrorDirExists
 	} else if err != fs.ErrorDirNotFound {
@@ -647,7 +667,7 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 	arg.FromPath = srcPath
 	arg.ToPath = dstPath
 	err = f.pacer.Call(func() (bool, error) {
-		_, err = f.srv.Move(&arg)
+		_, err = f.srv.MoveV2(&arg)
 		return shouldRetry(err)
 	})
 	if err != nil {
@@ -808,8 +828,6 @@ func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
 // Will work optimally if size is >= uploadChunkSize. If the size is either
 // unknown (i.e. -1) or smaller than uploadChunkSize, the method incurs an
 // avoidable request to the Dropbox API that does not carry payload.
-//
-// FIXME buffer chunks to improve upload retries
 func (o *Object) uploadChunked(in0 io.Reader, commitInfo *files.CommitInfo, size int64) (entry *files.FileMetadata, err error) {
 	chunkSize := int64(uploadChunkSize)
 	chunks := 0
@@ -817,6 +835,7 @@ func (o *Object) uploadChunked(in0 io.Reader, commitInfo *files.CommitInfo, size
 		chunks = int(size/chunkSize) + 1
 	}
 	in := fs.NewCountingReader(in0)
+	buf := make([]byte, int(chunkSize))
 
 	fmtChunk := func(cur int, last bool) {
 		if chunks == 0 && last {
@@ -831,8 +850,13 @@ func (o *Object) uploadChunked(in0 io.Reader, commitInfo *files.CommitInfo, size
 	// write the first chunk
 	fmtChunk(1, false)
 	var res *files.UploadSessionStartResult
-	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
-		res, err = o.fs.srv.UploadSessionStart(&files.UploadSessionStartArg{}, &io.LimitedReader{R: in, N: chunkSize})
+	chunk := fs.NewRepeatableLimitReaderBuffer(in, buf, chunkSize)
+	err = o.fs.pacer.Call(func() (bool, error) {
+		// seek to the start in case this is a retry
+		if _, err = chunk.Seek(0, 0); err != nil {
+			return false, nil
+		}
+		res, err = o.fs.srv.UploadSessionStart(&files.UploadSessionStartArg{}, chunk)
 		return shouldRetry(err)
 	})
 	if err != nil {
@@ -862,9 +886,15 @@ func (o *Object) uploadChunked(in0 io.Reader, commitInfo *files.CommitInfo, size
 		}
 		cursor.Offset = in.BytesRead()
 		fmtChunk(currentChunk, false)
-		err = o.fs.pacer.CallNoRetry(func() (bool, error) {
-			err = o.fs.srv.UploadSessionAppendV2(&appendArg, &io.LimitedReader{R: in, N: chunkSize})
-			return shouldRetry(err)
+		chunk = fs.NewRepeatableLimitReaderBuffer(in, buf, chunkSize)
+		err = o.fs.pacer.Call(func() (bool, error) {
+			// seek to the start in case this is a retry
+			if _, err = chunk.Seek(0, 0); err != nil {
+				return false, nil
+			}
+			err = o.fs.srv.UploadSessionAppendV2(&appendArg, chunk)
+			// after the first chunk is uploaded, we retry everything
+			return err != nil, err
 		})
 		if err != nil {
 			return nil, err
@@ -879,9 +909,15 @@ func (o *Object) uploadChunked(in0 io.Reader, commitInfo *files.CommitInfo, size
 		Commit: commitInfo,
 	}
 	fmtChunk(currentChunk, true)
-	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
-		entry, err = o.fs.srv.UploadSessionFinish(args, in)
-		return shouldRetry(err)
+	chunk = fs.NewRepeatableReaderBuffer(in, buf)
+	err = o.fs.pacer.Call(func() (bool, error) {
+		// seek to the start in case this is a retry
+		if _, err = chunk.Seek(0, 0); err != nil {
+			return false, nil
+		}
+		entry, err = o.fs.srv.UploadSessionFinish(args, chunk)
+		// after the first chunk is uploaded, we retry everything
+		return err != nil, err
 	})
 	if err != nil {
 		return nil, err
@@ -924,7 +960,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 
 // Remove an object
 func (o *Object) Remove() (err error) {
-	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
+	err = o.fs.pacer.Call(func() (bool, error) {
 		_, err = o.fs.srv.DeleteV2(&files.DeleteArg{Path: o.remotePath()})
 		return shouldRetry(err)
 	})

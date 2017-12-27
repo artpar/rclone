@@ -996,7 +996,10 @@ type LogEntry struct {
 	// "billingAccounts/[BILLING_ACCOUNT_ID]/logs/[L
 	// OG_ID]"
 	// "folders/[FOLDER_ID]/logs/[LOG_ID]"
-	// [LOG_ID] must be URL-encoded within log_name. Example:
+	// A project number may optionally be used in place of PROJECT_ID. The
+	// project number is translated to its corresponding PROJECT_ID
+	// internally  and the log_name field will contain PROJECT_ID in queries
+	// and exports.[LOG_ID] must be URL-encoded within log_name. Example:
 	// "organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Fa
 	// ctivity". [LOG_ID] must be less than 512 characters long and can only
 	// include the following characters: upper and lower case alphanumeric
@@ -1425,18 +1428,14 @@ type LogSink struct {
 	// not exported. For more information, see Exporting Logs With Sinks.
 	Destination string `json:"destination,omitempty"`
 
-	// EndTime: Optional. The time at which this sink will stop exporting
-	// log entries. Log entries are exported only if their timestamp is
-	// earlier than the end time. If this field is not supplied, there is no
-	// end time. If both a start time and an end time are provided, then the
-	// end time must be later than the start time.
+	// EndTime: Deprecated. This field is ignored when creating or updating
+	// sinks.
 	EndTime string `json:"endTime,omitempty"`
 
 	// Filter: Optional. An advanced logs filter. The only exported log
 	// entries are those that are in the resource owning the sink and that
-	// match the filter. The filter must use the log entry format specified
-	// by the output_version_format parameter. For example, in the v2
-	// format:
+	// match the filter. For
+	// example:
 	// logName="projects/[PROJECT_ID]/logs/[LOG_ID]" AND severity>=ERROR
 	//
 	Filter string `json:"filter,omitempty"`
@@ -1477,10 +1476,8 @@ type LogSink struct {
 	//   "V1" - LogEntry version 1 format.
 	OutputVersionFormat string `json:"outputVersionFormat,omitempty"`
 
-	// StartTime: Optional. The time at which this sink will begin exporting
-	// log entries. Log entries are exported only if their timestamp is not
-	// earlier than the start time. The default value of this field is the
-	// time the sink is created or updated.
+	// StartTime: Deprecated. This field is ignored when creating or
+	// updating sinks.
 	StartTime string `json:"startTime,omitempty"`
 
 	// WriterIdentity: Output only. An IAM identity&mdash;a service account
@@ -2026,13 +2023,13 @@ type WriteLogEntriesRequest struct {
 	// identifier, respectively. The supplied values are chosen so that,
 	// among the log entries that did not supply their own values, the
 	// entries earlier in the list will sort before the entries later in the
-	// list. See entries.list.Log entries with timestamps that are more than
-	// the logs retention period in the past or more than 24 hours in the
-	// future might be discarded. Discarding does not return an error.To
-	// improve throughput and to avoid exceeding the quota limit for calls
-	// to entries.write, you should try to include several log entries in
-	// this list, rather than calling this method for each individual log
-	// entry.
+	// list. See the entries.list method.Log entries with timestamps that
+	// are more than the logs retention period in the past or more than 24
+	// hours in the future might be discarded. Discarding does not return an
+	// error.To improve throughput and to avoid exceeding the quota limit
+	// for calls to entries.write, you should try to include several log
+	// entries in this list, rather than calling this method for each
+	// individual log entry.
 	Entries []*LogEntry `json:"entries,omitempty"`
 
 	// Labels: Optional. Default labels that are added to the labels field
@@ -3192,10 +3189,9 @@ type BillingAccountsSinksCreateCall struct {
 
 // Create: Creates a sink that exports specified log entries to a
 // destination. The export of newly-ingested log entries begins
-// immediately, unless the current time is outside the sink's start and
-// end times or the sink's writer_identity is not permitted to write to
-// the destination. A sink can export log entries only from the resource
-// owning the sink.
+// immediately, unless the sink's writer_identity is not permitted to
+// write to the destination. A sink can export log entries only from the
+// resource owning the sink.
 func (r *BillingAccountsSinksService) Create(parent string, logsink *LogSink) *BillingAccountsSinksCreateCall {
 	c := &BillingAccountsSinksCreateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
@@ -3306,7 +3302,7 @@ func (c *BillingAccountsSinksCreateCall) Do(opts ...googleapi.CallOption) (*LogS
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates a sink that exports specified log entries to a destination. The export of newly-ingested log entries begins immediately, unless the current time is outside the sink's start and end times or the sink's writer_identity is not permitted to write to the destination. A sink can export log entries only from the resource owning the sink.",
+	//   "description": "Creates a sink that exports specified log entries to a destination. The export of newly-ingested log entries begins immediately, unless the sink's writer_identity is not permitted to write to the destination. A sink can export log entries only from the resource owning the sink.",
 	//   "flatPath": "v2/billingAccounts/{billingAccountsId}/sinks",
 	//   "httpMethod": "POST",
 	//   "id": "logging.billingAccounts.sinks.create",
@@ -3816,10 +3812,9 @@ type BillingAccountsSinksPatchCall struct {
 }
 
 // Patch: Updates a sink. This method replaces the following fields in
-// the existing sink with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time. The updated sink
-// might also have a new writer_identity; see the unique_writer_identity
-// field.
+// the existing sink with values from the new sink: destination, and
+// filter. The updated sink might also have a new writer_identity; see
+// the unique_writer_identity field.
 func (r *BillingAccountsSinksService) Patch(sinkNameid string, logsink *LogSink) *BillingAccountsSinksPatchCall {
 	c := &BillingAccountsSinksPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.sinkNameid = sinkNameid
@@ -3840,6 +3835,21 @@ func (r *BillingAccountsSinksService) Patch(sinkNameid string, logsink *LogSink)
 // false or defaulted to false.
 func (c *BillingAccountsSinksPatchCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *BillingAccountsSinksPatchCall {
 	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
+	return c
+}
+
+// UpdateMask sets the optional parameter "updateMask": Field mask that
+// specifies the fields in sink that need an update. A sink field will
+// be overwritten if, and only if, it is in the update mask. name and
+// output only fields cannot be updated.An empty updateMask is
+// temporarily treated as using the following mask for backwards
+// compatibility purposes:  destination,filter,includeChildren At some
+// point in the future, behavior will be removed and specifying an empty
+// updateMask will be an error.For a detailed FieldMask definition, see
+// https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample:
+// updateMask=filter.
+func (c *BillingAccountsSinksPatchCall) UpdateMask(updateMask string) *BillingAccountsSinksPatchCall {
+	c.urlParams_.Set("updateMask", updateMask)
 	return c
 }
 
@@ -3929,7 +3939,7 @@ func (c *BillingAccountsSinksPatchCall) Do(opts ...googleapi.CallOption) (*LogSi
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, and filter. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
 	//   "flatPath": "v2/billingAccounts/{billingAccountsId}/sinks/{sinksId}",
 	//   "httpMethod": "PATCH",
 	//   "id": "logging.billingAccounts.sinks.patch",
@@ -3948,6 +3958,12 @@ func (c *BillingAccountsSinksPatchCall) Do(opts ...googleapi.CallOption) (*LogSi
 	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
 	//       "location": "query",
 	//       "type": "boolean"
+	//     },
+	//     "updateMask": {
+	//       "description": "Optional. Field mask that specifies the fields in sink that need an update. A sink field will be overwritten if, and only if, it is in the update mask. name and output only fields cannot be updated.An empty updateMask is temporarily treated as using the following mask for backwards compatibility purposes:  destination,filter,includeChildren At some point in the future, behavior will be removed and specifying an empty updateMask will be an error.For a detailed FieldMask definition, see https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample: updateMask=filter.",
+	//       "format": "google-fieldmask",
+	//       "location": "query",
+	//       "type": "string"
 	//     }
 	//   },
 	//   "path": "v2/{+sinkName}",
@@ -3977,10 +3993,9 @@ type BillingAccountsSinksUpdateCall struct {
 }
 
 // Update: Updates a sink. This method replaces the following fields in
-// the existing sink with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time. The updated sink
-// might also have a new writer_identity; see the unique_writer_identity
-// field.
+// the existing sink with values from the new sink: destination, and
+// filter. The updated sink might also have a new writer_identity; see
+// the unique_writer_identity field.
 func (r *BillingAccountsSinksService) Update(sinkNameid string, logsink *LogSink) *BillingAccountsSinksUpdateCall {
 	c := &BillingAccountsSinksUpdateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.sinkNameid = sinkNameid
@@ -4001,6 +4016,21 @@ func (r *BillingAccountsSinksService) Update(sinkNameid string, logsink *LogSink
 // false or defaulted to false.
 func (c *BillingAccountsSinksUpdateCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *BillingAccountsSinksUpdateCall {
 	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
+	return c
+}
+
+// UpdateMask sets the optional parameter "updateMask": Field mask that
+// specifies the fields in sink that need an update. A sink field will
+// be overwritten if, and only if, it is in the update mask. name and
+// output only fields cannot be updated.An empty updateMask is
+// temporarily treated as using the following mask for backwards
+// compatibility purposes:  destination,filter,includeChildren At some
+// point in the future, behavior will be removed and specifying an empty
+// updateMask will be an error.For a detailed FieldMask definition, see
+// https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample:
+// updateMask=filter.
+func (c *BillingAccountsSinksUpdateCall) UpdateMask(updateMask string) *BillingAccountsSinksUpdateCall {
+	c.urlParams_.Set("updateMask", updateMask)
 	return c
 }
 
@@ -4090,7 +4120,7 @@ func (c *BillingAccountsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogS
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, and filter. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
 	//   "flatPath": "v2/billingAccounts/{billingAccountsId}/sinks/{sinksId}",
 	//   "httpMethod": "PUT",
 	//   "id": "logging.billingAccounts.sinks.update",
@@ -4109,6 +4139,12 @@ func (c *BillingAccountsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogS
 	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
 	//       "location": "query",
 	//       "type": "boolean"
+	//     },
+	//     "updateMask": {
+	//       "description": "Optional. Field mask that specifies the fields in sink that need an update. A sink field will be overwritten if, and only if, it is in the update mask. name and output only fields cannot be updated.An empty updateMask is temporarily treated as using the following mask for backwards compatibility purposes:  destination,filter,includeChildren At some point in the future, behavior will be removed and specifying an empty updateMask will be an error.For a detailed FieldMask definition, see https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample: updateMask=filter.",
+	//       "format": "google-fieldmask",
+	//       "location": "query",
+	//       "type": "string"
 	//     }
 	//   },
 	//   "path": "v2/{+sinkName}",
@@ -5486,10 +5522,9 @@ type FoldersSinksCreateCall struct {
 
 // Create: Creates a sink that exports specified log entries to a
 // destination. The export of newly-ingested log entries begins
-// immediately, unless the current time is outside the sink's start and
-// end times or the sink's writer_identity is not permitted to write to
-// the destination. A sink can export log entries only from the resource
-// owning the sink.
+// immediately, unless the sink's writer_identity is not permitted to
+// write to the destination. A sink can export log entries only from the
+// resource owning the sink.
 func (r *FoldersSinksService) Create(parent string, logsink *LogSink) *FoldersSinksCreateCall {
 	c := &FoldersSinksCreateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
@@ -5600,7 +5635,7 @@ func (c *FoldersSinksCreateCall) Do(opts ...googleapi.CallOption) (*LogSink, err
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates a sink that exports specified log entries to a destination. The export of newly-ingested log entries begins immediately, unless the current time is outside the sink's start and end times or the sink's writer_identity is not permitted to write to the destination. A sink can export log entries only from the resource owning the sink.",
+	//   "description": "Creates a sink that exports specified log entries to a destination. The export of newly-ingested log entries begins immediately, unless the sink's writer_identity is not permitted to write to the destination. A sink can export log entries only from the resource owning the sink.",
 	//   "flatPath": "v2/folders/{foldersId}/sinks",
 	//   "httpMethod": "POST",
 	//   "id": "logging.folders.sinks.create",
@@ -6110,10 +6145,9 @@ type FoldersSinksPatchCall struct {
 }
 
 // Patch: Updates a sink. This method replaces the following fields in
-// the existing sink with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time. The updated sink
-// might also have a new writer_identity; see the unique_writer_identity
-// field.
+// the existing sink with values from the new sink: destination, and
+// filter. The updated sink might also have a new writer_identity; see
+// the unique_writer_identity field.
 func (r *FoldersSinksService) Patch(sinkNameid string, logsink *LogSink) *FoldersSinksPatchCall {
 	c := &FoldersSinksPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.sinkNameid = sinkNameid
@@ -6134,6 +6168,21 @@ func (r *FoldersSinksService) Patch(sinkNameid string, logsink *LogSink) *Folder
 // false or defaulted to false.
 func (c *FoldersSinksPatchCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *FoldersSinksPatchCall {
 	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
+	return c
+}
+
+// UpdateMask sets the optional parameter "updateMask": Field mask that
+// specifies the fields in sink that need an update. A sink field will
+// be overwritten if, and only if, it is in the update mask. name and
+// output only fields cannot be updated.An empty updateMask is
+// temporarily treated as using the following mask for backwards
+// compatibility purposes:  destination,filter,includeChildren At some
+// point in the future, behavior will be removed and specifying an empty
+// updateMask will be an error.For a detailed FieldMask definition, see
+// https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample:
+// updateMask=filter.
+func (c *FoldersSinksPatchCall) UpdateMask(updateMask string) *FoldersSinksPatchCall {
+	c.urlParams_.Set("updateMask", updateMask)
 	return c
 }
 
@@ -6223,7 +6272,7 @@ func (c *FoldersSinksPatchCall) Do(opts ...googleapi.CallOption) (*LogSink, erro
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, and filter. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
 	//   "flatPath": "v2/folders/{foldersId}/sinks/{sinksId}",
 	//   "httpMethod": "PATCH",
 	//   "id": "logging.folders.sinks.patch",
@@ -6242,6 +6291,12 @@ func (c *FoldersSinksPatchCall) Do(opts ...googleapi.CallOption) (*LogSink, erro
 	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
 	//       "location": "query",
 	//       "type": "boolean"
+	//     },
+	//     "updateMask": {
+	//       "description": "Optional. Field mask that specifies the fields in sink that need an update. A sink field will be overwritten if, and only if, it is in the update mask. name and output only fields cannot be updated.An empty updateMask is temporarily treated as using the following mask for backwards compatibility purposes:  destination,filter,includeChildren At some point in the future, behavior will be removed and specifying an empty updateMask will be an error.For a detailed FieldMask definition, see https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample: updateMask=filter.",
+	//       "format": "google-fieldmask",
+	//       "location": "query",
+	//       "type": "string"
 	//     }
 	//   },
 	//   "path": "v2/{+sinkName}",
@@ -6271,10 +6326,9 @@ type FoldersSinksUpdateCall struct {
 }
 
 // Update: Updates a sink. This method replaces the following fields in
-// the existing sink with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time. The updated sink
-// might also have a new writer_identity; see the unique_writer_identity
-// field.
+// the existing sink with values from the new sink: destination, and
+// filter. The updated sink might also have a new writer_identity; see
+// the unique_writer_identity field.
 func (r *FoldersSinksService) Update(sinkNameid string, logsink *LogSink) *FoldersSinksUpdateCall {
 	c := &FoldersSinksUpdateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.sinkNameid = sinkNameid
@@ -6295,6 +6349,21 @@ func (r *FoldersSinksService) Update(sinkNameid string, logsink *LogSink) *Folde
 // false or defaulted to false.
 func (c *FoldersSinksUpdateCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *FoldersSinksUpdateCall {
 	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
+	return c
+}
+
+// UpdateMask sets the optional parameter "updateMask": Field mask that
+// specifies the fields in sink that need an update. A sink field will
+// be overwritten if, and only if, it is in the update mask. name and
+// output only fields cannot be updated.An empty updateMask is
+// temporarily treated as using the following mask for backwards
+// compatibility purposes:  destination,filter,includeChildren At some
+// point in the future, behavior will be removed and specifying an empty
+// updateMask will be an error.For a detailed FieldMask definition, see
+// https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample:
+// updateMask=filter.
+func (c *FoldersSinksUpdateCall) UpdateMask(updateMask string) *FoldersSinksUpdateCall {
+	c.urlParams_.Set("updateMask", updateMask)
 	return c
 }
 
@@ -6384,7 +6453,7 @@ func (c *FoldersSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSink, err
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, and filter. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
 	//   "flatPath": "v2/folders/{foldersId}/sinks/{sinksId}",
 	//   "httpMethod": "PUT",
 	//   "id": "logging.folders.sinks.update",
@@ -6403,6 +6472,12 @@ func (c *FoldersSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSink, err
 	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
 	//       "location": "query",
 	//       "type": "boolean"
+	//     },
+	//     "updateMask": {
+	//       "description": "Optional. Field mask that specifies the fields in sink that need an update. A sink field will be overwritten if, and only if, it is in the update mask. name and output only fields cannot be updated.An empty updateMask is temporarily treated as using the following mask for backwards compatibility purposes:  destination,filter,includeChildren At some point in the future, behavior will be removed and specifying an empty updateMask will be an error.For a detailed FieldMask definition, see https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample: updateMask=filter.",
+	//       "format": "google-fieldmask",
+	//       "location": "query",
+	//       "type": "string"
 	//     }
 	//   },
 	//   "path": "v2/{+sinkName}",
@@ -7690,10 +7765,9 @@ type OrganizationsSinksCreateCall struct {
 
 // Create: Creates a sink that exports specified log entries to a
 // destination. The export of newly-ingested log entries begins
-// immediately, unless the current time is outside the sink's start and
-// end times or the sink's writer_identity is not permitted to write to
-// the destination. A sink can export log entries only from the resource
-// owning the sink.
+// immediately, unless the sink's writer_identity is not permitted to
+// write to the destination. A sink can export log entries only from the
+// resource owning the sink.
 func (r *OrganizationsSinksService) Create(parent string, logsink *LogSink) *OrganizationsSinksCreateCall {
 	c := &OrganizationsSinksCreateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
@@ -7804,7 +7878,7 @@ func (c *OrganizationsSinksCreateCall) Do(opts ...googleapi.CallOption) (*LogSin
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates a sink that exports specified log entries to a destination. The export of newly-ingested log entries begins immediately, unless the current time is outside the sink's start and end times or the sink's writer_identity is not permitted to write to the destination. A sink can export log entries only from the resource owning the sink.",
+	//   "description": "Creates a sink that exports specified log entries to a destination. The export of newly-ingested log entries begins immediately, unless the sink's writer_identity is not permitted to write to the destination. A sink can export log entries only from the resource owning the sink.",
 	//   "flatPath": "v2/organizations/{organizationsId}/sinks",
 	//   "httpMethod": "POST",
 	//   "id": "logging.organizations.sinks.create",
@@ -8314,10 +8388,9 @@ type OrganizationsSinksPatchCall struct {
 }
 
 // Patch: Updates a sink. This method replaces the following fields in
-// the existing sink with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time. The updated sink
-// might also have a new writer_identity; see the unique_writer_identity
-// field.
+// the existing sink with values from the new sink: destination, and
+// filter. The updated sink might also have a new writer_identity; see
+// the unique_writer_identity field.
 func (r *OrganizationsSinksService) Patch(sinkNameid string, logsink *LogSink) *OrganizationsSinksPatchCall {
 	c := &OrganizationsSinksPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.sinkNameid = sinkNameid
@@ -8338,6 +8411,21 @@ func (r *OrganizationsSinksService) Patch(sinkNameid string, logsink *LogSink) *
 // false or defaulted to false.
 func (c *OrganizationsSinksPatchCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *OrganizationsSinksPatchCall {
 	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
+	return c
+}
+
+// UpdateMask sets the optional parameter "updateMask": Field mask that
+// specifies the fields in sink that need an update. A sink field will
+// be overwritten if, and only if, it is in the update mask. name and
+// output only fields cannot be updated.An empty updateMask is
+// temporarily treated as using the following mask for backwards
+// compatibility purposes:  destination,filter,includeChildren At some
+// point in the future, behavior will be removed and specifying an empty
+// updateMask will be an error.For a detailed FieldMask definition, see
+// https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample:
+// updateMask=filter.
+func (c *OrganizationsSinksPatchCall) UpdateMask(updateMask string) *OrganizationsSinksPatchCall {
+	c.urlParams_.Set("updateMask", updateMask)
 	return c
 }
 
@@ -8427,7 +8515,7 @@ func (c *OrganizationsSinksPatchCall) Do(opts ...googleapi.CallOption) (*LogSink
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, and filter. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
 	//   "flatPath": "v2/organizations/{organizationsId}/sinks/{sinksId}",
 	//   "httpMethod": "PATCH",
 	//   "id": "logging.organizations.sinks.patch",
@@ -8446,6 +8534,12 @@ func (c *OrganizationsSinksPatchCall) Do(opts ...googleapi.CallOption) (*LogSink
 	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
 	//       "location": "query",
 	//       "type": "boolean"
+	//     },
+	//     "updateMask": {
+	//       "description": "Optional. Field mask that specifies the fields in sink that need an update. A sink field will be overwritten if, and only if, it is in the update mask. name and output only fields cannot be updated.An empty updateMask is temporarily treated as using the following mask for backwards compatibility purposes:  destination,filter,includeChildren At some point in the future, behavior will be removed and specifying an empty updateMask will be an error.For a detailed FieldMask definition, see https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample: updateMask=filter.",
+	//       "format": "google-fieldmask",
+	//       "location": "query",
+	//       "type": "string"
 	//     }
 	//   },
 	//   "path": "v2/{+sinkName}",
@@ -8475,10 +8569,9 @@ type OrganizationsSinksUpdateCall struct {
 }
 
 // Update: Updates a sink. This method replaces the following fields in
-// the existing sink with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time. The updated sink
-// might also have a new writer_identity; see the unique_writer_identity
-// field.
+// the existing sink with values from the new sink: destination, and
+// filter. The updated sink might also have a new writer_identity; see
+// the unique_writer_identity field.
 func (r *OrganizationsSinksService) Update(sinkNameid string, logsink *LogSink) *OrganizationsSinksUpdateCall {
 	c := &OrganizationsSinksUpdateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.sinkNameid = sinkNameid
@@ -8499,6 +8592,21 @@ func (r *OrganizationsSinksService) Update(sinkNameid string, logsink *LogSink) 
 // false or defaulted to false.
 func (c *OrganizationsSinksUpdateCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *OrganizationsSinksUpdateCall {
 	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
+	return c
+}
+
+// UpdateMask sets the optional parameter "updateMask": Field mask that
+// specifies the fields in sink that need an update. A sink field will
+// be overwritten if, and only if, it is in the update mask. name and
+// output only fields cannot be updated.An empty updateMask is
+// temporarily treated as using the following mask for backwards
+// compatibility purposes:  destination,filter,includeChildren At some
+// point in the future, behavior will be removed and specifying an empty
+// updateMask will be an error.For a detailed FieldMask definition, see
+// https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample:
+// updateMask=filter.
+func (c *OrganizationsSinksUpdateCall) UpdateMask(updateMask string) *OrganizationsSinksUpdateCall {
+	c.urlParams_.Set("updateMask", updateMask)
 	return c
 }
 
@@ -8588,7 +8696,7 @@ func (c *OrganizationsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSin
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, and filter. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
 	//   "flatPath": "v2/organizations/{organizationsId}/sinks/{sinksId}",
 	//   "httpMethod": "PUT",
 	//   "id": "logging.organizations.sinks.update",
@@ -8607,6 +8715,12 @@ func (c *OrganizationsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSin
 	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
 	//       "location": "query",
 	//       "type": "boolean"
+	//     },
+	//     "updateMask": {
+	//       "description": "Optional. Field mask that specifies the fields in sink that need an update. A sink field will be overwritten if, and only if, it is in the update mask. name and output only fields cannot be updated.An empty updateMask is temporarily treated as using the following mask for backwards compatibility purposes:  destination,filter,includeChildren At some point in the future, behavior will be removed and specifying an empty updateMask will be an error.For a detailed FieldMask definition, see https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample: updateMask=filter.",
+	//       "format": "google-fieldmask",
+	//       "location": "query",
+	//       "type": "string"
 	//     }
 	//   },
 	//   "path": "v2/{+sinkName}",
@@ -10448,10 +10562,9 @@ type ProjectsSinksCreateCall struct {
 
 // Create: Creates a sink that exports specified log entries to a
 // destination. The export of newly-ingested log entries begins
-// immediately, unless the current time is outside the sink's start and
-// end times or the sink's writer_identity is not permitted to write to
-// the destination. A sink can export log entries only from the resource
-// owning the sink.
+// immediately, unless the sink's writer_identity is not permitted to
+// write to the destination. A sink can export log entries only from the
+// resource owning the sink.
 func (r *ProjectsSinksService) Create(parent string, logsink *LogSink) *ProjectsSinksCreateCall {
 	c := &ProjectsSinksCreateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
@@ -10562,7 +10675,7 @@ func (c *ProjectsSinksCreateCall) Do(opts ...googleapi.CallOption) (*LogSink, er
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates a sink that exports specified log entries to a destination. The export of newly-ingested log entries begins immediately, unless the current time is outside the sink's start and end times or the sink's writer_identity is not permitted to write to the destination. A sink can export log entries only from the resource owning the sink.",
+	//   "description": "Creates a sink that exports specified log entries to a destination. The export of newly-ingested log entries begins immediately, unless the sink's writer_identity is not permitted to write to the destination. A sink can export log entries only from the resource owning the sink.",
 	//   "flatPath": "v2/projects/{projectsId}/sinks",
 	//   "httpMethod": "POST",
 	//   "id": "logging.projects.sinks.create",
@@ -11072,10 +11185,9 @@ type ProjectsSinksPatchCall struct {
 }
 
 // Patch: Updates a sink. This method replaces the following fields in
-// the existing sink with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time. The updated sink
-// might also have a new writer_identity; see the unique_writer_identity
-// field.
+// the existing sink with values from the new sink: destination, and
+// filter. The updated sink might also have a new writer_identity; see
+// the unique_writer_identity field.
 func (r *ProjectsSinksService) Patch(sinkNameid string, logsink *LogSink) *ProjectsSinksPatchCall {
 	c := &ProjectsSinksPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.sinkNameid = sinkNameid
@@ -11096,6 +11208,21 @@ func (r *ProjectsSinksService) Patch(sinkNameid string, logsink *LogSink) *Proje
 // false or defaulted to false.
 func (c *ProjectsSinksPatchCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *ProjectsSinksPatchCall {
 	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
+	return c
+}
+
+// UpdateMask sets the optional parameter "updateMask": Field mask that
+// specifies the fields in sink that need an update. A sink field will
+// be overwritten if, and only if, it is in the update mask. name and
+// output only fields cannot be updated.An empty updateMask is
+// temporarily treated as using the following mask for backwards
+// compatibility purposes:  destination,filter,includeChildren At some
+// point in the future, behavior will be removed and specifying an empty
+// updateMask will be an error.For a detailed FieldMask definition, see
+// https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample:
+// updateMask=filter.
+func (c *ProjectsSinksPatchCall) UpdateMask(updateMask string) *ProjectsSinksPatchCall {
+	c.urlParams_.Set("updateMask", updateMask)
 	return c
 }
 
@@ -11185,7 +11312,7 @@ func (c *ProjectsSinksPatchCall) Do(opts ...googleapi.CallOption) (*LogSink, err
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, and filter. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
 	//   "flatPath": "v2/projects/{projectsId}/sinks/{sinksId}",
 	//   "httpMethod": "PATCH",
 	//   "id": "logging.projects.sinks.patch",
@@ -11204,6 +11331,12 @@ func (c *ProjectsSinksPatchCall) Do(opts ...googleapi.CallOption) (*LogSink, err
 	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
 	//       "location": "query",
 	//       "type": "boolean"
+	//     },
+	//     "updateMask": {
+	//       "description": "Optional. Field mask that specifies the fields in sink that need an update. A sink field will be overwritten if, and only if, it is in the update mask. name and output only fields cannot be updated.An empty updateMask is temporarily treated as using the following mask for backwards compatibility purposes:  destination,filter,includeChildren At some point in the future, behavior will be removed and specifying an empty updateMask will be an error.For a detailed FieldMask definition, see https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample: updateMask=filter.",
+	//       "format": "google-fieldmask",
+	//       "location": "query",
+	//       "type": "string"
 	//     }
 	//   },
 	//   "path": "v2/{+sinkName}",
@@ -11233,10 +11366,9 @@ type ProjectsSinksUpdateCall struct {
 }
 
 // Update: Updates a sink. This method replaces the following fields in
-// the existing sink with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time. The updated sink
-// might also have a new writer_identity; see the unique_writer_identity
-// field.
+// the existing sink with values from the new sink: destination, and
+// filter. The updated sink might also have a new writer_identity; see
+// the unique_writer_identity field.
 func (r *ProjectsSinksService) Update(sinkNameid string, logsink *LogSink) *ProjectsSinksUpdateCall {
 	c := &ProjectsSinksUpdateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.sinkNameid = sinkNameid
@@ -11257,6 +11389,21 @@ func (r *ProjectsSinksService) Update(sinkNameid string, logsink *LogSink) *Proj
 // false or defaulted to false.
 func (c *ProjectsSinksUpdateCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *ProjectsSinksUpdateCall {
 	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
+	return c
+}
+
+// UpdateMask sets the optional parameter "updateMask": Field mask that
+// specifies the fields in sink that need an update. A sink field will
+// be overwritten if, and only if, it is in the update mask. name and
+// output only fields cannot be updated.An empty updateMask is
+// temporarily treated as using the following mask for backwards
+// compatibility purposes:  destination,filter,includeChildren At some
+// point in the future, behavior will be removed and specifying an empty
+// updateMask will be an error.For a detailed FieldMask definition, see
+// https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample:
+// updateMask=filter.
+func (c *ProjectsSinksUpdateCall) UpdateMask(updateMask string) *ProjectsSinksUpdateCall {
+	c.urlParams_.Set("updateMask", updateMask)
 	return c
 }
 
@@ -11346,7 +11493,7 @@ func (c *ProjectsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSink, er
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, and filter. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
 	//   "flatPath": "v2/projects/{projectsId}/sinks/{sinksId}",
 	//   "httpMethod": "PUT",
 	//   "id": "logging.projects.sinks.update",
@@ -11365,6 +11512,12 @@ func (c *ProjectsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSink, er
 	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
 	//       "location": "query",
 	//       "type": "boolean"
+	//     },
+	//     "updateMask": {
+	//       "description": "Optional. Field mask that specifies the fields in sink that need an update. A sink field will be overwritten if, and only if, it is in the update mask. name and output only fields cannot be updated.An empty updateMask is temporarily treated as using the following mask for backwards compatibility purposes:  destination,filter,includeChildren At some point in the future, behavior will be removed and specifying an empty updateMask will be an error.For a detailed FieldMask definition, see https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#fieldmaskExample: updateMask=filter.",
+	//       "format": "google-fieldmask",
+	//       "location": "query",
+	//       "type": "string"
 	//     }
 	//   },
 	//   "path": "v2/{+sinkName}",

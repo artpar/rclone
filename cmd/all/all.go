@@ -5,6 +5,7 @@ import (
 	// Active commands
 	_ "github.com/artpar/rclone/cmd"
 	_ "github.com/artpar/rclone/cmd/authorize"
+	_ "github.com/artpar/rclone/cmd/cachestats"
 	_ "github.com/artpar/rclone/cmd/cat"
 	_ "github.com/artpar/rclone/cmd/check"
 	_ "github.com/artpar/rclone/cmd/cleanup"
@@ -13,6 +14,7 @@ import (
 	_ "github.com/artpar/rclone/cmd/copy"
 	_ "github.com/artpar/rclone/cmd/copyto"
 	_ "github.com/artpar/rclone/cmd/cryptcheck"
+	_ "github.com/artpar/rclone/cmd/cryptdecode"
 	_ "github.com/artpar/rclone/cmd/dbhashsum"
 	_ "github.com/artpar/rclone/cmd/dedupe"
 	_ "github.com/artpar/rclone/cmd/delete"
@@ -37,9 +39,11 @@ import (
 	_ "github.com/artpar/rclone/cmd/rcat"
 	_ "github.com/artpar/rclone/cmd/rmdir"
 	_ "github.com/artpar/rclone/cmd/rmdirs"
+	_ "github.com/artpar/rclone/cmd/serve"
 	_ "github.com/artpar/rclone/cmd/sha1sum"
 	_ "github.com/artpar/rclone/cmd/size"
 	_ "github.com/artpar/rclone/cmd/sync"
+	_ "github.com/artpar/rclone/cmd/touch"
 	_ "github.com/artpar/rclone/cmd/tree"
 	_ "github.com/artpar/rclone/cmd/version"
 )

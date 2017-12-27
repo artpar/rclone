@@ -15,10 +15,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"golang.org/x/text/unicode/norm"
-
 	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
+	"google.golang.org/appengine/log"
 )
 
 var (
@@ -81,6 +80,10 @@ type Object struct {
 // NewFs constructs an Fs from the path
 func NewFs(name, root string) (fs.Fs, error) {
 	var err error
+
+	if *noUTFNorm {
+		log.Errorf(nil, "The --local-no-unicode-normalization flag is deprecated and will be removed")
+	}
 
 	nounc := fs.ConfigFileGet(name, "nounc")
 	f := &Fs{
@@ -272,9 +275,6 @@ func (f *Fs) cleanRemote(name string) string {
 		}
 		f.wmu.Unlock()
 		name = string([]rune(name))
-	}
-	if !*noUTFNorm {
-		name = norm.NFC.String(name)
 	}
 	name = filepath.ToSlash(name)
 	return name
@@ -484,6 +484,7 @@ func (f *Fs) Move(src fs.Object, remote string) (fs.Object, error) {
 	} else if err != nil {
 		// not quite clear, but probably trying to move a file across file system
 		// boundaries. Copying might still work.
+		fs.Errorf(src, "Can't move: %v: trying copy", err)
 		return nil, fs.ErrorCantMove
 	}
 
@@ -767,9 +768,17 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 
 // setMetadata sets the file info from the os.FileInfo passed in
 func (o *Object) setMetadata(info os.FileInfo) {
-	o.size = info.Size()
-	o.modTime = info.ModTime()
-	o.mode = info.Mode()
+	// Don't overwrite the info if we don't need to
+	// this avoids upsetting the race detector
+	if o.size != info.Size() {
+		o.size = info.Size()
+	}
+	if !o.modTime.Equal(info.ModTime()) {
+		o.modTime = info.ModTime()
+	}
+	if o.mode != info.Mode() {
+		o.mode = info.Mode()
+	}
 }
 
 // Stat a Object into info

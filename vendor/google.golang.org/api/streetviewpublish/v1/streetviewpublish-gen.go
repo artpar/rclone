@@ -521,7 +521,7 @@ type Photo struct {
 	// PhotoView.INCLUDE_DOWNLOAD_URL.
 	DownloadUrl string `json:"downloadUrl,omitempty"`
 
-	// PhotoId: Required when updating photo. Output only when creating
+	// PhotoId: Required when updating a photo. Output only when creating a
 	// photo.
 	// Identifier for the photo, which is unique among all photos in
 	// Google.
@@ -540,9 +540,9 @@ type Photo struct {
 	// the given photo.
 	ThumbnailUrl string `json:"thumbnailUrl,omitempty"`
 
-	// UploadReference: Required when creating photo. Input only. The
-	// resource URL where the photo
-	// bytes are uploaded to.
+	// UploadReference: Required when creating a photo. Input only. The
+	// resource URL where the
+	// photo bytes are uploaded to.
 	UploadReference *UploadRef `json:"uploadReference,omitempty"`
 
 	// ViewCount: Output only. View count of the photo.
@@ -644,7 +644,7 @@ func (s *PhotoResponse) MarshalJSON() ([]byte, error) {
 
 // Place: Place metadata for an entity.
 type Place struct {
-	// PlaceId: Required. Place identifier, as described
+	// PlaceId: Place identifier, as described
 	// in
 	// https://developers.google.com/places/place-id.
 	PlaceId string `json:"placeId,omitempty"`
@@ -889,12 +889,12 @@ type UpdatePhotoRequest struct {
 
 	// UpdateMask: Mask that identifies fields on the photo metadata to
 	// update.
-	// If not present, the old Photo metadata will be entirely replaced with
-	// the
-	// new Photo metadata in this request. The update fails if invalid
-	// fields are
-	// specified. Multiple fields can be specified in a comma-delimited
-	// list.
+	// If not present, the old Photo
+	// metadata will be entirely replaced with the
+	// new Photo metadata in this request.
+	// The update fails if invalid fields are specified. Multiple fields can
+	// be
+	// specified in a comma-delimited list.
 	//
 	// The following fields are valid:
 	//
@@ -996,6 +996,18 @@ type PhotoCreateCall struct {
 // publishes the uploaded Photo to
 // Street View on Google Maps.
 //
+// Currently, the only way to set heading, pitch, and roll in
+// CreatePhoto is
+// through the [Photo Sphere
+// XMP
+// metadata](https://developers.google.com/streetview/spherical-metad
+// ata) in
+// the photo bytes. The `pose.heading`, `pose.pitch`,
+// `pose.roll`,
+// `pose.altitude`, and `pose.level` fields in Pose are ignored
+// for
+// CreatePhoto.
+//
 // This method returns the following error codes:
 //
 // * google.rpc.Code.INVALID_ARGUMENT if the request is malformed.
@@ -1092,7 +1104,7 @@ func (c *PhotoCreateCall) Do(opts ...googleapi.CallOption) (*Photo, error) {
 	}
 	return ret, nil
 	// {
-	//   "description": "After the client finishes uploading the photo with the returned\nUploadRef,\nCreatePhoto\npublishes the uploaded Photo to\nStreet View on Google Maps.\n\nThis method returns the following error codes:\n\n* google.rpc.Code.INVALID_ARGUMENT if the request is malformed.\n* google.rpc.Code.NOT_FOUND if the upload reference does not exist.\n* google.rpc.Code.RESOURCE_EXHAUSTED if the account has reached the\nstorage limit.",
+	//   "description": "After the client finishes uploading the photo with the returned\nUploadRef,\nCreatePhoto\npublishes the uploaded Photo to\nStreet View on Google Maps.\n\nCurrently, the only way to set heading, pitch, and roll in CreatePhoto is\nthrough the [Photo Sphere XMP\nmetadata](https://developers.google.com/streetview/spherical-metadata) in\nthe photo bytes. The `pose.heading`, `pose.pitch`, `pose.roll`,\n`pose.altitude`, and `pose.level` fields in Pose are ignored for\nCreatePhoto.\n\nThis method returns the following error codes:\n\n* google.rpc.Code.INVALID_ARGUMENT if the request is malformed.\n* google.rpc.Code.NOT_FOUND if the upload reference does not exist.\n* google.rpc.Code.RESOURCE_EXHAUSTED if the account has reached the\nstorage limit.",
 	//   "flatPath": "v1/photo",
 	//   "httpMethod": "POST",
 	//   "id": "streetviewpublish.photo.create",
@@ -1572,7 +1584,7 @@ type PhotoUpdateCall struct {
 // a
 // photo is not supported.
 //
-// Only the fields specified in
+// Only the fields specified in the
 // updateMask
 // field are used. If `updateMask` is not present, the update applies to
 // all
@@ -1600,12 +1612,12 @@ func (r *PhotoService) Update(id string, photo *Photo) *PhotoUpdateCall {
 
 // UpdateMask sets the optional parameter "updateMask": Mask that
 // identifies fields on the photo metadata to update.
-// If not present, the old Photo metadata will be entirely replaced with
-// the
-// new Photo metadata in this request. The update fails if invalid
-// fields are
-// specified. Multiple fields can be specified in a comma-delimited
-// list.
+// If not present, the old Photo
+// metadata will be entirely replaced with the
+// new Photo metadata in this request.
+// The update fails if invalid fields are specified. Multiple fields can
+// be
+// specified in a comma-delimited list.
 //
 // The following fields are valid:
 //
@@ -1719,7 +1731,7 @@ func (c *PhotoUpdateCall) Do(opts ...googleapi.CallOption) (*Photo, error) {
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates the metadata of a Photo, such\nas pose, place association, connections, etc. Changing the pixels of a\nphoto is not supported.\n\nOnly the fields specified in\nupdateMask\nfield are used. If `updateMask` is not present, the update applies to all\nfields.\n\n\u003caside class=\"note\"\u003e\u003cb\u003eNote:\u003c/b\u003e To update\nPose.altitude,\nPose.latLngPair has to be\nfilled as well. Otherwise, the request will fail.\u003c/aside\u003e\n\nThis method returns the following error codes:\n\n* google.rpc.Code.PERMISSION_DENIED if the requesting user did not\ncreate the requested photo.\n* google.rpc.Code.INVALID_ARGUMENT if the request is malformed.\n* google.rpc.Code.NOT_FOUND if the requested photo does not exist.",
+	//   "description": "Updates the metadata of a Photo, such\nas pose, place association, connections, etc. Changing the pixels of a\nphoto is not supported.\n\nOnly the fields specified in the\nupdateMask\nfield are used. If `updateMask` is not present, the update applies to all\nfields.\n\n\u003caside class=\"note\"\u003e\u003cb\u003eNote:\u003c/b\u003e To update\nPose.altitude,\nPose.latLngPair has to be\nfilled as well. Otherwise, the request will fail.\u003c/aside\u003e\n\nThis method returns the following error codes:\n\n* google.rpc.Code.PERMISSION_DENIED if the requesting user did not\ncreate the requested photo.\n* google.rpc.Code.INVALID_ARGUMENT if the request is malformed.\n* google.rpc.Code.NOT_FOUND if the requested photo does not exist.",
 	//   "flatPath": "v1/photo/{id}",
 	//   "httpMethod": "PUT",
 	//   "id": "streetviewpublish.photo.update",
@@ -1734,7 +1746,7 @@ func (c *PhotoUpdateCall) Do(opts ...googleapi.CallOption) (*Photo, error) {
 	//       "type": "string"
 	//     },
 	//     "updateMask": {
-	//       "description": "Mask that identifies fields on the photo metadata to update.\nIf not present, the old Photo metadata will be entirely replaced with the\nnew Photo metadata in this request. The update fails if invalid fields are\nspecified. Multiple fields can be specified in a comma-delimited list.\n\nThe following fields are valid:\n\n* `pose.heading`\n* `pose.latLngPair`\n* `pose.pitch`\n* `pose.roll`\n* `pose.level`\n* `pose.altitude`\n* `connections`\n* `places`\n\n\n\u003caside class=\"note\"\u003e\u003cb\u003eNote:\u003c/b\u003e Repeated fields in\nupdateMask\nmean the entire set of repeated values will be replaced with the new\ncontents. For example, if\nupdateMask\ncontains `connections` and `UpdatePhotoRequest.photo.connections` is empty,\nall connections will be removed.\u003c/aside\u003e",
+	//       "description": "Mask that identifies fields on the photo metadata to update.\nIf not present, the old Photo\nmetadata will be entirely replaced with the\nnew Photo metadata in this request.\nThe update fails if invalid fields are specified. Multiple fields can be\nspecified in a comma-delimited list.\n\nThe following fields are valid:\n\n* `pose.heading`\n* `pose.latLngPair`\n* `pose.pitch`\n* `pose.roll`\n* `pose.level`\n* `pose.altitude`\n* `connections`\n* `places`\n\n\n\u003caside class=\"note\"\u003e\u003cb\u003eNote:\u003c/b\u003e Repeated fields in\nupdateMask\nmean the entire set of repeated values will be replaced with the new\ncontents. For example, if\nupdateMask\ncontains `connections` and `UpdatePhotoRequest.photo.connections` is empty,\nall connections will be removed.\u003c/aside\u003e",
 	//       "format": "google-fieldmask",
 	//       "location": "query",
 	//       "type": "string"
@@ -2246,6 +2258,8 @@ func (r *PhotosService) List() *PhotosListCall {
 
 // Filter sets the optional parameter "filter": The filter expression.
 // For example: `placeId=ChIJj61dQgK6j4AR4GeTYWZsKWw`.
+//
+// The only filter supported at the moment is `placeId`.
 func (c *PhotosListCall) Filter(filter string) *PhotosListCall {
 	c.urlParams_.Set("filter", filter)
 	return c
@@ -2386,7 +2400,7 @@ func (c *PhotosListCall) Do(opts ...googleapi.CallOption) (*ListPhotosResponse, 
 	//   "parameterOrder": [],
 	//   "parameters": {
 	//     "filter": {
-	//       "description": "The filter expression. For example: `placeId=ChIJj61dQgK6j4AR4GeTYWZsKWw`.",
+	//       "description": "The filter expression. For example: `placeId=ChIJj61dQgK6j4AR4GeTYWZsKWw`.\n\nThe only filter supported at the moment is `placeId`.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },

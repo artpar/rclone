@@ -1,42 +1,56 @@
 package mountlib
 
-// Globals
 import (
+	"io"
 	"log"
 	"os"
-	"time"
+	"runtime"
 
 	"github.com/artpar/rclone/cmd"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfsflags"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
 // Options set by command line flags
 var (
-	NoModTime    = false
-	NoChecksum   = false
-	DebugFUSE    = false
-	NoSeek       = false
-	DirCacheTime = 5 * 60 * time.Second
-	PollInterval = time.Minute
-	// mount options
-	ReadOnly                         = false
+	DebugFUSE                        = false
 	AllowNonEmpty                    = false
 	AllowRoot                        = false
 	AllowOther                       = false
 	DefaultPermissions               = false
 	WritebackCache                   = false
 	MaxReadAhead       fs.SizeSuffix = 128 * 1024
-	Umask                            = 0
-	UID                              = ^uint32(0) // these values instruct WinFSP-FUSE to use the current user
-	GID                              = ^uint32(0) // overriden for non windows in mount_unix.go
-	// foreground                 = false
-	// default permissions for directories - modified by umask in Mount
-	DirPerms     = os.FileMode(0777)
-	FilePerms    = os.FileMode(0666)
-	ExtraOptions *[]string
-	ExtraFlags   *[]string
+	ExtraOptions       []string
+	ExtraFlags         []string
 )
+
+// Check is folder is empty
+func checkMountEmpty(mountpoint string) error {
+	fp, fpErr := os.Open(mountpoint)
+
+	if fpErr != nil {
+		return errors.Wrap(fpErr, "Can not open: "+mountpoint)
+	}
+	defer fs.CheckClose(fp, &fpErr)
+
+	_, fpErr = fp.Readdirnames(1)
+
+	// directory is not empty
+	if fpErr != io.EOF {
+		var e error
+		var errorMsg = "Directory is not empty: " + mountpoint + " If you want to mount it anyway use: --allow-non-empty option"
+		if fpErr == nil {
+			e = errors.New(errorMsg)
+		} else {
+			e = errors.Wrap(fpErr, errorMsg)
+		}
+		return e
+	}
+	return nil
+}
 
 // NewMountCommand makes a mount command with the given name and Mount function
 func NewMountCommand(commandName string, Mount func(f fs.Fs, mountpoint string) error) *cobra.Command {
@@ -129,40 +143,31 @@ uploads.  This might happen in the future, but for the moment rclone
 Note that all the rclone filters can be used to select a subset of the
 files to be visible in the mount.
 
-### Directory Cache ###
+### systemd ###
 
-Using the ` + "`--dir-cache-time`" + ` flag, you can set how long a
-directory should be considered up to date and not refreshed from the
-backend. Changes made locally in the mount may appear immediately or
-invalidate the cache. However, changes done on the remote will only
-be picked up once the cache expires.
-
-Alternatively, you can send a ` + "`SIGHUP`" + ` signal to rclone for
-it to flush all directory caches, regardless of how old they are.
-Assuming only one rclone instance is running, you can reset the cache
-like this:
-
-    kill -SIGHUP $(pidof rclone)
-
-### Bugs ###
-
-  * All the remotes should work for read, but some may not for write
-    * those which need to know the size in advance won't - eg B2
-    * maybe should pass in size as -1 to mean work it out
-    * Or put in an an upload cache to cache the files on disk first
-`,
+When running rclone ` + commandName + ` as a systemd service, it is possible
+to use Type=notify. In this case the service will enter the started state
+after the mountpoint has been successfully set up.
+Units having the rclone ` + commandName + ` service specified as a requirement
+will see all files and folders immediately in this mode.
+` + vfs.Help,
 		Run: func(command *cobra.Command, args []string) {
 			cmd.CheckArgs(2, 2, command, args)
 			fdst := cmd.NewFsDst(args)
-
-			// Mask permissions
-			DirPerms = 0777 &^ os.FileMode(Umask)
-			FilePerms = 0666 &^ os.FileMode(Umask)
 
 			// Show stats if the user has specifically requested them
 			if cmd.ShowStats() {
 				stopStats := cmd.StartStats()
 				defer close(stopStats)
+			}
+
+			// Skip checkMountEmpty if --allow-non-empty flag is used or if
+			// the Operating System is Windows
+			if !AllowNonEmpty && runtime.GOOS != "windows" {
+				err := checkMountEmpty(args[1])
+				if err != nil {
+					log.Fatalf("Fatal error: %v", err)
+				}
 			}
 
 			err := Mount(fdst, args[1])
@@ -177,24 +182,20 @@ like this:
 
 	// Add flags
 	flags := commandDefintion.Flags()
-	flags.BoolVarP(&NoModTime, "no-modtime", "", NoModTime, "Don't read/write the modification time (can speed things up).")
-	flags.BoolVarP(&NoChecksum, "no-checksum", "", NoChecksum, "Don't compare checksums on up/download.")
-	flags.BoolVarP(&DebugFUSE, "debug-fuse", "", DebugFUSE, "Debug the FUSE internals - needs -v.")
-	flags.BoolVarP(&NoSeek, "no-seek", "", NoSeek, "Don't allow seeking in files.")
-	flags.DurationVarP(&DirCacheTime, "dir-cache-time", "", DirCacheTime, "Time to cache directory entries for.")
-	flags.DurationVarP(&PollInterval, "poll-interval", "", PollInterval, "Time to wait between polling for changes. Must be smaller than dir-cache-time. Only on supported remotes. Set to 0 to disable.")
+	fs.BoolVarP(flags, &DebugFUSE, "debug-fuse", "", DebugFUSE, "Debug the FUSE internals - needs -v.")
 	// mount options
-	flags.BoolVarP(&ReadOnly, "read-only", "", ReadOnly, "Mount read-only.")
-	flags.BoolVarP(&AllowNonEmpty, "allow-non-empty", "", AllowNonEmpty, "Allow mounting over a non-empty directory.")
-	flags.BoolVarP(&AllowRoot, "allow-root", "", AllowRoot, "Allow access to root user.")
-	flags.BoolVarP(&AllowOther, "allow-other", "", AllowOther, "Allow access to other users.")
-	flags.BoolVarP(&DefaultPermissions, "default-permissions", "", DefaultPermissions, "Makes kernel enforce access control based on the file mode.")
-	flags.BoolVarP(&WritebackCache, "write-back-cache", "", WritebackCache, "Makes kernel buffer writes before sending them to rclone. Without this, writethrough caching is used.")
-	flags.VarP(&MaxReadAhead, "max-read-ahead", "", "The number of bytes that can be prefetched for sequential reads.")
-	ExtraOptions = flags.StringArrayP("option", "o", []string{}, "Option for libfuse/WinFsp. Repeat if required.")
-	ExtraFlags = flags.StringArrayP("fuse-flag", "", []string{}, "Flags or arguments to be passed direct to libfuse/WinFsp. Repeat if required.")
-	//flags.BoolVarP(&foreground, "foreground", "", foreground, "Do not detach.")
+	fs.BoolVarP(flags, &AllowNonEmpty, "allow-non-empty", "", AllowNonEmpty, "Allow mounting over a non-empty directory.")
+	fs.BoolVarP(flags, &AllowRoot, "allow-root", "", AllowRoot, "Allow access to root user.")
+	fs.BoolVarP(flags, &AllowOther, "allow-other", "", AllowOther, "Allow access to other users.")
+	fs.BoolVarP(flags, &DefaultPermissions, "default-permissions", "", DefaultPermissions, "Makes kernel enforce access control based on the file mode.")
+	fs.BoolVarP(flags, &WritebackCache, "write-back-cache", "", WritebackCache, "Makes kernel buffer writes before sending them to rclone. Without this, writethrough caching is used.")
+	fs.FlagsVarP(flags, &MaxReadAhead, "max-read-ahead", "", "The number of bytes that can be prefetched for sequential reads.")
+	fs.StringArrayVarP(flags, &ExtraOptions, "option", "o", []string{}, "Option for libfuse/WinFsp. Repeat if required.")
+	fs.StringArrayVarP(flags, &ExtraFlags, "fuse-flag", "", []string{}, "Flags or arguments to be passed direct to libfuse/WinFsp. Repeat if required.")
+	//fs.BoolVarP(flags, &foreground, "foreground", "", foreground, "Do not detach.")
 
-	platformFlags(flags)
+	// Add in the generic flags
+	vfsflags.AddFlags(flags)
+
 	return commandDefintion
 }

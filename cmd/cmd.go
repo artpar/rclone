@@ -16,6 +16,7 @@ import (
 	"runtime/pprof"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -31,6 +32,23 @@ var (
 	dataRateUnit  = fs.StringP("stats-unit", "", "bytes", "Show data rate in stats as either 'bits' or 'bytes'/s")
 	version       bool
 	retries       = fs.IntP("retries", "", 3, "Retry operations this many times if they fail")
+	// Errors
+	errorCommandNotFound    = errors.New("command not found")
+	errorUncategorized      = errors.New("uncategorized error")
+	errorNotEnoughArguments = errors.New("not enough arguments")
+	errorTooManyArguents    = errors.New("too many arguments")
+	errorUsageError         = errors.New("usage error")
+)
+
+const (
+	exitCodeSuccess = iota
+	exitCodeUsageError
+	exitCodeUncategorizedError
+	exitCodeDirNotFound
+	exitCodeFileNotFound
+	exitCodeRetryError
+	exitCodeNoRetryError
+	exitCodeFatalError
 )
 
 // Root is the main rclone command
@@ -54,8 +72,10 @@ from various cloud storage systems and using file transfer services, such as:
   * Microsoft Azure Blob Storage
   * Microsoft OneDrive
   * Openstack Swift / Rackspace cloud files / Memset Memstore
+  * pCloud
   * QingStor
   * SFTP
+  * Webdav / Owncloud / Nextcloud
   * Yandex Disk
   * The local filesystem
 
@@ -84,11 +104,11 @@ and configuration walkthroughs.
 func runRoot(cmd *cobra.Command, args []string) {
 	if version {
 		ShowVersion()
-		os.Exit(0)
+		resolveExitCode(nil)
 	} else {
 		_ = Root.Usage()
 		fmt.Fprintf(os.Stderr, "Command not found.\n")
-		os.Exit(1)
+		resolveExitCode(errorCommandNotFound)
 	}
 }
 
@@ -111,7 +131,7 @@ func ShowVersion() {
 func newFsFile(remote string) (fs.Fs, string) {
 	fsInfo, configName, fsPath, err := fs.ParseRemote(remote)
 	if err != nil {
-		fs.Stats.Error()
+		fs.Stats.Error(err)
 		log.Printf("Failed to create file system for %q: %v", remote, err)
 	}
 	f, err := fsInfo.NewFs(configName, fsPath)
@@ -121,7 +141,7 @@ func newFsFile(remote string) (fs.Fs, string) {
 	case nil:
 		return f, ""
 	default:
-		fs.Stats.Error()
+		fs.Stats.Error(err)
 		log.Printf("Failed to create file system for %q: %v", remote, err)
 	}
 	return nil, ""
@@ -136,13 +156,14 @@ func newFsSrc(remote string) (fs.Fs, string) {
 	f, fileName := newFsFile(remote)
 	if fileName != "" {
 		if !fs.Config.Filter.InActive() {
-			fs.Stats.Error()
-			log.Printf("Can't limit to single files when using filters: %v", remote)
+			err := errors.Errorf("Can't limit to single files when using filters: %v", remote)
+			fs.Stats.Error(err)
+			log.Printf(err.Error())
 		}
 		// Limit transfers to this file
 		err := fs.Config.Filter.AddFile(fileName)
 		if err != nil {
-			fs.Stats.Error()
+			fs.Stats.Error(err)
 			log.Printf("Failed to limit to single file %q: %v", remote, err)
 		}
 		// Set --no-traverse as only one file
@@ -157,7 +178,7 @@ func newFsSrc(remote string) (fs.Fs, string) {
 func newFsDst(remote string) fs.Fs {
 	f, err := fs.NewFs(remote)
 	if err != nil {
-		fs.Stats.Error()
+		fs.Stats.Error(err)
 		log.Printf("Failed to create file system for %q: %v", remote, err)
 	}
 	return f
@@ -177,6 +198,8 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 	fsrc, srcFileName = newFsSrc(args[0])
 	// If copying a file...
 	dstRemote := args[1]
+	// If file exists then srcFileName != "", however if the file
+	// doesn't exist then we assume it is a directory...
 	if srcFileName != "" {
 		dstRemote, dstFileName = fs.RemoteSplit(dstRemote)
 		if dstRemote == "" {
@@ -186,7 +209,16 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 			log.Printf("%q is a directory", args[1])
 		}
 	}
-	fdst = newFsDst(dstRemote)
+	fdst, err := fs.NewFs(dstRemote)
+	switch err {
+	case fs.ErrorIsFile:
+		fs.Stats.Error(err)
+		log.Fatalf("Source doesn't exist or is a directory and destination is a file")
+	case nil:
+	default:
+		fs.Stats.Error(err)
+		log.Fatalf("Failed to create file system for destination %q: %v", dstRemote, err)
+	}
 	fs.CalculateModifyWindow(fdst, fsrc)
 	return
 }
@@ -269,18 +301,15 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 		close(stopStats)
 	}
 	if err != nil {
-		if cmd != nil {
-			log.Printf("Failed to %s: %v", cmd.Name(), err)
-		} else {
-			log.Printf("Failed to: %v", err)
-		}
+		log.Printf("Failed to %s: %v", cmd.Name(), err)
+		resolveExitCode(err)
 	}
 	if showStats && (fs.Stats.Errored() || *statsInterval > 0) {
 		fs.Stats.Log()
 	}
 	fs.Debugf(nil, "Go routines at exit %d\n", runtime.NumGoroutine())
 	if fs.Stats.Errored() {
-		os.Exit(1)
+		resolveExitCode(fs.Stats.GetLastError())
 	}
 }
 
@@ -289,11 +318,13 @@ func CheckArgs(MinArgs, MaxArgs int, cmd *cobra.Command, args []string) {
 	if len(args) < MinArgs {
 		_ = cmd.Usage()
 		fmt.Fprintf(os.Stderr, "Command %s needs %d arguments mininum\n", cmd.Name(), MinArgs)
-		os.Exit(1)
+		// os.Exit(1)
+		resolveExitCode(errorNotEnoughArguments)
 	} else if len(args) > MaxArgs {
 		_ = cmd.Usage()
 		fmt.Fprintf(os.Stderr, "Command %s needs %d arguments maximum\n", cmd.Name(), MaxArgs)
-		os.Exit(1)
+		// os.Exit(1)
+		resolveExitCode(errorTooManyArguents)
 	}
 }
 
@@ -335,13 +366,13 @@ func initConfig() {
 		fs.Infof(nil, "Creating CPU profile %q\n", *cpuProfile)
 		f, err := os.Create(*cpuProfile)
 		if err != nil {
-			fs.Stats.Error()
-			log.Print(err)
+			fs.Stats.Error(err)
+			log.Printf(err)
 		}
 		err = pprof.StartCPUProfile(f)
 		if err != nil {
-			fs.Stats.Error()
-			log.Print(err)
+			fs.Stats.Error(err)
+			log.Printf(err)
 		}
 		AtExit(func() {
 			pprof.StopCPUProfile()
@@ -354,18 +385,18 @@ func initConfig() {
 			fs.Infof(nil, "Saving Memory profile %q\n", *memProfile)
 			f, err := os.Create(*memProfile)
 			if err != nil {
-				fs.Stats.Error()
-				log.Print(err)
+				fs.Stats.Error(err)
+				log.Printf(err)
 			}
 			err = pprof.WriteHeapProfile(f)
 			if err != nil {
-				fs.Stats.Error()
-				log.Print(err)
+				fs.Stats.Error(err)
+				log.Printf(err)
 			}
 			err = f.Close()
 			if err != nil {
-				fs.Stats.Error()
-				log.Print(err)
+				fs.Stats.Error(err)
+				log.Printf(err)
 			}
 		})
 	}
@@ -375,5 +406,30 @@ func initConfig() {
 		fs.Config.DataRateUnit = "bytes"
 	} else {
 		fs.Config.DataRateUnit = *dataRateUnit
+	}
+}
+
+func resolveExitCode(err error) {
+	if err == nil {
+		os.Exit(exitCodeSuccess)
+	}
+
+	err = errors.Cause(err)
+
+	switch {
+	case err == fs.ErrorDirNotFound:
+		os.Exit(exitCodeDirNotFound)
+	case err == fs.ErrorObjectNotFound:
+		os.Exit(exitCodeFileNotFound)
+	case err == errorUncategorized:
+		os.Exit(exitCodeUncategorizedError)
+	case fs.ShouldRetry(err):
+		os.Exit(exitCodeRetryError)
+	case fs.IsNoRetryError(err):
+		os.Exit(exitCodeNoRetryError)
+	case fs.IsFatalError(err):
+		os.Exit(exitCodeFatalError)
+	default:
+		os.Exit(exitCodeUsageError)
 	}
 }

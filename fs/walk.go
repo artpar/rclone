@@ -134,7 +134,7 @@ func walk(f Fs, path string, includeAll bool, maxLevel int, fn WalkFunc, listDir
 					// NB once we have passed entries to fn we mustn't touch it again
 					if err != nil && err != ErrorSkipDir {
 						traversing.Done()
-						Stats.Error()
+						Stats.Error(err)
 						Errorf(job.remote, "error listing: %v", err)
 						closeQuit()
 						// Send error to error channel if space
@@ -250,6 +250,87 @@ func (dt DirTree) Dirs() (dirNames []string) {
 	return dirNames
 }
 
+// Prune remove directories from a directory tree. dirNames contains
+// all directories to remove as keys, with true as values. dirNames
+// will be modified in the function.
+func (dt DirTree) Prune(dirNames map[string]bool) error {
+	// We use map[string]bool to avoid recursion (and potential
+	// stack exhaustion).
+
+	// First we need delete directories from their parents.
+	for dName, remove := range dirNames {
+		if !remove {
+			// Currently all values should be
+			// true, therefore this should not
+			// happen. But this makes function
+			// more predictable.
+			Infof(dName, "Directory in the map for prune, but the value is false")
+			continue
+		}
+		if dName == "" {
+			// if dName is root, do nothing (no parent exist)
+			continue
+		}
+		parent := parentDir(dName)
+		// It may happen that dt does not have a dName key,
+		// since directory was excluded based on a filter. In
+		// such case the loop will be skipped.
+		for i, entry := range dt[parent] {
+			switch x := entry.(type) {
+			case Directory:
+				if x.Remote() == dName {
+					// the slice is not sorted yet
+					// to delete item
+					// a) replace it with the last one
+					dt[parent][i] = dt[parent][len(dt[parent])-1]
+					// b) remove last
+					dt[parent] = dt[parent][:len(dt[parent])-1]
+					// we modify a slice within a loop, but we stop
+					// iterating immediately
+					break
+				}
+			case Object:
+				// do nothing
+			default:
+				return errors.Errorf("unknown object type %T", entry)
+
+			}
+		}
+	}
+
+	for len(dirNames) > 0 {
+		// According to golang specs, if new keys were added
+		// during range iteration, they may be skipped.
+		for dName, remove := range dirNames {
+			if !remove {
+				Infof(dName, "Directory in the map for prune, but the value is false")
+				continue
+			}
+			// First, add all subdirectories to dirNames.
+
+			// It may happen that dt[dName] does not exist.
+			// If so, the loop will be skipped.
+			for _, entry := range dt[dName] {
+				switch x := entry.(type) {
+				case Directory:
+					excludeDir := x.Remote()
+					dirNames[excludeDir] = true
+				case Object:
+					// do nothing
+				default:
+					return errors.Errorf("unknown object type %T", entry)
+
+				}
+			}
+			// Then remove current directory from DirTree
+			delete(dt, dName)
+			// and from dirNames
+			delete(dirNames, dName)
+		}
+	}
+	return nil
+}
+
 // String emits a simple representation of the DirTree
 func (dt DirTree) String() string {
 	out := new(bytes.Buffer)
@@ -266,10 +347,14 @@ func (dt DirTree) String() string {
 	return out.String()
 }
 
-func walkRDirTree(f Fs, path string, includeAll bool, maxLevel int, listR ListRFn) (DirTree, error) {
+func walkRDirTree(f Fs, startPath string, includeAll bool, maxLevel int, listR ListRFn) (DirTree, error) {
 	dirs := make(DirTree)
+	// Entries can come in arbitrary order. We use toPrune to keep
+	// all directories to exclude later.
+	toPrune := make(map[string]bool)
+	includeDirectory := Config.Filter.IncludeDirectory(f)
 	var mu sync.Mutex
-	err := listR(path, func(entries DirEntries) error {
+	err := listR(startPath, func(entries DirEntries) error {
 		mu.Lock()
 		defer mu.Unlock()
 		for _, entry := range entries {
@@ -286,13 +371,26 @@ func walkRDirTree(f Fs, path string, includeAll bool, maxLevel int, listR ListRF
 						for ; slashes > maxLevel-1; slashes-- {
 							dirPath = parentDir(dirPath)
 						}
-						dirs.checkParent(path, dirPath)
+						dirs.checkParent(startPath, dirPath)
 					}
 				} else {
 					Debugf(x, "Excluded from sync (and deletion)")
 				}
+				// Check if we need to prune a directory later.
+				if !includeAll && len(Config.Filter.ExcludeFile) > 0 {
+					basename := path.Base(x.Remote())
+					if basename == Config.Filter.ExcludeFile {
+						excludeDir := parentDir(x.Remote())
+						toPrune[excludeDir] = true
+						Debugf(basename, "Excluded from sync (and deletion) based on exclude file")
+					}
+				}
 			case Directory:
-				if includeAll || Config.Filter.IncludeDirectory(x.Remote()) {
+				inc, err := includeDirectory(x.Remote())
+				if err != nil {
+					return err
+				}
+				if includeAll || inc {
 					if maxLevel < 0 || slashes <= maxLevel-1 {
 						if slashes == maxLevel-1 {
 							// Just add the object if at maxLevel
@@ -304,6 +402,8 @@ func walkRDirTree(f Fs, path string, includeAll bool, maxLevel int, listR ListRF
 				} else {
 					Debugf(x, "Excluded from sync (and deletion)")
 				}
+			default:
+				return errors.Errorf("unknown object type %T", entry)
 			}
 		}
 		return nil
@@ -311,9 +411,13 @@ func walkRDirTree(f Fs, path string, includeAll bool, maxLevel int, listR ListRF
 	if err != nil {
 		return nil, err
 	}
-	dirs.checkParents(path)
+	dirs.checkParents(startPath)
 	if len(dirs) == 0 {
-		dirs[path] = nil
+		dirs[startPath] = nil
+	}
+	err = dirs.Prune(toPrune)
+	if err != nil {
+		return nil, err
 	}
 	dirs.Sort()
 	return dirs, nil

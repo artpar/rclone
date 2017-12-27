@@ -10,20 +10,20 @@
 [[projects]]
   name = "cloud.google.com/go"
   packages = ["compute/metadata"]
-  revision = "0f0b8420cb699ac4ce059c63bac263f4301fe95b"
-  version = "v0.12.0"
+  revision = "f6de2c509ed9d2af648c3c147207eaaf97149aed"
+  version = "v0.14.0"
 
 [[projects]]
   name = "github.com/Azure/azure-sdk-for-go"
   packages = ["storage"]
-  revision = "57db66900881e9fd21fd041a9d013514700ecab3"
-  version = "v10.3.0-beta"
+  revision = "2592daf71ab6b95dcfc7f7437ecc1afb9ddb7360"
+  version = "v11.0.0-beta"
 
 [[projects]]
   name = "github.com/Azure/go-autorest"
   packages = ["autorest","autorest/adal","autorest/azure","autorest/date"]
-  revision = "5432abe734f8d95c78340cd56712f912906e6514"
-  version = "v8.3.1"
+  revision = "f6be1abbb5abd0517522f850dd785990d373da7e"
+  version = "v8.4.0"
 
 [[projects]]
   branch = "master"
@@ -41,19 +41,25 @@
   branch = "master"
   name = "github.com/a8m/tree"
   packages = ["."]
-  revision = "4b871cd428eeab064e45ff2bf65054bb7eb10d6c"
+  revision = "5554ed4554293f11a726accc1ebf2bd3342742f8"
 
 [[projects]]
   branch = "master"
   name = "github.com/aws/aws-sdk-go"
   packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","internal/shareddefaults","private/protocol","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/restxml","private/protocol/xml/xmlutil","service/s3","service/s3/s3iface","service/s3/s3manager","service/sts"]
-  revision = "8d9e3039553a1f8ca137750a6eeed5fb5d62d7e6"
+  revision = "5a2026bfb28e86839f9fcc46523850319399006c"
 
 [[projects]]
   name = "github.com/billziss-gh/cgofuse"
   packages = ["fuse"]
-  revision = "35bcf037030dcadcd247618c75c00c6cd17482d7"
-  version = "v1.0.2"
+  revision = "3a24389863c5bf906de391226ee8c4ec2c925bfe"
+  version = "v1.0.3"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/coreos/bbolt"
+  packages = ["."]
+  revision = "a148de800f91fe6cbd8b2a472bbfdc09c4b6568f"
 
 [[projects]]
   name = "github.com/cpuguy83/go-md2man"
@@ -74,10 +80,16 @@
   version = "v3.0.0"
 
 [[projects]]
+  name = "github.com/djherbis/times"
+  packages = ["."]
+  revision = "95292e44976d1217cf3611dc7c8d9466877d3ed5"
+  version = "v1.0.1"
+
+[[projects]]
   branch = "master"
   name = "github.com/dropbox/dropbox-sdk-go-unofficial"
-  packages = ["dropbox","dropbox/async","dropbox/files","dropbox/properties"]
-  revision = "b05850d887adc3fab2e87f337b71b25d4649bf4c"
+  packages = ["dropbox","dropbox/async","dropbox/file_properties","dropbox/files"]
+  revision = "9befe8c89b6e17667716dedd2f62327bae374bf2"
 
 [[projects]]
   name = "github.com/go-ini/ini"
@@ -89,7 +101,7 @@
   branch = "master"
   name = "github.com/golang/protobuf"
   packages = ["proto"]
-  revision = "17ce1425424ab154092bbb43af630bd647f3bb0d"
+  revision = "130e6b02ab059e7b717a096f397c5b60111cae74"
 
 [[projects]]
   branch = "master"
@@ -107,13 +119,12 @@
   branch = "master"
   name = "github.com/jlaffaye/ftp"
   packages = ["."]
-  revision = "769512c448b98e9efa243279a7e281248332aa98"
+  revision = "299b7ff5b6096588cceca2edc1fc9f557002fb85"
 
 [[projects]]
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
-  revision = "3433f3ea46d9f8019119e7dd41274e112a2359a9"
-  version = "0.2.2"
+  revision = "0b12d6b5"
 
 [[projects]]
   branch = "master"
@@ -137,13 +148,25 @@
   branch = "master"
   name = "github.com/ncw/swift"
   packages = ["."]
-  revision = "9d3f812e23d270d1c66a9a01e20af1005061cdc4"
+  revision = "c95c6e5c2d1a3d37fc44c8c6dc9e231c7500667d"
 
 [[projects]]
   branch = "master"
   name = "github.com/nsf/termbox-go"
   packages = ["."]
   revision = "4ed959e0540971545eddb8c75514973d670cf739"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/okzk/sdnotify"
+  packages = ["."]
+  revision = "ed8ca104421a21947710335006107540e3ecb335"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/patrickmn/go-cache"
+  packages = ["."]
+  revision = "a3647f8e31d79543b2d0f0ae2fe5c379d72cedc0"
 
 [[projects]]
   name = "github.com/pengsrc/go-shared"
@@ -155,13 +178,13 @@
   branch = "master"
   name = "github.com/pkg/errors"
   packages = ["."]
-  revision = "c605e284fe17294bda444b34710735b29d1a9d90"
+  revision = "2b3a18b5f0fb6b4f9190549597d3f962c02bc5eb"
 
 [[projects]]
+  branch = "master"
   name = "github.com/pkg/sftp"
   packages = ["."]
-  revision = "98203f5a8333288eb3163b7c667d4260fe1333e9"
-  version = "1.0.0"
+  revision = "7c1f7a370726a2457b33b29baefc2402b4965c65"
 
 [[projects]]
   name = "github.com/pmezard/go-difflib"
@@ -203,7 +226,7 @@
   branch = "master"
   name = "github.com/spf13/cobra"
   packages = [".","doc"]
-  revision = "3c0b56b677e04926dfa835a1b3f11cd4f62f076e"
+  revision = "e5f66de850af3302fbe378c8acded2b0fa55472c"
 
 [[projects]]
   branch = "master"
@@ -224,56 +247,56 @@
   revision = "ba9c9e33906f58169366275e3450db66139a31a9"
 
 [[projects]]
+  branch = "master"
   name = "github.com/yunify/qingstor-sdk-go"
   packages = [".","config","logger","request","request/builder","request/data","request/errors","request/signer","request/unpacker","service","utils"]
-  revision = "69277cb8cc9c83c40b94161a61cb5487661a1afd"
-  version = "v2.2.7"
+  revision = "088fbd27bd49adf215d02a05c36c5ac2d243d1f1"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["curve25519","ed25519","ed25519/internal/edwards25519","nacl/secretbox","pbkdf2","poly1305","salsa20/salsa","scrypt","ssh","ssh/agent","ssh/terminal"]
-  revision = "81e90905daefcd6fd217b62423c0908922eadb30"
+  revision = "76eec36fa14229c4b25bb894c2d0e591527af429"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
-  packages = ["context","context/ctxhttp","html","html/atom"]
-  revision = "66aacef3dd8a676686c7ae3716979581e8b03c47"
+  packages = ["context","context/ctxhttp","html","html/atom","webdav","webdav/internal/xml"]
+  revision = "0a9397675ba34b2845f758fe3cd68828369c6517"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/oauth2"
   packages = [".","google","internal","jws","jwt"]
-  revision = "d89af98d7c6bba047c5a2622f36bc14b8766df85"
+  revision = "bb50c06baba3d0c76f9d125c0719093e315b5b44"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix","windows"]
-  revision = "7ddbeae9ae08c6a06a59597f0c9edbc5ff2444ce"
+  revision = "314a259e304ff91bd6985da2a7149bbf91237993"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/text"
   packages = ["internal/gen","internal/triegen","internal/ucd","transform","unicode/cldr","unicode/norm"]
-  revision = "bd91bbf73e9a4a801adbfb97133c992678533126"
+  revision = "1cbadb444a806fd9430d14ad08967ed91da4fa0a"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/time"
   packages = ["rate"]
-  revision = "8be79e1e0910c292df4e79c241bb7e8f7e725959"
+  revision = "6dc17368e09b0e8634d71cac8168d853e869a0c7"
 
 [[projects]]
   branch = "master"
   name = "google.golang.org/api"
   packages = ["drive/v2","gensupport","googleapi","googleapi/internal/uritemplates","storage/v1"]
-  revision = "519500316f39a9934d1d88615a1a047035a4bae5"
+  revision = "906273f42cdebd65de3a53f30dd9e23de1b55ba9"
 
 [[projects]]
   name = "google.golang.org/appengine"
-  packages = [".","internal","internal/app_identity","internal/base","internal/datastore","internal/log","internal/modules","internal/remote_api","internal/urlfetch","urlfetch"]
+  packages = [".","internal","internal/app_identity","internal/base","internal/datastore","internal/log","internal/modules","internal/remote_api","internal/urlfetch","log","urlfetch"]
   revision = "150dc57a1b433e64154302bdc40b6bb8aefa313a"
   version = "v1.0.0"
 
@@ -286,6 +309,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e660aa956f1e580bda1ce240cdb673bcbc00bb8f2ef2e77e85d3d941528836f1"
+  inputs-digest = "4dfe75b3ebfff3e7b40e2983d8c014f9e4d98fed08c3fe454f1dc890589e6960"
   solver-name = "gps-cdcl"
   solver-version = 1

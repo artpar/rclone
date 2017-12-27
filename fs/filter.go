@@ -23,6 +23,7 @@ var (
 	filterFrom     = StringArrayP("filter-from", "", nil, "Read filtering patterns from a file")
 	excludeRule    = StringArrayP("exclude", "", nil, "Exclude files matching pattern")
 	excludeFrom    = StringArrayP("exclude-from", "", nil, "Read exclude patterns from file")
+	excludeFile    = StringP("exclude-if-present", "", "", "Exclude directories if filename is present")
 	includeRule    = StringArrayP("include", "", nil, "Include files matching pattern")
 	includeFrom    = StringArrayP("include-from", "", nil, "Read include patterns from file")
 	filesFrom      = StringArrayP("files-from", "", nil, "Read list of source-file names from file")
@@ -30,7 +31,6 @@ var (
 	maxAge         = StringP("max-age", "", "", "Don't transfer any file older than this in s or suffix ms|s|m|h|d|w|M|y")
 	minSize        = SizeSuffix(-1)
 	maxSize        = SizeSuffix(-1)
-	dumpFilters    = BoolP("dump-filters", "", false, "Dump the filters to the output")
 	//cvsExclude     = BoolP("cvs-exclude", "C", false, "Exclude files in the same way CVS does")
 )
 
@@ -105,6 +105,7 @@ type Filter struct {
 	ModTimeTo      time.Time
 	fileRules      rules
 	dirRules       rules
+	ExcludeFile    string
 	files          FilesMap // files if filesFrom
 	dirs           FilesMap // dirs from filesFrom
 }
@@ -155,6 +156,7 @@ func NewFilter() (f *Filter, err error) {
 		MaxSize:        int64(maxSize),
 	}
 	addImplicitExclude := false
+	foundExcludeRule := false
 
 	if includeRule != nil {
 		for _, rule := range *includeRule {
@@ -182,6 +184,7 @@ func NewFilter() (f *Filter, err error) {
 			if err != nil {
 				return nil, err
 			}
+			foundExcludeRule = true
 		}
 	}
 	if excludeFrom != nil {
@@ -192,8 +195,14 @@ func NewFilter() (f *Filter, err error) {
 			if err != nil {
 				return nil, err
 			}
+			foundExcludeRule = true
 		}
 	}
+
+	if addImplicitExclude && foundExcludeRule {
+		Infof(nil, "Using --filter is recommended instead of both --include and --exclude as the order they are parsed in is indeterminate")
+	}
+
 	if filterRule != nil {
 		for _, rule := range *filterRule {
 			err = f.AddRule(rule)
@@ -221,6 +230,7 @@ func NewFilter() (f *Filter, err error) {
 			}
 		}
 	}
+	f.ExcludeFile = *excludeFile
 	if addImplicitExclude {
 		err = f.Add(false, "/**")
 		if err != nil {
@@ -246,7 +256,7 @@ func NewFilter() (f *Filter, err error) {
 		}
 		Debugf(nil, "--max-age %v to %v", duration, f.ModTimeFrom)
 	}
-	if *dumpFilters {
+	if Config.Dump&DumpFilters != 0 {
 		fmt.Println("--- start filters ---")
 		fmt.Println(f.DumpFilters())
 		fmt.Println("--- end filters ---")
@@ -372,7 +382,8 @@ func (f *Filter) InActive() bool {
 		f.MinSize < 0 &&
 		f.MaxSize < 0 &&
 		f.fileRules.len() == 0 &&
-		f.dirRules.len() == 0)
+		f.dirRules.len() == 0 &&
+		len(f.ExcludeFile) == 0)
 }
 
 // includeRemote returns whether this remote passes the filter rules.
@@ -385,22 +396,68 @@ func (f *Filter) includeRemote(remote string) bool {
 	return true
 }
 
-// IncludeDirectory returns whether this directory should be included
-// in the sync or not.
-func (f *Filter) IncludeDirectory(remote string) bool {
-	remote = strings.Trim(remote, "/")
-	// filesFrom takes precedence
-	if f.files != nil {
-		_, include := f.dirs[remote]
-		return include
+// ListContainsExcludeFile checks if exclude file is present in the list.
+func (f *Filter) ListContainsExcludeFile(entries DirEntries) bool {
+	if len(f.ExcludeFile) == 0 {
+		return false
 	}
-	remote += "/"
-	for _, rule := range f.dirRules.rules {
-		if rule.Match(remote) {
-			return rule.Include
+	for _, entry := range entries {
+		obj, ok := entry.(Object)
+		if ok {
+			basename := path.Base(obj.Remote())
+			if basename == f.ExcludeFile {
+				return true
+			}
 		}
 	}
-	return true
+	return false
+}
+
+// IncludeDirectory returns a function which checks whether this
+// directory should be included in the sync or not.
+func (f *Filter) IncludeDirectory(fs Fs) func(string) (bool, error) {
+	return func(remote string) (bool, error) {
+		remote = strings.Trim(remote, "/")
+		// first check if we need to remove directory based on
+		// the exclude file
+		excl, err := f.DirContainsExcludeFile(fs, remote)
+		if err != nil {
+			return false, err
+		}
+		if excl {
+			return false, nil
+		}
+
+		// filesFrom takes precedence
+		if f.files != nil {
+			_, include := f.dirs[remote]
+			return include, nil
+		}
+		remote += "/"
+		for _, rule := range f.dirRules.rules {
+			if rule.Match(remote) {
+				return rule.Include, nil
+			}
+		}
+
+		return true, nil
+	}
+}
+
+// DirContainsExcludeFile checks if exclude file is present in a
+// directroy. If fs is nil, it works properly if ExcludeFile is an
+// empty string (for testing).
+func (f *Filter) DirContainsExcludeFile(fs Fs, remote string) (bool, error) {
+	if len(Config.Filter.ExcludeFile) > 0 {
+		exists, err := FileExists(fs, path.Join(remote, Config.Filter.ExcludeFile))
+		if err != nil {
+			return false, err
+		}
+		if exists {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // Include returns whether this object should be included into the

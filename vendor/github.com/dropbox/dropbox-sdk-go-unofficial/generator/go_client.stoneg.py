@@ -1,7 +1,7 @@
 import os
 
-from stone.generator import CodeGenerator
-from stone.data_type import (
+from stone.backend import CodeBackend
+from stone.ir import (
     is_void_type,
     is_struct_type
 )
@@ -14,7 +14,7 @@ from go_helpers import (
 )
 
 
-class GoClientGenerator(CodeGenerator):
+class GoClientBackend(CodeBackend):
     def generate(self, api):
         for namespace in api.namespaces.values():
             if len(namespace.routes) > 0:
@@ -40,7 +40,7 @@ class GoClientGenerator(CodeGenerator):
             for route in namespace.routes:
                 self._generate_route(namespace, route)
             self.emit('// New returns a Client implementation for this namespace')
-            with self.block('func New(c dropbox.Config) *apiImpl'):
+            with self.block('func New(c dropbox.Config) Client'):
                 self.emit('ctx := apiImpl(dropbox.NewContext(c))')
                 self.emit('return &ctx')
 
@@ -107,7 +107,7 @@ class GoClientGenerator(CodeGenerator):
 
         body = 'nil'
         if not is_void_type(route.arg_data_type):
-            out('dbx.Config.TryLog("arg: %v", arg)')
+            out('dbx.Config.LogDebug("arg: %v", arg)')
 
             out('b, err := json.Marshal(arg)')
             with self.block('if err != nil'):
@@ -120,7 +120,7 @@ class GoClientGenerator(CodeGenerator):
 
         headers = {}
         if not is_void_type(route.arg_data_type):
-            if host == 'content':
+            if host == 'content' or style in ['upload', 'download']:
                 headers["Dropbox-API-Arg"] = "string(b)"
             else:
                 headers["Content-Type"] = '"application/json"'
@@ -144,7 +144,7 @@ class GoClientGenerator(CodeGenerator):
         with self.block('if err != nil'):
             out('return')
 
-        out('dbx.Config.TryLog("req: %v", req)')
+        out('dbx.Config.LogInfo("req: %v", req)')
 
         out()
 
@@ -157,7 +157,7 @@ class GoClientGenerator(CodeGenerator):
             out('return')
         out()
 
-        out('dbx.Config.TryLog("resp: %v", resp)')
+        out('dbx.Config.LogInfo("resp: %v", resp)')
 
     def _generate_response(self, route):
         out = self.emit
@@ -172,11 +172,19 @@ class GoClientGenerator(CodeGenerator):
                 out('return')
             out()
 
-        out('dbx.Config.TryLog("body: %v", body)')
+        out('dbx.Config.LogDebug("body: %v", body)')
 
     def _generate_error_handling(self, route):
         out = self.emit
+        style = route.attrs.get('style', 'rpc')
         with self.block('if resp.StatusCode == http.StatusConflict'):
+            # If style was download, body was assigned to a header.
+            # Need to re-read the response body to parse the error
+            if style == 'download':
+                out('defer resp.Body.Close()')
+                with self.block('body, err = ioutil.ReadAll(resp.Body);'
+                                'if err != nil'):
+                    out('return')
             out('var apiError %sAPIError' % fmt_var(route.name))
             with self.block('err = json.Unmarshal(body, &apiError);'
                             'if err != nil'):
@@ -184,7 +192,8 @@ class GoClientGenerator(CodeGenerator):
             out('err = apiError')
             out('return')
         out('var apiError dropbox.APIError')
-        with self.block('if resp.StatusCode == http.StatusBadRequest'):
+        with self.block("if resp.StatusCode == http.StatusBadRequest || "
+                        "resp.StatusCode == http.StatusInternalServerError"):
             out('apiError.ErrorSummary = string(body)')
             out('err = apiError')
             out('return')

@@ -3,25 +3,19 @@
 package mount
 
 import (
+	"os"
 	"time"
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
-	"github.com/artpar/rclone/cmd/mountlib"
 	"github.com/artpar/rclone/fs"
-	"github.com/pkg/errors"
+	"github.com/artpar/rclone/vfs"
 	"golang.org/x/net/context"
 )
 
 // File represents a file
 type File struct {
-	*mountlib.File
-	// size           int64        // size of file - read and written with atomic int64 - must be 64 bit aligned
-	// d              *Dir         // parent directory - read only
-	// mu             sync.RWMutex // protects the following
-	// o              fs.Object    // NB o may be nil if file is being written
-	// writers        int          // number of writers for this file
-	// pendingModTime time.Time    // will be applied once o becomes available, i.e. after file was written
+	*vfs.File
 }
 
 // Check interface satisfied
@@ -30,13 +24,12 @@ var _ fusefs.Node = (*File)(nil)
 // Attr fills out the attributes for the file
 func (f *File) Attr(ctx context.Context, a *fuse.Attr) (err error) {
 	defer fs.Trace(f, "")("a=%+v, err=%v", a, &err)
-	modTime, Size, Blocks, err := f.File.Attr(mountlib.NoModTime)
-	if err != nil {
-		return translateError(err)
-	}
-	a.Gid = mountlib.GID
-	a.Uid = mountlib.UID
-	a.Mode = mountlib.FilePerms
+	modTime := f.File.ModTime()
+	Size := uint64(f.File.Size())
+	Blocks := (Size + 511) / 512
+	a.Gid = f.VFS().Opt.GID
+	a.Uid = f.VFS().Opt.UID
+	a.Mode = f.VFS().Opt.FilePerms
 	a.Size = Size
 	a.Atime = modTime
 	a.Mtime = modTime
@@ -49,16 +42,19 @@ func (f *File) Attr(ctx context.Context, a *fuse.Attr) (err error) {
 // Check interface satisfied
 var _ fusefs.NodeSetattrer = (*File)(nil)
 
-// Setattr handles attribute changes from FUSE. Currently supports ModTime only.
+// Setattr handles attribute changes from FUSE. Currently supports ModTime and Size only
 func (f *File) Setattr(ctx context.Context, req *fuse.SetattrRequest, resp *fuse.SetattrResponse) (err error) {
 	defer fs.Trace(f, "a=%+v", req)("err=%v", &err)
-	if mountlib.NoModTime {
-		return nil
+	if !f.VFS().Opt.NoModTime {
+		if req.Valid.MtimeNow() {
+			err = f.File.SetModTime(time.Now())
+		}
+		if req.Valid.Mtime() {
+			err = f.File.SetModTime(req.Mtime)
+		}
 	}
-	if req.Valid.MtimeNow() {
-		err = f.File.SetModTime(time.Now())
-	} else if req.Valid.Mtime() {
-		err = f.File.SetModTime(req.Mtime)
+	if req.Valid.Size() {
+		err = f.File.Truncate(int64(req.Size))
 	}
 	return translateError(err)
 }
@@ -69,41 +65,23 @@ var _ fusefs.NodeOpener = (*File)(nil)
 // Open the file for read or write
 func (f *File) Open(ctx context.Context, req *fuse.OpenRequest, resp *fuse.OpenResponse) (fh fusefs.Handle, err error) {
 	defer fs.Trace(f, "flags=%v", req.Flags)("fh=%v, err=%v", &fh, &err)
-	switch {
-	case req.Flags.IsReadOnly():
-		if mountlib.NoSeek {
-			resp.Flags |= fuse.OpenNonSeekable
-		}
-		var rfh *mountlib.ReadFileHandle
-		rfh, err = f.File.OpenRead()
-		fh = &ReadFileHandle{rfh}
-	case req.Flags.IsWriteOnly() || (req.Flags.IsReadWrite() && (req.Flags&fuse.OpenTruncate) != 0):
-		resp.Flags |= fuse.OpenNonSeekable
-		var wfh *mountlib.WriteFileHandle
-		wfh, err = f.File.OpenWrite()
-		fh = &WriteFileHandle{wfh}
-	case req.Flags.IsReadWrite():
-		err = errors.New("can't open for read and write simultaneously")
-	default:
-		err = errors.Errorf("can't figure out how to open with flags %v", req.Flags)
-	}
 
-	/*
-	   // File was opened in append-only mode, all writes will go to end
-	   // of file. OS X does not provide this information.
-	   OpenAppend    OpenFlags = syscall.O_APPEND
-	   OpenCreate    OpenFlags = syscall.O_CREAT
-	   OpenDirectory OpenFlags = syscall.O_DIRECTORY
-	   OpenExclusive OpenFlags = syscall.O_EXCL
-	   OpenNonblock  OpenFlags = syscall.O_NONBLOCK
-	   OpenSync      OpenFlags = syscall.O_SYNC
-	   OpenTruncate  OpenFlags = syscall.O_TRUNC
-	*/
-
+	// fuse flags are based off syscall flags as are os flags, so
+	// should be compatible
+	//
+	// we seem to be missing O_CREATE here so add it in to allow
+	// file creation
+	handle, err := f.File.Open(int(req.Flags) | os.O_CREATE)
 	if err != nil {
 		return nil, translateError(err)
 	}
-	return fh, nil
+
+	// See if seeking is supported and set FUSE hint accordingly
+	if _, err = handle.Seek(0, 1); err != nil {
+		resp.Flags |= fuse.OpenNonSeekable
+	}
+
+	return &FileHandle{handle}, nil
 }
 
 // Check interface satisfied

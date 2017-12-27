@@ -19,6 +19,9 @@ import (
 	"github.com/billziss-gh/cgofuse/fuse"
 	"github.com/artpar/rclone/cmd/mountlib"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfsflags"
+	"github.com/okzk/sdnotify"
 	"github.com/pkg/errors"
 )
 
@@ -37,6 +40,11 @@ func mountOptions(device string, mountpoint string) (options []string) {
 		"-o", "fsname=" + device,
 		"-o", "subtype=rclone",
 		"-o", fmt.Sprintf("max_readahead=%d", mountlib.MaxReadAhead),
+		// This causes FUSE to supply O_TRUNC with the Open
+		// call which is more efficient for cmount.  However
+		// it does not work with cgofuse on Windows with
+		// WinFSP so cmount must work with or without it.
+		"-o", "atomic_o_trunc",
 	}
 	if mountlib.DebugFUSE {
 		options = append(options, "-o", "debug")
@@ -69,19 +77,33 @@ func mountOptions(device string, mountpoint string) (options []string) {
 	if mountlib.DefaultPermissions {
 		options = append(options, "-o", "default_permissions")
 	}
-	if mountlib.ReadOnly {
+	if vfsflags.Opt.ReadOnly {
 		options = append(options, "-o", "ro")
 	}
 	if mountlib.WritebackCache {
 		// FIXME? options = append(options, "-o", WritebackCache())
 	}
-	for _, option := range *mountlib.ExtraOptions {
+	for _, option := range mountlib.ExtraOptions {
 		options = append(options, "-o", option)
 	}
-	for _, option := range *mountlib.ExtraFlags {
+	for _, option := range mountlib.ExtraFlags {
 		options = append(options, option)
 	}
 	return options
+}
+
+// waitFor runs fn() until it returns true or the timeout expires
+func waitFor(fn func() bool) (ok bool) {
+	const totalWait = 10 * time.Second
+	const individualWait = 10 * time.Millisecond
+	for i := 0; i < int(totalWait/individualWait); i++ {
+		ok = fn()
+		if ok {
+			return ok
+		}
+		time.Sleep(individualWait)
+	}
+	return false
 }
 
 // mount the file system
@@ -90,7 +112,7 @@ func mountOptions(device string, mountpoint string) (options []string) {
 //
 // returns an error, and an error channel for the serve process to
 // report an error when fusermount is called.
-func mount(f fs.Fs, mountpoint string) (*mountlib.FS, <-chan error, func() error, error) {
+func mount(f fs.Fs, mountpoint string) (*vfs.VFS, <-chan error, func() error, error) {
 	fs.Debugf(f, "Mounting on %q", mountpoint)
 
 	// Check the mountpoint - in Windows the mountpoint musn't exist before the mount
@@ -126,9 +148,19 @@ func mount(f fs.Fs, mountpoint string) (*mountlib.FS, <-chan error, func() error
 
 	// unmount
 	unmount := func() error {
+		// Shutdown the VFS
+		fsys.VFS.Shutdown()
 		fs.Debugf(nil, "Calling host.Unmount")
 		if host.Unmount() {
 			fs.Debugf(nil, "host.Unmount succeeded")
+			if runtime.GOOS == "windows" {
+				if !waitFor(func() bool {
+					_, err := os.Stat(mountpoint)
+					return err != nil
+				}) {
+					fs.Errorf(nil, "mountpoint %q didn't disappear after unmount - continuing anyway", mountpoint)
+				}
+			}
 			return nil
 		}
 		fs.Debugf(nil, "host.Unmount failed")
@@ -147,20 +179,15 @@ func mount(f fs.Fs, mountpoint string) (*mountlib.FS, <-chan error, func() error
 	// Wait for the mount point to be available on Windows
 	// On Windows the Init signal comes slightly before the mount is ready
 	if runtime.GOOS == "windows" {
-		const totalWait = 10 * time.Second
-		const individualWait = 10 * time.Millisecond
-		for i := 0; i < int(totalWait/individualWait); i++ {
+		if !waitFor(func() bool {
 			_, err := os.Stat(mountpoint)
-			if err == nil {
-				goto found
-			}
-			time.Sleep(10 * time.Millisecond)
+			return err == nil
+		}) {
+			fs.Errorf(nil, "mountpoint %q didn't became available on mount - continuing anyway", mountpoint)
 		}
-		fs.Errorf(nil, "mountpoint %q didn't became available after %v - continuing anyway", mountpoint, totalWait)
-	found:
 	}
 
-	return fsys.FS, errChan, unmount, nil
+	return fsys.VFS, errChan, unmount, nil
 }
 
 // Mount mounts the remote at mountpoint.
@@ -177,6 +204,10 @@ func Mount(f fs.Fs, mountpoint string) error {
 
 	sigHup := make(chan os.Signal, 1)
 	signal.Notify(sigHup, syscall.SIGHUP)
+
+	if err := sdnotify.SdNotifyReady(); err != nil && err != sdnotify.SdNotifyNoSocket {
+		return errors.Wrap(err, "failed to notify systemd")
+	}
 
 waitloop:
 	for {
@@ -195,6 +226,7 @@ waitloop:
 		}
 	}
 
+	_ = sdnotify.SdNotifyStopping()
 	if err != nil {
 		return errors.Wrap(err, "failed to umount FUSE fs")
 	}

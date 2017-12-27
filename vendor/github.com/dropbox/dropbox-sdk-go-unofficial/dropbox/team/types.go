@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
-	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/properties"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/team_common"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/team_policies"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/users"
@@ -34,16 +33,16 @@ import (
 
 // DeviceSession : has no documentation (yet)
 type DeviceSession struct {
-	// SessionId : The session id
+	// SessionId : The session id.
 	SessionId string `json:"session_id"`
-	// IpAddress : The IP address of the last activity from this session
+	// IpAddress : The IP address of the last activity from this session.
 	IpAddress string `json:"ip_address,omitempty"`
 	// Country : The country from which the last activity from this session was
-	// made
+	// made.
 	Country string `json:"country,omitempty"`
-	// Created : The time this session was created
+	// Created : The time this session was created.
 	Created time.Time `json:"created,omitempty"`
-	// Updated : The time of the last activity from this session
+	// Updated : The time of the last activity from this session.
 	Updated time.Time `json:"updated,omitempty"`
 }
 
@@ -54,16 +53,16 @@ func NewDeviceSession(SessionId string) *DeviceSession {
 	return s
 }
 
-// ActiveWebSession : Information on active web sessions
+// ActiveWebSession : Information on active web sessions.
 type ActiveWebSession struct {
 	DeviceSession
-	// UserAgent : Information on the hosting device
+	// UserAgent : Information on the hosting device.
 	UserAgent string `json:"user_agent"`
-	// Os : Information on the hosting operating system
+	// Os : Information on the hosting operating system.
 	Os string `json:"os"`
-	// Browser : Information on the browser used for this web session
+	// Browser : Information on the browser used for this web session.
 	Browser string `json:"browser"`
-	// Expires : The time this session expires
+	// Expires : The time this session expires.
 	Expires time.Time `json:"expires,omitempty"`
 }
 
@@ -74,34 +73,6 @@ func NewActiveWebSession(SessionId string, UserAgent string, Os string, Browser 
 	s.UserAgent = UserAgent
 	s.Os = Os
 	s.Browser = Browser
-	return s
-}
-
-// AddPropertyTemplateArg : Arguments for adding property templates.
-type AddPropertyTemplateArg struct {
-	properties.PropertyGroupTemplate
-}
-
-// NewAddPropertyTemplateArg returns a new AddPropertyTemplateArg instance
-func NewAddPropertyTemplateArg(Name string, Description string, Fields []*properties.PropertyFieldTemplate) *AddPropertyTemplateArg {
-	s := new(AddPropertyTemplateArg)
-	s.Name = Name
-	s.Description = Description
-	s.Fields = Fields
-	return s
-}
-
-// AddPropertyTemplateResult : has no documentation (yet)
-type AddPropertyTemplateResult struct {
-	// TemplateId : An identifier for property template added by
-	// `propertiesTemplateAdd`.
-	TemplateId string `json:"template_id"`
-}
-
-// NewAddPropertyTemplateResult returns a new AddPropertyTemplateResult instance
-func NewAddPropertyTemplateResult(TemplateId string) *AddPropertyTemplateResult {
-	s := new(AddPropertyTemplateResult)
-	s.TemplateId = TemplateId
 	return s
 }
 
@@ -118,19 +89,19 @@ const (
 	AdminTierMemberOnly          = "member_only"
 )
 
-// ApiApp : Information on linked third party applications
+// ApiApp : Information on linked third party applications.
 type ApiApp struct {
-	// AppId : The application unique id
+	// AppId : The application unique id.
 	AppId string `json:"app_id"`
-	// AppName : The application name
+	// AppName : The application name.
 	AppName string `json:"app_name"`
-	// Publisher : The application publisher name
+	// Publisher : The application publisher name.
 	Publisher string `json:"publisher,omitempty"`
-	// PublisherUrl : The publisher's URL
+	// PublisherUrl : The publisher's URL.
 	PublisherUrl string `json:"publisher_url,omitempty"`
-	// Linked : The time this application was linked
+	// Linked : The time this application was linked.
 	Linked time.Time `json:"linked,omitempty"`
-	// IsAppFolder : Whether the linked application uses a dedicated folder
+	// IsAppFolder : Whether the linked application uses a dedicated folder.
 	IsAppFolder bool `json:"is_app_folder"`
 }
 
@@ -216,11 +187,83 @@ func (u *BaseTeamFolderError) UnmarshalJSON(body []byte) error {
 	return nil
 }
 
+// CustomQuotaError : Error returned when getting member custom quota.
+type CustomQuotaError struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for CustomQuotaError
+const (
+	CustomQuotaErrorTooManyUsers = "too_many_users"
+	CustomQuotaErrorOther        = "other"
+)
+
+// CustomQuotaResult : User custom quota.
+type CustomQuotaResult struct {
+	dropbox.Tagged
+	// Success : User's custom quota.
+	Success *UserCustomQuotaResult `json:"success,omitempty"`
+	// InvalidUser : Invalid user (not in team).
+	InvalidUser *UserSelectorArg `json:"invalid_user,omitempty"`
+}
+
+// Valid tag values for CustomQuotaResult
+const (
+	CustomQuotaResultSuccess     = "success"
+	CustomQuotaResultInvalidUser = "invalid_user"
+	CustomQuotaResultOther       = "other"
+)
+
+// UnmarshalJSON deserializes into a CustomQuotaResult instance
+func (u *CustomQuotaResult) UnmarshalJSON(body []byte) error {
+	type wrap struct {
+		dropbox.Tagged
+		// Success : User's custom quota.
+		Success json.RawMessage `json:"success,omitempty"`
+		// InvalidUser : Invalid user (not in team).
+		InvalidUser json.RawMessage `json:"invalid_user,omitempty"`
+	}
+	var w wrap
+	var err error
+	if err = json.Unmarshal(body, &w); err != nil {
+		return err
+	}
+	u.Tag = w.Tag
+	switch u.Tag {
+	case "success":
+		err = json.Unmarshal(body, &u.Success)
+
+		if err != nil {
+			return err
+		}
+	case "invalid_user":
+		err = json.Unmarshal(w.InvalidUser, &u.InvalidUser)
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CustomQuotaUsersArg : has no documentation (yet)
+type CustomQuotaUsersArg struct {
+	// Users : List of users.
+	Users []*UserSelectorArg `json:"users"`
+}
+
+// NewCustomQuotaUsersArg returns a new CustomQuotaUsersArg instance
+func NewCustomQuotaUsersArg(Users []*UserSelectorArg) *CustomQuotaUsersArg {
+	s := new(CustomQuotaUsersArg)
+	s.Users = Users
+	return s
+}
+
 // DateRange : Input arguments that can be provided for most reports.
 type DateRange struct {
-	// StartDate : Optional starting date (inclusive)
+	// StartDate : Optional starting date (inclusive).
 	StartDate time.Time `json:"start_date,omitempty"`
-	// EndDate : Optional ending date (exclusive)
+	// EndDate : Optional ending date (exclusive).
 	EndDate time.Time `json:"end_date,omitempty"`
 }
 
@@ -242,19 +285,19 @@ const (
 )
 
 // DesktopClientSession : Information about linked Dropbox desktop client
-// sessions
+// sessions.
 type DesktopClientSession struct {
 	DeviceSession
-	// HostName : Name of the hosting desktop
+	// HostName : Name of the hosting desktop.
 	HostName string `json:"host_name"`
-	// ClientType : The Dropbox desktop client type
+	// ClientType : The Dropbox desktop client type.
 	ClientType *DesktopPlatform `json:"client_type"`
-	// ClientVersion : The Dropbox client version
+	// ClientVersion : The Dropbox client version.
 	ClientVersion string `json:"client_version"`
-	// Platform : Information on the hosting platform
+	// Platform : Information on the hosting platform.
 	Platform string `json:"platform"`
 	// IsDeleteOnUnlinkSupported : Whether it's possible to delete all of the
-	// account files upon unlinking
+	// account files upon unlinking.
 	IsDeleteOnUnlinkSupported bool `json:"is_delete_on_unlink_supported"`
 }
 
@@ -285,9 +328,9 @@ const (
 
 // DeviceSessionArg : has no documentation (yet)
 type DeviceSessionArg struct {
-	// SessionId : The session id
+	// SessionId : The session id.
 	SessionId string `json:"session_id"`
-	// TeamMemberId : The unique id of the member owning the device
+	// TeamMemberId : The unique id of the member owning the device.
 	TeamMemberId string `json:"team_member_id"`
 }
 
@@ -334,6 +377,126 @@ func NewDevicesActive(Windows []uint64, Macos []uint64, Linux []uint64, Ios []ui
 	return s
 }
 
+// ExcludedUsersListArg : Excluded users list argument.
+type ExcludedUsersListArg struct {
+	// Limit : Number of results to return per call.
+	Limit uint32 `json:"limit"`
+}
+
+// NewExcludedUsersListArg returns a new ExcludedUsersListArg instance
+func NewExcludedUsersListArg() *ExcludedUsersListArg {
+	s := new(ExcludedUsersListArg)
+	s.Limit = 1000
+	return s
+}
+
+// ExcludedUsersListContinueArg : Excluded users list continue argument.
+type ExcludedUsersListContinueArg struct {
+	// Cursor : Indicates from what point to get the next set of users.
+	Cursor string `json:"cursor"`
+}
+
+// NewExcludedUsersListContinueArg returns a new ExcludedUsersListContinueArg instance
+func NewExcludedUsersListContinueArg(Cursor string) *ExcludedUsersListContinueArg {
+	s := new(ExcludedUsersListContinueArg)
+	s.Cursor = Cursor
+	return s
+}
+
+// ExcludedUsersListContinueError : Excluded users list continue error.
+type ExcludedUsersListContinueError struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for ExcludedUsersListContinueError
+const (
+	ExcludedUsersListContinueErrorInvalidCursor = "invalid_cursor"
+	ExcludedUsersListContinueErrorOther         = "other"
+)
+
+// ExcludedUsersListError : Excluded users list error.
+type ExcludedUsersListError struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for ExcludedUsersListError
+const (
+	ExcludedUsersListErrorListError = "list_error"
+	ExcludedUsersListErrorOther     = "other"
+)
+
+// ExcludedUsersListResult : Excluded users list result.
+type ExcludedUsersListResult struct {
+	// Users : has no documentation (yet)
+	Users []*MemberProfile `json:"users"`
+	// Cursor : Pass the cursor into
+	// `memberSpaceLimitsExcludedUsersListContinue` to obtain additional
+	// excluded users.
+	Cursor string `json:"cursor,omitempty"`
+	// HasMore : Is true if there are additional excluded users that have not
+	// been returned yet. An additional call to
+	// `memberSpaceLimitsExcludedUsersListContinue` can retrieve them.
+	HasMore bool `json:"has_more"`
+}
+
+// NewExcludedUsersListResult returns a new ExcludedUsersListResult instance
+func NewExcludedUsersListResult(Users []*MemberProfile, HasMore bool) *ExcludedUsersListResult {
+	s := new(ExcludedUsersListResult)
+	s.Users = Users
+	s.HasMore = HasMore
+	return s
+}
+
+// ExcludedUsersUpdateArg : Argument of excluded users update operation. Should
+// include a list of users to add/remove (according to endpoint), Maximum size
+// of the list is 1000 users.
+type ExcludedUsersUpdateArg struct {
+	// Users : List of users to be added/removed.
+	Users []*UserSelectorArg `json:"users,omitempty"`
+}
+
+// NewExcludedUsersUpdateArg returns a new ExcludedUsersUpdateArg instance
+func NewExcludedUsersUpdateArg() *ExcludedUsersUpdateArg {
+	s := new(ExcludedUsersUpdateArg)
+	return s
+}
+
+// ExcludedUsersUpdateError : Excluded users update error.
+type ExcludedUsersUpdateError struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for ExcludedUsersUpdateError
+const (
+	ExcludedUsersUpdateErrorUsersNotInTeam = "users_not_in_team"
+	ExcludedUsersUpdateErrorTooManyUsers   = "too_many_users"
+	ExcludedUsersUpdateErrorOther          = "other"
+)
+
+// ExcludedUsersUpdateResult : Excluded users update result.
+type ExcludedUsersUpdateResult struct {
+	// Status : Update status.
+	Status *ExcludedUsersUpdateStatus `json:"status"`
+}
+
+// NewExcludedUsersUpdateResult returns a new ExcludedUsersUpdateResult instance
+func NewExcludedUsersUpdateResult(Status *ExcludedUsersUpdateStatus) *ExcludedUsersUpdateResult {
+	s := new(ExcludedUsersUpdateResult)
+	s.Status = Status
+	return s
+}
+
+// ExcludedUsersUpdateStatus : Excluded users update operation status.
+type ExcludedUsersUpdateStatus struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for ExcludedUsersUpdateStatus
+const (
+	ExcludedUsersUpdateStatusSuccess = "success"
+	ExcludedUsersUpdateStatusOther   = "other"
+)
+
 // Feature : A set of features that Dropbox for Business account support.
 type Feature struct {
 	dropbox.Tagged
@@ -343,6 +506,7 @@ type Feature struct {
 const (
 	FeatureUploadApiRateLimit   = "upload_api_rate_limit"
 	FeatureHasTeamSharedDropbox = "has_team_shared_dropbox"
+	FeatureHasTeamFileEvents    = "has_team_file_events"
 	FeatureOther                = "other"
 )
 
@@ -354,12 +518,15 @@ type FeatureValue struct {
 	UploadApiRateLimit *UploadApiRateLimitValue `json:"upload_api_rate_limit,omitempty"`
 	// HasTeamSharedDropbox : has no documentation (yet)
 	HasTeamSharedDropbox *HasTeamSharedDropboxValue `json:"has_team_shared_dropbox,omitempty"`
+	// HasTeamFileEvents : has no documentation (yet)
+	HasTeamFileEvents *HasTeamFileEventsValue `json:"has_team_file_events,omitempty"`
 }
 
 // Valid tag values for FeatureValue
 const (
 	FeatureValueUploadApiRateLimit   = "upload_api_rate_limit"
 	FeatureValueHasTeamSharedDropbox = "has_team_shared_dropbox"
+	FeatureValueHasTeamFileEvents    = "has_team_file_events"
 	FeatureValueOther                = "other"
 )
 
@@ -371,6 +538,8 @@ func (u *FeatureValue) UnmarshalJSON(body []byte) error {
 		UploadApiRateLimit json.RawMessage `json:"upload_api_rate_limit,omitempty"`
 		// HasTeamSharedDropbox : has no documentation (yet)
 		HasTeamSharedDropbox json.RawMessage `json:"has_team_shared_dropbox,omitempty"`
+		// HasTeamFileEvents : has no documentation (yet)
+		HasTeamFileEvents json.RawMessage `json:"has_team_file_events,omitempty"`
 	}
 	var w wrap
 	var err error
@@ -387,6 +556,12 @@ func (u *FeatureValue) UnmarshalJSON(body []byte) error {
 		}
 	case "has_team_shared_dropbox":
 		err = json.Unmarshal(w.HasTeamSharedDropbox, &u.HasTeamSharedDropbox)
+
+		if err != nil {
+			return err
+		}
+	case "has_team_file_events":
+		err = json.Unmarshal(w.HasTeamFileEvents, &u.HasTeamFileEvents)
 
 		if err != nil {
 			return err
@@ -654,6 +829,8 @@ type GroupSelectorWithTeamGroupError struct {
 
 // Valid tag values for GroupSelectorWithTeamGroupError
 const (
+	GroupSelectorWithTeamGroupErrorGroupNotFound                = "group_not_found"
+	GroupSelectorWithTeamGroupErrorOther                        = "other"
 	GroupSelectorWithTeamGroupErrorSystemManagedGroupDisallowed = "system_managed_group_disallowed"
 )
 
@@ -664,7 +841,10 @@ type GroupDeleteError struct {
 
 // Valid tag values for GroupDeleteError
 const (
-	GroupDeleteErrorGroupAlreadyDeleted = "group_already_deleted"
+	GroupDeleteErrorGroupNotFound                = "group_not_found"
+	GroupDeleteErrorOther                        = "other"
+	GroupDeleteErrorSystemManagedGroupDisallowed = "system_managed_group_disallowed"
+	GroupDeleteErrorGroupAlreadyDeleted          = "group_already_deleted"
 )
 
 // GroupFullInfo : Full description of a group.
@@ -728,7 +908,10 @@ type GroupMemberSelectorError struct {
 
 // Valid tag values for GroupMemberSelectorError
 const (
-	GroupMemberSelectorErrorMemberNotInGroup = "member_not_in_group"
+	GroupMemberSelectorErrorGroupNotFound                = "group_not_found"
+	GroupMemberSelectorErrorOther                        = "other"
+	GroupMemberSelectorErrorSystemManagedGroupDisallowed = "system_managed_group_disallowed"
+	GroupMemberSelectorErrorMemberNotInGroup             = "member_not_in_group"
 )
 
 // GroupMemberSetAccessTypeError : has no documentation (yet)
@@ -738,6 +921,10 @@ type GroupMemberSetAccessTypeError struct {
 
 // Valid tag values for GroupMemberSetAccessTypeError
 const (
+	GroupMemberSetAccessTypeErrorGroupNotFound                            = "group_not_found"
+	GroupMemberSetAccessTypeErrorOther                                    = "other"
+	GroupMemberSetAccessTypeErrorSystemManagedGroupDisallowed             = "system_managed_group_disallowed"
+	GroupMemberSetAccessTypeErrorMemberNotInGroup                         = "member_not_in_group"
 	GroupMemberSetAccessTypeErrorUserCannotBeManagerOfCompanyManagedGroup = "user_cannot_be_manager_of_company_managed_group"
 )
 
@@ -791,6 +978,9 @@ type GroupMembersAddError struct {
 
 // Valid tag values for GroupMembersAddError
 const (
+	GroupMembersAddErrorGroupNotFound                            = "group_not_found"
+	GroupMembersAddErrorOther                                    = "other"
+	GroupMembersAddErrorSystemManagedGroupDisallowed             = "system_managed_group_disallowed"
 	GroupMembersAddErrorDuplicateUser                            = "duplicate_user"
 	GroupMembersAddErrorGroupNotInTeam                           = "group_not_in_team"
 	GroupMembersAddErrorMembersNotInTeam                         = "members_not_in_team"
@@ -889,7 +1079,10 @@ type GroupMembersSelectorError struct {
 
 // Valid tag values for GroupMembersSelectorError
 const (
-	GroupMembersSelectorErrorMemberNotInGroup = "member_not_in_group"
+	GroupMembersSelectorErrorGroupNotFound                = "group_not_found"
+	GroupMembersSelectorErrorOther                        = "other"
+	GroupMembersSelectorErrorSystemManagedGroupDisallowed = "system_managed_group_disallowed"
+	GroupMembersSelectorErrorMemberNotInGroup             = "member_not_in_group"
 )
 
 // GroupMembersRemoveError : has no documentation (yet)
@@ -903,9 +1096,13 @@ type GroupMembersRemoveError struct {
 
 // Valid tag values for GroupMembersRemoveError
 const (
-	GroupMembersRemoveErrorGroupNotInTeam   = "group_not_in_team"
-	GroupMembersRemoveErrorMembersNotInTeam = "members_not_in_team"
-	GroupMembersRemoveErrorUsersNotFound    = "users_not_found"
+	GroupMembersRemoveErrorGroupNotFound                = "group_not_found"
+	GroupMembersRemoveErrorOther                        = "other"
+	GroupMembersRemoveErrorSystemManagedGroupDisallowed = "system_managed_group_disallowed"
+	GroupMembersRemoveErrorMemberNotInGroup             = "member_not_in_group"
+	GroupMembersRemoveErrorGroupNotInTeam               = "group_not_in_team"
+	GroupMembersRemoveErrorMembersNotInTeam             = "members_not_in_team"
+	GroupMembersRemoveErrorUsersNotFound                = "users_not_found"
 )
 
 // UnmarshalJSON deserializes into a GroupMembersRemoveError instance
@@ -1051,9 +1248,12 @@ type GroupUpdateError struct {
 
 // Valid tag values for GroupUpdateError
 const (
-	GroupUpdateErrorGroupNameAlreadyUsed   = "group_name_already_used"
-	GroupUpdateErrorGroupNameInvalid       = "group_name_invalid"
-	GroupUpdateErrorExternalIdAlreadyInUse = "external_id_already_in_use"
+	GroupUpdateErrorGroupNotFound                = "group_not_found"
+	GroupUpdateErrorOther                        = "other"
+	GroupUpdateErrorSystemManagedGroupDisallowed = "system_managed_group_disallowed"
+	GroupUpdateErrorGroupNameAlreadyUsed         = "group_name_already_used"
+	GroupUpdateErrorGroupNameInvalid             = "group_name_invalid"
+	GroupUpdateErrorExternalIdAlreadyInUse       = "external_id_already_in_use"
 )
 
 // GroupsGetInfoError : has no documentation (yet)
@@ -1242,7 +1442,10 @@ type GroupsPollError struct {
 
 // Valid tag values for GroupsPollError
 const (
-	GroupsPollErrorAccessDenied = "access_denied"
+	GroupsPollErrorInvalidAsyncJobId = "invalid_async_job_id"
+	GroupsPollErrorInternalError     = "internal_error"
+	GroupsPollErrorOther             = "other"
+	GroupsPollErrorAccessDenied      = "access_denied"
 )
 
 // GroupsSelector : Argument for selecting a list of groups, either by
@@ -1293,6 +1496,41 @@ func (u *GroupsSelector) UnmarshalJSON(body []byte) error {
 	return nil
 }
 
+// HasTeamFileEventsValue : The value for `Feature.has_team_file_events`.
+type HasTeamFileEventsValue struct {
+	dropbox.Tagged
+	// Enabled : Does this team have file events.
+	Enabled bool `json:"enabled,omitempty"`
+}
+
+// Valid tag values for HasTeamFileEventsValue
+const (
+	HasTeamFileEventsValueEnabled = "enabled"
+	HasTeamFileEventsValueOther   = "other"
+)
+
+// UnmarshalJSON deserializes into a HasTeamFileEventsValue instance
+func (u *HasTeamFileEventsValue) UnmarshalJSON(body []byte) error {
+	type wrap struct {
+		dropbox.Tagged
+	}
+	var w wrap
+	var err error
+	if err = json.Unmarshal(body, &w); err != nil {
+		return err
+	}
+	u.Tag = w.Tag
+	switch u.Tag {
+	case "enabled":
+		err = json.Unmarshal(body, &u.Enabled)
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // HasTeamSharedDropboxValue : The value for `Feature.has_team_shared_dropbox`.
 type HasTeamSharedDropboxValue struct {
 	dropbox.Tagged
@@ -1330,7 +1568,7 @@ func (u *HasTeamSharedDropboxValue) UnmarshalJSON(body []byte) error {
 
 // ListMemberAppsArg : has no documentation (yet)
 type ListMemberAppsArg struct {
-	// TeamMemberId : The team member id
+	// TeamMemberId : The team member id.
 	TeamMemberId string `json:"team_member_id"`
 }
 
@@ -1355,7 +1593,7 @@ const (
 // ListMemberAppsResult : has no documentation (yet)
 type ListMemberAppsResult struct {
 	// LinkedApiApps : List of third party applications linked by this team
-	// member
+	// member.
 	LinkedApiApps []*ApiApp `json:"linked_api_apps"`
 }
 
@@ -1368,15 +1606,15 @@ func NewListMemberAppsResult(LinkedApiApps []*ApiApp) *ListMemberAppsResult {
 
 // ListMemberDevicesArg : has no documentation (yet)
 type ListMemberDevicesArg struct {
-	// TeamMemberId : The team's member id
+	// TeamMemberId : The team's member id.
 	TeamMemberId string `json:"team_member_id"`
-	// IncludeWebSessions : Whether to list web sessions of the team's member
+	// IncludeWebSessions : Whether to list web sessions of the team's member.
 	IncludeWebSessions bool `json:"include_web_sessions"`
 	// IncludeDesktopClients : Whether to list linked desktop devices of the
-	// team's member
+	// team's member.
 	IncludeDesktopClients bool `json:"include_desktop_clients"`
 	// IncludeMobileClients : Whether to list linked mobile devices of the
-	// team's member
+	// team's member.
 	IncludeMobileClients bool `json:"include_mobile_clients"`
 }
 
@@ -1403,11 +1641,11 @@ const (
 
 // ListMemberDevicesResult : has no documentation (yet)
 type ListMemberDevicesResult struct {
-	// ActiveWebSessions : List of web sessions made by this team member
+	// ActiveWebSessions : List of web sessions made by this team member.
 	ActiveWebSessions []*ActiveWebSession `json:"active_web_sessions,omitempty"`
-	// DesktopClientSessions : List of desktop clients used by this team member
+	// DesktopClientSessions : List of desktop clients used by this team member.
 	DesktopClientSessions []*DesktopClientSession `json:"desktop_client_sessions,omitempty"`
-	// MobileClientSessions : List of mobile client used by this team member
+	// MobileClientSessions : List of mobile client used by this team member.
 	MobileClientSessions []*MobileClientSession `json:"mobile_client_sessions,omitempty"`
 }
 
@@ -1422,7 +1660,7 @@ type ListMembersAppsArg struct {
 	// Cursor : At the first call to the `linkedAppsListMembersLinkedApps` the
 	// cursor shouldn't be passed. Then, if the result of the call includes a
 	// cursor, the following requests should include the received cursors in
-	// order to receive the next sub list of the team applications
+	// order to receive the next sub list of the team applications.
 	Cursor string `json:"cursor,omitempty"`
 }
 
@@ -1432,7 +1670,7 @@ func NewListMembersAppsArg() *ListMembersAppsArg {
 	return s
 }
 
-// ListMembersAppsError : Error returned by `linkedAppsListMembersLinkedApps`
+// ListMembersAppsError : Error returned by `linkedAppsListMembersLinkedApps`.
 type ListMembersAppsError struct {
 	dropbox.Tagged
 }
@@ -1446,7 +1684,7 @@ const (
 // ListMembersAppsResult : Information returned by
 // `linkedAppsListMembersLinkedApps`.
 type ListMembersAppsResult struct {
-	// Apps : The linked applications of each member of the team
+	// Apps : The linked applications of each member of the team.
 	Apps []*MemberLinkedApps `json:"apps"`
 	// HasMore : If true, then there are more apps available. Pass the cursor to
 	// `linkedAppsListMembersLinkedApps` to retrieve the rest.
@@ -1469,14 +1707,15 @@ type ListMembersDevicesArg struct {
 	// Cursor : At the first call to the `devicesListMembersDevices` the cursor
 	// shouldn't be passed. Then, if the result of the call includes a cursor,
 	// the following requests should include the received cursors in order to
-	// receive the next sub list of team devices
+	// receive the next sub list of team devices.
 	Cursor string `json:"cursor,omitempty"`
-	// IncludeWebSessions : Whether to list web sessions of the team members
+	// IncludeWebSessions : Whether to list web sessions of the team members.
 	IncludeWebSessions bool `json:"include_web_sessions"`
 	// IncludeDesktopClients : Whether to list desktop clients of the team
-	// members
+	// members.
 	IncludeDesktopClients bool `json:"include_desktop_clients"`
-	// IncludeMobileClients : Whether to list mobile clients of the team members
+	// IncludeMobileClients : Whether to list mobile clients of the team
+	// members.
 	IncludeMobileClients bool `json:"include_mobile_clients"`
 }
 
@@ -1502,7 +1741,7 @@ const (
 
 // ListMembersDevicesResult : has no documentation (yet)
 type ListMembersDevicesResult struct {
-	// Devices : The devices of each member of the team
+	// Devices : The devices of each member of the team.
 	Devices []*MemberDevices `json:"devices"`
 	// HasMore : If true, then there are more devices available. Pass the cursor
 	// to `devicesListMembersDevices` to retrieve the rest.
@@ -1525,7 +1764,7 @@ type ListTeamAppsArg struct {
 	// Cursor : At the first call to the `linkedAppsListTeamLinkedApps` the
 	// cursor shouldn't be passed. Then, if the result of the call includes a
 	// cursor, the following requests should include the received cursors in
-	// order to receive the next sub list of the team applications
+	// order to receive the next sub list of the team applications.
 	Cursor string `json:"cursor,omitempty"`
 }
 
@@ -1535,7 +1774,7 @@ func NewListTeamAppsArg() *ListTeamAppsArg {
 	return s
 }
 
-// ListTeamAppsError : Error returned by `linkedAppsListTeamLinkedApps`
+// ListTeamAppsError : Error returned by `linkedAppsListTeamLinkedApps`.
 type ListTeamAppsError struct {
 	dropbox.Tagged
 }
@@ -1548,7 +1787,7 @@ const (
 
 // ListTeamAppsResult : Information returned by `linkedAppsListTeamLinkedApps`.
 type ListTeamAppsResult struct {
-	// Apps : The linked applications of each member of the team
+	// Apps : The linked applications of each member of the team.
 	Apps []*MemberLinkedApps `json:"apps"`
 	// HasMore : If true, then there are more apps available. Pass the cursor to
 	// `linkedAppsListTeamLinkedApps` to retrieve the rest.
@@ -1571,14 +1810,15 @@ type ListTeamDevicesArg struct {
 	// Cursor : At the first call to the `devicesListTeamDevices` the cursor
 	// shouldn't be passed. Then, if the result of the call includes a cursor,
 	// the following requests should include the received cursors in order to
-	// receive the next sub list of team devices
+	// receive the next sub list of team devices.
 	Cursor string `json:"cursor,omitempty"`
-	// IncludeWebSessions : Whether to list web sessions of the team members
+	// IncludeWebSessions : Whether to list web sessions of the team members.
 	IncludeWebSessions bool `json:"include_web_sessions"`
 	// IncludeDesktopClients : Whether to list desktop clients of the team
-	// members
+	// members.
 	IncludeDesktopClients bool `json:"include_desktop_clients"`
-	// IncludeMobileClients : Whether to list mobile clients of the team members
+	// IncludeMobileClients : Whether to list mobile clients of the team
+	// members.
 	IncludeMobileClients bool `json:"include_mobile_clients"`
 }
 
@@ -1604,7 +1844,7 @@ const (
 
 // ListTeamDevicesResult : has no documentation (yet)
 type ListTeamDevicesResult struct {
-	// Devices : The devices of each member of the team
+	// Devices : The devices of each member of the team.
 	Devices []*MemberDevices `json:"devices"`
 	// HasMore : If true, then there are more devices available. Pass the cursor
 	// to `devicesListTeamDevices` to retrieve the rest.
@@ -1811,13 +2051,13 @@ func (u *MemberAddResult) UnmarshalJSON(body []byte) error {
 
 // MemberDevices : Information on devices of a team's member.
 type MemberDevices struct {
-	// TeamMemberId : The member unique Id
+	// TeamMemberId : The member unique Id.
 	TeamMemberId string `json:"team_member_id"`
-	// WebSessions : List of web sessions made by this team member
+	// WebSessions : List of web sessions made by this team member.
 	WebSessions []*ActiveWebSession `json:"web_sessions,omitempty"`
-	// DesktopClients : List of desktop clients by this team member
+	// DesktopClients : List of desktop clients by this team member.
 	DesktopClients []*DesktopClientSession `json:"desktop_clients,omitempty"`
-	// MobileClients : List of mobile clients by this team member
+	// MobileClients : List of mobile clients by this team member.
 	MobileClients []*MobileClientSession `json:"mobile_clients,omitempty"`
 }
 
@@ -1830,10 +2070,10 @@ func NewMemberDevices(TeamMemberId string) *MemberDevices {
 
 // MemberLinkedApps : Information on linked applications of a team member.
 type MemberLinkedApps struct {
-	// TeamMemberId : The member unique Id
+	// TeamMemberId : The member unique Id.
 	TeamMemberId string `json:"team_member_id"`
 	// LinkedApiApps : List of third party applications linked by this team
-	// member
+	// member.
 	LinkedApiApps []*ApiApp `json:"linked_api_apps"`
 }
 
@@ -1905,6 +2145,7 @@ type MemberSelectorError struct {
 
 // Valid tag values for MemberSelectorError
 const (
+	MemberSelectorErrorUserNotFound  = "user_not_found"
 	MemberSelectorErrorUserNotInTeam = "user_not_in_team"
 )
 
@@ -1938,8 +2179,9 @@ type MembersAddJobStatus struct {
 
 // Valid tag values for MembersAddJobStatus
 const (
-	MembersAddJobStatusComplete = "complete"
-	MembersAddJobStatusFailed   = "failed"
+	MembersAddJobStatusInProgress = "in_progress"
+	MembersAddJobStatusComplete   = "complete"
+	MembersAddJobStatusFailed     = "failed"
 )
 
 // UnmarshalJSON deserializes into a MembersAddJobStatus instance
@@ -1977,13 +2219,18 @@ func (u *MembersAddJobStatus) UnmarshalJSON(body []byte) error {
 // MembersAddLaunch : has no documentation (yet)
 type MembersAddLaunch struct {
 	dropbox.Tagged
+	// AsyncJobId : This response indicates that the processing is asynchronous.
+	// The string is an id that can be used to obtain the status of the
+	// asynchronous job.
+	AsyncJobId string `json:"async_job_id,omitempty"`
 	// Complete : has no documentation (yet)
 	Complete []*MemberAddResult `json:"complete,omitempty"`
 }
 
 // Valid tag values for MembersAddLaunch
 const (
-	MembersAddLaunchComplete = "complete"
+	MembersAddLaunchAsyncJobId = "async_job_id"
+	MembersAddLaunchComplete   = "complete"
 )
 
 // UnmarshalJSON deserializes into a MembersAddLaunch instance
@@ -2000,6 +2247,12 @@ func (u *MembersAddLaunch) UnmarshalJSON(body []byte) error {
 	}
 	u.Tag = w.Tag
 	switch u.Tag {
+	case "async_job_id":
+		err = json.Unmarshal(body, &u.AsyncJobId)
+
+		if err != nil {
+			return err
+		}
 	case "complete":
 		err = json.Unmarshal(body, &u.Complete)
 
@@ -2035,6 +2288,7 @@ type MembersDeactivateError struct {
 
 // Valid tag values for MembersDeactivateError
 const (
+	MembersDeactivateErrorUserNotFound  = "user_not_found"
 	MembersDeactivateErrorUserNotInTeam = "user_not_in_team"
 	MembersDeactivateErrorOther         = "other"
 )
@@ -2203,6 +2457,7 @@ type MembersRecoverError struct {
 
 // Valid tag values for MembersRecoverError
 const (
+	MembersRecoverErrorUserNotFound      = "user_not_found"
 	MembersRecoverErrorUserUnrecoverable = "user_unrecoverable"
 	MembersRecoverErrorUserNotInTeam     = "user_not_in_team"
 	MembersRecoverErrorTeamLicenseLimit  = "team_license_limit"
@@ -2242,6 +2497,9 @@ type MembersRemoveError struct {
 
 // Valid tag values for MembersRemoveError
 const (
+	MembersRemoveErrorUserNotFound                        = "user_not_found"
+	MembersRemoveErrorUserNotInTeam                       = "user_not_in_team"
+	MembersRemoveErrorOther                               = "other"
 	MembersRemoveErrorRemoveLastAdmin                     = "remove_last_admin"
 	MembersRemoveErrorRemovedAndTransferDestShouldDiffer  = "removed_and_transfer_dest_should_differ"
 	MembersRemoveErrorRemovedAndTransferAdminShouldDiffer = "removed_and_transfer_admin_should_differ"
@@ -2263,7 +2521,9 @@ type MembersSendWelcomeError struct {
 
 // Valid tag values for MembersSendWelcomeError
 const (
-	MembersSendWelcomeErrorOther = "other"
+	MembersSendWelcomeErrorUserNotFound  = "user_not_found"
+	MembersSendWelcomeErrorUserNotInTeam = "user_not_in_team"
+	MembersSendWelcomeErrorOther         = "other"
 )
 
 // MembersSetPermissionsArg : Exactly one of team_member_id, email, or
@@ -2290,6 +2550,7 @@ type MembersSetPermissionsError struct {
 
 // Valid tag values for MembersSetPermissionsError
 const (
+	MembersSetPermissionsErrorUserNotFound         = "user_not_found"
 	MembersSetPermissionsErrorLastAdmin            = "last_admin"
 	MembersSetPermissionsErrorUserNotInTeam        = "user_not_in_team"
 	MembersSetPermissionsErrorCannotSetPermissions = "cannot_set_permissions"
@@ -2346,6 +2607,8 @@ type MembersSetProfileError struct {
 
 // Valid tag values for MembersSetProfileError
 const (
+	MembersSetProfileErrorUserNotFound                     = "user_not_found"
+	MembersSetProfileErrorUserNotInTeam                    = "user_not_in_team"
 	MembersSetProfileErrorExternalIdAndNewExternalIdUnsafe = "external_id_and_new_external_id_unsafe"
 	MembersSetProfileErrorNoNewDataSpecified               = "no_new_data_specified"
 	MembersSetProfileErrorEmailReservedForOtherUser        = "email_reserved_for_other_user"
@@ -2364,6 +2627,9 @@ type MembersSuspendError struct {
 
 // Valid tag values for MembersSuspendError
 const (
+	MembersSuspendErrorUserNotFound        = "user_not_found"
+	MembersSuspendErrorUserNotInTeam       = "user_not_in_team"
+	MembersSuspendErrorOther               = "other"
 	MembersSuspendErrorSuspendInactiveUser = "suspend_inactive_user"
 	MembersSuspendErrorSuspendLastAdmin    = "suspend_last_admin"
 	MembersSuspendErrorTeamLicenseLimit    = "team_license_limit"
@@ -2390,6 +2656,9 @@ type MembersUnsuspendError struct {
 
 // Valid tag values for MembersUnsuspendError
 const (
+	MembersUnsuspendErrorUserNotFound                = "user_not_found"
+	MembersUnsuspendErrorUserNotInTeam               = "user_not_in_team"
+	MembersUnsuspendErrorOther                       = "other"
 	MembersUnsuspendErrorUnsuspendNonSuspendedMember = "unsuspend_non_suspended_member"
 	MembersUnsuspendErrorTeamLicenseLimit            = "team_license_limit"
 )
@@ -2409,18 +2678,19 @@ const (
 	MobileClientPlatformOther        = "other"
 )
 
-// MobileClientSession : Information about linked Dropbox mobile client sessions
+// MobileClientSession : Information about linked Dropbox mobile client
+// sessions.
 type MobileClientSession struct {
 	DeviceSession
-	// DeviceName : The device name
+	// DeviceName : The device name.
 	DeviceName string `json:"device_name"`
-	// ClientType : The mobile application type
+	// ClientType : The mobile application type.
 	ClientType *MobileClientPlatform `json:"client_type"`
-	// ClientVersion : The dropbox client version
+	// ClientVersion : The dropbox client version.
 	ClientVersion string `json:"client_version,omitempty"`
-	// OsVersion : The hosting OS version
+	// OsVersion : The hosting OS version.
 	OsVersion string `json:"os_version,omitempty"`
-	// LastCarrier : last carrier used by the device
+	// LastCarrier : last carrier used by the device.
 	LastCarrier string `json:"last_carrier,omitempty"`
 }
 
@@ -2469,6 +2739,54 @@ const (
 	NamespaceTypeOther            = "other"
 )
 
+// RemoveCustomQuotaResult : User result for setting member custom quota.
+type RemoveCustomQuotaResult struct {
+	dropbox.Tagged
+	// Success : Successfully removed user.
+	Success *UserSelectorArg `json:"success,omitempty"`
+	// InvalidUser : Invalid user (not in team).
+	InvalidUser *UserSelectorArg `json:"invalid_user,omitempty"`
+}
+
+// Valid tag values for RemoveCustomQuotaResult
+const (
+	RemoveCustomQuotaResultSuccess     = "success"
+	RemoveCustomQuotaResultInvalidUser = "invalid_user"
+	RemoveCustomQuotaResultOther       = "other"
+)
+
+// UnmarshalJSON deserializes into a RemoveCustomQuotaResult instance
+func (u *RemoveCustomQuotaResult) UnmarshalJSON(body []byte) error {
+	type wrap struct {
+		dropbox.Tagged
+		// Success : Successfully removed user.
+		Success json.RawMessage `json:"success,omitempty"`
+		// InvalidUser : Invalid user (not in team).
+		InvalidUser json.RawMessage `json:"invalid_user,omitempty"`
+	}
+	var w wrap
+	var err error
+	if err = json.Unmarshal(body, &w); err != nil {
+		return err
+	}
+	u.Tag = w.Tag
+	switch u.Tag {
+	case "success":
+		err = json.Unmarshal(w.Success, &u.Success)
+
+		if err != nil {
+			return err
+		}
+	case "invalid_user":
+		err = json.Unmarshal(w.InvalidUser, &u.InvalidUser)
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // RemovedStatus : has no documentation (yet)
 type RemovedStatus struct {
 	// IsRecoverable : True if the removed team member is recoverable.
@@ -2487,7 +2805,7 @@ type RevokeDesktopClientArg struct {
 	DeviceSessionArg
 	// DeleteOnUnlink : Whether to delete all files of the account (this is
 	// possible only if supported by the desktop client and  will be made the
-	// next time the client access the account)
+	// next time the client access the account).
 	DeleteOnUnlink bool `json:"delete_on_unlink"`
 }
 
@@ -2503,11 +2821,11 @@ func NewRevokeDesktopClientArg(SessionId string, TeamMemberId string) *RevokeDes
 // RevokeDeviceSessionArg : has no documentation (yet)
 type RevokeDeviceSessionArg struct {
 	dropbox.Tagged
-	// WebSession : End an active session
+	// WebSession : End an active session.
 	WebSession *DeviceSessionArg `json:"web_session,omitempty"`
-	// DesktopClient : Unlink a linked desktop device
+	// DesktopClient : Unlink a linked desktop device.
 	DesktopClient *RevokeDesktopClientArg `json:"desktop_client,omitempty"`
-	// MobileClient : Unlink a linked mobile device
+	// MobileClient : Unlink a linked mobile device.
 	MobileClient *DeviceSessionArg `json:"mobile_client,omitempty"`
 }
 
@@ -2522,11 +2840,11 @@ const (
 func (u *RevokeDeviceSessionArg) UnmarshalJSON(body []byte) error {
 	type wrap struct {
 		dropbox.Tagged
-		// WebSession : End an active session
+		// WebSession : End an active session.
 		WebSession json.RawMessage `json:"web_session,omitempty"`
-		// DesktopClient : Unlink a linked desktop device
+		// DesktopClient : Unlink a linked desktop device.
 		DesktopClient json.RawMessage `json:"desktop_client,omitempty"`
-		// MobileClient : Unlink a linked mobile device
+		// MobileClient : Unlink a linked mobile device.
 		MobileClient json.RawMessage `json:"mobile_client,omitempty"`
 	}
 	var w wrap
@@ -2608,9 +2926,9 @@ const (
 
 // RevokeDeviceSessionStatus : has no documentation (yet)
 type RevokeDeviceSessionStatus struct {
-	// Success : Result of the revoking request
+	// Success : Result of the revoking request.
 	Success bool `json:"success"`
-	// ErrorType : The error cause in case of a failure
+	// ErrorType : The error cause in case of a failure.
 	ErrorType *RevokeDeviceSessionError `json:"error_type,omitempty"`
 }
 
@@ -2623,12 +2941,12 @@ func NewRevokeDeviceSessionStatus(Success bool) *RevokeDeviceSessionStatus {
 
 // RevokeLinkedApiAppArg : has no documentation (yet)
 type RevokeLinkedApiAppArg struct {
-	// AppId : The application's unique id
+	// AppId : The application's unique id.
 	AppId string `json:"app_id"`
-	// TeamMemberId : The unique id of the member owning the device
+	// TeamMemberId : The unique id of the member owning the device.
 	TeamMemberId string `json:"team_member_id"`
 	// KeepAppFolder : Whether to keep the application dedicated folder (in case
-	// the application uses  one)
+	// the application uses  one).
 	KeepAppFolder bool `json:"keep_app_folder"`
 }
 
@@ -2692,9 +3010,9 @@ const (
 
 // RevokeLinkedAppStatus : has no documentation (yet)
 type RevokeLinkedAppStatus struct {
-	// Success : Result of the revoking request
+	// Success : Result of the revoking request.
 	Success bool `json:"success"`
-	// ErrorType : The error cause in case of a failure
+	// ErrorType : The error cause in case of a failure.
 	ErrorType *RevokeLinkedAppError `json:"error_type,omitempty"`
 }
 
@@ -2704,6 +3022,31 @@ func NewRevokeLinkedAppStatus(Success bool) *RevokeLinkedAppStatus {
 	s.Success = Success
 	return s
 }
+
+// SetCustomQuotaArg : has no documentation (yet)
+type SetCustomQuotaArg struct {
+	// UsersAndQuotas : List of users and their custom quotas.
+	UsersAndQuotas []*UserCustomQuotaArg `json:"users_and_quotas"`
+}
+
+// NewSetCustomQuotaArg returns a new SetCustomQuotaArg instance
+func NewSetCustomQuotaArg(UsersAndQuotas []*UserCustomQuotaArg) *SetCustomQuotaArg {
+	s := new(SetCustomQuotaArg)
+	s.UsersAndQuotas = UsersAndQuotas
+	return s
+}
+
+// SetCustomQuotaError : Error returned when setting member custom quota.
+type SetCustomQuotaError struct {
+	dropbox.Tagged
+}
+
+// Valid tag values for SetCustomQuotaError
+const (
+	SetCustomQuotaErrorTooManyUsers         = "too_many_users"
+	SetCustomQuotaErrorOther                = "other"
+	SetCustomQuotaErrorSomeUsersAreExcluded = "some_users_are_excluded"
+)
 
 // StorageBucket : Describes the number of users in a specific storage bucket.
 type StorageBucket struct {
@@ -2738,10 +3081,61 @@ const (
 // TeamFolderActivateError :
 type TeamFolderActivateError struct {
 	dropbox.Tagged
+	// AccessError : has no documentation (yet)
+	AccessError *TeamFolderAccessError `json:"access_error,omitempty"`
+	// StatusError : has no documentation (yet)
+	StatusError *TeamFolderInvalidStatusError `json:"status_error,omitempty"`
+	// TeamSharedDropboxError : has no documentation (yet)
+	TeamSharedDropboxError *TeamFolderTeamSharedDropboxError `json:"team_shared_dropbox_error,omitempty"`
 }
 
 // Valid tag values for TeamFolderActivateError
-const ()
+const (
+	TeamFolderActivateErrorAccessError            = "access_error"
+	TeamFolderActivateErrorStatusError            = "status_error"
+	TeamFolderActivateErrorTeamSharedDropboxError = "team_shared_dropbox_error"
+	TeamFolderActivateErrorOther                  = "other"
+)
+
+// UnmarshalJSON deserializes into a TeamFolderActivateError instance
+func (u *TeamFolderActivateError) UnmarshalJSON(body []byte) error {
+	type wrap struct {
+		dropbox.Tagged
+		// AccessError : has no documentation (yet)
+		AccessError json.RawMessage `json:"access_error,omitempty"`
+		// StatusError : has no documentation (yet)
+		StatusError json.RawMessage `json:"status_error,omitempty"`
+		// TeamSharedDropboxError : has no documentation (yet)
+		TeamSharedDropboxError json.RawMessage `json:"team_shared_dropbox_error,omitempty"`
+	}
+	var w wrap
+	var err error
+	if err = json.Unmarshal(body, &w); err != nil {
+		return err
+	}
+	u.Tag = w.Tag
+	switch u.Tag {
+	case "access_error":
+		err = json.Unmarshal(w.AccessError, &u.AccessError)
+
+		if err != nil {
+			return err
+		}
+	case "status_error":
+		err = json.Unmarshal(w.StatusError, &u.StatusError)
+
+		if err != nil {
+			return err
+		}
+	case "team_shared_dropbox_error":
+		err = json.Unmarshal(w.TeamSharedDropboxError, &u.TeamSharedDropboxError)
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // TeamFolderIdArg : has no documentation (yet)
 type TeamFolderIdArg struct {
@@ -2774,10 +3168,61 @@ func NewTeamFolderArchiveArg(TeamFolderId string) *TeamFolderArchiveArg {
 // TeamFolderArchiveError :
 type TeamFolderArchiveError struct {
 	dropbox.Tagged
+	// AccessError : has no documentation (yet)
+	AccessError *TeamFolderAccessError `json:"access_error,omitempty"`
+	// StatusError : has no documentation (yet)
+	StatusError *TeamFolderInvalidStatusError `json:"status_error,omitempty"`
+	// TeamSharedDropboxError : has no documentation (yet)
+	TeamSharedDropboxError *TeamFolderTeamSharedDropboxError `json:"team_shared_dropbox_error,omitempty"`
 }
 
 // Valid tag values for TeamFolderArchiveError
-const ()
+const (
+	TeamFolderArchiveErrorAccessError            = "access_error"
+	TeamFolderArchiveErrorStatusError            = "status_error"
+	TeamFolderArchiveErrorTeamSharedDropboxError = "team_shared_dropbox_error"
+	TeamFolderArchiveErrorOther                  = "other"
+)
+
+// UnmarshalJSON deserializes into a TeamFolderArchiveError instance
+func (u *TeamFolderArchiveError) UnmarshalJSON(body []byte) error {
+	type wrap struct {
+		dropbox.Tagged
+		// AccessError : has no documentation (yet)
+		AccessError json.RawMessage `json:"access_error,omitempty"`
+		// StatusError : has no documentation (yet)
+		StatusError json.RawMessage `json:"status_error,omitempty"`
+		// TeamSharedDropboxError : has no documentation (yet)
+		TeamSharedDropboxError json.RawMessage `json:"team_shared_dropbox_error,omitempty"`
+	}
+	var w wrap
+	var err error
+	if err = json.Unmarshal(body, &w); err != nil {
+		return err
+	}
+	u.Tag = w.Tag
+	switch u.Tag {
+	case "access_error":
+		err = json.Unmarshal(w.AccessError, &u.AccessError)
+
+		if err != nil {
+			return err
+		}
+	case "status_error":
+		err = json.Unmarshal(w.StatusError, &u.StatusError)
+
+		if err != nil {
+			return err
+		}
+	case "team_shared_dropbox_error":
+		err = json.Unmarshal(w.TeamSharedDropboxError, &u.TeamSharedDropboxError)
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // TeamFolderArchiveJobStatus : has no documentation (yet)
 type TeamFolderArchiveJobStatus struct {
@@ -2792,8 +3237,9 @@ type TeamFolderArchiveJobStatus struct {
 
 // Valid tag values for TeamFolderArchiveJobStatus
 const (
-	TeamFolderArchiveJobStatusComplete = "complete"
-	TeamFolderArchiveJobStatusFailed   = "failed"
+	TeamFolderArchiveJobStatusInProgress = "in_progress"
+	TeamFolderArchiveJobStatusComplete   = "complete"
+	TeamFolderArchiveJobStatusFailed     = "failed"
 )
 
 // UnmarshalJSON deserializes into a TeamFolderArchiveJobStatus instance
@@ -2833,13 +3279,18 @@ func (u *TeamFolderArchiveJobStatus) UnmarshalJSON(body []byte) error {
 // TeamFolderArchiveLaunch : has no documentation (yet)
 type TeamFolderArchiveLaunch struct {
 	dropbox.Tagged
+	// AsyncJobId : This response indicates that the processing is asynchronous.
+	// The string is an id that can be used to obtain the status of the
+	// asynchronous job.
+	AsyncJobId string `json:"async_job_id,omitempty"`
 	// Complete : has no documentation (yet)
 	Complete *TeamFolderMetadata `json:"complete,omitempty"`
 }
 
 // Valid tag values for TeamFolderArchiveLaunch
 const (
-	TeamFolderArchiveLaunchComplete = "complete"
+	TeamFolderArchiveLaunchAsyncJobId = "async_job_id"
+	TeamFolderArchiveLaunchComplete   = "complete"
 )
 
 // UnmarshalJSON deserializes into a TeamFolderArchiveLaunch instance
@@ -2856,6 +3307,12 @@ func (u *TeamFolderArchiveLaunch) UnmarshalJSON(body []byte) error {
 	}
 	u.Tag = w.Tag
 	switch u.Tag {
+	case "async_job_id":
+		err = json.Unmarshal(body, &u.AsyncJobId)
+
+		if err != nil {
+			return err
+		}
 	case "complete":
 		err = json.Unmarshal(body, &u.Complete)
 
@@ -3063,10 +3520,61 @@ func NewTeamFolderMetadata(TeamFolderId string, Name string, Status *TeamFolderS
 // TeamFolderPermanentlyDeleteError :
 type TeamFolderPermanentlyDeleteError struct {
 	dropbox.Tagged
+	// AccessError : has no documentation (yet)
+	AccessError *TeamFolderAccessError `json:"access_error,omitempty"`
+	// StatusError : has no documentation (yet)
+	StatusError *TeamFolderInvalidStatusError `json:"status_error,omitempty"`
+	// TeamSharedDropboxError : has no documentation (yet)
+	TeamSharedDropboxError *TeamFolderTeamSharedDropboxError `json:"team_shared_dropbox_error,omitempty"`
 }
 
 // Valid tag values for TeamFolderPermanentlyDeleteError
-const ()
+const (
+	TeamFolderPermanentlyDeleteErrorAccessError            = "access_error"
+	TeamFolderPermanentlyDeleteErrorStatusError            = "status_error"
+	TeamFolderPermanentlyDeleteErrorTeamSharedDropboxError = "team_shared_dropbox_error"
+	TeamFolderPermanentlyDeleteErrorOther                  = "other"
+)
+
+// UnmarshalJSON deserializes into a TeamFolderPermanentlyDeleteError instance
+func (u *TeamFolderPermanentlyDeleteError) UnmarshalJSON(body []byte) error {
+	type wrap struct {
+		dropbox.Tagged
+		// AccessError : has no documentation (yet)
+		AccessError json.RawMessage `json:"access_error,omitempty"`
+		// StatusError : has no documentation (yet)
+		StatusError json.RawMessage `json:"status_error,omitempty"`
+		// TeamSharedDropboxError : has no documentation (yet)
+		TeamSharedDropboxError json.RawMessage `json:"team_shared_dropbox_error,omitempty"`
+	}
+	var w wrap
+	var err error
+	if err = json.Unmarshal(body, &w); err != nil {
+		return err
+	}
+	u.Tag = w.Tag
+	switch u.Tag {
+	case "access_error":
+		err = json.Unmarshal(w.AccessError, &u.AccessError)
+
+		if err != nil {
+			return err
+		}
+	case "status_error":
+		err = json.Unmarshal(w.StatusError, &u.StatusError)
+
+		if err != nil {
+			return err
+		}
+	case "team_shared_dropbox_error":
+		err = json.Unmarshal(w.TeamSharedDropboxError, &u.TeamSharedDropboxError)
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // TeamFolderRenameArg : has no documentation (yet)
 type TeamFolderRenameArg struct {
@@ -3086,14 +3594,64 @@ func NewTeamFolderRenameArg(TeamFolderId string, Name string) *TeamFolderRenameA
 // TeamFolderRenameError : has no documentation (yet)
 type TeamFolderRenameError struct {
 	dropbox.Tagged
+	// AccessError : has no documentation (yet)
+	AccessError *TeamFolderAccessError `json:"access_error,omitempty"`
+	// StatusError : has no documentation (yet)
+	StatusError *TeamFolderInvalidStatusError `json:"status_error,omitempty"`
+	// TeamSharedDropboxError : has no documentation (yet)
+	TeamSharedDropboxError *TeamFolderTeamSharedDropboxError `json:"team_shared_dropbox_error,omitempty"`
 }
 
 // Valid tag values for TeamFolderRenameError
 const (
-	TeamFolderRenameErrorInvalidFolderName     = "invalid_folder_name"
-	TeamFolderRenameErrorFolderNameAlreadyUsed = "folder_name_already_used"
-	TeamFolderRenameErrorFolderNameReserved    = "folder_name_reserved"
+	TeamFolderRenameErrorAccessError            = "access_error"
+	TeamFolderRenameErrorStatusError            = "status_error"
+	TeamFolderRenameErrorTeamSharedDropboxError = "team_shared_dropbox_error"
+	TeamFolderRenameErrorOther                  = "other"
+	TeamFolderRenameErrorInvalidFolderName      = "invalid_folder_name"
+	TeamFolderRenameErrorFolderNameAlreadyUsed  = "folder_name_already_used"
+	TeamFolderRenameErrorFolderNameReserved     = "folder_name_reserved"
 )
+
+// UnmarshalJSON deserializes into a TeamFolderRenameError instance
+func (u *TeamFolderRenameError) UnmarshalJSON(body []byte) error {
+	type wrap struct {
+		dropbox.Tagged
+		// AccessError : has no documentation (yet)
+		AccessError json.RawMessage `json:"access_error,omitempty"`
+		// StatusError : has no documentation (yet)
+		StatusError json.RawMessage `json:"status_error,omitempty"`
+		// TeamSharedDropboxError : has no documentation (yet)
+		TeamSharedDropboxError json.RawMessage `json:"team_shared_dropbox_error,omitempty"`
+	}
+	var w wrap
+	var err error
+	if err = json.Unmarshal(body, &w); err != nil {
+		return err
+	}
+	u.Tag = w.Tag
+	switch u.Tag {
+	case "access_error":
+		err = json.Unmarshal(w.AccessError, &u.AccessError)
+
+		if err != nil {
+			return err
+		}
+	case "status_error":
+		err = json.Unmarshal(w.StatusError, &u.StatusError)
+
+		if err != nil {
+			return err
+		}
+	case "team_shared_dropbox_error":
+		err = json.Unmarshal(w.TeamSharedDropboxError, &u.TeamSharedDropboxError)
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // TeamFolderStatus : has no documentation (yet)
 type TeamFolderStatus struct {
@@ -3238,8 +3796,7 @@ const (
 
 // TeamNamespacesListArg : has no documentation (yet)
 type TeamNamespacesListArg struct {
-	// Limit : The approximate maximum number of results to return per request.
-	// This limit may be exceeded.
+	// Limit : Specifying a value here has no effect.
 	Limit uint32 `json:"limit"`
 }
 
@@ -3322,43 +3879,6 @@ func NewTokenGetAuthenticatedAdminResult(AdminProfile *TeamMemberProfile) *Token
 	return s
 }
 
-// UpdatePropertyTemplateArg : has no documentation (yet)
-type UpdatePropertyTemplateArg struct {
-	// TemplateId : An identifier for property template added by
-	// `propertiesTemplateAdd`.
-	TemplateId string `json:"template_id"`
-	// Name : A display name for the property template. Property template names
-	// can be up to 256 bytes.
-	Name string `json:"name,omitempty"`
-	// Description : Description for new property template. Property template
-	// descriptions can be up to 1024 bytes.
-	Description string `json:"description,omitempty"`
-	// AddFields : This is a list of custom properties to add to the property
-	// template. There can be up to 64 properties in a single property template.
-	AddFields []*properties.PropertyFieldTemplate `json:"add_fields,omitempty"`
-}
-
-// NewUpdatePropertyTemplateArg returns a new UpdatePropertyTemplateArg instance
-func NewUpdatePropertyTemplateArg(TemplateId string) *UpdatePropertyTemplateArg {
-	s := new(UpdatePropertyTemplateArg)
-	s.TemplateId = TemplateId
-	return s
-}
-
-// UpdatePropertyTemplateResult : has no documentation (yet)
-type UpdatePropertyTemplateResult struct {
-	// TemplateId : An identifier for property template added by
-	// `propertiesTemplateAdd`.
-	TemplateId string `json:"template_id"`
-}
-
-// NewUpdatePropertyTemplateResult returns a new UpdatePropertyTemplateResult instance
-func NewUpdatePropertyTemplateResult(TemplateId string) *UpdatePropertyTemplateResult {
-	s := new(UpdatePropertyTemplateResult)
-	s.TemplateId = TemplateId
-	return s
-}
-
 // UploadApiRateLimitValue : The value for `Feature.upload_api_rate_limit`.
 type UploadApiRateLimitValue struct {
 	dropbox.Tagged
@@ -3393,6 +3913,39 @@ func (u *UploadApiRateLimitValue) UnmarshalJSON(body []byte) error {
 		}
 	}
 	return nil
+}
+
+// UserCustomQuotaArg : User and their required custom quota in GB (1 TB = 1024
+// GB).
+type UserCustomQuotaArg struct {
+	// User : has no documentation (yet)
+	User *UserSelectorArg `json:"user"`
+	// QuotaGb : has no documentation (yet)
+	QuotaGb uint32 `json:"quota_gb"`
+}
+
+// NewUserCustomQuotaArg returns a new UserCustomQuotaArg instance
+func NewUserCustomQuotaArg(User *UserSelectorArg, QuotaGb uint32) *UserCustomQuotaArg {
+	s := new(UserCustomQuotaArg)
+	s.User = User
+	s.QuotaGb = QuotaGb
+	return s
+}
+
+// UserCustomQuotaResult : User and their custom quota in GB (1 TB = 1024 GB).
+// No quota returns if the user has no custom quota set.
+type UserCustomQuotaResult struct {
+	// User : has no documentation (yet)
+	User *UserSelectorArg `json:"user"`
+	// QuotaGb : has no documentation (yet)
+	QuotaGb uint32 `json:"quota_gb,omitempty"`
+}
+
+// NewUserCustomQuotaResult returns a new UserCustomQuotaResult instance
+func NewUserCustomQuotaResult(User *UserSelectorArg) *UserCustomQuotaResult {
+	s := new(UserCustomQuotaResult)
+	s.User = User
+	return s
 }
 
 // UserSelectorArg : Argument for selecting a single user, either by

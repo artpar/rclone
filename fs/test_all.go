@@ -113,6 +113,21 @@ var (
 			SubDir:   true,
 			FastList: true,
 		},
+		{
+			Name:     "TestPcloud:",
+			SubDir:   false,
+			FastList: false,
+		},
+		{
+			Name:     "TestWebdav:",
+			SubDir:   false,
+			FastList: false,
+		},
+		{
+			Name:     "TestCache:",
+			SubDir:   false,
+			FastList: false,
+		},
 	}
 	binary = "fs.test"
 	// Flags
@@ -120,6 +135,7 @@ var (
 	runTests = flag.String("remotes", "", "Comma separated list of remotes to test, eg 'TestSwift:,TestS3'")
 	clean    = flag.Bool("clean", false, "Instead of testing, clean all left over test directories")
 	runOnly  = flag.String("run-only", "", "Run only those tests matching the regexp supplied")
+	timeout  = flag.Duration("timeout", 30*time.Minute, "Maximum time to run each test for before giving up")
 )
 
 // test holds info about a running test
@@ -140,7 +156,7 @@ func newTest(remote string, subdir bool, fastlist bool) *test {
 	t := &test{
 		remote:  remote,
 		subdir:  subdir,
-		cmdLine: []string{"./" + binary, "-remote", remote},
+		cmdLine: []string{"./" + binary, "-test.timeout", (*timeout).String(), "-remote", remote},
 		try:     1,
 	}
 	if *fstest.Verbose {
@@ -358,9 +374,14 @@ func main() {
 	// start the tests
 	results := make(chan *test, 8)
 	awaiting := 0
+	bools := []bool{false, true}
+	if *clean {
+		// Don't run -subdir and -fast-list if -clean
+		bools = bools[:1]
+	}
 	for _, remote := range remotes {
-		for _, subdir := range []bool{false, true} {
-			for _, fastlist := range []bool{false, true} {
+		for _, subdir := range bools {
+			for _, fastlist := range bools {
 				if (!subdir || subdir && remote.SubDir) && (!fastlist || fastlist && remote.FastList) {
 					go newTest(remote.Name, subdir, fastlist).run(results)
 					awaiting++
@@ -380,6 +401,7 @@ func main() {
 	duration := time.Since(start)
 
 	// Summarise results
+	log.Printf("SUMMARY")
 	if len(failed) == 0 {
 		log.Printf("PASS: All tests finished OK in %v", duration)
 	} else {

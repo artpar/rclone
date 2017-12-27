@@ -33,7 +33,7 @@ old Linux filesystem with non UTF-8 file names (eg latin1) then you
 can use the `convmv` tool to convert the filesystem to UTF-8. This
 tool is available in most distributions' package managers.
 
-If an invalid (non-UTF8) filename is read, the invalid caracters will
+If an invalid (non-UTF8) filename is read, the invalid characters will
 be replaced with the unicode replacement character, '�'.  `rclone`
 will emit a debug message in this case (use `-v` to see), eg
 
@@ -122,22 +122,16 @@ $ rclone -L ls /tmp/a
 
 #### --local-no-unicode-normalization ####
 
-By default rclone normalizes (NFC) the unicode representation of filenames and
-directories. This flag disables that normalization and uses the same
-representation as the local filesystem.
-
-This can be useful if you need to retain the local unicode representation and
-you are using a cloud provider which supports unnormalized names (e.g. S3 or ACD).
-
-This should also work with any provider if you are using crypt and have file
-name encryption (the default) or obfuscation turned on.
+This flag is deprecated now.  Rclone no longer normalizes unicode file
+names, but it compares them with unicode normalization in the sync
+routine instead.
 
 #### --one-file-system, -x ####
 
 This tells rclone to stay in the filesystem specified by the root and
 not to recurse into different file systems.
 
-For example if you have a directory heirachy like this
+For example if you have a directory hierarchy like this
 
 ```
 root
