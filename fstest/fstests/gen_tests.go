@@ -63,10 +63,10 @@ package {{ .FsName }}_test
 import (
 	"testing"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fstest/fstests"
-	"github.com/artpar/rclone/{{ .FsName }}"
-{{ if (or (eq .FsName "crypt") (eq .FsName "cache")) }}	_ "github.com/artpar/rclone/local"
+	"github.com/ncw/rclone/backend/{{ .FsName }}"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fstest/fstests"
+{{ if (or (eq .FsName "crypt") (eq .FsName "cache")) }}	_ "github.com/ncw/rclone/backend/local"
 {{end}})
 
 func TestSetup{{ .Suffix }}(t *testing.T)() {
@@ -106,7 +106,7 @@ func generateTestProgram(t *template.Template, fns []string, Fsname string, opti
 	}
 
 	data.TestName = "Test" + data.UpperFsName + data.Suffix + ":"
-	outfile := "../../" + data.FsName + "/" + data.FsName + data.Suffix + "_test.go"
+	outfile := "../../backend/" + data.FsName + "/" + data.FsName + data.Suffix + "_test.go"
 
 	if data.FsName == "local" {
 		data.TestName = ""
@@ -150,7 +150,7 @@ func main() {
 	generateTestProgram(t, fns, "S3")
 	generateTestProgram(t, fns, "Drive")
 	generateTestProgram(t, fns, "GoogleCloudStorage")
-	generateTestProgram(t, fns, "Dropbox")
+	generateTestProgram(t, fns, "Dropbox", buildConstraint("go1.7"))
 	generateTestProgram(t, fns, "AmazonCloudDrive")
 	generateTestProgram(t, fns, "OneDrive")
 	generateTestProgram(t, fns, "Hubic")
@@ -162,7 +162,7 @@ func main() {
 	generateTestProgram(t, fns, "Sftp")
 	generateTestProgram(t, fns, "FTP")
 	generateTestProgram(t, fns, "Box")
-	generateTestProgram(t, fns, "QingStor", buildConstraint("!plan9"))
+	generateTestProgram(t, fns, "QingStor", buildConstraint("!plan9,go1.7"))
 	generateTestProgram(t, fns, "AzureBlob", buildConstraint("go1.7"))
 	generateTestProgram(t, fns, "Pcloud")
 	generateTestProgram(t, fns, "Webdav")

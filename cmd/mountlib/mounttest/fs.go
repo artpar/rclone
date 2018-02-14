@@ -17,10 +17,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	_ "github.com/artpar/rclone/fs/all" // import all the file systems
-	"github.com/artpar/rclone/fstest"
-	"github.com/artpar/rclone/vfs"
+	_ "github.com/ncw/rclone/backend/all" // import all the backends
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/walk"
+	"github.com/ncw/rclone/fstest"
+	"github.com/ncw/rclone/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -268,7 +269,7 @@ func (r *Run) readLocal(t *testing.T, dir dirMap, filePath string) {
 
 // reads the remote tree into dir
 func (r *Run) readRemote(t *testing.T, dir dirMap, filepath string) {
-	objs, dirs, err := fs.WalkGetAll(r.fremote, filepath, true, 1)
+	objs, dirs, err := walk.GetAll(r.fremote, filepath, true, 1)
 	if err == fs.ErrorDirNotFound {
 		return
 	}

@@ -1,8 +1,9 @@
 package moveto
 
 import (
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
+	"github.com/ncw/rclone/cmd"
+	"github.com/ncw/rclone/fs/operations"
+	"github.com/ncw/rclone/fs/sync"
 	"github.com/spf13/cobra"
 )
 
@@ -49,9 +50,9 @@ transfer.
 
 		cmd.Run(true, true, command, func() error {
 			if srcFileName == "" {
-				return fs.MoveDir(fdst, fsrc, false)
+				return sync.MoveDir(fdst, fsrc, false)
 			}
-			return fs.MoveFile(fdst, fsrc, dstFileName, srcFileName)
+			return operations.MoveFile(fdst, fsrc, dstFileName, srcFileName)
 		})
 	},
 }

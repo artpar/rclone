@@ -1,3 +1,5 @@
+// +build go1.8
+
 package http
 
 import (
@@ -5,12 +7,15 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"path"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	_ "github.com/artpar/rclone/local"
+	_ "github.com/ncw/rclone/backend/local"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config"
+	"github.com/ncw/rclone/fs/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,14 +49,14 @@ func startServer(t *testing.T, f fs.Fs) {
 
 func TestInit(t *testing.T) {
 	// Configure the remote
-	fs.LoadConfig()
+	config.LoadConfig()
 	// fs.Config.LogLevel = fs.LogLevelDebug
 	// fs.Config.DumpHeaders = true
 	// fs.Config.DumpBodies = true
 
 	// exclude files called hidden.txt and directories called hidden
-	require.NoError(t, fs.Config.Filter.AddRule("- hidden.txt"))
-	require.NoError(t, fs.Config.Filter.AddRule("- hidden/**"))
+	require.NoError(t, filter.Active.AddRule("- hidden.txt"))
+	require.NoError(t, filter.Active.AddRule("- hidden/**"))
 
 	// Create a test Fs
 	f, err := fs.NewFs("testdata/files")
@@ -189,4 +194,34 @@ func TestGET(t *testing.T) {
 
 		checkGolden(t, test.Golden, body)
 	}
+}
+
+type mockNode struct {
+	path  string
+	isdir bool
+}
+
+func (n mockNode) Path() string { return n.path }
+func (n mockNode) Name() string {
+	if n.path == "" {
+		return ""
+	}
+	return path.Base(n.path)
+}
+func (n mockNode) IsDir() bool { return n.isdir }
+
+func TestAddEntry(t *testing.T) {
+	var es entries
+	es.addEntry(mockNode{path: "", isdir: true})
+	es.addEntry(mockNode{path: "dir", isdir: true})
+	es.addEntry(mockNode{path: "a/b/c/d.txt", isdir: false})
+	es.addEntry(mockNode{path: "a/b/c/colon:colon.txt", isdir: false})
+	es.addEntry(mockNode{path: "\"quotes\".txt", isdir: false})
+	assert.Equal(t, entries{
+		{remote: "", URL: "/", Leaf: "/"},
+		{remote: "dir", URL: "dir/", Leaf: "dir/"},
+		{remote: "a/b/c/d.txt", URL: "d.txt", Leaf: "d.txt"},
+		{remote: "a/b/c/colon:colon.txt", URL: "./colon:colon.txt", Leaf: "colon:colon.txt"},
+		{remote: "\"quotes\".txt", URL: "%22quotes%22.txt", Leaf: "\"quotes\".txt"},
+	}, es)
 }

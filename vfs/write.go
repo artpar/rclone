@@ -6,7 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/fs"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/operations"
 )
 
 // WriteFileHandle is an open for write handle on a File
@@ -64,7 +65,7 @@ func (fh *WriteFileHandle) openPending() (err error) {
 	pipeReader, fh.pipeWriter = io.Pipe()
 	go func() {
 		// NB Rcat deals with Stats.Transferring etc
-		o, err := fs.Rcat(fh.file.d.f, fh.remote, pipeReader, time.Now())
+		o, err := operations.Rcat(fh.file.d.f, fh.remote, pipeReader, time.Now())
 		if err != nil {
 			fs.Errorf(fh.remote, "WriteFileHandle.New Rcat failed: %v", err)
 		}
@@ -230,9 +231,9 @@ func (fh *WriteFileHandle) Flush() error {
 	// If Write hasn't been called then ignore the Flush - Release
 	// will pick it up
 	if !fh.writeCalled {
-		fs.Debugf(fh.remote, "WriteFileHandle.Flush ignoring flush on unwritten handle")
-		return nil
-
+		fs.Debugf(fh.remote, "WriteFileHandle.Flush unwritten handle, writing 0 bytes to avoid race conditions")
+		_, err := fh.writeAt([]byte{}, fh.offset)
+		return err
 	}
 	err := fh.close()
 	if err != nil {
@@ -279,7 +280,7 @@ func (fh *WriteFileHandle) Truncate(size int64) (err error) {
 		return ECLOSED
 	}
 	if size != fh.offset {
-		fs.Errorf(fh.remote, "WriteFileHandle: Truncate: Can't change size without cache")
+		fs.Errorf(fh.remote, "WriteFileHandle: Truncate: Can't change size without --vfs-cache-mode >= writes")
 		return EPERM
 	}
 	// File is correct size
@@ -291,7 +292,7 @@ func (fh *WriteFileHandle) Truncate(size int64) (err error) {
 
 // Read reads up to len(p) bytes into p.
 func (fh *WriteFileHandle) Read(p []byte) (n int, err error) {
-	fs.Errorf(fh.remote, "WriteFileHandle: Read: Can't read and write to file without cache")
+	fs.Errorf(fh.remote, "WriteFileHandle: Read: Can't read and write to file without --vfs-cache-mode >= minimal")
 	return 0, EPERM
 }
 
@@ -299,7 +300,7 @@ func (fh *WriteFileHandle) Read(p []byte) (n int, err error) {
 // underlying input source. It returns the number of bytes read (0 <=
 // n <= len(p)) and any error encountered.
 func (fh *WriteFileHandle) ReadAt(p []byte, off int64) (n int, err error) {
-	fs.Errorf(fh.remote, "WriteFileHandle: ReadAt: Can't read and write to file without cache")
+	fs.Errorf(fh.remote, "WriteFileHandle: ReadAt: Can't read and write to file without --vfs-cache-mode >= minimal")
 	return 0, EPERM
 }
 

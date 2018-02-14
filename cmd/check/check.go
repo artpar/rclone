@@ -1,8 +1,8 @@
 package check
 
 import (
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
+	"github.com/ncw/rclone/cmd"
+	"github.com/ncw/rclone/fs/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -37,9 +37,9 @@ to check all the data.
 		fsrc, fdst := cmd.NewFsSrcDst(args)
 		cmd.Run(false, false, command, func() error {
 			if download {
-				return fs.CheckDownload(fdst, fsrc)
+				return operations.CheckDownload(fdst, fsrc)
 			}
-			return fs.Check(fdst, fsrc)
+			return operations.Check(fdst, fsrc)
 		})
 	},
 }

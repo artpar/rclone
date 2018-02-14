@@ -7,8 +7,11 @@ import (
 	"path"
 	"time"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
+	"github.com/ncw/rclone/cmd"
+	"github.com/ncw/rclone/cmd/ls/lshelp"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/operations"
+	"github.com/ncw/rclone/fs/walk"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -72,20 +75,25 @@ If --hash is not specified the the Hashes property won't be emitted.
 
 If --no-modtime is specified then ModTime will be blank.
 
+The Path field will only show folders below the remote path being listed.
+If "remote:path" contains the file "subfolder/file.txt", the Path for "file.txt"
+will be "subfolder/file.txt", not "remote:path/subfolder/file.txt".
+When used without --recursive the Path will always be the same as Name.
+
 The time is in RFC3339 format with nanosecond precision.
 
 The whole output can be processed as a JSON blob, or alternatively it
 can be processed line by line as each item is written one to a line.
-`,
+` + lshelp.Help,
 	Run: func(command *cobra.Command, args []string) {
 		cmd.CheckArgs(1, 1, command, args)
 		fsrc := cmd.NewFsSrc(args)
 		cmd.Run(false, false, command, func() error {
 			fmt.Println("[")
 			first := true
-			err := fs.Walk(fsrc, "", false, fs.ConfigMaxDepth(recurse), func(dirPath string, entries fs.DirEntries, err error) error {
+			err := walk.Walk(fsrc, "", false, operations.ConfigMaxDepth(recurse), func(dirPath string, entries fs.DirEntries, err error) error {
 				if err != nil {
-					fs.Stats.Error(err)
+					fs.CountError(err)
 					fs.Errorf(dirPath, "error listing: %v", err)
 					return nil
 				}

@@ -1,10 +1,11 @@
-SHELL = /bin/bash
+SHELL = bash
 TAG := $(shell echo `git describe --abbrev=8 --tags`-`git rev-parse --abbrev-ref HEAD` | sed 's/-\([0-9]\)-/-00\1-/; s/-\([0-9][0-9]\)-/-0\1-/; s/-\(HEAD\|master\)$$//')
 LAST_TAG := $(shell git describe --tags --abbrev=0)
 NEW_TAG := $(shell echo $(LAST_TAG) | perl -lpe 's/v//; $$_ += 0.01; $$_ = sprintf("v%.2f", $$_)')
 GO_VERSION := $(shell go version)
 GO_FILES := $(shell go list ./... | grep -v /vendor/ )
-GO_LATEST := $(findstring go1.9,$(GO_VERSION))
+# Run full tests if go >= go1.9
+FULL_TESTS := $(shell go version | perl -lne 'print "go$$1.$$2" if /go(\d+)\.(\d+)/ && ($$1 > 1 || $$2 >= 9)')
 BETA_URL := https://beta.rclone.org/$(TAG)/
 # Pass in GOTAGS=xyz on the make command line to set build tags
 ifdef GOTAGS
@@ -24,7 +25,7 @@ vars:
 	@echo LAST_TAG="'$(LAST_TAG)'"
 	@echo NEW_TAG="'$(NEW_TAG)'"
 	@echo GO_VERSION="'$(GO_VERSION)'"
-	@echo GO_LATEST="'$(GO_LATEST)'"
+	@echo FULL_TESTS="'$(FULL_TESTS)'"
 	@echo BETA_URL="'$(BETA_URL)'"
 
 version:
@@ -32,31 +33,32 @@ version:
 
 # Full suite of integration tests
 test:	rclone
-	-go test $(BUILDTAGS) $(GO_FILES) 2>&1 | tee test.log
-	-cd fs && go run $(BUILDTAGS) test_all.go 2>&1 | tee test_all.log
+	go install github.com/ncw/rclone/fstest/test_all
+	-go test -v -count 1 $(BUILDTAGS) $(GO_FILES) 2>&1 | tee test.log
+	-test_all github.com/ncw/rclone/fs/operations github.com/ncw/rclone/fs/sync 2>&1 | tee fs/test_all.log
 	@echo "Written logs in test.log and fs/test_all.log"
 
 # Quick test
 quicktest:
 	RCLONE_CONFIG="/notfound" go test $(BUILDTAGS) $(GO_FILES)
-ifdef GO_LATEST
+ifdef FULL_TESTS
 	RCLONE_CONFIG="/notfound" go test $(BUILDTAGS) -cpu=2 -race $(GO_FILES)
 endif
 
 # Do source code quality checks
 check:	rclone
-ifdef GO_LATEST
+ifdef FULL_TESTS
 	go vet $(BUILDTAGS) -printfuncs Debugf,Infof,Logf,Errorf ./...
 	errcheck $(BUILDTAGS) ./...
 	find . -name \*.go | grep -v /vendor/ | xargs goimports -d | grep . ; test $$? -eq 1
 	go list ./... | xargs -n1 golint | grep -E -v '(StorageUrl|CdnUrl)' ; test $$? -eq 1
 else
-	@echo Skipping tests as not on Go stable
+	@echo Skipping source quality tests as version of go too old
 endif
 
 # Get the build dependencies
 build_dep:
-ifdef GO_LATEST
+ifdef FULL_TESTS
 	go get -u github.com/kisielk/errcheck
 	go get -u golang.org/x/tools/cmd/goimports
 	go get -u github.com/golang/lint/golint
@@ -94,7 +96,7 @@ clean:
 	go clean ./...
 	find . -name \*~ | xargs -r rm -f
 	rm -rf build docs/public
-	rm -f rclone fs/fs.test fs/test_all.log test.log
+	rm -f rclone fs/operations/operations.test fs/sync/sync.test fs/test_all.log test.log
 
 website:
 	cd docs && hugo
@@ -125,10 +127,10 @@ upload_beta:
 	@echo Beta release ready at $(BETA_URL)
 
 compile_all:
-ifdef GO_LATEST
+ifdef FULL_TESTS
 	go run bin/cross-compile.go -parallel 8 -compile-only $(BUILDTAGS) $(TAG)β
 else
-	@echo Skipping compile all as not on Go stable
+	@echo Skipping compile all as version of go too old
 endif
 
 travis_beta:
@@ -152,7 +154,7 @@ tag:	doc
 	@echo "Old tag is $(LAST_TAG)"
 	@echo "New tag is $(NEW_TAG)"
 	echo -e "package fs\n\n// Version of rclone\nvar Version = \"$(NEW_TAG)\"\n" | gofmt > fs/version.go
-	echo -n "$(NEW_TAG)" > docs/layouts/shortcodes/version.html
+	echo -n "$(NEW_TAG)" > docs/layouts/partials/version.html
 	git tag $(NEW_TAG)
 	@echo "Edit the new changelog in docs/content/changelog.md"
 	@echo "  * $(NEW_TAG) -" `date -I` >> docs/content/changelog.md

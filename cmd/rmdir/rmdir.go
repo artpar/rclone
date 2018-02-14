@@ -1,8 +1,8 @@
 package rmdir
 
 import (
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
+	"github.com/ncw/rclone/cmd"
+	"github.com/ncw/rclone/fs/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +20,7 @@ objects in it, use purge for that.`,
 		cmd.CheckArgs(1, 1, command, args)
 		fdst := cmd.NewFsDst(args)
 		cmd.Run(true, false, command, func() error {
-			return fs.Rmdir(fdst, "")
+			return operations.Rmdir(fdst, "")
 		})
 	},
 }

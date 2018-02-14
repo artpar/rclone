@@ -5,14 +5,17 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 	"path"
 	"strconv"
 	"strings"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
+	"github.com/ncw/rclone/cmd"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/accounting"
+	"github.com/ncw/rclone/lib/rest"
+	"github.com/ncw/rclone/vfs"
+	"github.com/ncw/rclone/vfs/vfsflags"
 	"github.com/spf13/cobra"
 )
 
@@ -117,6 +120,22 @@ type entry struct {
 // entries represents a directory
 type entries []entry
 
+// addEntry adds an entry to that directory
+func (es *entries) addEntry(node interface {
+	Path() string
+	Name() string
+	IsDir() bool
+}) {
+	remote := node.Path()
+	leaf := node.Name()
+	urlRemote := leaf
+	if node.IsDir() {
+		leaf += "/"
+		urlRemote += "/"
+	}
+	*es = append(*es, entry{remote: remote, URL: rest.URLPathEscape(urlRemote), Leaf: leaf})
+}
+
 // indexPage is a directory listing template
 var indexPage = `<!DOCTYPE html>
 <html lang="en">
@@ -142,7 +161,7 @@ type indexData struct {
 
 // error returns an http.StatusInternalServerError and logs the error
 func internalError(what interface{}, w http.ResponseWriter, text string, err error) {
-	fs.Stats.Error(err)
+	fs.CountError(err)
 	fs.Errorf(what, "%s: %v", text, err)
 	http.Error(w, text+".", http.StatusInternalServerError)
 }
@@ -171,19 +190,12 @@ func (s *server) serveDir(w http.ResponseWriter, r *http.Request, dirRemote stri
 
 	var out entries
 	for _, node := range dirEntries {
-		remote := node.Path()
-		leaf := node.Name()
-		urlRemote := leaf
-		if node.IsDir() {
-			leaf += "/"
-			urlRemote += "/"
-		}
-		out = append(out, entry{remote: remote, URL: urlRemote, Leaf: leaf})
+		out.addEntry(node)
 	}
 
 	// Account the transfer
-	fs.Stats.Transferring(dirRemote)
-	defer fs.Stats.DoneTransferring(dirRemote, true)
+	accounting.Stats.Transferring(dirRemote)
+	defer accounting.Stats.DoneTransferring(dirRemote, true)
 
 	fs.Infof(dirRemote, "%s: Serving directory", r.RemoteAddr)
 	err = indexTemplate.Execute(w, indexData{
@@ -236,7 +248,7 @@ func (s *server) serveFile(w http.ResponseWriter, r *http.Request, remote string
 	}
 
 	// open the object
-	in, err := file.OpenRead()
+	in, err := file.Open(os.O_RDONLY)
 	if err != nil {
 		internalError(remote, w, "Failed to open file", err)
 		return
@@ -249,8 +261,8 @@ func (s *server) serveFile(w http.ResponseWriter, r *http.Request, remote string
 	}()
 
 	// Account the transfer
-	fs.Stats.Transferring(remote)
-	defer fs.Stats.DoneTransferring(remote, true)
+	accounting.Stats.Transferring(remote)
+	defer accounting.Stats.DoneTransferring(remote, true)
 	// FIXME in = fs.NewAccount(in, obj).WithBuffer() // account the transfer
 
 	// Serve the file

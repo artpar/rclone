@@ -3,13 +3,13 @@ package dedupe
 import (
 	"log"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
+	"github.com/ncw/rclone/cmd"
+	"github.com/ncw/rclone/fs/operations"
 	"github.com/spf13/cobra"
 )
 
 var (
-	dedupeMode = fs.DeduplicateInteractive
+	dedupeMode = operations.DeduplicateInteractive
 )
 
 func init() {
@@ -111,7 +111,7 @@ Or
 		}
 		fdst := cmd.NewFsSrc(args)
 		cmd.Run(false, false, command, func() error {
-			return fs.Deduplicate(fdst, dedupeMode)
+			return operations.Deduplicate(fdst, dedupeMode)
 		})
 	},
 }

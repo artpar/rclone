@@ -1,8 +1,9 @@
 package copyto
 
 import (
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
+	"github.com/ncw/rclone/cmd"
+	"github.com/ncw/rclone/fs/operations"
+	"github.com/ncw/rclone/fs/sync"
 	"github.com/spf13/cobra"
 )
 
@@ -45,9 +46,9 @@ destination.
 		fsrc, srcFileName, fdst, dstFileName := cmd.NewFsSrcDstFiles(args)
 		cmd.Run(true, true, command, func() error {
 			if srcFileName == "" {
-				return fs.CopyDir(fdst, fsrc)
+				return sync.CopyDir(fdst, fsrc)
 			}
-			return fs.CopyFile(fdst, fsrc, dstFileName, srcFileName)
+			return operations.CopyFile(fdst, fsrc, dstFileName, srcFileName)
 		})
 	},
 }

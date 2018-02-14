@@ -8,7 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/fs"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/list"
 	"github.com/pkg/errors"
 )
 
@@ -179,7 +180,7 @@ func (d *Dir) _readDir() error {
 		}
 		fs.Debugf(d.path, "Re-reading directory (%v old)", age)
 	}
-	entries, err := fs.ListDirSorted(d.f, false, d.path)
+	entries, err := list.DirSorted(d.f, false, d.path)
 	if err == fs.ErrorDirNotFound {
 		// We treat directory not found as empty because we
 		// create directories on the fly
@@ -325,7 +326,7 @@ func (d *Dir) Open(flags int) (fd Handle, err error) {
 }
 
 // Create makes a new file node
-func (d *Dir) Create(name string) (*File, error) {
+func (d *Dir) Create(name string, flags int) (*File, error) {
 	// fs.Debugf(path, "Dir.Create")
 	if d.vfs.Opt.ReadOnly {
 		return nil, EROFS

@@ -6,10 +6,11 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
+	"github.com/ncw/rclone/cmd"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config/flags"
+	"github.com/ncw/rclone/vfs"
+	"github.com/ncw/rclone/vfs/vfsflags"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -85,7 +86,7 @@ When that happens, it is the user's responsibility to stop the mount manually wi
     # OS X
     umount /path/to/local/mount
 
-### Installing on Windows ###
+### Installing on Windows
 
 To run rclone ` + commandName + ` on Windows, you will need to
 download and install [WinFsp](http://www.secfs.net/winfsp/).
@@ -98,7 +99,7 @@ uses combination with
 packages are by Bill Zissimopoulos who was very helpful during the
 implementation of rclone ` + commandName + ` for Windows.
 
-#### Windows caveats ####
+#### Windows caveats
 
 Note that drives created as Administrator are not visible by other
 accounts (including the account that was elevated as
@@ -111,13 +112,16 @@ The easiest way around this is to start the drive from a normal
 command prompt. It is also possible to start a drive from the SYSTEM
 account (using [the WinFsp.Launcher
 infrastructure](https://github.com/billziss-gh/winfsp/wiki/WinFsp-Service-Architecture))
-which creates drives accessible for everyone on the system.
+which creates drives accessible for everyone on the system or
+alternatively using [the nssm service manager](https://nssm.cc/usage).
 
-### Limitations ###
+### Limitations
 
-This can only write files seqentially, it can only seek when reading.
-This means that many applications won't work with their files on an
-rclone mount.
+Without the use of "--vfs-cache-mode" this can only write files
+sequentially, it can only seek when reading.  This means that many
+applications won't work with their files on an rclone mount without
+"--vfs-cache-mode writes" or "--vfs-cache-mode full".  See the [File
+Caching](#file-caching) section for more info.
 
 The bucket based remotes (eg Swift, S3, Google Compute Storage, B2,
 Hubic) won't work from the root - you will need to specify a bucket,
@@ -129,21 +133,21 @@ the directory cache.
 
 Only supported on Linux, FreeBSD, OS X and Windows at the moment.
 
-### rclone ` + commandName + ` vs rclone sync/copy ##
+### rclone ` + commandName + ` vs rclone sync/copy
 
 File systems expect things to be 100% reliable, whereas cloud storage
 systems are a long way from 100% reliable. The rclone sync/copy
 commands cope with this with lots of retries.  However rclone ` + commandName + `
 can't use retries in the same way without making local copies of the
-uploads.  This might happen in the future, but for the moment rclone
-` + commandName + ` won't do that, so will be less reliable than the rclone command.
+uploads. Look at the **EXPERIMENTAL** [file caching](#file-caching)
+for solutions to make ` + commandName + ` mount more reliable.
 
-### Filters ###
+### Filters
 
 Note that all the rclone filters can be used to select a subset of the
 files to be visible in the mount.
 
-### systemd ###
+### systemd
 
 When running rclone ` + commandName + ` as a systemd service, it is possible
 to use Type=notify. In this case the service will enter the started state
@@ -172,7 +176,7 @@ will see all files and folders immediately in this mode.
 
 			err := Mount(fdst, args[1])
 			if err != nil {
-				log.Printf("Fatal error: %v", err)
+				log.Fatalf("Fatal error: %v", err)
 			}
 		},
 	}
@@ -181,21 +185,21 @@ will see all files and folders immediately in this mode.
 	cmd.Root.AddCommand(commandDefintion)
 
 	// Add flags
-	flags := commandDefintion.Flags()
-	fs.BoolVarP(flags, &DebugFUSE, "debug-fuse", "", DebugFUSE, "Debug the FUSE internals - needs -v.")
+	flagSet := commandDefintion.Flags()
+	flags.BoolVarP(flagSet, &DebugFUSE, "debug-fuse", "", DebugFUSE, "Debug the FUSE internals - needs -v.")
 	// mount options
-	fs.BoolVarP(flags, &AllowNonEmpty, "allow-non-empty", "", AllowNonEmpty, "Allow mounting over a non-empty directory.")
-	fs.BoolVarP(flags, &AllowRoot, "allow-root", "", AllowRoot, "Allow access to root user.")
-	fs.BoolVarP(flags, &AllowOther, "allow-other", "", AllowOther, "Allow access to other users.")
-	fs.BoolVarP(flags, &DefaultPermissions, "default-permissions", "", DefaultPermissions, "Makes kernel enforce access control based on the file mode.")
-	fs.BoolVarP(flags, &WritebackCache, "write-back-cache", "", WritebackCache, "Makes kernel buffer writes before sending them to rclone. Without this, writethrough caching is used.")
-	fs.FlagsVarP(flags, &MaxReadAhead, "max-read-ahead", "", "The number of bytes that can be prefetched for sequential reads.")
-	fs.StringArrayVarP(flags, &ExtraOptions, "option", "o", []string{}, "Option for libfuse/WinFsp. Repeat if required.")
-	fs.StringArrayVarP(flags, &ExtraFlags, "fuse-flag", "", []string{}, "Flags or arguments to be passed direct to libfuse/WinFsp. Repeat if required.")
-	//fs.BoolVarP(flags, &foreground, "foreground", "", foreground, "Do not detach.")
+	flags.BoolVarP(flagSet, &AllowNonEmpty, "allow-non-empty", "", AllowNonEmpty, "Allow mounting over a non-empty directory.")
+	flags.BoolVarP(flagSet, &AllowRoot, "allow-root", "", AllowRoot, "Allow access to root user.")
+	flags.BoolVarP(flagSet, &AllowOther, "allow-other", "", AllowOther, "Allow access to other users.")
+	flags.BoolVarP(flagSet, &DefaultPermissions, "default-permissions", "", DefaultPermissions, "Makes kernel enforce access control based on the file mode.")
+	flags.BoolVarP(flagSet, &WritebackCache, "write-back-cache", "", WritebackCache, "Makes kernel buffer writes before sending them to rclone. Without this, writethrough caching is used.")
+	flags.FVarP(flagSet, &MaxReadAhead, "max-read-ahead", "", "The number of bytes that can be prefetched for sequential reads.")
+	flags.StringArrayVarP(flagSet, &ExtraOptions, "option", "o", []string{}, "Option for libfuse/WinFsp. Repeat if required.")
+	flags.StringArrayVarP(flagSet, &ExtraFlags, "fuse-flag", "", []string{}, "Flags or arguments to be passed direct to libfuse/WinFsp. Repeat if required.")
+	//flags.BoolVarP(flagSet, &foreground, "foreground", "", foreground, "Do not detach.")
 
 	// Add in the generic flags
-	vfsflags.AddFlags(flags)
+	vfsflags.AddFlags(flagSet)
 
 	return commandDefintion
 }

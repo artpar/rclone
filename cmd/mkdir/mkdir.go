@@ -1,8 +1,8 @@
 package mkdir
 
 import (
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
+	"github.com/ncw/rclone/cmd"
+	"github.com/ncw/rclone/fs/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +17,7 @@ var commandDefintion = &cobra.Command{
 		cmd.CheckArgs(1, 1, command, args)
 		fdst := cmd.NewFsDst(args)
 		cmd.Run(true, false, command, func() error {
-			return fs.Mkdir(fdst, "")
+			return operations.Mkdir(fdst, "")
 		})
 	},
 }
