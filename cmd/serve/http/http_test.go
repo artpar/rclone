@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/ncw/rclone/backend/local"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config"
-	"github.com/ncw/rclone/fs/filter"
+	_ "github.com/artpar/rclone/backend/local"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

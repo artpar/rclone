@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/jlaffaye/ftp"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config"
-	"github.com/ncw/rclone/fs/config/obscure"
-	"github.com/ncw/rclone/fs/hash"
-	"github.com/ncw/rclone/lib/readers"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/readers"
 	"github.com/pkg/errors"
 )
 

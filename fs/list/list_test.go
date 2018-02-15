@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fstest/mockdir"
-	"github.com/ncw/rclone/fstest/mockobject"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest/mockdir"
+	"github.com/artpar/rclone/fstest/mockobject"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

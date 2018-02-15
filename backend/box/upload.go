@@ -14,10 +14,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncw/rclone/backend/box/api"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/accounting"
-	"github.com/ncw/rclone/lib/rest"
+	"github.com/artpar/rclone/backend/box/api"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/lib/rest"
 	"github.com/pkg/errors"
 )
 

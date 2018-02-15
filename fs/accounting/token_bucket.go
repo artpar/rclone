@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/fs"
 	"golang.org/x/net/context" // switch to "context" when we stop supporting go1.6
 	"golang.org/x/time/rate"
 )

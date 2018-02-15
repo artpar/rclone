@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config"
-	"github.com/ncw/rclone/fs/config/flags"
-	"github.com/ncw/rclone/fs/config/obscure"
-	"github.com/ncw/rclone/fs/hash"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fs/hash"
 	"github.com/pkg/errors"
 )
 

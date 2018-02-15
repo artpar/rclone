@@ -8,7 +8,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/fs"
 )
 
 // dial with timeouts

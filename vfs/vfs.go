@@ -26,8 +26,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/log"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/log"
 	"golang.org/x/net/context" // switch to "context" when we stop supporting go1.6
 )
 

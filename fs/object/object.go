@@ -8,8 +8,8 @@ import (
 	"io/ioutil"
 	"time"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/hash"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/hash"
 )
 
 // NewStaticObjectInfo returns a static ObjectInfo

@@ -19,9 +19,9 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/fserrors"
-	"github.com/ncw/rclone/lib/readers"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/lib/readers"
 	"github.com/pkg/errors"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"

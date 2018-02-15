@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/fs"
 )
 
 // startSignalHandler() sets a signal handler to catch SIGUSR2 and toggle throttling.

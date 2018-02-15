@@ -10,7 +10,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/fs"
 )
 
 var (

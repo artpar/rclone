@@ -63,10 +63,10 @@ package {{ .FsName }}_test
 import (
 	"testing"
 
-	"github.com/ncw/rclone/backend/{{ .FsName }}"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fstest/fstests"
-{{ if (or (eq .FsName "crypt") (eq .FsName "cache")) }}	_ "github.com/ncw/rclone/backend/local"
+	"github.com/artpar/rclone/backend/{{ .FsName }}"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest/fstests"
+{{ if (or (eq .FsName "crypt") (eq .FsName "cache")) }}	_ "github.com/artpar/rclone/backend/local"
 {{end}})
 
 func TestSetup{{ .Suffix }}(t *testing.T)() {

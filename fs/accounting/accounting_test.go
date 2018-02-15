@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ncw/rclone/fs/asyncreader"
-	"github.com/ncw/rclone/fstest/mockobject"
+	"github.com/artpar/rclone/fs/asyncreader"
+	"github.com/artpar/rclone/fstest/mockobject"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

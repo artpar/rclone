@@ -8,8 +8,8 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/flags"
 )
 
 var (

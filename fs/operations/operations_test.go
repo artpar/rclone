@@ -30,15 +30,15 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/ncw/rclone/backend/all" // import all backends
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/accounting"
-	"github.com/ncw/rclone/fs/filter"
-	"github.com/ncw/rclone/fs/hash"
-	"github.com/ncw/rclone/fs/list"
-	"github.com/ncw/rclone/fs/operations"
-	"github.com/ncw/rclone/fs/walk"
-	"github.com/ncw/rclone/fstest"
+	_ "github.com/artpar/rclone/backend/all" // import all backends
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/filter"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/list"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fs/walk"
+	"github.com/artpar/rclone/fstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

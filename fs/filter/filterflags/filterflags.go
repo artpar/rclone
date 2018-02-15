@@ -2,8 +2,8 @@
 package filterflags
 
 import (
-	"github.com/ncw/rclone/fs/config/flags"
-	"github.com/ncw/rclone/fs/filter"
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs/filter"
 	"github.com/spf13/pflag"
 )
 

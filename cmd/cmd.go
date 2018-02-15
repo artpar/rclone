@@ -20,17 +20,17 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/accounting"
-	"github.com/ncw/rclone/fs/config"
-	"github.com/ncw/rclone/fs/config/configflags"
-	"github.com/ncw/rclone/fs/config/flags"
-	"github.com/ncw/rclone/fs/filter"
-	"github.com/ncw/rclone/fs/filter/filterflags"
-	"github.com/ncw/rclone/fs/fserrors"
-	"github.com/ncw/rclone/fs/fspath"
-	fslog "github.com/ncw/rclone/fs/log"
-	"github.com/ncw/rclone/lib/atexit"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configflags"
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs/filter"
+	"github.com/artpar/rclone/fs/filter/filterflags"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/fspath"
+	fslog "github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/lib/atexit"
 )
 
 // Globals
@@ -389,12 +389,12 @@ func initConfig() {
 		f, err := os.Create(*cpuProfile)
 		if err != nil {
 			fs.CountError(err)
-			log.Printf(err)
+			log.Printf("%v", err)
 		}
 		err = pprof.StartCPUProfile(f)
 		if err != nil {
 			fs.CountError(err)
-			log.Printf(err)
+			log.Printf("%v", err)
 		}
 		atexit.Register(func() {
 			pprof.StopCPUProfile()
@@ -408,17 +408,17 @@ func initConfig() {
 			f, err := os.Create(*memProfile)
 			if err != nil {
 				fs.CountError(err)
-				log.Printf(err)
+				log.Printf("%v", err)
 			}
 			err = pprof.WriteHeapProfile(f)
 			if err != nil {
 				fs.CountError(err)
-				log.Printf(err)
+				log.Printf("%v", err)
 			}
 			err = f.Close()
 			if err != nil {
 				fs.CountError(err)
-				log.Printf(err)
+				log.Printf("%v", err)
 			}
 		})
 	}

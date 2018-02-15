@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config"
-	"github.com/ncw/rclone/fs/fshttp"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/pkg/errors"
 	"github.com/skratchdot/open-golang/open"
 	"golang.org/x/net/context"

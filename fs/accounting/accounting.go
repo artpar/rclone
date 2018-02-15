@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/VividCortex/ewma"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/asyncreader"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/asyncreader"
 )
 
 // Account limits and accounts for one transfer

@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ncw/rclone/fs/driveletter"
-	"github.com/ncw/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/driveletter"
+	"github.com/artpar/rclone/fs/hash"
 	"github.com/pkg/errors"
 )
 

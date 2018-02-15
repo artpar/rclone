@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/djherbis/times"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 )

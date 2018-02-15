@@ -1,9 +1,9 @@
 package copyto
 
 import (
-	"github.com/ncw/rclone/cmd"
-	"github.com/ncw/rclone/fs/operations"
-	"github.com/ncw/rclone/fs/sync"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fs/sync"
 	"github.com/spf13/cobra"
 )
 

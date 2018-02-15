@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/fs"
 )
 
 // dial with context and timeouts
