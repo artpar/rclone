@@ -73,8 +73,8 @@ func init() {
 	})
 }
 
-// NewFs contstructs an Fs from the path, container:path
-func NewFs(name, rpath string) (fs.Fs, error) {
+// NewCipher constructs a Cipher for the given config name
+func NewCipher(name string) (Cipher, error) {
 	mode, err := NewNameEncryptionMode(config.FileGet(name, "filename_encryption", "standard"))
 	if err != nil {
 		return nil, err
@@ -102,6 +102,15 @@ func NewFs(name, rpath string) (fs.Fs, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make cipher")
 	}
+	return cipher, nil
+}
+
+// NewFs contstructs an Fs from the path, container:path
+func NewFs(name, rpath string) (fs.Fs, error) {
+	cipher, err := NewCipher(name)
+	if err != nil {
+		return nil, err
+	}
 	remote := config.FileGet(name, "remote")
 	if strings.HasPrefix(remote, name+":") {
 		return nil, errors.New("can't point crypt remote at itself - check the value of the remote setting")
@@ -122,12 +131,11 @@ func NewFs(name, rpath string) (fs.Fs, error) {
 		name:   name,
 		root:   rpath,
 		cipher: cipher,
-		mode:   mode,
 	}
 	// the features here are ones we could support, and they are
 	// ANDed with the ones from wrappedFs
 	f.features = (&fs.Features{
-		CaseInsensitive:         mode == NameEncryptionOff,
+		CaseInsensitive:         cipher.NameEncryptionMode() == NameEncryptionOff,
 		DuplicateFiles:          true,
 		ReadMimeType:            false, // MimeTypes not supported with crypt
 		WriteMimeType:           false,
@@ -465,11 +473,17 @@ func (f *Fs) DecryptFileName(encryptedFileName string) (string, error) {
 // Note that we break lots of encapsulation in this function.
 func (f *Fs) ComputeHash(o *Object, src fs.Object, hashType hash.Type) (hashStr string, err error) {
 	// Read the nonce - opening the file is sufficient to read the nonce in
-	in, err := o.Open()
+	// use a limited read so we only read the header
+	in, err := o.Object.Open(&fs.RangeOption{Start: 0, End: int64(fileHeaderSize) - 1})
 	if err != nil {
-		return "", errors.Wrap(err, "failed to read nonce")
+		return "", errors.Wrap(err, "failed to open object to read nonce")
 	}
-	nonce := in.(*decrypter).nonce
+	d, err := f.cipher.(*cipher).newDecrypter(in)
+	if err != nil {
+		_ = in.Close()
+		return "", errors.Wrap(err, "failed to open object to read nonce")
+	}
+	nonce := d.nonce
 	// fs.Debugf(o, "Read nonce % 2x", nonce)
 
 	// Check nonce isn't all zeros
@@ -483,8 +497,8 @@ func (f *Fs) ComputeHash(o *Object, src fs.Object, hashType hash.Type) (hashStr 
 		fs.Errorf(o, "empty nonce read")
 	}
 
-	// Close in once we have read the nonce
-	err = in.Close()
+	// Close d (and hence in) once we have read the nonce
+	err = d.Close()
 	if err != nil {
 		return "", errors.Wrap(err, "failed to close nonce read")
 	}
@@ -503,7 +517,10 @@ func (f *Fs) ComputeHash(o *Object, src fs.Object, hashType hash.Type) (hashStr 
 	}
 
 	// pipe into hash
-	m := hash.NewMultiHasher()
+	m, err := hash.NewMultiHasherTypes(hash.NewHashSet(hashType))
+	if err != nil {
+		return "", errors.Wrap(err, "failed to make hasher")
+	}
 	_, err = io.Copy(m, out)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to hash data")
@@ -573,29 +590,39 @@ func (o *Object) UnWrap() fs.Object {
 
 // Open opens the file for read.  Call Close() on the returned io.ReadCloser
 func (o *Object) Open(options ...fs.OpenOption) (rc io.ReadCloser, err error) {
-	var offset int64
+	var openOptions []fs.OpenOption
+	var offset, limit int64 = 0, -1
 	for _, option := range options {
 		switch x := option.(type) {
 		case *fs.SeekOption:
 			offset = x.Offset
+		case *fs.RangeOption:
+			offset, limit = x.Decode(o.Size())
 		default:
-			if option.Mandatory() {
-				fs.Logf(o, "Unsupported mandatory option: %v", option)
-			}
+			// pass on Options to underlying open if appropriate
+			openOptions = append(openOptions, option)
 		}
 	}
-	rc, err = o.f.cipher.DecryptDataSeek(func(underlyingOffset int64) (io.ReadCloser, error) {
-		if underlyingOffset == 0 {
+	rc, err = o.f.cipher.DecryptDataSeek(func(underlyingOffset, underlyingLimit int64) (io.ReadCloser, error) {
+		if underlyingOffset == 0 && underlyingLimit < 0 {
 			// Open with no seek
-			return o.Object.Open()
+			return o.Object.Open(openOptions...)
 		}
-		// Open stream with a seek of underlyingOffset
-		return o.Object.Open(&fs.SeekOption{Offset: underlyingOffset})
-	}, offset)
+		// Open stream with a range of underlyingOffset, underlyingLimit
+		end := int64(-1)
+		if underlyingLimit >= 0 {
+			end = underlyingOffset + underlyingLimit - 1
+			if end >= o.Object.Size() {
+				end = -1
+			}
+		}
+		newOpenOptions := append(openOptions, &fs.RangeOption{Start: underlyingOffset, End: end})
+		return o.Object.Open(newOpenOptions...)
+	}, offset, limit)
 	if err != nil {
 		return nil, err
 	}
-	return rc, err
+	return rc, nil
 }
 
 // Update in to the object with the modTime given of the given size

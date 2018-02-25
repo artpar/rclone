@@ -51,7 +51,7 @@ var (
 )
 
 const (
-	exitCodeSuccess = iota
+	exitCodeSuccess            = iota
 	exitCodeUsageError
 	exitCodeUncategorizedError
 	exitCodeDirNotFound
@@ -314,14 +314,14 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 	}
 	if err != nil {
 		log.Printf("Failed to %s: %v", cmd.Name(), err)
-		resolveExitCode(err)
+		//resolveExitCode(err)
 	}
 	if showStats && (accounting.Stats.Errored() || *statsInterval > 0) {
 		accounting.Stats.Log()
 	}
 	fs.Debugf(nil, "Go routines at exit %d\n", runtime.NumGoroutine())
 	if accounting.Stats.Errored() {
-		resolveExitCode(accounting.Stats.GetLastError())
+		//resolveExitCode(accounting.Stats.GetLastError())
 	}
 }
 
@@ -331,12 +331,12 @@ func CheckArgs(MinArgs, MaxArgs int, cmd *cobra.Command, args []string) {
 		_ = cmd.Usage()
 		fmt.Fprintf(os.Stderr, "Command %s needs %d arguments mininum\n", cmd.Name(), MinArgs)
 		// os.Exit(1)
-		resolveExitCode(errorNotEnoughArguments)
+		//resolveExitCode(errorNotEnoughArguments)
 	} else if len(args) > MaxArgs {
 		_ = cmd.Usage()
 		fmt.Fprintf(os.Stderr, "Command %s needs %d arguments maximum\n", cmd.Name(), MaxArgs)
 		// os.Exit(1)
-		resolveExitCode(errorTooManyArguents)
+		//resolveExitCode(errorTooManyArguents)
 	}
 }
 

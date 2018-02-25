@@ -13,6 +13,7 @@ import (
 	"time"
 
 	_ "github.com/artpar/rclone/backend/local"
+	"github.com/artpar/rclone/cmd/serve/httplib"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/filter"
@@ -20,7 +21,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var updateGolden = flag.Bool("updategolden", false, "update golden files for regression test")
+var (
+	updateGolden = flag.Bool("updategolden", false, "update golden files for regression test")
+	httpServer   *server
+)
 
 const (
 	testBindAddress = "localhost:51777"
@@ -28,8 +32,10 @@ const (
 )
 
 func startServer(t *testing.T, f fs.Fs) {
-	s := newServer(f, testBindAddress)
-	go s.serve()
+	opt := httplib.DefaultOpt
+	opt.ListenAddr = testBindAddress
+	httpServer = newServer(f, &opt)
+	go httpServer.serve()
 
 	// try to connect to the test server
 	pause := time.Millisecond
@@ -224,4 +230,8 @@ func TestAddEntry(t *testing.T) {
 		{remote: "a/b/c/colon:colon.txt", URL: "./colon:colon.txt", Leaf: "colon:colon.txt"},
 		{remote: "\"quotes\".txt", URL: "%22quotes%22.txt", Leaf: "\"quotes\".txt"},
 	}, es)
+}
+
+func TestFinalise(t *testing.T) {
+	httpServer.srv.Close()
 }
