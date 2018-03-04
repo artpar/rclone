@@ -313,7 +313,7 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 		close(stopStats)
 	}
 	if err != nil {
-		log.Printf("Failed to %s: %v", cmd.Name(), err)
+		log.Printf("Failed to %s: %v", err)
 		//resolveExitCode(err)
 	}
 	if showStats && (accounting.Stats.Errored() || *statsInterval > 0) {
