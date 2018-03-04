@@ -61,6 +61,10 @@ const (
 	exitCodeFatalError
 )
 
+func SetRetries(retryCount *int) {
+	retries = retryCount
+}
+
 // Root is the main rclone command
 var Root = &cobra.Command{
 	Use:   "rclone",
