@@ -21,6 +21,7 @@ type File struct {
 	mu                sync.Mutex // protects the following
 	o                 fs.Object  // NB o may be nil if file is being written
 	leaf              string     // leaf name of the object
+	rwOpenCount       int        // number of open files on this handle
 	writers           []Handle   // writers for this file
 	readWriters       int        // how many RWFileHandle are open for writing
 	readWriterClosing bool       // is a RWFileHandle currently cosing?
@@ -138,6 +139,31 @@ func (f *File) delWriter(h Handle, modifiedCacheFile bool) (lastWriterAndModifie
 	return
 }
 
+// addRWOpen should be called by ReadWriteHandle when they have
+// actually opened the file for read or write.
+func (f *File) addRWOpen() {
+	f.mu.Lock()
+	f.rwOpenCount++
+	f.mu.Unlock()
+}
+
+// delRWOpen should be called by ReadWriteHandle when they have closed
+// an actually opene file for read or write.
+func (f *File) delRWOpen() {
+	f.mu.Lock()
+	f.rwOpenCount--
+	f.mu.Unlock()
+}
+
+// rwOpens returns how many active open ReadWriteHandles there are.
+// Note that file handles which are in pending open state aren't
+// counted.
+func (f *File) rwOpens() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.rwOpenCount
+}
+
 // finishWriterClose resets the readWriterClosing flag
 func (f *File) finishWriterClose() {
 	f.mu.Lock()
@@ -252,6 +278,21 @@ func (f *File) setObject(o fs.Object) {
 	f.d.addObject(f)
 }
 
+// Update the object but don't update the directory cache - for use by
+// the directory cache
+func (f *File) setObjectNoUpdate(o fs.Object) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.o = o
+}
+
+// Get the current fs.Object - may be nil
+func (f *File) getObject() fs.Object {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.o
+}
+
 // exists returns whether the file exists already
 func (f *File) exists() bool {
 	f.mu.Lock()
@@ -284,15 +325,14 @@ func (f *File) waitForValidObject() (o fs.Object, err error) {
 // openRead open the file for read
 func (f *File) openRead() (fh *ReadFileHandle, err error) {
 	// if o is nil it isn't valid yet
-	o, err := f.waitForValidObject()
+	_, err = f.waitForValidObject()
 	if err != nil {
 		return nil, err
 	}
 	// fs.Debugf(o, "File.openRead")
 
-	fh, err = newReadFileHandle(f, o)
+	fh, err = newReadFileHandle(f)
 	if err != nil {
-		err = errors.Wrap(err, "open for read")
 		fs.Errorf(f, "File.openRead failed: %v", err)
 		return nil, err
 	}
@@ -308,7 +348,6 @@ func (f *File) openWrite(flags int) (fh *WriteFileHandle, err error) {
 
 	fh, err = newWriteFileHandle(f.d, f, f.Path(), flags)
 	if err != nil {
-		err = errors.Wrap(err, "open for write")
 		fs.Errorf(f, "File.openWrite failed: %v", err)
 		return nil, err
 	}
@@ -327,7 +366,6 @@ func (f *File) openRW(flags int) (fh *RWFileHandle, err error) {
 
 	fh, err = newRWFileHandle(f.d, f, f.Path(), flags)
 	if err != nil {
-		err = errors.Wrap(err, "open for read write")
 		fs.Errorf(f, "File.openRW failed: %v", err)
 		return nil, err
 	}
@@ -400,8 +438,15 @@ func (f *File) Open(flags int) (fd Handle, err error) {
 	var (
 		write    bool // if set need write support
 		read     bool // if set need read support
-		rdwrMode = flags & (os.O_RDONLY | os.O_WRONLY | os.O_RDWR)
+		rdwrMode = flags & accessModeMask
 	)
+
+	// http://pubs.opengroup.org/onlinepubs/7908799/xsh/open.html
+	// The result of using O_TRUNC with O_RDONLY is undefined.
+	// Linux seems to truncate the file, but we prefer to return EINVAL
+	if rdwrMode == os.O_RDONLY && flags&os.O_TRUNC != 0 {
+		return nil, EINVAL
+	}
 
 	// Figure out the read/write intents
 	switch {
@@ -431,8 +476,8 @@ func (f *File) Open(flags int) (fd Handle, err error) {
 
 	// Open the correct sort of handle
 	CacheMode := f.d.vfs.Opt.CacheMode
-	CacheItem := f.d.vfs.cache.get(f.Path())
-	if CacheMode >= CacheModeMinimal && CacheItem.opens > 0 {
+	opens := f.d.vfs.cache.opens(f.Path())
+	if CacheMode >= CacheModeMinimal && opens > 0 {
 		fd, err = f.openRW(flags)
 	} else if read && write {
 		if CacheMode >= CacheModeMinimal {

@@ -491,7 +491,7 @@ func (f *Fs) Move(src fs.Object, remote string) (fs.Object, error) {
 	} else if err != nil {
 		// not quite clear, but probably trying to move a file across file system
 		// boundaries. Copying might still work.
-		fs.Errorf(src, "Can't move: %v: trying copy", err)
+		fs.Debugf(src, "Can't move: %v: trying copy", err)
 		return nil, fs.ErrorCantMove
 	}
 
@@ -535,7 +535,20 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 	}
 
 	// Do the move
-	return os.Rename(srcPath, dstPath)
+	err = os.Rename(srcPath, dstPath)
+	if os.IsNotExist(err) {
+		// race condition, source was deleted in the meantime
+		return err
+	} else if os.IsPermission(err) {
+		// not enough rights to write to dst
+		return err
+	} else if err != nil {
+		// not quite clear, but probably trying to move directory across file system
+		// boundaries. Copying might still work.
+		fs.Debugf(src, "Can't move dir: %v: trying copy", err)
+		return fs.ErrorCantDirMove
+	}
+	return nil
 }
 
 // Hashes returns the supported hash sets.
@@ -658,6 +671,9 @@ type localOpenFile struct {
 func (file *localOpenFile) Read(p []byte) (n int, err error) {
 	// Check if file has the same size and modTime
 	fi, err := file.fd.Stat()
+	if err != nil {
+		return 0, errors.Wrap(err, "can't read status of source file while transferring")
+	}
 	if file.o.size != fi.Size() || file.o.modTime != fi.ModTime() {
 		return 0, errors.New("can't copy - source file is being updated")
 	}

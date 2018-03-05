@@ -124,6 +124,16 @@ func findParent(name string) string {
 	return parent
 }
 
+// clean returns the cleaned version of name for use in the index map
+func clean(name string) string {
+	name = strings.Trim(name, "/")
+	name = path.Clean(name)
+	if name == "." || name == "/" {
+		name = ""
+	}
+	return name
+}
+
 // toOSPath turns a remote relative name into an OS path in the cache
 func (c *cache) toOSPath(name string) string {
 	return filepath.Join(c.root, filepath.FromSlash(name))
@@ -161,10 +171,25 @@ func (c *cache) _get(isFile bool, name string) (item *cacheItem, found bool) {
 	return item, found
 }
 
+// opens returns the number of opens that are on the file
+//
+// name should be a remote path not an osPath
+func (c *cache) opens(name string) int {
+	name = clean(name)
+	c.itemMu.Lock()
+	defer c.itemMu.Unlock()
+	item := c.item[name]
+	if item == nil {
+		return 0
+	}
+	return item.opens
+}
+
 // get gets name from the cache or creates a new one
 //
 // name should be a remote path not an osPath
 func (c *cache) get(name string) *cacheItem {
+	name = clean(name)
 	c.itemMu.Lock()
 	item, _ := c._get(true, name)
 	c.itemMu.Unlock()
@@ -176,6 +201,7 @@ func (c *cache) get(name string) *cacheItem {
 //
 // name should be a remote path not an osPath
 func (c *cache) updateTime(name string, when time.Time) {
+	name = clean(name)
 	c.itemMu.Lock()
 	item, found := c._get(true, name)
 	if !found || when.Sub(item.atime) > 0 {
@@ -205,6 +231,7 @@ func (c *cache) _open(isFile bool, name string) {
 //
 // name should be a remote path not an osPath
 func (c *cache) open(name string) {
+	name = clean(name)
 	c.itemMu.Lock()
 	c._open(true, name)
 	c.itemMu.Unlock()
@@ -214,6 +241,7 @@ func (c *cache) open(name string) {
 //
 // name should be a remote path not an osPath
 func (c *cache) cacheDir(name string) {
+	name = clean(name)
 	c.itemMu.Lock()
 	defer c.itemMu.Unlock()
 	for {
@@ -250,6 +278,7 @@ func (c *cache) _close(isFile bool, name string) {
 //
 // name should be a remote path not an osPath
 func (c *cache) close(name string) {
+	name = clean(name)
 	c.itemMu.Lock()
 	c._close(true, name)
 	c.itemMu.Unlock()

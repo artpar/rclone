@@ -8,8 +8,9 @@ import (
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
-	"github.com/artpar/rclone/fs/log"
-	"github.com/artpar/rclone/vfs"
+	"github.com/ncw/rclone/cmd/mountlib"
+	"github.com/ncw/rclone/fs/log"
+	"github.com/ncw/rclone/vfs"
 	"golang.org/x/net/context"
 )
 
@@ -24,6 +25,7 @@ var _ fusefs.Node = (*File)(nil)
 // Attr fills out the attributes for the file
 func (f *File) Attr(ctx context.Context, a *fuse.Attr) (err error) {
 	defer log.Trace(f, "")("a=%+v, err=%v", a, &err)
+	a.Valid = mountlib.AttrTimeout
 	modTime := f.File.ModTime()
 	Size := uint64(f.File.Size())
 	Blocks := (Size + 511) / 512
