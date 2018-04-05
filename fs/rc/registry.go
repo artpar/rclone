@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/fs"
 )
 
 // Params is the input and output type for the Func

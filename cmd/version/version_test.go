@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ncw/rclone/cmd"
-	"github.com/ncw/rclone/fs/config"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs/config"
 	"github.com/stretchr/testify/assert"
 )
 

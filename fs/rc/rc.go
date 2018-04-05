@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ncw/rclone/cmd/serve/httplib"
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/cmd/serve/httplib"
+	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
 )
 

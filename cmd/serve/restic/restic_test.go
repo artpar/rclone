@@ -7,9 +7,9 @@ import (
 	"os/exec"
 	"testing"
 
-	_ "github.com/ncw/rclone/backend/all"
-	"github.com/ncw/rclone/cmd/serve/httplib"
-	"github.com/ncw/rclone/fstest"
+	_ "github.com/artpar/rclone/backend/all"
+	"github.com/artpar/rclone/cmd/serve/httplib"
+	"github.com/artpar/rclone/fstest"
 	"github.com/stretchr/testify/assert"
 )
 

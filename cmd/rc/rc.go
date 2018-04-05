@@ -8,10 +8,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ncw/rclone/cmd"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/fshttp"
-	"github.com/ncw/rclone/fs/rc"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/fshttp"
+	"github.com/artpar/rclone/fs/rc"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )

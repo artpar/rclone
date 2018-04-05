@@ -5295,7 +5295,7 @@ If you are using server side encryption with KMS then you will find
 you can't transfer small objects.  As a work-around you can use the
 `--ignore-checksum` flag.
 
-A proper fix is being worked on in [issue #1824](https://github.com/ncw/rclone/issues/1824).
+A proper fix is being worked on in [issue #1824](https://github.com/artpar/rclone/issues/1824).
 
 ### Glacier ###
 

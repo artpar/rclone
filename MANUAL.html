@@ -2887,7 +2887,7 @@ y/e/d&gt; y</code></pre>
 <p>For reference, <a href="https://gist.github.com/ebridges/ebfc9042dd7c756cd101cfa807b7ae2b">here's an Ansible script</a> that will generate one or more buckets that will work with <code>rclone sync</code>.</p>
 <h3 id="key-management-system-kms">Key Management System (KMS)</h3>
 <p>If you are using server side encryption with KMS then you will find you can't transfer small objects. As a work-around you can use the <code>--ignore-checksum</code> flag.</p>
-<p>A proper fix is being worked on in <a href="https://github.com/ncw/rclone/issues/1824">issue #1824</a>.</p>
+<p>A proper fix is being worked on in <a href="https://github.com/artpar/rclone/issues/1824">issue #1824</a>.</p>
 <h3 id="glacier">Glacier</h3>
 <p>You can transition objects to glacier storage using a <a href="http://docs.aws.amazon.com/AmazonS3/latest/user-guide/create-lifecycle.html">lifecycle policy</a>. The bucket can still be synced or copied into normally, but if rclone tries to access the data you will see an error like below.</p>
 <pre><code>2017/09/11 19:07:43 Failed to sync: failed to open source object: Object in GLACIER, restore first: path/to/file</code></pre>
