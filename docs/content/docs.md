@@ -306,6 +306,11 @@ running, you can toggle the limiter like this:
 
     kill -SIGUSR2 $(pidof rclone)
 
+If you configure rclone with a [remote control](/rc) then you can use
+change the bwlimit dynamically:
+
+    rclone rc core/bwlimit rate=1M
+
 ### --buffer-size=SIZE ###
 
 Use this sized buffer to speed up file transfers.  Each `--transfer`
@@ -985,10 +990,20 @@ For the filtering options
 
 See the [filtering section](/filtering/).
 
+Remote control
+--------------
+
+For the remote control options and for instructions on how to remote control rclone
+
+  * `--rc`
+  * and anything starting with `--rc-`
+
+See [the remote control section](/rc/).
+
 Logging
 -------
 
-rclone has 4 levels of logging, `Error`, `Notice`, `Info` and `Debug`.
+rclone has 4 levels of logging, `ERROR`, `NOTICE`, `INFO` and `DEBUG`.
 
 By default, rclone logs to standard error.  This means you can redirect
 standard error and still see the normal output of rclone commands (eg

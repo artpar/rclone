@@ -204,7 +204,7 @@ func (fsys *FS) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc int) {
 func (fsys *FS) Opendir(path string) (errc int, fh uint64) {
 	defer log.Trace(path, "")("errc=%d, fh=0x%X", &errc, &fh)
 	handle, err := fsys.VFS.OpenFile(path, os.O_RDONLY, 0777)
-	if errc != 0 {
+	if err != nil {
 		return translateError(err), fhUnset
 	}
 	return 0, fsys.openHandle(handle)
@@ -283,9 +283,9 @@ func (fsys *FS) Open(path string, flags int) (errc int, fh uint64) {
 	defer log.Trace(path, "flags=0x%X", flags)("errc=%d, fh=0x%X", &errc, &fh)
 
 	// translate the fuse flags to os flags
-	flags = translateOpenFlags(flags) | os.O_CREATE
+	flags = translateOpenFlags(flags)
 	handle, err := fsys.VFS.OpenFile(path, flags, 0777)
-	if errc != 0 {
+	if err != nil {
 		return translateError(err), fhUnset
 	}
 

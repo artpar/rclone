@@ -73,8 +73,7 @@ var (
 	}
 	oauthBusinessResource = oauth2.SetAuthURLParam("resource", discoveryServiceURL)
 
-	chunkSize    = fs.SizeSuffix(10 * 1024 * 1024)
-	uploadCutoff = fs.SizeSuffix(10 * 1024 * 1024)
+	chunkSize = fs.SizeSuffix(10 * 1024 * 1024)
 )
 
 // Register with Fs
@@ -228,7 +227,6 @@ func init() {
 	})
 
 	flags.VarP(&chunkSize, "onedrive-chunk-size", "", "Above this size files will be chunked - must be multiple of 320k.")
-	flags.VarP(&uploadCutoff, "onedrive-upload-cutoff", "", "Cutoff for switching to chunked upload - must be <= 100MB")
 }
 
 // Fs represents a remote one drive
@@ -859,6 +857,15 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Copy does NOT copy the modTime from the source and there seems to
+	// be no way to set date before
+	// This will create TWO versions on OneDrive
+	err = dstObj.SetModTime(srcObj.ModTime())
+	if err != nil {
+		return nil, err
+	}
+
 	return dstObj, nil
 }
 
@@ -1105,21 +1112,24 @@ func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
 }
 
 // createUploadSession creates an upload session for the object
-func (o *Object) createUploadSession() (response *api.CreateUploadResponse, err error) {
+func (o *Object) createUploadSession(modTime time.Time) (response *api.CreateUploadResponse, err error) {
 	opts := rest.Opts{
 		Method: "POST",
 		Path:   "/root:/" + rest.URLPathEscape(o.srvPath()) + ":/upload.createSession",
 	}
+	createRequest := api.CreateUploadRequest{}
+	createRequest.Item.FileSystemInfo.CreatedDateTime = api.Timestamp(modTime)
+	createRequest.Item.FileSystemInfo.LastModifiedDateTime = api.Timestamp(modTime)
 	var resp *http.Response
 	err = o.fs.pacer.Call(func() (bool, error) {
-		resp, err = o.fs.srv.CallJSON(&opts, nil, &response)
+		resp, err = o.fs.srv.CallJSON(&opts, &createRequest, &response)
 		return shouldRetry(resp, err)
 	})
-	return
+	return response, err
 }
 
 // uploadFragment uploads a part
-func (o *Object) uploadFragment(url string, start int64, totalSize int64, chunk io.ReadSeeker, chunkSize int64) (err error) {
+func (o *Object) uploadFragment(url string, start int64, totalSize int64, chunk io.ReadSeeker, chunkSize int64) (info *api.Item, err error) {
 	opts := rest.Opts{
 		Method:        "PUT",
 		RootURL:       url,
@@ -1127,14 +1137,26 @@ func (o *Object) uploadFragment(url string, start int64, totalSize int64, chunk 
 		ContentRange:  fmt.Sprintf("bytes %d-%d/%d", start, start+chunkSize-1, totalSize),
 		Body:          chunk,
 	}
-	var response api.UploadFragmentResponse
+	//	var response api.UploadFragmentResponse
 	var resp *http.Response
 	err = o.fs.pacer.Call(func() (bool, error) {
 		_, _ = chunk.Seek(0, 0)
-		resp, err = o.fs.srv.CallJSON(&opts, nil, &response)
-		return shouldRetry(resp, err)
+		resp, err = o.fs.srv.Call(&opts)
+		if resp != nil {
+			defer fs.CheckClose(resp.Body, &err)
+		}
+		retry, err := shouldRetry(resp, err)
+		if !retry && resp != nil {
+			if resp.StatusCode == 200 || resp.StatusCode == 201 {
+				// we are done :)
+				// read the item
+				info = &api.Item{}
+				return false, json.NewDecoder(resp.Body).Decode(info)
+			}
+		}
+		return retry, err
 	})
-	return err
+	return info, err
 }
 
 // cancelUploadSession cancels an upload session
@@ -1153,16 +1175,16 @@ func (o *Object) cancelUploadSession(url string) (err error) {
 }
 
 // uploadMultipart uploads a file using multipart upload
-func (o *Object) uploadMultipart(in io.Reader, size int64) (err error) {
+func (o *Object) uploadMultipart(in io.Reader, size int64, modTime time.Time) (info *api.Item, err error) {
 	if chunkSize%(320*1024) != 0 {
-		return errors.Errorf("chunk size %d is not a multiple of 320k", chunkSize)
+		return nil, errors.Errorf("chunk size %d is not a multiple of 320k", chunkSize)
 	}
 
 	// Create upload session
 	fs.Debugf(o, "Starting multipart upload")
-	session, err := o.createUploadSession()
+	session, err := o.createUploadSession(modTime)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	uploadURL := session.UploadURL
 
@@ -1187,15 +1209,44 @@ func (o *Object) uploadMultipart(in io.Reader, size int64) (err error) {
 		}
 		seg := readers.NewRepeatableReader(io.LimitReader(in, n))
 		fs.Debugf(o, "Uploading segment %d/%d size %d", position, size, n)
-		err = o.uploadFragment(uploadURL, position, size, seg, n)
+		info, err = o.uploadFragment(uploadURL, position, size, seg, n)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		remaining -= n
 		position += n
 	}
 
-	return nil
+	return info, nil
+}
+
+// uploadSinglepart uploads a file as a single part
+func (o *Object) uploadSinglepart(in io.Reader, size int64, modTime time.Time) (info *api.Item, err error) {
+	var resp *http.Response
+	opts := rest.Opts{
+		Method:        "PUT",
+		Path:          "/root:/" + rest.URLPathEscape(o.srvPath()) + ":/content",
+		ContentLength: &size,
+		Body:          in,
+	}
+	// for go1.8 (see release notes) we must nil the Body if we want a
+	// "Content-Length: 0" header which onedrive requires for all files.
+	if size == 0 {
+		opts.Body = nil
+	}
+	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
+		resp, err = o.fs.srv.CallJSON(&opts, nil, &info)
+		return shouldRetry(resp, err)
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = o.setMetaData(info)
+	if err != nil {
+		return nil, err
+	}
+	// Set the mod time now and read metadata
+	return o.setModTime(modTime)
 }
 
 // Update the object with the contents of the io.Reader, modTime and size
@@ -1209,36 +1260,12 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 	modTime := src.ModTime()
 
 	var info *api.Item
-	if size <= int64(uploadCutoff) {
-		// This is for less than 100 MB of content
-		var resp *http.Response
-		opts := rest.Opts{
-			Method:        "PUT",
-			Path:          "/root:/" + rest.URLPathEscape(o.srvPath()) + ":/content",
-			ContentLength: &size,
-			Body:          in,
-		}
-		// for go1.8 (see release notes) we must nil the Body if we want a
-		// "Content-Length: 0" header which onedrive requires for all files.
-		if size == 0 {
-			opts.Body = nil
-		}
-		err = o.fs.pacer.CallNoRetry(func() (bool, error) {
-			resp, err = o.fs.srv.CallJSON(&opts, nil, &info)
-			return shouldRetry(resp, err)
-		})
-		if err != nil {
-			return err
-		}
-		err = o.setMetaData(info)
+	if size <= 0 {
+		// This is for 0 length files, or files with an unknown size
+		info, err = o.uploadSinglepart(in, size, modTime)
 	} else {
-		err = o.uploadMultipart(in, size)
+		info, err = o.uploadMultipart(in, size, modTime)
 	}
-	if err != nil {
-		return err
-	}
-	// Set the mod time now and read metadata
-	info, err = o.setModTime(modTime)
 	if err != nil {
 		return err
 	}

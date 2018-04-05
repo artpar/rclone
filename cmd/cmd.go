@@ -20,17 +20,18 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configflags"
-	"github.com/artpar/rclone/fs/config/flags"
-	"github.com/artpar/rclone/fs/filter"
-	"github.com/artpar/rclone/fs/filter/filterflags"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fspath"
-	fslog "github.com/artpar/rclone/fs/log"
-	"github.com/artpar/rclone/lib/atexit"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/accounting"
+	"github.com/ncw/rclone/fs/config/configflags"
+	"github.com/ncw/rclone/fs/config/flags"
+	"github.com/ncw/rclone/fs/filter"
+	"github.com/ncw/rclone/fs/filter/filterflags"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/fspath"
+	fslog "github.com/ncw/rclone/fs/log"
+	"github.com/ncw/rclone/fs/rc"
+	"github.com/ncw/rclone/fs/rc/rcflags"
+	"github.com/ncw/rclone/lib/atexit"
 )
 
 // Globals
@@ -130,6 +131,7 @@ func init() {
 	// Add global flags
 	configflags.AddFlags(pflag.CommandLine)
 	filterflags.AddFlags(pflag.CommandLine)
+	rcflags.AddFlags(pflag.CommandLine)
 
 	Root.Run = runRoot
 	Root.Flags().BoolVarP(&version, "version", "V", false, "Print the version number")
@@ -143,10 +145,10 @@ func ShowVersion() {
 	fmt.Printf("- go version: %s\n", runtime.Version())
 }
 
-// newFsFile creates a dst Fs from a name but may point to a file.
+// NewFsFile creates a dst Fs from a name but may point to a file.
 //
 // It returns a string with the file name if points to a file
-func newFsFile(remote string) (fs.Fs, string) {
+func NewFsFile(remote string) (fs.Fs, string) {
 	fsInfo, configName, fsPath, err := fs.ParseRemote(remote)
 	if err != nil {
 		fs.CountError(err)
@@ -171,7 +173,7 @@ func newFsFile(remote string) (fs.Fs, string) {
 //
 // This can point to a file
 func newFsSrc(remote string) (fs.Fs, string) {
-	f, fileName := newFsFile(remote)
+	f, fileName := NewFsFile(remote)
 	if fileName != "" {
 		if !filter.Active.InActive() {
 			err := errors.Errorf("Can't limit to single files when using filters: %v", remote)
@@ -323,7 +325,7 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 	if showStats && (accounting.Stats.Errored() || *statsInterval > 0) {
 		accounting.Stats.Log()
 	}
-	fs.Debugf(nil, "Go routines at exit %d\n", runtime.NumGoroutine())
+	fs.Debugf(nil, "%d go routines active\n", runtime.NumGoroutine())
 	if accounting.Stats.Errored() {
 		//resolveExitCode(accounting.Stats.GetLastError())
 	}
@@ -374,9 +376,6 @@ func initConfig() {
 	// Finish parsing any command line flags
 	configflags.SetFlags()
 
-	// Load the rest of the config now we have started the logger
-	config.LoadConfig()
-
 	// Load filters
 	var err error
 	filter.Active, err = filter.NewFilter(&filterflags.Opt)
@@ -386,6 +385,9 @@ func initConfig() {
 
 	// Write the args for debug purposes
 	fs.Debugf("rclone", "Version %q starting with parameters %q", fs.Version, os.Args)
+
+	// Start the remote control if configured
+	rc.Start(&rcflags.Opt)
 
 	// Setup CPU profiling if desired
 	if *cpuProfile != "" {

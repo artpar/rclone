@@ -24,16 +24,21 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	"github.com/artpar/rclone/backend/cache"
-	"github.com/artpar/rclone/backend/crypt"
-	_ "github.com/artpar/rclone/backend/drive"
-	"github.com/artpar/rclone/backend/local"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/object"
-	"github.com/artpar/rclone/fstest"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
+	"encoding/json"
+	"net/http"
+
+	"github.com/ncw/rclone/backend/cache"
+	"github.com/ncw/rclone/backend/crypt"
+	_ "github.com/ncw/rclone/backend/drive"
+	"github.com/ncw/rclone/backend/local"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config"
+	"github.com/ncw/rclone/fs/object"
+	"github.com/ncw/rclone/fs/rc"
+	"github.com/ncw/rclone/fs/rc/rcflags"
+	"github.com/ncw/rclone/fstest"
+	"github.com/ncw/rclone/vfs"
+	"github.com/ncw/rclone/vfs/vfsflags"
 	flag "github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
 )
@@ -44,6 +49,7 @@ const (
 	cryptPassword2     = "NlgTBEIe-qibA7v-FoMfuX6Cw8KlLai_aMvV"                                                     // mv4mZW572HM
 	cryptedTextBase64  = "UkNMT05FAAC320i2xIee0BiNyknSPBn+Qcw3q9FhIFp3tvq6qlqvbsno3PnxmEFeJG3jDBnR/wku2gHWeQ=="     // one content
 	cryptedText2Base64 = "UkNMT05FAAATcQkVsgjBh8KafCKcr0wdTa1fMmV0U8hsCLGFoqcvxKVmvv7wx3Hf5EXxFcki2FFV4sdpmSrb9Q==" // updated content
+	cryptedText3Base64 = "UkNMT05FAAB/f7YtYKbPfmk9+OX/ffN3qG3OEdWT+z74kxCX9V/YZwJ4X2DN3HOnUC3gKQ4Gcoud5UtNvQ=="     // test content
 )
 
 var (
@@ -96,6 +102,7 @@ func TestMain(m *testing.M) {
 	goflag.Parse()
 	var rc int
 
+	log.Printf("Running with the following params: \n remote: %v, \n mount: %v", remoteName, useMount)
 	runInstance = newRun()
 	rc = m.Run()
 	os.Exit(rc)
@@ -444,30 +451,132 @@ func TestInternalWrappedFsChangeNotSeen(t *testing.T) {
 	runInstance.writeRemoteBytes(t, rootFs, "data.bin", testData)
 
 	// update in the wrapped fs
+	originalSize, err := runInstance.size(t, rootFs, "data.bin")
+	require.NoError(t, err)
+	log.Printf("original size: %v", originalSize)
+
 	o, err := cfs.UnWrap().NewObject(runInstance.encryptRemoteIfNeeded(t, "data.bin"))
 	require.NoError(t, err)
-	wrappedTime := time.Now().Add(time.Hour * -1)
-	err = o.SetModTime(wrappedTime)
+	expectedSize := int64(len([]byte("test content")))
+	var data2 []byte
+	if runInstance.rootIsCrypt {
+		data2, err = base64.StdEncoding.DecodeString(cryptedText3Base64)
+		require.NoError(t, err)
+		expectedSize = expectedSize + 1 // FIXME newline gets in, likely test data issue
+	} else {
+		data2 = []byte("test content")
+	}
+	objInfo := object.NewStaticObjectInfo(runInstance.encryptRemoteIfNeeded(t, "data.bin"), time.Now(), int64(len(data2)), true, nil, cfs.UnWrap())
+	err = o.Update(bytes.NewReader(data2), objInfo)
 	require.NoError(t, err)
+	require.Equal(t, int64(len(data2)), o.Size())
+	log.Printf("updated size: %v", len(data2))
 
 	// get a new instance from the cache
 	if runInstance.wrappedIsExternal {
 		err = runInstance.retryBlock(func() error {
-			coModTime, err := runInstance.modTime(t, rootFs, "data.bin")
+			coSize, err := runInstance.size(t, rootFs, "data.bin")
 			if err != nil {
 				return err
 			}
-			if coModTime.Unix() != o.ModTime().Unix() {
-				return errors.Errorf("%v <> %v", coModTime, o.ModTime())
+			if coSize != expectedSize {
+				return errors.Errorf("%v <> %v", coSize, expectedSize)
 			}
 			return nil
 		}, 12, time.Second*10)
 		require.NoError(t, err)
 	} else {
-		coModTime, err := runInstance.modTime(t, rootFs, "data.bin")
+		coSize, err := runInstance.size(t, rootFs, "data.bin")
 		require.NoError(t, err)
-		require.NotEqual(t, coModTime.Unix(), o.ModTime().Unix())
+		require.NotEqual(t, coSize, expectedSize)
 	}
+}
+
+func TestInternalMoveWithNotify(t *testing.T) {
+	id := fmt.Sprintf("timwn%v", time.Now().Unix())
+	rootFs, boltDb := runInstance.newCacheFs(t, remoteName, id, false, true, nil, nil)
+	defer runInstance.cleanupFs(t, rootFs, boltDb)
+	if !runInstance.wrappedIsExternal {
+		t.Skipf("Not external")
+	}
+
+	cfs, err := runInstance.getCacheFs(rootFs)
+	require.NoError(t, err)
+
+	srcName := runInstance.encryptRemoteIfNeeded(t, "test") + "/" + runInstance.encryptRemoteIfNeeded(t, "one") + "/" + runInstance.encryptRemoteIfNeeded(t, "data.bin")
+	dstName := runInstance.encryptRemoteIfNeeded(t, "test") + "/" + runInstance.encryptRemoteIfNeeded(t, "second") + "/" + runInstance.encryptRemoteIfNeeded(t, "data.bin")
+	// create some rand test data
+	var testData []byte
+	if runInstance.rootIsCrypt {
+		testData, err = base64.StdEncoding.DecodeString(cryptedTextBase64)
+		require.NoError(t, err)
+	} else {
+		testData = []byte("test content")
+	}
+	_ = cfs.UnWrap().Mkdir(runInstance.encryptRemoteIfNeeded(t, "test"))
+	_ = cfs.UnWrap().Mkdir(runInstance.encryptRemoteIfNeeded(t, "test/one"))
+	_ = cfs.UnWrap().Mkdir(runInstance.encryptRemoteIfNeeded(t, "test/second"))
+	srcObj := runInstance.writeObjectBytes(t, cfs.UnWrap(), srcName, testData)
+
+	// list in mount
+	_, err = runInstance.list(t, rootFs, "test")
+	require.NoError(t, err)
+	_, err = runInstance.list(t, rootFs, "test/one")
+	require.NoError(t, err)
+
+	// move file
+	_, err = cfs.UnWrap().Features().Move(srcObj, dstName)
+	require.NoError(t, err)
+
+	err = runInstance.retryBlock(func() error {
+		li, err := runInstance.list(t, rootFs, "test")
+		if err != nil {
+			log.Printf("err: %v", err)
+			return err
+		}
+		if len(li) != 2 {
+			log.Printf("not expected listing /test: %v", li)
+			return errors.Errorf("not expected listing /test: %v", li)
+		}
+
+		li, err = runInstance.list(t, rootFs, "test/one")
+		if err != nil {
+			log.Printf("err: %v", err)
+			return err
+		}
+		if len(li) != 0 {
+			log.Printf("not expected listing /test/one: %v", li)
+			return errors.Errorf("not expected listing /test/one: %v", li)
+		}
+
+		li, err = runInstance.list(t, rootFs, "test/second")
+		if err != nil {
+			log.Printf("err: %v", err)
+			return err
+		}
+		if len(li) != 1 {
+			log.Printf("not expected listing /test/second: %v", li)
+			return errors.Errorf("not expected listing /test/second: %v", li)
+		}
+		if fi, ok := li[0].(os.FileInfo); ok {
+			if fi.Name() != "data.bin" {
+				log.Printf("not expected name: %v", fi.Name())
+				return errors.Errorf("not expected name: %v", fi.Name())
+			}
+		} else if di, ok := li[0].(fs.DirEntry); ok {
+			if di.Remote() != "test/second/data.bin" {
+				log.Printf("not expected remote: %v", di.Remote())
+				return errors.Errorf("not expected remote: %v", di.Remote())
+			}
+		} else {
+			log.Printf("unexpected listing: %v", li)
+			return errors.Errorf("unexpected listing: %v", li)
+		}
+
+		log.Printf("complete listing: %v", li)
+		return nil
+	}, 12, time.Second*10)
+	require.NoError(t, err)
 }
 
 func TestInternalChangeSeenAfterDirCacheFlush(t *testing.T) {
@@ -496,6 +605,56 @@ func TestInternalChangeSeenAfterDirCacheFlush(t *testing.T) {
 	require.NotEqual(t, o.ModTime().String(), co.ModTime().String())
 
 	cfs.DirCacheFlush() // flush the cache
+
+	// get a new instance from the cache
+	co, err = rootFs.NewObject("data.bin")
+	require.NoError(t, err)
+	require.Equal(t, wrappedTime.Unix(), co.ModTime().Unix())
+}
+
+func TestInternalChangeSeenAfterRc(t *testing.T) {
+	rcflags.Opt.Enabled = true
+	rc.Start(&rcflags.Opt)
+
+	id := fmt.Sprintf("ticsarc%v", time.Now().Unix())
+	rootFs, boltDb := runInstance.newCacheFs(t, remoteName, id, false, true, nil, map[string]string{"rc": "true"})
+	defer runInstance.cleanupFs(t, rootFs, boltDb)
+
+	if !runInstance.useMount {
+		t.Skipf("needs mount")
+	}
+
+	cfs, err := runInstance.getCacheFs(rootFs)
+	require.NoError(t, err)
+	chunkSize := cfs.ChunkSize()
+
+	// create some rand test data
+	testData := runInstance.randomBytes(t, (chunkSize*4 + chunkSize/2))
+	runInstance.writeRemoteBytes(t, rootFs, "data.bin", testData)
+
+	// update in the wrapped fs
+	o, err := cfs.UnWrap().NewObject(runInstance.encryptRemoteIfNeeded(t, "data.bin"))
+	require.NoError(t, err)
+	wrappedTime := time.Now().Add(-1 * time.Hour)
+	err = o.SetModTime(wrappedTime)
+	require.NoError(t, err)
+
+	// get a new instance from the cache
+	co, err := rootFs.NewObject("data.bin")
+	require.NoError(t, err)
+	require.NotEqual(t, o.ModTime().String(), co.ModTime().String())
+
+	m := make(map[string]string)
+	res, err := http.Post(fmt.Sprintf("http://localhost:5572/cache/expire?remote=%s", "data.bin"), "application/json; charset=utf-8", strings.NewReader(""))
+	require.NoError(t, err)
+	defer func() {
+		_ = res.Body.Close()
+	}()
+	_ = json.NewDecoder(res.Body).Decode(&m)
+	require.Contains(t, m, "status")
+	require.Contains(t, m, "message")
+	require.Equal(t, "ok", m["status"])
+	require.Contains(t, m["message"], "cached file cleared")
 
 	// get a new instance from the cache
 	co, err = rootFs.NewObject("data.bin")
@@ -592,6 +751,58 @@ func TestInternalExpiredEntriesRemoved(t *testing.T) {
 		return nil
 	}, 10, time.Second)
 	require.NoError(t, err)
+}
+
+func TestInternalBug2117(t *testing.T) {
+	vfsflags.Opt.DirCacheTime = time.Second * 10
+
+	id := fmt.Sprintf("tib2117%v", time.Now().Unix())
+	rootFs, boltDb := runInstance.newCacheFs(t, remoteName, id, false, true, nil,
+		map[string]string{"cache-info-age": "72h", "cache-chunk-clean-interval": "15m"})
+	defer runInstance.cleanupFs(t, rootFs, boltDb)
+
+	if runInstance.rootIsCrypt {
+		t.Skipf("skipping crypt")
+	}
+
+	cfs, err := runInstance.getCacheFs(rootFs)
+	require.NoError(t, err)
+
+	err = cfs.UnWrap().Mkdir("test")
+	require.NoError(t, err)
+	for i := 1; i <= 4; i++ {
+		err = cfs.UnWrap().Mkdir(fmt.Sprintf("test/dir%d", i))
+		require.NoError(t, err)
+
+		for j := 1; j <= 4; j++ {
+			err = cfs.UnWrap().Mkdir(fmt.Sprintf("test/dir%d/dir%d", i, j))
+			require.NoError(t, err)
+
+			runInstance.writeObjectString(t, cfs.UnWrap(), fmt.Sprintf("test/dir%d/dir%d/test.txt", i, j), "test")
+		}
+	}
+
+	di, err := runInstance.list(t, rootFs, "test/dir1/dir2")
+	require.NoError(t, err)
+	log.Printf("len: %v", len(di))
+	require.Len(t, di, 1)
+
+	time.Sleep(time.Second * 30)
+
+	di, err = runInstance.list(t, rootFs, "test/dir1/dir2")
+	require.NoError(t, err)
+	log.Printf("len: %v", len(di))
+	require.Len(t, di, 1)
+
+	di, err = runInstance.list(t, rootFs, "test/dir1")
+	require.NoError(t, err)
+	log.Printf("len: %v", len(di))
+	require.Len(t, di, 4)
+
+	di, err = runInstance.list(t, rootFs, "test")
+	require.NoError(t, err)
+	log.Printf("len: %v", len(di))
+	require.Len(t, di, 4)
 }
 
 func TestInternalUploadTempDirCreated(t *testing.T) {
@@ -1659,6 +1870,23 @@ func (r *run) modTime(t *testing.T, rootFs fs.Fs, src string) (time.Time, error)
 		return time.Time{}, err
 	}
 	return obj1.ModTime(), nil
+}
+
+func (r *run) size(t *testing.T, rootFs fs.Fs, src string) (int64, error) {
+	var err error
+
+	if r.useMount {
+		fi, err := os.Stat(path.Join(runInstance.mntDir, src))
+		if err != nil {
+			return int64(0), err
+		}
+		return fi.Size(), nil
+	}
+	obj1, err := rootFs.NewObject(src)
+	if err != nil {
+		return int64(0), err
+	}
+	return obj1.Size(), nil
 }
 
 func (r *run) updateData(t *testing.T, rootFs fs.Fs, src, data, append string) error {

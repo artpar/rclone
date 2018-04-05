@@ -24,8 +24,8 @@ if [ -n "$1" ]; then
 fi
 
 
-#create tmp directory and move to it
-tmp_dir=`mktemp -d`; cd $tmp_dir
+#create tmp directory and move to it with macOS compatibility fallback
+tmp_dir=`mktemp -d 2>/dev/null || mktemp -d -t 'rclone-install'`; cd $tmp_dir
 
 
 #make sure unzip tool is available and choose one to work with
@@ -45,6 +45,9 @@ if [ -z "${unzip_tool}" ]; then
     printf "Please install one of them and try again.\n\n"
     exit 4
 fi
+
+# Make sure we don't create a root owned .config/rclone directory #2127
+export XDG_CONFIG_HOME=config
 
 #check installed version of rclone to determine if update is necessary
 version=`rclone --version 2>>errors | head -n 1`

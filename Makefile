@@ -66,6 +66,10 @@ ifdef FULL_TESTS
 	go get -u github.com/tools/godep
 endif
 
+# Get the release dependencies
+release_dep:
+	go get -u github.com/goreleaser/nfpm
+
 # Update dependencies
 update:
 	go get -u github.com/golang/dep/cmd/dep
@@ -104,8 +108,22 @@ website:
 upload_website:	website
 	rclone -v sync docs/public memstore:www-rclone-org
 
+tarball:
+	git archive -9 --format=tar.gz --prefix=rclone-$(TAG)/ -o build/rclone-$(TAG).tar.gz $(TAG)
+
+sign_upload:
+	cd build && md5sum rclone-* | gpg --clearsign > MD5SUMS
+	cd build && sha1sum rclone-* | gpg --clearsign > SHA1SUMS
+	cd build && sha256sum rclone-* | gpg --clearsign > SHA256SUMS
+
+check_sign:
+	cd build && gpg --verify MD5SUMS && gpg --decrypt MD5SUMS | md5sum -c
+	cd build && gpg --verify SHA1SUMS && gpg --decrypt SHA1SUMS | sha1sum -c
+	cd build && gpg --verify SHA256SUMS && gpg --decrypt SHA256SUMS | sha256sum -c
+
 upload:
-	rclone -v copy build/ memstore:downloads-rclone-org
+	rclone -v copy --exclude '*current*' build/ memstore:downloads-rclone-org/$(TAG)
+	rclone -v copy --include '*current*' --include version.txt build/ memstore:downloads-rclone-org
 
 upload_github:
 	./bin/upload-github $(TAG)
@@ -136,6 +154,7 @@ endif
 	@echo Beta release ready at $(BETA_URL)
 
 travis_beta:
+	go run bin/get-github-release.go -extract nfpm goreleaser/nfpm 'nfpm_.*_Linux_x86_64.tar.gz'
 	git log $(LAST_TAG).. > /tmp/git-log.txt
 	go run bin/cross-compile.go -release beta-latest -git-log /tmp/git-log.txt -exclude "^windows/" -parallel 8 $(BUILDTAGS) $(TAG)β
 	rclone --config bin/travis.rclone.conf -v copy --exclude '*beta-latest*' build/ memstore:beta-rclone-org/$(TAG)
@@ -159,7 +178,7 @@ tag:	doc
 	@echo "New tag is $(NEW_TAG)"
 	echo -e "package fs\n\n// Version of rclone\nvar Version = \"$(NEW_TAG)\"\n" | gofmt > fs/version.go
 	echo -n "$(NEW_TAG)" > docs/layouts/partials/version.html
-	git tag $(NEW_TAG)
+	git tag -s -m "Version $(NEW_TAG)" $(NEW_TAG)
 	@echo "Edit the new changelog in docs/content/changelog.md"
 	@echo "  * $(NEW_TAG) -" `date -I` >> docs/content/changelog.md
 	@git log $(LAST_TAG)..$(NEW_TAG) --oneline >> docs/content/changelog.md
@@ -168,7 +187,7 @@ tag:	doc
 	@echo "And finally run make retag before make cross etc"
 
 retag:
-	git tag -f $(LAST_TAG)
+	git tag -f -s -m "Version $(LAST_TAG)" $(LAST_TAG)
 
 startdev:
 	echo -e "package fs\n\n// Version of rclone\nvar Version = \"$(LAST_TAG)-DEV\"\n" | gofmt > fs/version.go

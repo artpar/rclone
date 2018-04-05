@@ -32,11 +32,11 @@ type remoteConfig struct {
 
 var (
 	remotes = []remoteConfig{
-		{
-			Name:     "TestAmazonCloudDrive:",
-			SubDir:   false,
-			FastList: false,
-		},
+		// {
+		// 	Name:     "TestAmazonCloudDrive:",
+		// 	SubDir:   false,
+		// 	FastList: false,
+		// },
 		{
 			Name:     "TestB2:",
 			SubDir:   true,
@@ -418,6 +418,9 @@ func main() {
 			defer removeTestBinary(pkg)
 		}
 	}
+
+	// workaround for cache backend as we run simultaneous tests
+	_ = os.Setenv("RCLONE_CACHE_DB_WAIT_TIME", "30m")
 
 	// start the tests
 	results := make(chan *test, 8)

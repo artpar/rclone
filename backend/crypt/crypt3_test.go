@@ -52,7 +52,7 @@ func TestFsMove3(t *testing.T)              { fstests.TestFsMove(t) }
 func TestFsDirMove3(t *testing.T)           { fstests.TestFsDirMove(t) }
 func TestFsRmdirFull3(t *testing.T)         { fstests.TestFsRmdirFull(t) }
 func TestFsPrecision3(t *testing.T)         { fstests.TestFsPrecision(t) }
-func TestFsDirChangeNotify3(t *testing.T)   { fstests.TestFsDirChangeNotify(t) }
+func TestFsChangeNotify3(t *testing.T)      { fstests.TestFsChangeNotify(t) }
 func TestObjectString3(t *testing.T)        { fstests.TestObjectString(t) }
 func TestObjectFs3(t *testing.T)            { fstests.TestObjectFs(t) }
 func TestObjectRemote3(t *testing.T)        { fstests.TestObjectRemote(t) }
@@ -69,6 +69,7 @@ func TestObjectUpdate3(t *testing.T)        { fstests.TestObjectUpdate(t) }
 func TestObjectStorable3(t *testing.T)      { fstests.TestObjectStorable(t) }
 func TestFsIsFile3(t *testing.T)            { fstests.TestFsIsFile(t) }
 func TestFsIsFileNotFound3(t *testing.T)    { fstests.TestFsIsFileNotFound(t) }
+func TestPublicLink3(t *testing.T)          { fstests.TestPublicLink(t) }
 func TestObjectRemove3(t *testing.T)        { fstests.TestObjectRemove(t) }
 func TestFsPutStream3(t *testing.T)         { fstests.TestFsPutStream(t) }
 func TestObjectPurge3(t *testing.T)         { fstests.TestObjectPurge(t) }

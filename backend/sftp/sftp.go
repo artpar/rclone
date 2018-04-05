@@ -1,10 +1,11 @@
 // Package sftp provides a filesystem interface using github.com/pkg/sftp
 
-// +build !plan9
+// +build !plan9,go1.8
 
 package sftp
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -15,12 +16,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/readers"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config"
+	"github.com/ncw/rclone/fs/config/flags"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/fshttp"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/lib/readers"
 	"github.com/pkg/errors"
 	"github.com/pkg/sftp"
 	"github.com/xanzy/ssh-agent"
@@ -35,6 +37,9 @@ const (
 
 var (
 	currentUser = readCurrentUser()
+
+	// Flags
+	sftpAskPassword = flags.BoolP("sftp-ask-password", "", false, "Allow asking for SFTP password when needed.")
 )
 
 func init() {
@@ -331,6 +336,13 @@ func NewFs(name, root string) (fs.Fs, error) {
 		sshConfig.Auth = append(sshConfig.Auth, ssh.Password(clearpass))
 	}
 
+	// Ask for password if none was defined and we're allowed to
+	if pass == "" && *sftpAskPassword {
+		fmt.Fprint(os.Stderr, "Enter SFTP password: ")
+		clearpass := config.ReadPassword()
+		sshConfig.Auth = append(sshConfig.Auth, ssh.Password(clearpass))
+	}
+
 	f := &Fs{
 		name:              name,
 		root:              root,
@@ -469,6 +481,14 @@ func (f *Fs) List(dir string) (entries fs.DirEntries, err error) {
 	}
 	for _, info := range infos {
 		remote := path.Join(dir, info.Name())
+		// If file is a symlink (not a regular file is the best cross platform test we can do), do a stat to
+		// pick up the size and type of the destination, instead of the size and type of the symlink.
+		if !info.Mode().IsRegular() {
+			info, err = f.stat(remote)
+			if err != nil {
+				return nil, errors.Wrap(err, "stat of non-regular file/dir failed")
+			}
+		}
 		if info.IsDir() {
 			d := fs.NewDir(remote, info.ModTime())
 			entries = append(entries, d)
@@ -793,14 +813,21 @@ func (o *Object) setMetadata(info os.FileInfo) {
 	o.mode = info.Mode()
 }
 
+// statRemote stats the file or directory at the remote given
+func (f *Fs) stat(remote string) (info os.FileInfo, err error) {
+	c, err := f.getSftpConnection()
+	if err != nil {
+		return nil, errors.Wrap(err, "stat")
+	}
+	absPath := path.Join(f.root, remote)
+	info, err = c.sftpClient.Stat(absPath)
+	f.putSftpConnection(&c, err)
+	return info, err
+}
+
 // stat updates the info in the Object
 func (o *Object) stat() error {
-	c, err := o.fs.getSftpConnection()
-	if err != nil {
-		return errors.Wrap(err, "stat")
-	}
-	info, err := c.sftpClient.Stat(o.path())
-	o.fs.putSftpConnection(&c, err)
+	info, err := o.fs.stat(o.remote)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return fs.ErrorObjectNotFound

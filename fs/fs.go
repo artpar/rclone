@@ -19,6 +19,9 @@ import (
 	"github.com/pkg/errors"
 )
 
+// EntryType can be associated with remote paths to identify their type
+type EntryType int
+
 // Constants
 const (
 	// ModTimeNotSupported is a very large precision value to show
@@ -26,6 +29,10 @@ const (
 	ModTimeNotSupported = 100 * 365 * 24 * time.Hour
 	// MaxLevel is a sentinel representing an infinite depth for listings
 	MaxLevel = math.MaxInt32
+	// EntryDirectory should be used to classify remote paths in directories
+	EntryDirectory EntryType = iota // 0
+	// EntryObject should be used to classify remote paths in objects
+	EntryObject // 1
 )
 
 // Globals
@@ -303,10 +310,10 @@ type Features struct {
 	// If destination exists then return fs.ErrorDirExists
 	DirMove func(src Fs, srcRemote, dstRemote string) error
 
-	// DirChangeNotify calls the passed function with a path
-	// of a directory that has had changes. If the implementation
+	// ChangeNotify calls the passed function with a path
+	// that has had changes. If the implementation
 	// uses polling, it should adhere to the given interval.
-	DirChangeNotify func(func(string), time.Duration) chan bool
+	ChangeNotify func(func(string, EntryType), time.Duration) chan bool
 
 	// UnWrap returns the Fs that this Fs is wrapping
 	UnWrap func() Fs
@@ -320,6 +327,9 @@ type Features struct {
 	// DirCacheFlush resets the directory cache - used in testing
 	// as an optional interface
 	DirCacheFlush func()
+
+	// PublicLink generates a public link to the remote path (usually readable by anyone)
+	PublicLink func(remote string) (string, error)
 
 	// Put in to the remote path with the modTime given of the given size
 	//
@@ -423,8 +433,8 @@ func (ft *Features) Fill(f Fs) *Features {
 	if do, ok := f.(DirMover); ok {
 		ft.DirMove = do.DirMove
 	}
-	if do, ok := f.(DirChangeNotifier); ok {
-		ft.DirChangeNotify = do.DirChangeNotify
+	if do, ok := f.(ChangeNotifier); ok {
+		ft.ChangeNotify = do.ChangeNotify
 	}
 	if do, ok := f.(UnWrapper); ok {
 		ft.UnWrap = do.UnWrap
@@ -435,6 +445,9 @@ func (ft *Features) Fill(f Fs) *Features {
 	}
 	if do, ok := f.(DirCacheFlusher); ok {
 		ft.DirCacheFlush = do.DirCacheFlush
+	}
+	if do, ok := f.(PublicLinker); ok {
+		ft.PublicLink = do.PublicLink
 	}
 	if do, ok := f.(PutUncheckeder); ok {
 		ft.PutUnchecked = do.PutUnchecked
@@ -480,8 +493,8 @@ func (ft *Features) Mask(f Fs) *Features {
 	if mask.DirMove == nil {
 		ft.DirMove = nil
 	}
-	if mask.DirChangeNotify == nil {
-		ft.DirChangeNotify = nil
+	if mask.ChangeNotify == nil {
+		ft.ChangeNotify = nil
 	}
 	// if mask.UnWrap == nil {
 	// 	ft.UnWrap = nil
@@ -583,12 +596,12 @@ type DirMover interface {
 	DirMove(src Fs, srcRemote, dstRemote string) error
 }
 
-// DirChangeNotifier is an optional interface for Fs
-type DirChangeNotifier interface {
-	// DirChangeNotify calls the passed function with a path
-	// of a directory that has had changes. If the implementation
+// ChangeNotifier is an optional interface for Fs
+type ChangeNotifier interface {
+	// ChangeNotify calls the passed function with a path
+	// that has had changes. If the implementation
 	// uses polling, it should adhere to the given interval.
-	DirChangeNotify(func(string), time.Duration) chan bool
+	ChangeNotify(func(string, EntryType), time.Duration) chan bool
 }
 
 // UnWrapper is an optional interfaces for Fs
@@ -633,6 +646,12 @@ type PutStreamer interface {
 	// will return the object and the error, otherwise will return
 	// nil and the error
 	PutStream(in io.Reader, src ObjectInfo, options ...OpenOption) (Object, error)
+}
+
+// PublicLinker is an optional interface for Fs
+type PublicLinker interface {
+	// PublicLink generates a public link to the remote path (usually readable by anyone)
+	PublicLink(remote string) (string, error)
 }
 
 // MergeDirser is an option interface for Fs

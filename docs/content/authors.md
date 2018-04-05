@@ -137,3 +137,16 @@ Contributors
   * Mateusz <pabian.mateusz@gmail.com>
   * Daniel Loader <spicypixel@gmail.com>
   * David0rk <davidork@gmail.com>
+  * Alexander Neumann <alexander@bumpern.de>
+  * Giri Badanahatti <gbadanahatti@us.ibm.com@Giris-MacBook-Pro.local>
+  * Leo R. Lundgren <leo@finalresort.org>
+  * wolfv <wolfv6@users.noreply.github.com>
+  * Dave Pedu <dave@davepedu.com>
+  * Stefan Lindblom <lindblom@spotify.com>
+  * seuffert <oliver@seuffert.biz>
+  * gbadanahatti <37121690+gbadanahatti@users.noreply.github.com>
+  * Keith Goldfarb <barkofdelight@gmail.com>
+  * Steve Kriss <steve@heptio.com>
+  * Chih-Hsuan Yen <yan12125@gmail.com>
+  * Alexander Neumann <fd0@users.noreply.github.com>
+  * Matt Holt <mholt@users.noreply.github.com>

@@ -122,7 +122,7 @@ func (b *Persistent) connect() error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to create a data directory %q", b.dataPath)
 	}
-	b.db, err = bolt.Open(b.dbPath, 0644, &bolt.Options{Timeout: 1 * time.Second})
+	b.db, err = bolt.Open(b.dbPath, 0644, &bolt.Options{Timeout: *cacheDbWaitTime})
 	if err != nil {
 		return errors.Wrapf(err, "failed to open a cache connection to %q", b.dbPath)
 	}
@@ -167,6 +167,27 @@ func (b *Persistent) getBucket(dir string, createIfMissing bool, tx *bolt.Tx) *b
 	}
 
 	return bucket
+}
+
+// GetDir will retrieve data of a cached directory
+func (b *Persistent) GetDir(remote string) (*Directory, error) {
+	cd := &Directory{}
+
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bucket := b.getBucket(remote, false, tx)
+		if bucket == nil {
+			return errors.Errorf("couldn't open bucket (%v)", remote)
+		}
+
+		data := bucket.Get([]byte("."))
+		if data != nil {
+			return json.Unmarshal(data, cd)
+		}
+
+		return errors.Errorf("%v not found", remote)
+	})
+
+	return cd, err
 }
 
 // AddDir will update a CachedDirectory metadata and all its entries
@@ -377,6 +398,16 @@ func (b *Persistent) RemoveObject(fp string) error {
 		_ = os.RemoveAll(path.Join(b.dataPath, fp))
 		return nil
 	})
+}
+
+// ExpireObject will flush an Object and all its data if desired
+func (b *Persistent) ExpireObject(co *Object, withData bool) error {
+	co.CacheTs = time.Now().Add(co.CacheFs.fileAge * -1)
+	err := b.AddObject(co)
+	if withData {
+		_ = os.RemoveAll(path.Join(b.dataPath, co.abs()))
+	}
+	return err
 }
 
 // HasEntry confirms the existence of a single entry (dir or object)

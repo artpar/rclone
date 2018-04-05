@@ -16,7 +16,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,7 +34,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/api/drive/v3"
+	drive "google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
 )
 
@@ -552,24 +551,28 @@ func NewFs(name, path string) (fs.Fs, error) {
 	if err != nil {
 		// Assume it is a file
 		newRoot, remote := dircache.SplitPath(root)
-		newF := *f
-		newF.dirCache = dircache.New(newRoot, f.rootFolderID, &newF)
-		newF.root = newRoot
+		tempF := *f
+		tempF.dirCache = dircache.New(newRoot, f.rootFolderID, &tempF)
+		tempF.root = newRoot
 		// Make new Fs which is the parent
-		err = newF.dirCache.FindRoot(false)
+		err = tempF.dirCache.FindRoot(false)
 		if err != nil {
 			// No root so return old f
 			return f, nil
 		}
-		entries, err := newF.List("")
+		entries, err := tempF.List("")
 		if err != nil {
 			// unable to list folder so return old f
 			return f, nil
 		}
 		for _, e := range entries {
 			if _, isObject := e.(fs.Object); isObject && e.Remote() == remote {
-				// return an error with an fs which points to the parent
-				return &newF, fs.ErrorIsFile
+				// XXX: update the old f here instead of returning tempF, since
+				// `features` were already filled with functions having *f as a receiver.
+				// See https://github.com/ncw/rclone/issues/2182
+				f.dirCache = tempF.dirCache
+				f.root = tempF.root
+				return f, fs.ErrorIsFile
 			}
 		}
 		// File doesn't exist so return old f
@@ -1092,6 +1095,41 @@ func (f *Fs) Move(src fs.Object, remote string) (fs.Object, error) {
 	return dstObj, nil
 }
 
+// PublicLink adds a "readable by anyone with link" permission on the given file or folder.
+func (f *Fs) PublicLink(remote string) (link string, err error) {
+	id, err := f.dirCache.FindDir(remote, false)
+	if err == nil {
+		fs.Debugf(f, "attempting to share directory '%s'", remote)
+	} else {
+		fs.Debugf(f, "attempting to share single file '%s'", remote)
+		o := &Object{
+			fs:     f,
+			remote: remote,
+		}
+		if err = o.readMetaData(); err != nil {
+			return
+		}
+		id = o.id
+	}
+
+	permission := &drive.Permission{
+		AllowFileDiscovery: false,
+		Role:               "reader",
+		Type:               "anyone",
+	}
+
+	err = f.pacer.Call(func() (bool, error) {
+		// TODO: On TeamDrives this might fail if lacking permissions to change ACLs.
+		// Need to either check `canShare` attribute on the object or see if a sufficient permission is already present.
+		_, err = f.svc.Permissions.Create(id, permission).Fields(googleapi.Field("id")).SupportsTeamDrives(f.isTeamDrive).Do()
+		return shouldRetry(err)
+	})
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("https://drive.google.com/open?id=%s", id), nil
+}
+
 // DirMove moves src, srcRemote to this remote at dstRemote
 // using server side move operations.
 //
@@ -1182,14 +1220,13 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 	return nil
 }
 
-// DirChangeNotify polls for changes from the remote and hands the path to the
-// given function. Only changes that can be resolved to a path through the
-// DirCache will handled.
+// ChangeNotify calls the passed function with a path that has had changes.
+// If the implementation uses polling, it should adhere to the given interval.
 //
 // Automatically restarts itself in case of unexpected behaviour of the remote.
 //
 // Close the returned channel to stop being notified.
-func (f *Fs) DirChangeNotify(notifyFunc func(string), pollInterval time.Duration) chan bool {
+func (f *Fs) ChangeNotify(notifyFunc func(string, fs.EntryType), pollInterval time.Duration) chan bool {
 	quit := make(chan bool)
 	go func() {
 		select {
@@ -1197,7 +1234,7 @@ func (f *Fs) DirChangeNotify(notifyFunc func(string), pollInterval time.Duration
 			return
 		default:
 			for {
-				f.dirchangeNotifyRunner(notifyFunc, pollInterval)
+				f.changeNotifyRunner(notifyFunc, pollInterval)
 				fs.Debugf(f, "Notify listener service ran into issues, restarting shortly.")
 				time.Sleep(pollInterval)
 			}
@@ -1206,11 +1243,8 @@ func (f *Fs) DirChangeNotify(notifyFunc func(string), pollInterval time.Duration
 	return quit
 }
 
-func (f *Fs) dirchangeNotifyRunner(notifyFunc func(string), pollInterval time.Duration) {
+func (f *Fs) changeNotifyRunner(notifyFunc func(string, fs.EntryType), pollInterval time.Duration) {
 	var err error
-	var changeList *drive.ChangeList
-	var pageToken string
-
 	var startPageToken *drive.StartPageToken
 	err = f.pacer.Call(func() (bool, error) {
 		startPageToken, err = f.svc.Changes.GetStartPageToken().SupportsTeamDrives(f.isTeamDrive).Do()
@@ -1220,12 +1254,14 @@ func (f *Fs) dirchangeNotifyRunner(notifyFunc func(string), pollInterval time.Du
 		fs.Debugf(f, "Failed to get StartPageToken: %v", err)
 		return
 	}
-	pageToken = startPageToken.StartPageToken
+	pageToken := startPageToken.StartPageToken
 
 	for {
 		fs.Debugf(f, "Checking for changes on remote")
+		var changeList *drive.ChangeList
+
 		err = f.pacer.Call(func() (bool, error) {
-			changesCall := f.svc.Changes.List(pageToken).Fields("nextPageToken,newStartPageToken,changes(fileId,file/parents)")
+			changesCall := f.svc.Changes.List(pageToken).Fields("nextPageToken,newStartPageToken,changes(fileId,file(name,parents,mimeType))")
 			if *driveListChunk > 0 {
 				changesCall = changesCall.PageSize(*driveListChunk)
 			}
@@ -1237,28 +1273,47 @@ func (f *Fs) dirchangeNotifyRunner(notifyFunc func(string), pollInterval time.Du
 			return
 		}
 
-		pathsToClear := make([]string, 0)
+		type entryType struct {
+			path      string
+			entryType fs.EntryType
+		}
+		var pathsToClear []entryType
 		for _, change := range changeList.Changes {
 			if path, ok := f.dirCache.GetInv(change.FileId); ok {
-				pathsToClear = append(pathsToClear, path)
+				if change.File != nil && change.File.MimeType != driveFolderType {
+					pathsToClear = append(pathsToClear, entryType{path: path, entryType: fs.EntryObject})
+				} else {
+					pathsToClear = append(pathsToClear, entryType{path: path, entryType: fs.EntryDirectory})
+				}
+				continue
 			}
 
-			if change.File != nil {
-				for _, parent := range change.File.Parents {
-					if path, ok := f.dirCache.GetInv(parent); ok {
-						pathsToClear = append(pathsToClear, path)
+			if change.File != nil && change.File.MimeType != driveFolderType {
+				// translate the parent dir of this object
+				if len(change.File.Parents) > 0 {
+					if path, ok := f.dirCache.GetInv(change.File.Parents[0]); ok {
+						// and append the drive file name to compute the full file name
+						if len(path) > 0 {
+							path = path + "/" + change.File.Name
+						} else {
+							path = change.File.Name
+						}
+						// this will now clear the actual file too
+						pathsToClear = append(pathsToClear, entryType{path: path, entryType: fs.EntryObject})
 					}
+				} else { // a true root object that is changed
+					pathsToClear = append(pathsToClear, entryType{path: change.File.Name, entryType: fs.EntryObject})
 				}
 			}
 		}
-		lastNotifiedPath := ""
-		sort.Strings(pathsToClear)
-		for _, path := range pathsToClear {
-			if lastNotifiedPath != "" && (path == lastNotifiedPath || strings.HasPrefix(path+"/", lastNotifiedPath)) {
+
+		visitedPaths := make(map[string]bool)
+		for _, entry := range pathsToClear {
+			if _, ok := visitedPaths[entry.path]; ok {
 				continue
 			}
-			lastNotifiedPath = path
-			notifyFunc(path)
+			visitedPaths[entry.path] = true
+			notifyFunc(entry.path, entry.entryType)
 		}
 
 		if changeList.NewStartPageToken != "" {
@@ -1567,17 +1622,18 @@ func (o *Object) MimeType() string {
 
 // Check the interfaces are satisfied
 var (
-	_ fs.Fs                = (*Fs)(nil)
-	_ fs.Purger            = (*Fs)(nil)
-	_ fs.CleanUpper        = (*Fs)(nil)
-	_ fs.PutStreamer       = (*Fs)(nil)
-	_ fs.Copier            = (*Fs)(nil)
-	_ fs.Mover             = (*Fs)(nil)
-	_ fs.DirMover          = (*Fs)(nil)
-	_ fs.DirCacheFlusher   = (*Fs)(nil)
-	_ fs.DirChangeNotifier = (*Fs)(nil)
-	_ fs.PutUncheckeder    = (*Fs)(nil)
-	_ fs.MergeDirser       = (*Fs)(nil)
-	_ fs.Object            = (*Object)(nil)
-	_ fs.MimeTyper         = &Object{}
+	_ fs.Fs              = (*Fs)(nil)
+	_ fs.Purger          = (*Fs)(nil)
+	_ fs.CleanUpper      = (*Fs)(nil)
+	_ fs.PutStreamer     = (*Fs)(nil)
+	_ fs.Copier          = (*Fs)(nil)
+	_ fs.Mover           = (*Fs)(nil)
+	_ fs.DirMover        = (*Fs)(nil)
+	_ fs.DirCacheFlusher = (*Fs)(nil)
+	_ fs.ChangeNotifier  = (*Fs)(nil)
+	_ fs.PutUncheckeder  = (*Fs)(nil)
+	_ fs.PublicLinker    = (*Fs)(nil)
+	_ fs.MergeDirser     = (*Fs)(nil)
+	_ fs.Object          = (*Object)(nil)
+	_ fs.MimeTyper       = &Object{}
 )

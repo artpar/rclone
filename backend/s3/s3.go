@@ -51,7 +51,7 @@ import (
 func init() {
 	fs.Register(&fs.RegInfo{
 		Name:        "s3",
-		Description: "Amazon S3 (also Dreamhost, Ceph, Minio)",
+		Description: "Amazon S3 (also Dreamhost, Ceph, Minio, IBM COS)",
 		NewFs:       NewFs,
 		// AWS endpoints: http://docs.amazonwebservices.com/general/latest/gr/rande.html#s3_region
 		Options: []fs.Option{{
@@ -74,7 +74,7 @@ func init() {
 			Help: "AWS Secret Access Key (password) - leave blank for anonymous access or runtime credentials.",
 		}, {
 			Name: "region",
-			Help: "Region to connect to.",
+			Help: "Region to connect to.  Leave blank if you are using an S3 clone and you don't have a region.",
 			Examples: []fs.OptionExample{{
 				Value: "us-east-1",
 				Help:  "The default endpoint - a good choice if you are unsure.\nUS Region, Northern Virginia or Pacific Northwest.\nLeave location constraint empty.",
@@ -119,10 +119,7 @@ func init() {
 				Help:  "South America (Sao Paulo) Region\nNeeds location constraint sa-east-1.",
 			}, {
 				Value: "other-v2-signature",
-				Help:  "If using an S3 clone that only understands v2 signatures\neg Ceph/Dreamhost\nset this and make sure you set the endpoint.",
-			}, {
-				Value: "other-v4-signature",
-				Help:  "If using an S3 clone that understands v4 signatures set this\nand make sure you set the endpoint.",
+				Help:  "Use this only if v4 signatures don't work, eg pre Jewel/v10 CEPH.\nSet this and make sure you set the endpoint.",
 			}},
 		}, {
 			Name: "endpoint",
@@ -552,6 +549,18 @@ func (f *Fs) list(dir string, recurse bool, fn listFn) error {
 				continue
 			}
 			remote := key[rootLength:]
+			// is this a directory marker?
+			if (strings.HasSuffix(remote, "/") || remote == "") && *object.Size == 0 {
+				if recurse {
+					// add a directory in if --fast-list since will have no prefixes
+					remote = remote[:len(remote)-1]
+					err = fn(remote, &s3.Object{Key: &remote}, true)
+					if err != nil {
+						return err
+					}
+				}
+				continue // skip directory marker
+			}
 			err = fn(remote, object, false)
 			if err != nil {
 				return err

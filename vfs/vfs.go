@@ -217,7 +217,7 @@ func New(f fs.Fs, opt *Options) *VFS {
 
 	// Start polling if required
 	if vfs.Opt.PollInterval > 0 {
-		if do := vfs.f.Features().DirChangeNotify; do != nil {
+		if do := vfs.f.Features().ChangeNotify; do != nil {
 			do(vfs.root.ForgetPath, vfs.Opt.PollInterval)
 		} else {
 			fs.Infof(f, "poll-interval is not supported by this remote")
@@ -233,6 +233,9 @@ func New(f fs.Fs, opt *Options) *VFS {
 		panic(fmt.Sprintf("failed to create local cache: %v", err))
 	}
 	vfs.cache = cache
+
+	// add the remote control
+	vfs.addRC()
 	return vfs
 }
 

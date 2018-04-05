@@ -178,9 +178,13 @@ func equal(src fs.ObjectInfo, dst fs.Object, sizeOnly, checkSum bool) bool {
 				return false
 			} else if err == fs.ErrorCantSetModTimeWithoutDelete {
 				fs.Debugf(dst, "src and dst identical but can't set mod time without deleting and re-uploading")
-				err = dst.Remove()
-				if err != nil {
-					fs.Errorf(dst, "failed to delete before re-upload: %v", err)
+				// Remove the file if BackupDir isn't set.  If BackupDir is set we would rather have the old file
+				// put in the BackupDir than deleted which is what will happen if we don't delete it.
+				if fs.Config.BackupDir == "" {
+					err = dst.Remove()
+					if err != nil {
+						fs.Errorf(dst, "failed to delete before re-upload: %v", err)
+					}
 				}
 				return false
 			} else if err != nil {
@@ -911,7 +915,7 @@ func ListDir(f fs.Fs, w io.Writer) error {
 		}
 		entries.ForDir(func(dir fs.Directory) {
 			if dir != nil {
-				syncFprintf(w, "%12d %13s %9d %s\n", dir.Size(), dir.ModTime().Format("2006-01-02 15:04:05"), dir.Items(), dir.Remote())
+				syncFprintf(w, "%12d %13s %9d %s\n", dir.Size(), dir.ModTime().Local().Format("2006-01-02 15:04:05"), dir.Items(), dir.Remote())
 			}
 		})
 		return nil
@@ -1076,7 +1080,7 @@ func dedupeInteractive(remote string, objs []fs.Object) {
 		if err != nil {
 			md5sum = err.Error()
 		}
-		fmt.Printf("  %d: %12d bytes, %s, md5sum %32s\n", i+1, o.Size(), o.ModTime().Format("2006-01-02 15:04:05.000000000"), md5sum)
+		fmt.Printf("  %d: %12d bytes, %s, md5sum %32s\n", i+1, o.Size(), o.ModTime().Local().Format("2006-01-02 15:04:05.000000000"), md5sum)
 	}
 	switch config.Command([]string{"sSkip and do nothing", "kKeep just one (choose which in next step)", "rRename all to be different (by changing file.jpg to file-1.jpg)"}) {
 	case 's':
@@ -1466,6 +1470,15 @@ func Rcat(fdst fs.Fs, dstFileName string, in io.ReadCloser, modTime time.Time) (
 	return dst, nil
 }
 
+// PublicLink adds a "readable by anyone with link" permission on the given file or folder.
+func PublicLink(f fs.Fs, remote string) (string, error) {
+	doPublicLink := f.Features().PublicLink
+	if doPublicLink == nil {
+		return "", errors.Errorf("%v doesn't support public links", f)
+	}
+	return doPublicLink(remote)
+}
+
 // Rmdirs removes any empty directories (or directories only
 // containing empty directories) under f, including f.
 func Rmdirs(f fs.Fs, dir string, leaveRoot bool) error {
@@ -1663,7 +1676,7 @@ func (l *ListFormat) SetOutput(output []func() string) {
 
 // AddModTime adds file's Mod Time to output
 func (l *ListFormat) AddModTime() {
-	l.AppendOutput(func() string { return l.entry.ModTime().Format("2006-01-02 15:04:05") })
+	l.AppendOutput(func() string { return l.entry.ModTime().Local().Format("2006-01-02 15:04:05") })
 }
 
 // AddSize adds file's size to output

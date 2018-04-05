@@ -685,34 +685,70 @@ func TestFsPrecision(t *testing.T) {
 	// FIXME check expected precision
 }
 
-// TestFsDirChangeNotify tests that changes to directories are properly
+// TestFsChangeNotify tests that changes are properly
 // propagated
 //
-// go test -v -remote TestDrive: -run '^Test(Setup|Init|FsDirChangeNotify)$' -verbose
-func TestFsDirChangeNotify(t *testing.T) {
+// go test -v -remote TestDrive: -run '^Test(Setup|Init|FsChangeNotify)$' -verbose
+func TestFsChangeNotify(t *testing.T) {
 	skipIfNotOk(t)
 
-	// Check have DirChangeNotify
-	doDirChangeNotify := remote.Features().DirChangeNotify
-	if doDirChangeNotify == nil {
-		t.Skip("FS has no DirChangeNotify interface")
+	// Check have ChangeNotify
+	doChangeNotify := remote.Features().ChangeNotify
+	if doChangeNotify == nil {
+		t.Skip("FS has no ChangeNotify interface")
 	}
 
 	err := operations.Mkdir(remote, "dir")
 	require.NoError(t, err)
 
-	changes := []string{}
-	quitChannel := doDirChangeNotify(func(x string) {
-		changes = append(changes, x)
+	dirChanges := []string{}
+	objChanges := []string{}
+	quitChannel := doChangeNotify(func(x string, e fs.EntryType) {
+		fs.Debugf(nil, "doChangeNotify(%q, %+v)", x, e)
+		if strings.HasPrefix(x, file1.Path[:5]) || strings.HasPrefix(x, file2.Path[:5]) {
+			fs.Debugf(nil, "Ignoring notify for file1 or file2: %q, %v", x, e)
+			return
+		}
+		if e == fs.EntryDirectory {
+			dirChanges = append(dirChanges, x)
+		} else if e == fs.EntryObject {
+			objChanges = append(objChanges, x)
+		}
 	}, time.Second)
 	defer func() { close(quitChannel) }()
 
-	err = operations.Mkdir(remote, "dir/subdir")
-	require.NoError(t, err)
+	var dirs []string
+	for _, idx := range []int{1, 3, 2} {
+		dir := fmt.Sprintf("dir/subdir%d", idx)
+		err = operations.Mkdir(remote, dir)
+		require.NoError(t, err)
+		dirs = append(dirs, dir)
+	}
 
-	time.Sleep(2 * time.Second)
+	contents := fstest.RandomString(100)
+	buf := bytes.NewBufferString(contents)
 
-	assert.Equal(t, []string{"dir"}, changes)
+	var objs []fs.Object
+	for _, idx := range []int{2, 4, 3} {
+		obji := object.NewStaticObjectInfo(fmt.Sprintf("dir/file%d", idx), time.Now(), int64(buf.Len()), true, nil, nil)
+		o, err := remote.Put(buf, obji)
+		require.NoError(t, err)
+		objs = append(objs, o)
+	}
+
+	time.Sleep(3 * time.Second)
+
+	assert.Equal(t, []string{"dir/subdir1", "dir/subdir3", "dir/subdir2"}, dirChanges)
+	assert.Equal(t, []string{"dir/file2", "dir/file4", "dir/file3"}, objChanges)
+
+	// tidy up afterwards
+	for _, o := range objs {
+		assert.NoError(t, o.Remove())
+	}
+	dirs = append(dirs, "dir")
+	for _, dir := range dirs {
+		assert.NoError(t, remote.Rmdir(dir))
+	}
 }
 
 // TestObjectString tests the Object String method
@@ -910,6 +946,62 @@ func TestFsIsFileNotFound(t *testing.T) {
 	fileRemote, err := fs.NewFs(remoteName)
 	require.NoError(t, err)
 	fstest.CheckListing(t, fileRemote, []fstest.Item{})
+}
+
+// TestPublicLink tests creation of sharable, public links
+func TestPublicLink(t *testing.T) {
+	skipIfNotOk(t)
+
+	doPublicLink := remote.Features().PublicLink
+	if doPublicLink == nil {
+		t.Skip("FS has no PublicLinker interface")
+	}
+
+	// if object not found
+	link, err := doPublicLink(file1.Path + "_does_not_exist")
+	require.Error(t, err, "Expected to get error when file doesn't exist")
+	require.Equal(t, "", link, "Expected link to be empty on error")
+
+	// sharing file for the first time
+	link1, err := doPublicLink(file1.Path)
+	require.NoError(t, err)
+	require.NotEqual(t, "", link1, "Link should not be empty")
+
+	link2, err := doPublicLink(file2.Path)
+	require.NoError(t, err)
+	require.NotEqual(t, "", link2, "Link should not be empty")
+
+	require.NotEqual(t, link1, link2, "Links to different files should differ")
+
+	// sharing file for the 2nd time
+	link1, err = doPublicLink(file1.Path)
+	require.NoError(t, err)
+	require.NotEqual(t, "", link1, "Link should not be empty")
+
+	// sharing directory for the first time
+	path := path.Dir(file2.Path)
+	link3, err := doPublicLink(path)
+	require.NoError(t, err)
+	require.NotEqual(t, "", link3, "Link should not be empty")
+
+	// sharing directory for the second time
+	link3, err = doPublicLink(path)
+	require.NoError(t, err)
+	require.NotEqual(t, "", link3, "Link should not be empty")
+
+	// sharing the "root" directory in a subremote
+	subRemote, _, removeSubRemote, err := fstest.RandomRemote(RemoteName, false)
+	require.NoError(t, err)
+	defer removeSubRemote()
+	// ensure sub remote isn't empty
+	buf := bytes.NewBufferString("somecontent")
+	obji := object.NewStaticObjectInfo("somefile", time.Now(), int64(buf.Len()), true, nil, nil)
+	_, err = subRemote.Put(buf, obji)
+	require.NoError(t, err)
+
+	link4, err := subRemote.Features().PublicLink("")
+	require.NoError(t, err, "Sharing root in a sub-remote should work")
+	require.NotEqual(t, "", link4, "Link should not be empty")
 }
 
 // TestObjectRemove tests Remove
