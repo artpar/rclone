@@ -1,4 +1,4 @@
-// +build !plan9,go1.7
+// +build !plan9
 
 package cache_test
 
@@ -988,8 +988,9 @@ func TestInternalUploadTempFileOperations(t *testing.T) {
 		require.Error(t, err)
 		_, err = os.Stat(path.Join(runInstance.tmpUploadDir, id, runInstance.encryptRemoteIfNeeded(t, "second/one")))
 		require.NoError(t, err)
-		started, err := boltDb.SearchPendingUpload(runInstance.encryptRemoteIfNeeded(t, path.Join(id, "test/one")))
+		_, err = boltDb.SearchPendingUpload(runInstance.encryptRemoteIfNeeded(t, path.Join(id, "test/one")))
 		require.Error(t, err)
+		var started bool
 		started, err = boltDb.SearchPendingUpload(runInstance.encryptRemoteIfNeeded(t, path.Join(id, "second/one")))
 		require.NoError(t, err)
 		require.False(t, started)
@@ -1395,7 +1396,7 @@ func (r *run) newCacheFs(t *testing.T, remote, id string, needRemote, purge bool
 		config.FileSet(remote, "type", "cache")
 		config.FileSet(remote, "remote", localRemote+":/var/tmp/"+localRemote)
 	} else {
-		remoteType := fs.ConfigFileGet(remote, "type", "")
+		remoteType := config.FileGet(remote, "type", "")
 		if remoteType == "" {
 			t.Skipf("skipped due to invalid remote type for %v", remote)
 			return nil, nil
@@ -1406,14 +1407,14 @@ func (r *run) newCacheFs(t *testing.T, remote, id string, needRemote, purge bool
 				config.FileSet(remote, "password", cryptPassword1)
 				config.FileSet(remote, "password2", cryptPassword2)
 			}
-			remoteRemote := fs.ConfigFileGet(remote, "remote", "")
+			remoteRemote := config.FileGet(remote, "remote", "")
 			if remoteRemote == "" {
 				t.Skipf("skipped due to invalid remote wrapper for %v", remote)
 				return nil, nil
 			}
 			remoteRemoteParts := strings.Split(remoteRemote, ":")
 			remoteWrapping := remoteRemoteParts[0]
-			remoteType := fs.ConfigFileGet(remoteWrapping, "type", "")
+			remoteType := config.FileGet(remoteWrapping, "type", "")
 			if remoteType != "cache" {
 				t.Skipf("skipped due to invalid remote type for %v: '%v'", remoteWrapping, remoteType)
 				return nil, nil
@@ -1526,7 +1527,7 @@ func (r *run) randomReader(t *testing.T, size int64) io.ReadCloser {
 	}
 	data := r.randomBytes(t, int64(left))
 	_, _ = f.Write(data)
-	_, _ = f.Seek(int64(0), 0)
+	_, _ = f.Seek(int64(0), io.SeekStart)
 	r.tempFiles = append(r.tempFiles, f)
 
 	return f
@@ -1653,7 +1654,7 @@ func (r *run) readDataFromRemote(t *testing.T, f fs.Fs, remote string, offset, e
 		if err != nil {
 			return checkSample, err
 		}
-		_, _ = f.Seek(offset, 0)
+		_, _ = f.Seek(offset, io.SeekStart)
 		totalRead, err := io.ReadFull(f, checkSample)
 		checkSample = checkSample[:totalRead]
 		if err == io.EOF || err == io.ErrUnexpectedEOF {

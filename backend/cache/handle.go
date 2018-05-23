@@ -1,11 +1,10 @@
-// +build !plan9,go1.7
+// +build !plan9
 
 package cache
 
 import (
 	"fmt"
 	"io"
-	"os"
 	"sync"
 	"time"
 
@@ -327,13 +326,13 @@ func (r *Handle) Seek(offset int64, whence int) (int64, error) {
 
 	var err error
 	switch whence {
-	case os.SEEK_SET:
+	case io.SeekStart:
 		fs.Debugf(r, "moving offset set from %v to %v", r.offset, offset)
 		r.offset = offset
-	case os.SEEK_CUR:
+	case io.SeekCurrent:
 		fs.Debugf(r, "moving offset cur from %v to %v", r.offset, r.offset+offset)
 		r.offset += offset
-	case os.SEEK_END:
+	case io.SeekEnd:
 		fs.Debugf(r, "moving offset end (%v) from %v to %v", r.cachedObject.Size(), r.offset, r.cachedObject.Size()+offset)
 		r.offset = r.cachedObject.Size() + offset
 	default:
@@ -382,10 +381,10 @@ func (w *worker) reader(offset, end int64, closeOpen bool) (io.ReadCloser, error
 
 	if !closeOpen {
 		if do, ok := r.(fs.RangeSeeker); ok {
-			_, err = do.RangeSeek(offset, os.SEEK_SET, end-offset)
+			_, err = do.RangeSeek(offset, io.SeekStart, end-offset)
 			return r, err
 		} else if do, ok := r.(io.Seeker); ok {
-			_, err = do.Seek(offset, os.SEEK_SET)
+			_, err = do.Seek(offset, io.SeekStart)
 			return r, err
 		}
 	}
@@ -447,7 +446,6 @@ func (w *worker) run() {
 					continue
 				}
 			}
-			err = nil
 		} else {
 			if w.r.storage().HasChunk(w.r.cachedObject, chunkStart) {
 				continue
@@ -494,7 +492,7 @@ func (w *worker) download(chunkStart, chunkEnd int64, retry int) {
 	}
 
 	data = make([]byte, chunkEnd-chunkStart)
-	sourceRead := 0
+	var sourceRead int
 	sourceRead, err = io.ReadFull(w.rc, data)
 	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 		fs.Errorf(w, "failed to read chunk %v: %v", chunkStart, err)

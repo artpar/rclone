@@ -1,4 +1,4 @@
-// +build !plan9,go1.7
+// +build !plan9
 
 package cachestats
 
@@ -52,6 +52,9 @@ Print cache stats for a remote in JSON format
 				}
 			}
 			m, err := fsCache.Stats()
+			if err != nil {
+				return err
+			}
 
 			raw, err := json.MarshalIndent(m, "", "  ")
 			if err != nil {

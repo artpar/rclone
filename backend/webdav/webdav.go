@@ -19,24 +19,25 @@ package webdav
 // For example the ownCloud WebDAV server does it that way.
 
 import (
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"path"
-	"regexp"
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/backend/webdav/api"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/ncw/rclone/backend/webdav/api"
+	"github.com/ncw/rclone/backend/webdav/odrvcookie"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/fshttp"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/lib/pacer"
+	"github.com/ncw/rclone/lib/rest"
 	"github.com/pkg/errors"
 )
 
@@ -70,6 +71,9 @@ func init() {
 			}, {
 				Value: "owncloud",
 				Help:  "Owncloud",
+			}, {
+				Value: "sharepoint",
+				Help:  "Sharepoint",
 			}, {
 				Value: "other",
 				Help:  "Other site/service or software",
@@ -113,7 +117,6 @@ type Object struct {
 	hasMetaData bool      // whether info below has been set
 	size        int64     // size of the object
 	modTime     time.Time // modification time of the object
-	id          string    // ID of the object
 	sha1        string    // SHA-1 of the object content
 }
 
@@ -137,15 +140,6 @@ func (f *Fs) String() string {
 // Features returns the optional features of this Fs
 func (f *Fs) Features() *fs.Features {
 	return f.features
-}
-
-// Pattern to match a webdav path
-var matcher = regexp.MustCompile(`^([^/]*)(.*)$`)
-
-// parsePath parses an webdav 'url'
-func parsePath(path string) (root string) {
-	root = strings.Trim(path, "/")
-	return
 }
 
 // retryErrorCodes is a slice of error codes that we will retry
@@ -185,6 +179,9 @@ func (f *Fs) readMetaDataForPath(path string) (info *api.Prop, err error) {
 	opts := rest.Opts{
 		Method: "PROPFIND",
 		Path:   f.filePath(path),
+		ExtraHeaders: map[string]string{
+			"Depth": "1",
+		},
 	}
 	var result api.Multistatus
 	var resp *http.Response
@@ -216,11 +213,16 @@ func (f *Fs) readMetaDataForPath(path string) (info *api.Prop, err error) {
 
 // errorHandler parses a non 2xx error response into an error
 func errorHandler(resp *http.Response) error {
+	body, err := rest.ReadBody(resp)
+	if err != nil {
+		return errors.Wrap(err, "error when trying to read error from body")
+	}
 	// Decode error response
 	errResponse := new(api.Error)
-	err := rest.DecodeXML(resp, &errResponse)
+	err = xml.Unmarshal(body, &errResponse)
 	if err != nil {
-		fs.Debugf(nil, "Couldn't decode error response: %v", err)
+		// set the Message to be the body if can't parse the XML
+		errResponse.Message = strings.TrimSpace(string(body))
 	}
 	errResponse.Status = resp.Status
 	errResponse.StatusCode = resp.StatusCode
@@ -256,6 +258,7 @@ func NewFs(name, root string) (fs.Fs, error) {
 	if !strings.HasSuffix(endpoint, "/") {
 		endpoint += "/"
 	}
+	root = strings.Trim(root, "/")
 
 	user := config.FileGet(name, "user")
 	pass := config.FileGet(name, "pass")
@@ -289,7 +292,10 @@ func NewFs(name, root string) (fs.Fs, error) {
 		CanHaveEmptyDirectories: true,
 	}).Fill(f)
 	f.srv.SetErrorHandler(errorHandler)
-	f.setQuirks(vendor)
+	err = f.setQuirks(vendor)
+	if err != nil {
+		return nil, err
+	}
 
 	if root != "" {
 		// Check to see if the root actually an existing file
@@ -314,7 +320,7 @@ func NewFs(name, root string) (fs.Fs, error) {
 }
 
 // setQuirks adjusts the Fs for the vendor passed in
-func (f *Fs) setQuirks(vendor string) {
+func (f *Fs) setQuirks(vendor string) error {
 	if vendor == "" {
 		vendor = "other"
 	}
@@ -327,6 +333,16 @@ func (f *Fs) setQuirks(vendor string) {
 	case "nextcloud":
 		f.precision = time.Second
 		f.useOCMtime = true
+	case "sharepoint":
+		// To mount sharepoint, two Cookies are required
+		// They have to be set instead of BasicAuth
+		f.srv.RemoveHeader("Authorization") // We don't need this Header if using cookies
+		spCk := odrvcookie.New(f.user, f.pass, f.endpointURL)
+		spCookies, err := spCk.Cookies()
+		if err != nil {
+			return err
+		}
+		f.srv.SetCookie(&spCookies.FedAuth, &spCookies.RtFa)
 	case "other":
 	default:
 		fs.Debugf(f, "Unknown vendor %q", vendor)
@@ -336,6 +352,7 @@ func (f *Fs) setQuirks(vendor string) {
 	if !f.canStream {
 		f.features.PutStream = nil
 	}
+	return nil
 }
 
 // Return an Object from a path
@@ -549,7 +566,7 @@ func (f *Fs) mkdir(dirPath string) error {
 	})
 	if apiErr, ok := err.(*api.Error); ok {
 		// already exists
-		if apiErr.StatusCode == http.StatusMethodNotAllowed {
+		if apiErr.StatusCode == http.StatusMethodNotAllowed || apiErr.StatusCode == http.StatusNotAcceptable {
 			return nil
 		}
 		// parent does not exists

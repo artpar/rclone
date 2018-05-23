@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/artpar/rclone/cmd"
@@ -29,6 +30,9 @@ var (
 	ExtraOptions       []string
 	ExtraFlags         []string
 	AttrTimeout        = 1 * time.Second // how long the kernel caches attribute for
+	VolumeName         string
+	NoAppleDouble      = true  // use noappledouble by default
+	NoAppleXattr       = false // do not use noapplexattr by default
 )
 
 // Check is folder is empty
@@ -189,10 +193,29 @@ to use Type=notify. In this case the service will enter the started state
 after the mountpoint has been successfully set up.
 Units having the rclone ` + commandName + ` service specified as a requirement
 will see all files and folders immediately in this mode.
+
+### chunked reading ###
+
+--vfs-read-chunk-size will enable reading the source objects in parts.
+This can reduce the used download quota for some remotes by requesting only chunks
+from the remote that are actually read at the cost of an increased number of requests.
+
+When --vfs-read-chunk-size-limit is also specified and greater than --vfs-read-chunk-size,
+the chunk size for each open file will get doubled for each chunk read, until the
+specified value is reached. A value of -1 will disable the limit and the chunk size will
+grow indefinitely.
+
+With --vfs-read-chunk-size 100M and --vfs-read-chunk-size-limit 0 the following
+parts will be downloaded: 0-100M, 100M-200M, 200M-300M, 300M-400M and so on.
+When --vfs-read-chunk-size-limit 500M is specified, the result would be
+0-100M, 100M-300M, 300M-700M, 700M-1200M, 1200M-1700M and so on.
+
+Chunked reading will only work with --vfs-cache-mode < full, as the file will always
+be copied to the vfs cache before opening with --vfs-cache-mode full.
 ` + vfs.Help,
 		Run: func(command *cobra.Command, args []string) {
 			cmd.CheckArgs(2, 2, command, args)
-			fdst := cmd.NewFsDst(args)
+			fdst := cmd.NewFsDir(args)
 
 			// Show stats if the user has specifically requested them
 			if cmd.ShowStats() {
@@ -208,6 +231,15 @@ will see all files and folders immediately in this mode.
 					log.Fatalf("Fatal error: %v", err)
 				}
 			}
+
+			// Work out the volume name, removing special
+			// characters from it if necessary
+			if VolumeName == "" {
+				VolumeName = fdst.Name() + ":" + fdst.Root()
+			}
+			VolumeName = strings.Replace(VolumeName, ":", " ", -1)
+			VolumeName = strings.Replace(VolumeName, "/", " ", -1)
+			VolumeName = strings.TrimSpace(VolumeName)
 
 			// Start background task if --background is specified
 			if Daemon {
@@ -241,6 +273,12 @@ will see all files and folders immediately in this mode.
 	flags.StringArrayVarP(flagSet, &ExtraOptions, "option", "o", []string{}, "Option for libfuse/WinFsp. Repeat if required.")
 	flags.StringArrayVarP(flagSet, &ExtraFlags, "fuse-flag", "", []string{}, "Flags or arguments to be passed direct to libfuse/WinFsp. Repeat if required.")
 	flags.BoolVarP(flagSet, &Daemon, "daemon", "", Daemon, "Run mount as a daemon (background mode).")
+	flags.StringVarP(flagSet, &VolumeName, "volname", "", VolumeName, "Set the volume name (not supported by all OSes).")
+
+	if runtime.GOOS == "darwin" {
+		flags.BoolVarP(flagSet, &NoAppleDouble, "noappledouble", "", NoAppleDouble, "Sets the OSXFUSE option noappledouble.")
+		flags.BoolVarP(flagSet, &NoAppleXattr, "noapplexattr", "", NoAppleXattr, "Sets the OSXFUSE option noapplexattr.")
+	}
 
 	// Add in the generic flags
 	vfsflags.AddFlags(flagSet)

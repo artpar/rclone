@@ -2,16 +2,16 @@
 package march
 
 import (
+	"context"
 	"path"
 	"sort"
 	"strings"
 	"sync"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/filter"
-	"github.com/artpar/rclone/fs/list"
-	"github.com/artpar/rclone/fs/walk"
-	"golang.org/x/net/context"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/filter"
+	"github.com/ncw/rclone/fs/list"
+	"github.com/ncw/rclone/fs/walk"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -146,7 +146,12 @@ func (m *March) Run() {
 							// Now we have traversed this directory, send these
 							// jobs off for traversal in the background
 							for _, newJob := range jobs {
-								in <- newJob
+								select {
+								case <-m.ctx.Done():
+									// discard job if finishing
+									traversing.Done()
+								case in <- newJob:
+								}
 							}
 						}()
 					}
@@ -164,6 +169,13 @@ func (m *March) Run() {
 		dstRemote: m.dir,
 		dstDepth:  dstDepth - 1,
 	}
+	go func() {
+		// when the context is cancelled discard the remaining jobs
+		<-m.ctx.Done()
+		for range in {
+			traversing.Done()
+		}
+	}()
 	traversing.Wait()
 	close(in)
 	wg.Wait()

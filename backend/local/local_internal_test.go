@@ -29,8 +29,10 @@ func TestMapper(t *testing.T) {
 	})
 	assert.Equal(t, "potato", m.Load("potato"))
 	assert.Equal(t, "-r?'a´o¨", m.Load("-r'áö"))
+}
 
-	// Test copy with source file that's updating
+// Test copy with source file that's updating
+func TestUpdatingCheck(t *testing.T) {
 	r := fstest.NewRun(t)
 	defer r.Finalise()
 	filePath := "sub dir/local test"
@@ -42,9 +44,11 @@ func TestMapper(t *testing.T) {
 	}
 
 	fi, err := fd.Stat()
+	require.NoError(t, err)
 	o := &Object{size: fi.Size(), modTime: fi.ModTime()}
 	wrappedFd := readers.NewLimitedReadCloser(fd, -1)
 	hash, err := hash.NewMultiHasherTypes(hash.Supported)
+	require.NoError(t, err)
 	in := localOpenFile{
 		o:    o,
 		in:   wrappedFd,
@@ -59,4 +63,16 @@ func TestMapper(t *testing.T) {
 	r.WriteFile(filePath, "content updated", time.Now())
 	_, err = in.Read(buf)
 	require.Errorf(t, err, "can't copy - source file is being updated")
+
+	// turn the checking off and try again
+
+	*noCheckUpdated = true
+	defer func() {
+		*noCheckUpdated = false
+	}()
+
+	r.WriteFile(filePath, "content updated", time.Now())
+	_, err = in.Read(buf)
+	require.NoError(t, err)
+
 }

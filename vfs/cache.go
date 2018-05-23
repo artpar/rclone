@@ -3,6 +3,7 @@
 package vfs
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path"
@@ -17,7 +18,6 @@ import (
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/config"
 	"github.com/pkg/errors"
-	"golang.org/x/net/context"
 )
 
 // CacheMode controls the functionality of the cache

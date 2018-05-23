@@ -51,21 +51,46 @@ import (
 func init() {
 	fs.Register(&fs.RegInfo{
 		Name:        "s3",
-		Description: "Amazon S3 (also Dreamhost, Ceph, Minio, IBM COS)",
+		Description: "Amazon S3 Compliant Storage Providers (AWS, Ceph, Dreamhost, IBM COS, Minio)",
 		NewFs:       NewFs,
-		// AWS endpoints: http://docs.amazonwebservices.com/general/latest/gr/rande.html#s3_region
 		Options: []fs.Option{{
+			Name: fs.ConfigProvider,
+			Help: "Choose your S3 provider.",
+			Examples: []fs.OptionExample{{
+				Value: "AWS",
+				Help:  "Amazon Web Services (AWS) S3",
+			}, {
+				Value: "Ceph",
+				Help:  "Ceph Object Storage",
+			}, {
+				Value: "DigitalOcean",
+				Help:  "Digital Ocean Spaces",
+			}, {
+				Value: "Dreamhost",
+				Help:  "Dreamhost DreamObjects",
+			}, {
+				Value: "IBMCOS",
+				Help:  "IBM COS S3",
+			}, {
+				Value: "Minio",
+				Help:  "Minio Object Storage",
+			}, {
+				Value: "Wasabi",
+				Help:  "Wasabi Object Storage",
+			}, {
+				Value: "Other",
+				Help:  "Any other S3 compatible provider",
+			}},
+		}, {
 			Name: "env_auth",
 			Help: "Get AWS credentials from runtime (environment variables or EC2/ECS meta data if no env vars). Only applies if access_key_id and secret_access_key is blank.",
-			Examples: []fs.OptionExample{
-				{
-					Value: "false",
-					Help:  "Enter AWS credentials in the next step",
-				}, {
-					Value: "true",
-					Help:  "Get AWS credentials from the environment (env vars or IAM)",
-				},
-			},
+			Examples: []fs.OptionExample{{
+				Value: "false",
+				Help:  "Enter AWS credentials in the next step",
+			}, {
+				Value: "true",
+				Help:  "Get AWS credentials from the environment (env vars or IAM)",
+			}},
 		}, {
 			Name: "access_key_id",
 			Help: "AWS Access Key ID - leave blank for anonymous access or runtime credentials.",
@@ -73,8 +98,9 @@ func init() {
 			Name: "secret_access_key",
 			Help: "AWS Secret Access Key (password) - leave blank for anonymous access or runtime credentials.",
 		}, {
-			Name: "region",
-			Help: "Region to connect to.  Leave blank if you are using an S3 clone and you don't have a region.",
+			Name:     "region",
+			Help:     "Region to connect to.",
+			Provider: "AWS",
 			Examples: []fs.OptionExample{{
 				Value: "us-east-1",
 				Help:  "The default endpoint - a good choice if you are unsure.\nUS Region, Northern Virginia or Pacific Northwest.\nLeave location constraint empty.",
@@ -117,16 +143,158 @@ func init() {
 			}, {
 				Value: "sa-east-1",
 				Help:  "South America (Sao Paulo) Region\nNeeds location constraint sa-east-1.",
-			}, {
-				Value: "other-v2-signature",
-				Help:  "Use this only if v4 signatures don't work, eg pre Jewel/v10 CEPH.\nSet this and make sure you set the endpoint.",
 			}},
 		}, {
-			Name: "endpoint",
-			Help: "Endpoint for S3 API.\nLeave blank if using AWS to use the default endpoint for the region.\nSpecify if using an S3 clone such as Ceph.",
+			Name:     "region",
+			Help:     "Region to connect to.  Leave blank if you are using an S3 clone and you don't have a region.",
+			Provider: "!AWS",
+			Examples: []fs.OptionExample{{
+				Value: "",
+				Help:  "Use this if unsure. Will use v4 signatures and an empty region.",
+			}, {
+				Value: "other-v2-signature",
+				Help:  "Use this only if v4 signatures don't work, eg pre Jewel/v10 CEPH.",
+			}},
 		}, {
-			Name: "location_constraint",
-			Help: "Location constraint - must be set to match the Region. Used when creating buckets only.",
+			Name:     "endpoint",
+			Help:     "Endpoint for S3 API.\nLeave blank if using AWS to use the default endpoint for the region.",
+			Provider: "AWS",
+		}, {
+			Name:     "endpoint",
+			Help:     "Endpoint for IBM COS S3 API.\nSpecify if using an IBM COS On Premise.",
+			Provider: "IBMCOS",
+			Examples: []fs.OptionExample{{
+				Value: "s3-api.us-geo.objectstorage.softlayer.net",
+				Help:  "US Cross Region Endpoint",
+			}, {
+				Value: "s3-api.dal.us-geo.objectstorage.softlayer.net",
+				Help:  "US Cross Region Dallas Endpoint",
+			}, {
+				Value: "s3-api.wdc-us-geo.objectstorage.softlayer.net",
+				Help:  "US Cross Region Washington DC Endpoint",
+			}, {
+				Value: "s3-api.sjc-us-geo.objectstorage.softlayer.net",
+				Help:  "US Cross Region San Jose Endpoint",
+			}, {
+				Value: "s3-api.us-geo.objectstorage.service.networklayer.com",
+				Help:  "US Cross Region Private Endpoint",
+			}, {
+				Value: "s3-api.dal-us-geo.objectstorage.service.networklayer.com",
+				Help:  "US Cross Region Dallas Private Endpoint",
+			}, {
+				Value: "s3-api.wdc-us-geo.objectstorage.service.networklayer.com",
+				Help:  "US Cross Region Washington DC Private Endpoint",
+			}, {
+				Value: "s3-api.sjc-us-geo.objectstorage.service.networklayer.com",
+				Help:  "US Cross Region San Jose Private Endpoint",
+			}, {
+				Value: "s3.us-east.objectstorage.softlayer.net",
+				Help:  "US Region East Endpoint",
+			}, {
+				Value: "s3.us-east.objectstorage.service.networklayer.com",
+				Help:  "US Region East Private Endpoint",
+			}, {
+				Value: "s3.us-south.objectstorage.softlayer.net",
+				Help:  "US Region South Endpoint",
+			}, {
+				Value: "s3.us-south.objectstorage.service.networklayer.com",
+				Help:  "US Region South Private Endpoint",
+			}, {
+				Value: "s3.eu-geo.objectstorage.softlayer.net",
+				Help:  "EU Cross Region Endpoint",
+			}, {
+				Value: "s3.fra-eu-geo.objectstorage.softlayer.net",
+				Help:  "EU Cross Region Frankfurt Endpoint",
+			}, {
+				Value: "s3.mil-eu-geo.objectstorage.softlayer.net",
+				Help:  "EU Cross Region Milan Endpoint",
+			}, {
+				Value: "s3.ams-eu-geo.objectstorage.softlayer.net",
+				Help:  "EU Cross Region Amsterdam Endpoint",
+			}, {
+				Value: "s3.eu-geo.objectstorage.service.networklayer.com",
+				Help:  "EU Cross Region Private Endpoint",
+			}, {
+				Value: "s3.fra-eu-geo.objectstorage.service.networklayer.com",
+				Help:  "EU Cross Region Frankfurt Private Endpoint",
+			}, {
+				Value: "s3.mil-eu-geo.objectstorage.service.networklayer.com",
+				Help:  "EU Cross Region Milan Private Endpoint",
+			}, {
+				Value: "s3.ams-eu-geo.objectstorage.service.networklayer.com",
+				Help:  "EU Cross Region Amsterdam Private Endpoint",
+			}, {
+				Value: "s3.eu-gb.objectstorage.softlayer.net",
+				Help:  "Great Britan Endpoint",
+			}, {
+				Value: "s3.eu-gb.objectstorage.service.networklayer.com",
+				Help:  "Great Britan Private Endpoint",
+			}, {
+				Value: "s3.ap-geo.objectstorage.softlayer.net",
+				Help:  "APAC Cross Regional Endpoint",
+			}, {
+				Value: "s3.tok-ap-geo.objectstorage.softlayer.net",
+				Help:  "APAC Cross Regional Tokyo Endpoint",
+			}, {
+				Value: "s3.hkg-ap-geo.objectstorage.softlayer.net",
+				Help:  "APAC Cross Regional HongKong Endpoint",
+			}, {
+				Value: "s3.seo-ap-geo.objectstorage.softlayer.net",
+				Help:  "APAC Cross Regional Seoul Endpoint",
+			}, {
+				Value: "s3.ap-geo.objectstorage.service.networklayer.com",
+				Help:  "APAC Cross Regional Private Endpoint",
+			}, {
+				Value: "s3.tok-ap-geo.objectstorage.service.networklayer.com",
+				Help:  "APAC Cross Regional Tokyo Private Endpoint",
+			}, {
+				Value: "s3.hkg-ap-geo.objectstorage.service.networklayer.com",
+				Help:  "APAC Cross Regional HongKong Private Endpoint",
+			}, {
+				Value: "s3.seo-ap-geo.objectstorage.service.networklayer.com",
+				Help:  "APAC Cross Regional Seoul Private Endpoint",
+			}, {
+				Value: "s3.mel01.objectstorage.softlayer.net",
+				Help:  "Melbourne Single Site Endpoint",
+			}, {
+				Value: "s3.mel01.objectstorage.service.networklayer.com",
+				Help:  "Melbourne Single Site Private Endpoint",
+			}, {
+				Value: "s3.tor01.objectstorage.softlayer.net",
+				Help:  "Toronto Single Site Endpoint",
+			}, {
+				Value: "s3.tor01.objectstorage.service.networklayer.com",
+				Help:  "Toronto Single Site Private Endpoint",
+			}},
+		}, {
+			Name:     "endpoint",
+			Help:     "Endpoint for S3 API.\nRequired when using an S3 clone.",
+			Provider: "!AWS,IBMCOS",
+			Examples: []fs.OptionExample{{
+				Value:    "objects-us-west-1.dream.io",
+				Help:     "Dream Objects endpoint",
+				Provider: "Dreamhost",
+			}, {
+				Value:    "nyc3.digitaloceanspaces.com",
+				Help:     "Digital Ocean Spaces New York 3",
+				Provider: "DigitalOcean",
+			}, {
+				Value:    "ams3.digitaloceanspaces.com",
+				Help:     "Digital Ocean Spaces Amsterdam 3",
+				Provider: "DigitalOcean",
+			}, {
+				Value:    "sgp1.digitaloceanspaces.com",
+				Help:     "Digital Ocean Spaces Singapore 1",
+				Provider: "DigitalOcean",
+			}, {
+				Value:    "s3.wasabisys.com",
+				Help:     "Wasabi Object Storage",
+				Provider: "Wasabi",
+			}},
+		}, {
+			Name:     "location_constraint",
+			Help:     "Location constraint - must be set to match the Region. Used when creating buckets only.",
+			Provider: "AWS",
 			Examples: []fs.OptionExample{{
 				Value: "",
 				Help:  "Empty for US Region, Northern Virginia or Pacific Northwest.",
@@ -171,30 +339,158 @@ func init() {
 				Help:  "South America (Sao Paulo) Region.",
 			}},
 		}, {
+			Name:     "location_constraint",
+			Help:     "Location constraint - must match endpoint when using IBM Cloud Public. For on-prem COS, do not make a selection from this list, hit enter",
+			Provider: "IBMCOS",
+			Examples: []fs.OptionExample{{
+				Value: "us-standard",
+				Help:  "US Cross Region Standard",
+			}, {
+				Value: "us-vault",
+				Help:  "US Cross Region Vault",
+			}, {
+				Value: "us-cold",
+				Help:  "US Cross Region Cold",
+			}, {
+				Value: "us-flex",
+				Help:  "US Cross Region Flex",
+			}, {
+				Value: "us-east-standard",
+				Help:  "US East Region Standard",
+			}, {
+				Value: "us-east-vault",
+				Help:  "US East Region Vault",
+			}, {
+				Value: "us-east-cold",
+				Help:  "US East Region Cold",
+			}, {
+				Value: "us-east-flex",
+				Help:  "US East Region Flex",
+			}, {
+				Value: "us-south-standard",
+				Help:  "US Sout hRegion Standard",
+			}, {
+				Value: "us-south-vault",
+				Help:  "US South Region Vault",
+			}, {
+				Value: "us-south-cold",
+				Help:  "US South Region Cold",
+			}, {
+				Value: "us-south-flex",
+				Help:  "US South Region Flex",
+			}, {
+				Value: "eu-standard",
+				Help:  "EU Cross Region Standard",
+			}, {
+				Value: "eu-vault",
+				Help:  "EU Cross Region Vault",
+			}, {
+				Value: "eu-cold",
+				Help:  "EU Cross Region Cold",
+			}, {
+				Value: "eu-flex",
+				Help:  "EU Cross Region Flex",
+			}, {
+				Value: "eu-gb-standard",
+				Help:  "Great Britan Standard",
+			}, {
+				Value: "eu-gb-vault",
+				Help:  "Great Britan Vault",
+			}, {
+				Value: "eu-gb-cold",
+				Help:  "Great Britan Cold",
+			}, {
+				Value: "eu-gb-flex",
+				Help:  "Great Britan Flex",
+			}, {
+				Value: "ap-standard",
+				Help:  "APAC Standard",
+			}, {
+				Value: "ap-vault",
+				Help:  "APAC Vault",
+			}, {
+				Value: "ap-cold",
+				Help:  "APAC Cold",
+			}, {
+				Value: "ap-flex",
+				Help:  "APAC Flex",
+			}, {
+				Value: "mel01-standard",
+				Help:  "Melbourne Standard",
+			}, {
+				Value: "mel01-vault",
+				Help:  "Melbourne Vault",
+			}, {
+				Value: "mel01-cold",
+				Help:  "Melbourne Cold",
+			}, {
+				Value: "mel01-flex",
+				Help:  "Melbourne Flex",
+			}, {
+				Value: "tor01-standard",
+				Help:  "Toronto Standard",
+			}, {
+				Value: "tor01-vault",
+				Help:  "Toronto Vault",
+			}, {
+				Value: "tor01-cold",
+				Help:  "Toronto Cold",
+			}, {
+				Value: "tor01-flex",
+				Help:  "Toronto Flex",
+			}},
+		}, {
+			Name:     "location_constraint",
+			Help:     "Location constraint - must be set to match the Region. Leave blank if not sure. Used when creating buckets only.",
+			Provider: "!AWS,IBMCOS",
+		}, {
 			Name: "acl",
 			Help: "Canned ACL used when creating buckets and/or storing objects in S3.\nFor more info visit https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl",
 			Examples: []fs.OptionExample{{
-				Value: "private",
-				Help:  "Owner gets FULL_CONTROL. No one else has access rights (default).",
+				Value:    "private",
+				Help:     "Owner gets FULL_CONTROL. No one else has access rights (default).",
+				Provider: "!IBMCOS",
 			}, {
-				Value: "public-read",
-				Help:  "Owner gets FULL_CONTROL. The AllUsers group gets READ access.",
+				Value:    "public-read",
+				Help:     "Owner gets FULL_CONTROL. The AllUsers group gets READ access.",
+				Provider: "!IBMCOS",
 			}, {
-				Value: "public-read-write",
-				Help:  "Owner gets FULL_CONTROL. The AllUsers group gets READ and WRITE access.\nGranting this on a bucket is generally not recommended.",
+				Value:    "public-read-write",
+				Help:     "Owner gets FULL_CONTROL. The AllUsers group gets READ and WRITE access.\nGranting this on a bucket is generally not recommended.",
+				Provider: "!IBMCOS",
 			}, {
-				Value: "authenticated-read",
-				Help:  "Owner gets FULL_CONTROL. The AuthenticatedUsers group gets READ access.",
+				Value:    "authenticated-read",
+				Help:     "Owner gets FULL_CONTROL. The AuthenticatedUsers group gets READ access.",
+				Provider: "!IBMCOS",
 			}, {
-				Value: "bucket-owner-read",
-				Help:  "Object owner gets FULL_CONTROL. Bucket owner gets READ access.\nIf you specify this canned ACL when creating a bucket, Amazon S3 ignores it.",
+				Value:    "bucket-owner-read",
+				Help:     "Object owner gets FULL_CONTROL. Bucket owner gets READ access.\nIf you specify this canned ACL when creating a bucket, Amazon S3 ignores it.",
+				Provider: "!IBMCOS",
 			}, {
-				Value: "bucket-owner-full-control",
-				Help:  "Both the object owner and the bucket owner get FULL_CONTROL over the object.\nIf you specify this canned ACL when creating a bucket, Amazon S3 ignores it.",
+				Value:    "bucket-owner-full-control",
+				Help:     "Both the object owner and the bucket owner get FULL_CONTROL over the object.\nIf you specify this canned ACL when creating a bucket, Amazon S3 ignores it.",
+				Provider: "!IBMCOS",
+			}, {
+				Value:    "private",
+				Help:     "Owner gets FULL_CONTROL. No one else has access rights (default). This acl is available on IBM Cloud (Infra), IBM Cloud (Storage), On-Premise COS",
+				Provider: "IBMCOS",
+			}, {
+				Value:    "public-read",
+				Help:     "Owner gets FULL_CONTROL. The AllUsers group gets READ access. This acl is available on IBM Cloud (Infra), IBM Cloud (Storage), On-Premise IBM COS",
+				Provider: "IBMCOS",
+			}, {
+				Value:    "public-read-write",
+				Help:     "Owner gets FULL_CONTROL. The AllUsers group gets READ and WRITE access. This acl is available on IBM Cloud (Infra), On-Premise IBM COS",
+				Provider: "IBMCOS",
+			}, {
+				Value:    "authenticated-read",
+				Help:     "Owner gets FULL_CONTROL. The AuthenticatedUsers group gets READ access. Not supported on Buckets. This acl is available on IBM Cloud (Infra) and On-Premise IBM COS",
+				Provider: "IBMCOS",
 			}},
 		}, {
-			Name: "server_side_encryption",
-			Help: "The server-side encryption algorithm used when storing this object in S3.",
+			Name:     "server_side_encryption",
+			Help:     "The server-side encryption algorithm used when storing this object in S3.",
+			Provider: "AWS",
 			Examples: []fs.OptionExample{{
 				Value: "",
 				Help:  "None",
@@ -203,8 +499,9 @@ func init() {
 				Help:  "AES256",
 			}},
 		}, {
-			Name: "storage_class",
-			Help: "The storage class to use when storing objects in S3.",
+			Name:     "storage_class",
+			Help:     "The storage class to use when storing objects in S3.",
+			Provider: "AWS",
 			Examples: []fs.OptionExample{{
 				Value: "",
 				Help:  "Default",
@@ -217,9 +514,14 @@ func init() {
 			}, {
 				Value: "STANDARD_IA",
 				Help:  "Standard Infrequent Access storage class",
+			}, {
+				Value: "ONEZONE_IA",
+				Help:  "One Zone Infrequent Access storage class",
 			}},
-		}},
+		},
+		},
 	})
+	flags.VarP(&s3ChunkSize, "s3-chunk-size", "", "Chunk size to use for uploading")
 }
 
 // Constants
@@ -235,8 +537,10 @@ const (
 // Globals
 var (
 	// Flags
-	s3ACL          = flags.StringP("s3-acl", "", "", "Canned ACL used when creating buckets and/or storing objects in S3")
-	s3StorageClass = flags.StringP("s3-storage-class", "", "", "Storage class to use when uploading S3 objects (STANDARD|REDUCED_REDUNDANCY|STANDARD_IA)")
+	s3ACL             = flags.StringP("s3-acl", "", "", "Canned ACL used when creating buckets and/or storing objects in S3")
+	s3StorageClass    = flags.StringP("s3-storage-class", "", "", "Storage class to use when uploading S3 objects (STANDARD|REDUCED_REDUNDANCY|STANDARD_IA|ONEZONE_IA)")
+	s3ChunkSize       = fs.SizeSuffix(s3manager.MinUploadPartSize)
+	s3DisableChecksum = flags.BoolP("s3-disable-checksum", "", false, "Don't store MD5 checksum with object metadata")
 )
 
 // Fs represents a remote s3 server
@@ -336,6 +640,11 @@ func s3Connection(name string) (*s3.S3, *session.Session, error) {
 		// * Secret Access Key: AWS_SECRET_ACCESS_KEY or AWS_SECRET_KEY
 		&credentials.EnvProvider{},
 
+		// A SharedCredentialsProvider retrieves credentials
+		// from the current user's home directory.  It checks
+		// AWS_SHARED_CREDENTIALS_FILE and AWS_PROFILE too.
+		&credentials.SharedCredentialsProvider{},
+
 		// Pick up IAM role if we're in an ECS task
 		defaults.RemoteCredProvider(*def.Config, def.Handlers),
 
@@ -426,6 +735,9 @@ func NewFs(name, root string) (fs.Fs, error) {
 	}
 	if *s3StorageClass != "" {
 		f.storageClass = *s3StorageClass
+	}
+	if s3ChunkSize < fs.SizeSuffix(s3manager.MinUploadPartSize) {
+		return nil, errors.Errorf("s3 chunk size must be >= %v", fs.SizeSuffix(s3manager.MinUploadPartSize))
 	}
 	if f.root != "" {
 		f.root += "/"
@@ -940,6 +1252,9 @@ func (o *Object) readMetaData() (err error) {
 // It attempts to read the objects mtime and if that isn't present the
 // LastModified returned in the http headers
 func (o *Object) ModTime() time.Time {
+	if fs.Config.UseServerModTime {
+		return o.lastModified
+	}
 	err := o.readMetaData()
 	if err != nil {
 		fs.Logf(o, "Failed to read metadata: %v", err)
@@ -1040,6 +1355,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		u.Concurrency = 2
 		u.LeavePartsOnError = false
 		u.S3 = o.fs.c
+		u.PartSize = int64(s3ChunkSize)
 		u.PartSize = s3manager.MinUploadPartSize
 
 		if size == -1 {
@@ -1060,7 +1376,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		metaMtime: aws.String(swift.TimeToFloatString(modTime)),
 	}
 
-	if size > uploader.PartSize {
+	if !*s3DisableChecksum && size > uploader.PartSize {
 		hash, err := src.Hash(hash.MD5)
 
 		if err == nil && matchMd5.MatchString(hash) {

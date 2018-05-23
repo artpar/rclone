@@ -14,7 +14,7 @@ import (
 	"github.com/artpar/rclone/vfs"
 	"github.com/artpar/rclone/vfs/vfsflags"
 	"github.com/pkg/errors"
-	"golang.org/x/net/context"
+	"golang.org/x/net/context" // switch to "context" when we stop supporting go1.8
 )
 
 // FS represents the top level filing system
@@ -62,6 +62,16 @@ func (f *FS) Statfs(ctx context.Context, req *fuse.StatfsRequest, resp *fuse.Sta
 	resp.Bsize = blockSize  // Block size
 	resp.Namelen = 255      // Maximum file name length?
 	resp.Frsize = blockSize // Fragment size, smallest addressable data size in the file system.
+	total, used, free := f.VFS.Statfs()
+	if total >= 0 {
+		resp.Blocks = uint64(total) / blockSize
+	}
+	if used >= 0 {
+		resp.Bfree = resp.Blocks - uint64(used)/blockSize
+	}
+	if free >= 0 {
+		resp.Bavail = uint64(free) / blockSize
+	}
 	return nil
 }
 

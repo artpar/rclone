@@ -53,9 +53,13 @@ func mountOptions(device string, mountpoint string) (options []string) {
 
 	// OSX options
 	if runtime.GOOS == "darwin" {
-		options = append(options, "-o", "volname="+device)
-		options = append(options, "-o", "noappledouble")
-		options = append(options, "-o", "noapplexattr")
+		options = append(options, "-o", "volname="+mountlib.VolumeName)
+		if mountlib.NoAppleDouble {
+			options = append(options, "-o", "noappledouble")
+		}
+		if mountlib.NoAppleXattr {
+			options = append(options, "-o", "noapplexattr")
+		}
 	}
 
 	// Windows options

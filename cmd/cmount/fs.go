@@ -275,6 +275,16 @@ func (fsys *FS) Statfs(path string, stat *fuse.Statfs_t) (errc int) {
 	stat.Bsize = blockSize  // Block size
 	stat.Namemax = 255      // Maximum file name length?
 	stat.Frsize = blockSize // Fragment size, smallest addressable data size in the file system.
+	total, used, free := fsys.VFS.Statfs()
+	if total >= 0 {
+		stat.Blocks = uint64(total) / blockSize
+	}
+	if used >= 0 {
+		stat.Bfree = stat.Blocks - uint64(used)/blockSize
+	}
+	if free >= 0 {
+		stat.Bavail = uint64(free) / blockSize
+	}
 	return 0
 }
 
@@ -340,7 +350,6 @@ func (fsys *FS) Read(path string, buff []byte, ofst int64, fh uint64) (n int) {
 	}
 	n, err := handle.ReadAt(buff, ofst)
 	if err == io.EOF {
-		err = nil
 	} else if err != nil {
 		return translateError(err)
 	}

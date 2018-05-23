@@ -12,7 +12,7 @@ import (
 	"github.com/artpar/rclone/fs/log"
 	"github.com/artpar/rclone/vfs"
 	"github.com/pkg/errors"
-	"golang.org/x/net/context"
+	"golang.org/x/net/context" // switch to "context" when we stop supporting go1.8
 )
 
 // Dir represents a directory entry

@@ -30,15 +30,14 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/artpar/rclone/backend/all" // import all backends
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/filter"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/list"
-	"github.com/artpar/rclone/fs/operations"
-	"github.com/artpar/rclone/fs/walk"
-	"github.com/artpar/rclone/fstest"
+	_ "github.com/ncw/rclone/backend/all" // import all backends
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/accounting"
+	"github.com/ncw/rclone/fs/filter"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/fs/list"
+	"github.com/ncw/rclone/fs/operations"
+	"github.com/ncw/rclone/fstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -299,170 +298,6 @@ func TestCheckSizeOnly(t *testing.T) {
 	fs.Config.SizeOnly = true
 	defer func() { fs.Config.SizeOnly = false }()
 	TestCheck(t)
-}
-
-func skipIfCantDedupe(t *testing.T, f fs.Fs) {
-	if f.Features().PutUnchecked == nil {
-		t.Skip("Can't test deduplicate - no PutUnchecked")
-	}
-	if !f.Features().DuplicateFiles {
-		t.Skip("Can't test deduplicate - no duplicate files possible")
-	}
-	if !f.Hashes().Contains(hash.MD5) {
-		t.Skip("Can't test deduplicate - MD5 not supported")
-	}
-}
-
-func TestDeduplicateInteractive(t *testing.T) {
-	r := fstest.NewRun(t)
-	defer r.Finalise()
-	skipIfCantDedupe(t, r.Fremote)
-
-	file1 := r.WriteUncheckedObject("one", "This is one", t1)
-	file2 := r.WriteUncheckedObject("one", "This is one", t1)
-	file3 := r.WriteUncheckedObject("one", "This is one", t1)
-	r.CheckWithDuplicates(t, file1, file2, file3)
-
-	err := operations.Deduplicate(r.Fremote, operations.DeduplicateInteractive)
-	require.NoError(t, err)
-
-	fstest.CheckItems(t, r.Fremote, file1)
-}
-
-func TestDeduplicateSkip(t *testing.T) {
-	r := fstest.NewRun(t)
-	defer r.Finalise()
-	skipIfCantDedupe(t, r.Fremote)
-
-	file1 := r.WriteUncheckedObject("one", "This is one", t1)
-	file2 := r.WriteUncheckedObject("one", "This is one", t1)
-	file3 := r.WriteUncheckedObject("one", "This is another one", t1)
-	r.CheckWithDuplicates(t, file1, file2, file3)
-
-	err := operations.Deduplicate(r.Fremote, operations.DeduplicateSkip)
-	require.NoError(t, err)
-
-	r.CheckWithDuplicates(t, file1, file3)
-}
-
-func TestDeduplicateFirst(t *testing.T) {
-	r := fstest.NewRun(t)
-	defer r.Finalise()
-	skipIfCantDedupe(t, r.Fremote)
-
-	file1 := r.WriteUncheckedObject("one", "This is one", t1)
-	file2 := r.WriteUncheckedObject("one", "This is one A", t1)
-	file3 := r.WriteUncheckedObject("one", "This is one BB", t1)
-	r.CheckWithDuplicates(t, file1, file2, file3)
-
-	err := operations.Deduplicate(r.Fremote, operations.DeduplicateFirst)
-	require.NoError(t, err)
-
-	objects, size, err := operations.Count(r.Fremote)
-	require.NoError(t, err)
-	assert.Equal(t, int64(1), objects)
-	if size != file1.Size && size != file2.Size && size != file3.Size {
-		t.Errorf("Size not one of the object sizes %d", size)
-	}
-}
-
-func TestDeduplicateNewest(t *testing.T) {
-	r := fstest.NewRun(t)
-	defer r.Finalise()
-	skipIfCantDedupe(t, r.Fremote)
-
-	file1 := r.WriteUncheckedObject("one", "This is one", t1)
-	file2 := r.WriteUncheckedObject("one", "This is one too", t2)
-	file3 := r.WriteUncheckedObject("one", "This is another one", t3)
-	r.CheckWithDuplicates(t, file1, file2, file3)
-
-	err := operations.Deduplicate(r.Fremote, operations.DeduplicateNewest)
-	require.NoError(t, err)
-
-	fstest.CheckItems(t, r.Fremote, file3)
-}
-
-func TestDeduplicateOldest(t *testing.T) {
-	r := fstest.NewRun(t)
-	defer r.Finalise()
-	skipIfCantDedupe(t, r.Fremote)
-
-	file1 := r.WriteUncheckedObject("one", "This is one", t1)
-	file2 := r.WriteUncheckedObject("one", "This is one too", t2)
-	file3 := r.WriteUncheckedObject("one", "This is another one", t3)
-	r.CheckWithDuplicates(t, file1, file2, file3)
-
-	err := operations.Deduplicate(r.Fremote, operations.DeduplicateOldest)
-	require.NoError(t, err)
-
-	fstest.CheckItems(t, r.Fremote, file1)
-}
-
-func TestDeduplicateRename(t *testing.T) {
-	r := fstest.NewRun(t)
-	defer r.Finalise()
-	skipIfCantDedupe(t, r.Fremote)
-
-	file1 := r.WriteUncheckedObject("one.txt", "This is one", t1)
-	file2 := r.WriteUncheckedObject("one.txt", "This is one too", t2)
-	file3 := r.WriteUncheckedObject("one.txt", "This is another one", t3)
-	r.CheckWithDuplicates(t, file1, file2, file3)
-
-	err := operations.Deduplicate(r.Fremote, operations.DeduplicateRename)
-	require.NoError(t, err)
-
-	require.NoError(t, walk.Walk(r.Fremote, "", true, -1, func(dirPath string, entries fs.DirEntries, err error) error {
-		if err != nil {
-			return err
-		}
-		entries.ForObject(func(o fs.Object) {
-			remote := o.Remote()
-			if remote != "one-1.txt" &&
-				remote != "one-2.txt" &&
-				remote != "one-3.txt" {
-				t.Errorf("Bad file name after rename %q", remote)
-			}
-			size := o.Size()
-			if size != file1.Size && size != file2.Size && size != file3.Size {
-				t.Errorf("Size not one of the object sizes %d", size)
-			}
-		})
-		return nil
-	}))
-}
-
-// This should really be a unit test, but the test framework there
-// doesn't have enough tools to make it easy
-func TestMergeDirs(t *testing.T) {
-	r := fstest.NewRun(t)
-	defer r.Finalise()
-
-	mergeDirs := r.Fremote.Features().MergeDirs
-	if mergeDirs == nil {
-		t.Skip("Can't merge directories")
-	}
-
-	file1 := r.WriteObject("dupe1/one.txt", "This is one", t1)
-	file2 := r.WriteObject("dupe2/two.txt", "This is one too", t2)
-	file3 := r.WriteObject("dupe3/three.txt", "This is another one", t3)
-
-	objs, dirs, err := walk.GetAll(r.Fremote, "", true, 1)
-	require.NoError(t, err)
-	assert.Equal(t, 3, len(dirs))
-	assert.Equal(t, 0, len(objs))
-
-	err = mergeDirs(dirs)
-	require.NoError(t, err)
-
-	file2.Path = "dupe1/two.txt"
-	file3.Path = "dupe1/three.txt"
-	fstest.CheckItems(t, r.Fremote, file1, file2, file3)
-
-	objs, dirs, err = walk.GetAll(r.Fremote, "", true, 1)
-	require.NoError(t, err)
-	assert.Equal(t, 1, len(dirs))
-	assert.Equal(t, 0, len(objs))
-	assert.Equal(t, "dupe1", dirs[0].Remote())
 }
 
 func TestCat(t *testing.T) {
@@ -859,34 +694,43 @@ func TestListFormat(t *testing.T) {
 	var list operations.ListFormat
 	list.AddPath()
 	list.SetDirSlash(false)
-	assert.Equal(t, "subdir", operations.ListFormatted(&items[1], &list))
+	assert.Equal(t, "subdir", list.Format(items[1]))
 
 	list.SetDirSlash(true)
-	assert.Equal(t, "subdir/", operations.ListFormatted(&items[1], &list))
+	assert.Equal(t, "subdir/", list.Format(items[1]))
 
 	list.SetOutput(nil)
-	assert.Equal(t, "", operations.ListFormatted(&items[1], &list))
+	assert.Equal(t, "", list.Format(items[1]))
 
 	list.AppendOutput(func() string { return "a" })
 	list.AppendOutput(func() string { return "b" })
-	assert.Equal(t, "ab", operations.ListFormatted(&items[1], &list))
+	assert.Equal(t, "ab", list.Format(items[1]))
 	list.SetSeparator(":::")
-	assert.Equal(t, "a:::b", operations.ListFormatted(&items[1], &list))
+	assert.Equal(t, "a:::b", list.Format(items[1]))
 
 	list.SetOutput(nil)
 	list.AddModTime()
-	assert.Equal(t, items[0].ModTime().Format("2006-01-02 15:04:05"), operations.ListFormatted(&items[0], &list))
+	assert.Equal(t, items[0].ModTime().Local().Format("2006-01-02 15:04:05"), list.Format(items[0]))
+
+	list.SetOutput(nil)
+	list.AddID()
+	_ = list.Format(items[0]) // Can't really check anything - at least it didn't panic!
+
+	list.SetOutput(nil)
+	list.AddMimeType()
+	assert.Contains(t, list.Format(items[0]), "/")
+	assert.Equal(t, "inode/directory", list.Format(items[1]))
 
 	list.SetOutput(nil)
 	list.AddSize()
-	assert.Equal(t, "1", operations.ListFormatted(&items[0], &list))
+	assert.Equal(t, "1", list.Format(items[0]))
 
 	list.AddPath()
 	list.AddModTime()
 	list.SetDirSlash(true)
 	list.SetSeparator("__SEP__")
-	assert.Equal(t, "1__SEP__a__SEP__"+items[0].ModTime().Format("2006-01-02 15:04:05"), operations.ListFormatted(&items[0], &list))
-	assert.Equal(t, fmt.Sprintf("%d", items[1].Size())+"__SEP__subdir/__SEP__"+items[1].ModTime().Format("2006-01-02 15:04:05"), operations.ListFormatted(&items[1], &list))
+	assert.Equal(t, "1__SEP__a__SEP__"+items[0].ModTime().Local().Format("2006-01-02 15:04:05"), list.Format(items[0]))
+	assert.Equal(t, fmt.Sprintf("%d", items[1].Size())+"__SEP__subdir/__SEP__"+items[1].ModTime().Local().Format("2006-01-02 15:04:05"), list.Format(items[1]))
 
 	for _, test := range []struct {
 		ht   hash.Type
@@ -898,9 +742,20 @@ func TestListFormat(t *testing.T) {
 	} {
 		list.SetOutput(nil)
 		list.AddHash(test.ht)
-		got := operations.ListFormatted(&items[0], &list)
+		got := list.Format(items[0])
 		if got != "UNSUPPORTED" && got != "" {
 			assert.Equal(t, test.want, got)
 		}
 	}
+
+	list.SetOutput(nil)
+	list.SetSeparator("|")
+	list.SetCSV(true)
+	list.AddSize()
+	list.AddPath()
+	list.AddModTime()
+	list.SetDirSlash(true)
+	assert.Equal(t, "1|a|"+items[0].ModTime().Local().Format("2006-01-02 15:04:05"), list.Format(items[0]))
+	assert.Equal(t, fmt.Sprintf("%d", items[1].Size())+"|subdir/|"+items[1].ModTime().Local().Format("2006-01-02 15:04:05"), list.Format(items[1]))
+
 }

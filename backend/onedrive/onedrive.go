@@ -3,6 +3,8 @@
 package onedrive
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"regexp"
 	"strings"
 	"time"
 
@@ -245,14 +246,15 @@ type Fs struct {
 //
 // Will definitely have info but maybe not meta
 type Object struct {
-	fs          *Fs       // what this object is part of
-	remote      string    // The remote path
-	hasMetaData bool      // whether info below has been set
-	size        int64     // size of the object
-	modTime     time.Time // modification time of the object
-	id          string    // ID of the object
-	sha1        string    // SHA-1 of the object content
-	mimeType    string    // Content-Type of object from server (may not be as uploaded)
+	fs           *Fs       // what this object is part of
+	remote       string    // The remote path
+	hasMetaData  bool      // whether info below has been set
+	size         int64     // size of the object
+	modTime      time.Time // modification time of the object
+	id           string    // ID of the object
+	sha1         string    // SHA-1 of the object content
+	quickxorhash string    // QuickXorHash of the object content
+	mimeType     string    // Content-Type of object from server (may not be as uploaded)
 }
 
 // ------------------------------------------------------------
@@ -276,9 +278,6 @@ func (f *Fs) String() string {
 func (f *Fs) Features() *fs.Features {
 	return f.features
 }
-
-// Pattern to match a one drive path
-var matcher = regexp.MustCompile(`^([^/]*)(.*)$`)
 
 // parsePath parses an one drive 'url'
 func parsePath(path string) (root string) {
@@ -939,8 +938,36 @@ func (f *Fs) DirCacheFlush() {
 	f.dirCache.ResetRoot()
 }
 
+// About gets quota information
+func (f *Fs) About() (usage *fs.Usage, err error) {
+	var drive api.Drive
+	opts := rest.Opts{
+		Method: "GET",
+		Path:   "",
+	}
+	var resp *http.Response
+	err = f.pacer.Call(func() (bool, error) {
+		resp, err = f.srv.CallJSON(&opts, nil, &drive)
+		return shouldRetry(resp, err)
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "about failed")
+	}
+	q := drive.Quota
+	usage = &fs.Usage{
+		Total:   fs.NewUsageValue(q.Total),     // quota of bytes that can be used
+		Used:    fs.NewUsageValue(q.Used),      // bytes in use
+		Trashed: fs.NewUsageValue(q.Deleted),   // bytes in trash
+		Free:    fs.NewUsageValue(q.Remaining), // bytes which can be uploaded before reaching the quota
+	}
+	return usage, nil
+}
+
 // Hashes returns the supported hash sets.
 func (f *Fs) Hashes() hash.Set {
+	if f.isBusiness {
+		return hash.Set(hash.QuickXorHash)
+	}
 	return hash.Set(hash.SHA1)
 }
 
@@ -971,6 +998,12 @@ func (o *Object) srvPath() string {
 
 // Hash returns the SHA-1 of an object returning a lowercase hex string
 func (o *Object) Hash(t hash.Type) (string, error) {
+	if o.fs.isBusiness {
+		if t != hash.QuickXorHash {
+			return "", hash.ErrUnsupported
+		}
+		return o.quickxorhash, nil
+	}
 	if t != hash.SHA1 {
 		return "", hash.ErrUnsupported
 	}
@@ -995,17 +1028,21 @@ func (o *Object) setMetaData(info *api.Item) (err error) {
 	o.hasMetaData = true
 	o.size = info.Size
 
-	// Docs: https://dev.onedrive.com/facets/hashes_facet.htm
+	// Docs: https://docs.microsoft.com/en-us/onedrive/developer/rest-api/resources/hashes
 	//
-	// The docs state both that the hashes are returned as hex
-	// strings, and as base64 strings. Testing reveals they are in
-	// fact uppercase hex strings.
-	//
-	// In OneDrive for Business, SHA1 and CRC32 hash values are not returned for files.
+	// We use SHA1 for onedrive personal and QuickXorHash for onedrive for business
 	if info.File != nil {
 		o.mimeType = info.File.MimeType
 		if info.File.Hashes.Sha1Hash != "" {
 			o.sha1 = strings.ToLower(info.File.Hashes.Sha1Hash)
+		}
+		if info.File.Hashes.QuickXorHash != "" {
+			h, err := base64.StdEncoding.DecodeString(info.File.Hashes.QuickXorHash)
+			if err != nil {
+				fs.Errorf(o, "Failed to decode QuickXorHash %q: %v", info.File.Hashes.QuickXorHash, err)
+			} else {
+				o.quickxorhash = hex.EncodeToString(h)
+			}
 		}
 	}
 	if info.FileSystemInfo != nil {
@@ -1140,7 +1177,7 @@ func (o *Object) uploadFragment(url string, start int64, totalSize int64, chunk 
 	//	var response api.UploadFragmentResponse
 	var resp *http.Response
 	err = o.fs.pacer.Call(func() (bool, error) {
-		_, _ = chunk.Seek(0, 0)
+		_, _ = chunk.Seek(0, io.SeekStart)
 		resp, err = o.fs.srv.Call(&opts)
 		if resp != nil {
 			defer fs.CheckClose(resp.Body, &err)
@@ -1282,6 +1319,11 @@ func (o *Object) MimeType() string {
 	return o.mimeType
 }
 
+// ID returns the ID of the Object if known, or "" if not
+func (o *Object) ID() string {
+	return o.id
+}
+
 // Check the interfaces are satisfied
 var (
 	_ fs.Fs     = (*Fs)(nil)
@@ -1290,6 +1332,8 @@ var (
 	_ fs.Mover  = (*Fs)(nil)
 	// _ fs.DirMover = (*Fs)(nil)
 	_ fs.DirCacheFlusher = (*Fs)(nil)
+	_ fs.Abouter         = (*Fs)(nil)
 	_ fs.Object          = (*Object)(nil)
 	_ fs.MimeTyper       = &Object{}
+	_ fs.IDer            = &Object{}
 )

@@ -18,7 +18,6 @@ import (
 	"log"
 	"net/http"
 	"path"
-	"regexp"
 	"strings"
 	"time"
 
@@ -40,7 +39,6 @@ import (
 const (
 	folderKind      = "FOLDER"
 	fileKind        = "FILE"
-	assetKind       = "ASSET"
 	statusAvailable = "AVAILABLE"
 	timeFormat      = time.RFC3339 // 2014-03-07T22:31:12.173Z
 	minSleep        = 20 * time.Millisecond
@@ -137,9 +135,6 @@ func (f *Fs) String() string {
 func (f *Fs) Features() *fs.Features {
 	return f.features
 }
-
-// Pattern to match a acd path
-var matcher = regexp.MustCompile(`^([^/]*)(.*)$`)
 
 // parsePath parses an acd 'url'
 func parsePath(path string) (root string) {
@@ -1320,6 +1315,14 @@ func (f *Fs) changeNotifyRunner(notifyFunc func(string, fs.EntryType), checkpoin
 	return checkpoint
 }
 
+// ID returns the ID of the Object if known, or "" if not
+func (o *Object) ID() string {
+	if o.info.Id == nil {
+		return ""
+	}
+	return *o.info.Id
+}
+
 // Check the interfaces are satisfied
 var (
 	_ fs.Fs     = (*Fs)(nil)
@@ -1331,4 +1334,5 @@ var (
 	_ fs.ChangeNotifier  = (*Fs)(nil)
 	_ fs.Object          = (*Object)(nil)
 	_ fs.MimeTyper       = &Object{}
+	_ fs.IDer            = &Object{}
 )

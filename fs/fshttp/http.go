@@ -3,6 +3,7 @@ package fshttp
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"net"
 	"net/http"
@@ -11,8 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"golang.org/x/net/context" // switch to "context" when we stop supporting go1.6
+	"github.com/ncw/rclone/fs"
 	"golang.org/x/time/rate"
 )
 
@@ -42,10 +42,7 @@ func StartHTTPTokenBucket() {
 // A net.Conn that sets a deadline for every Read or Write operation
 type timeoutConn struct {
 	net.Conn
-	readTimer  *time.Timer
-	writeTimer *time.Timer
-	timeout    time.Duration
-	off        time.Time
+	timeout time.Duration
 }
 
 // create a timeoutConn using the timeout
@@ -108,6 +105,16 @@ func setDefaults(a, b interface{}) {
 	}
 }
 
+// dial with context and timeouts
+func dialContextTimeout(ctx context.Context, network, address string, ci *fs.ConfigInfo) (net.Conn, error) {
+	dialer := NewDialer(ci)
+	c, err := dialer.DialContext(ctx, network, address)
+	if err != nil {
+		return c, err
+	}
+	return newTimeoutConn(c, ci.Timeout)
+}
+
 // NewTransport returns an http.RoundTripper with the correct timeouts
 func NewTransport(ci *fs.ConfigInfo) http.RoundTripper {
 	noTransport.Do(func() {
@@ -116,18 +123,17 @@ func NewTransport(ci *fs.ConfigInfo) http.RoundTripper {
 		t := new(http.Transport)
 		setDefaults(t, http.DefaultTransport.(*http.Transport))
 		t.Proxy = http.ProxyFromEnvironment
-		t.MaxIdleConnsPerHost = 4 * (ci.Checkers + ci.Transfers + 1)
+		t.MaxIdleConnsPerHost = 2 * (ci.Checkers + ci.Transfers + 1)
+		t.MaxIdleConns = 2 * t.MaxIdleConnsPerHost
 		t.TLSHandshakeTimeout = ci.ConnectTimeout
 		t.ResponseHeaderTimeout = ci.Timeout
 		t.TLSClientConfig = &tls.Config{InsecureSkipVerify: ci.InsecureSkipVerify}
 		t.DisableCompression = ci.NoGzip
-		// Set in http_old.go initTransport
-		//   t.Dial
-		// Set in http_new.go initTransport
-		//   t.DialContext
-		//   t.IdelConnTimeout
-		//   t.ExpectContinueTimeout
-		initTransport(ci, t)
+		t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialContextTimeout(ctx, network, addr, ci)
+		}
+		t.IdleConnTimeout = 60 * time.Second
+		t.ExpectContinueTimeout = ci.ConnectTimeout
 		// Wrap that http.Transport in our own transport
 		transport = newTransport(ci, t)
 	})
@@ -250,7 +256,7 @@ func cleanAuths(buf []byte) []byte {
 func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
 	// Get transactions per second token first if limiting
 	if tpsBucket != nil {
-		tbErr := tpsBucket.Wait(context.Background()) // FIXME switch to req.Context() when we drop go1.6 support
+		tbErr := tpsBucket.Wait(req.Context())
 		if tbErr != nil {
 			fs.Errorf(nil, "HTTP token bucket error: %v", err)
 		}

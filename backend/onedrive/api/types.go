@@ -50,10 +50,10 @@ type IdentitySet struct {
 
 // Quota groups storage space quota-related information on OneDrive into a single structure.
 type Quota struct {
-	Total     int    `json:"total"`
-	Used      int    `json:"used"`
-	Remaining int    `json:"remaining"`
-	Deleted   int    `json:"deleted"`
+	Total     int64  `json:"total"`
+	Used      int64  `json:"used"`
+	Remaining int64  `json:"remaining"`
+	Deleted   int64  `json:"deleted"`
 	State     string `json:"state"` // normal | nearing | critical | exceeded
 }
 
@@ -100,8 +100,9 @@ type FolderFacet struct {
 
 // HashesType groups different types of hashes into a single structure, for an item on OneDrive.
 type HashesType struct {
-	Sha1Hash  string `json:"sha1Hash"`  // base64 encoded SHA1 hash for the contents of the file (if available)
-	Crc32Hash string `json:"crc32Hash"` // base64 encoded CRC32 value of the file (if available)
+	Sha1Hash     string `json:"sha1Hash"`     // hex encoded SHA1 hash for the contents of the file (if available)
+	Crc32Hash    string `json:"crc32Hash"`    // hex encoded CRC32 value of the file (if available)
+	QuickXorHash string `json:"quickXorHash"` // base64 encoded QuickXorHash value of the file (if available)
 }
 
 // FileFacet groups file-related data on OneDrive into a single structure.

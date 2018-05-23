@@ -3,6 +3,7 @@
 package vfs
 
 import (
+	"io"
 	"os"
 	"testing"
 
@@ -58,7 +59,7 @@ func TestVFSbaseHandle(t *testing.T) {
 	_, err = fh.Readdirnames(0)
 	assert.Equal(t, ENOSYS, err)
 
-	_, err = fh.Seek(0, 0)
+	_, err = fh.Seek(0, io.SeekStart)
 	assert.Equal(t, ENOSYS, err)
 
 	_, err = fh.Stat()
@@ -186,10 +187,10 @@ func TestVFSStatParent(t *testing.T) {
 	assert.Equal(t, "/", node.Name())
 	assert.Equal(t, "not found", leaf)
 
-	node, leaf, err = vfs.StatParent("not found dir/not found")
+	_, _, err = vfs.StatParent("not found dir/not found")
 	assert.Equal(t, os.ErrNotExist, err)
 
-	node, leaf, err = vfs.StatParent("file1/under a file")
+	_, _, err = vfs.StatParent("file1/under a file")
 	assert.Equal(t, os.ErrExist, err)
 }
 
@@ -249,4 +250,44 @@ func TestVFSRename(t *testing.T) {
 
 	err = vfs.Rename("file0", "not found/file0")
 	assert.Equal(t, os.ErrNotExist, err)
+}
+
+func TestVFSStatfs(t *testing.T) {
+	r := fstest.NewRun(t)
+	defer r.Finalise()
+	vfs := New(r.Fremote, nil)
+
+	// pre-conditions
+	assert.Nil(t, vfs.usage)
+	assert.True(t, vfs.usageTime.IsZero())
+
+	// read
+	total, used, free := vfs.Statfs()
+	require.NotNil(t, vfs.usage)
+	assert.False(t, vfs.usageTime.IsZero())
+	if vfs.usage.Total != nil {
+		assert.Equal(t, *vfs.usage.Total, total)
+	} else {
+		assert.Equal(t, -1, total)
+	}
+	if vfs.usage.Free != nil {
+		assert.Equal(t, *vfs.usage.Free, free)
+	} else {
+		assert.Equal(t, -1, free)
+	}
+	if vfs.usage.Used != nil {
+		assert.Equal(t, *vfs.usage.Used, used)
+	} else {
+		assert.Equal(t, -1, used)
+	}
+
+	// read cached
+	oldUsage := vfs.usage
+	oldTime := vfs.usageTime
+	total2, used2, free2 := vfs.Statfs()
+	assert.Equal(t, oldUsage, vfs.usage)
+	assert.Equal(t, total, total2)
+	assert.Equal(t, used, used2)
+	assert.Equal(t, free, free2)
+	assert.Equal(t, oldTime, vfs.usageTime)
 }

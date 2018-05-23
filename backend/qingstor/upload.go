@@ -1,6 +1,6 @@
 // Upload object to QingStor
 
-// +build !plan9,go1.7
+// +build !plan9
 
 package qingstor
 
@@ -19,10 +19,10 @@ import (
 )
 
 const (
-	maxSinglePartSize = 1024 * 1024 * 1024 * 5 // The maximum allowed size when uploading a single object to QingStor
-	maxMultiPartSize  = 1024 * 1024 * 1024 * 1 // The maximum allowed part size when uploading a part to QingStor
-	minMultiPartSize  = 1024 * 1024 * 4        // The minimum allowed part size when uploading a part to QingStor
-	maxMultiParts     = 10000                  // The maximum allowed number of parts in an multi-part upload
+	// maxSinglePartSize = 1024 * 1024 * 1024 * 5 // The maximum allowed size when uploading a single object to QingStor
+	// maxMultiPartSize = 1024 * 1024 * 1024 * 1 // The maximum allowed part size when uploading a part to QingStor
+	minMultiPartSize = 1024 * 1024 * 4 // The minimum allowed part size when uploading a part to QingStor
+	maxMultiParts    = 10000           // The maximum allowed number of parts in an multi-part upload
 )
 
 const (
@@ -130,12 +130,12 @@ func (u *uploader) init() {
 	u.totalSize = -1
 	switch r := u.cfg.body.(type) {
 	case io.Seeker:
-		pos, _ := r.Seek(0, 1)
+		pos, _ := r.Seek(0, io.SeekCurrent)
 		defer func() {
-			_, _ = r.Seek(pos, 0)
+			_, _ = r.Seek(pos, io.SeekStart)
 		}()
 
-		n, err := r.Seek(0, 2)
+		n, err := r.Seek(0, io.SeekEnd)
 		if err != nil {
 			return
 		}

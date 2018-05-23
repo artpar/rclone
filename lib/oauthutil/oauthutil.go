@@ -1,6 +1,7 @@
 package oauthutil
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -16,7 +17,6 @@ import (
 	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/pkg/errors"
 	"github.com/skratchdot/open-golang/open"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 )
 
@@ -275,10 +275,6 @@ func doConfig(id, name string, oauthConfig *oauth2.Config, offline bool, opts []
 	oauthConfig, changed := overrideCredentials(name, oauthConfig)
 	automatic := config.FileGet(name, config.ConfigAutomatic) != ""
 
-	if changed {
-		fmt.Printf("Make sure your Redirect URL is set to %q in your custom config.\n", RedirectURL)
-	}
-
 	// See if already have a token
 	tokenString := config.FileGet(name, "token")
 	if tokenString != "" {
@@ -292,6 +288,9 @@ func doConfig(id, name string, oauthConfig *oauth2.Config, offline bool, opts []
 	useWebServer := false
 	switch oauthConfig.RedirectURL {
 	case RedirectURL, RedirectPublicURL, RedirectLocalhostURL:
+		if changed {
+			fmt.Printf("Make sure your Redirect URL is set to %q in your custom config.\n", oauthConfig.RedirectURL)
+		}
 		useWebServer = true
 		if automatic {
 			break
@@ -433,19 +432,19 @@ func (s *authServer) Start() {
 			state := req.FormValue("state")
 			if state != s.state {
 				fs.Debugf(nil, "State did not match: want %q got %q", s.state, state)
-				fmt.Fprintf(w, "<h1>Failure</h1>\n<p>Auth state doesn't match</p>")
+				_, _ = fmt.Fprintf(w, "<h1>Failure</h1>\n<p>Auth state doesn't match</p>")
 			} else {
 				fs.Debugf(nil, "Successfully got code")
 				if s.code != nil {
-					fmt.Fprintf(w, "<h1>Success</h1>\n<p>Go back to rclone to continue</p>")
+					_, _ = fmt.Fprintf(w, "<h1>Success</h1>\n<p>Go back to rclone to continue</p>")
 				} else {
-					fmt.Fprintf(w, "<h1>Success</h1>\n<p>Cut and paste this code into rclone: <code>%s</code></p>", code)
+					_, _ = fmt.Fprintf(w, "<h1>Success</h1>\n<p>Cut and paste this code into rclone: <code>%s</code></p>", code)
 				}
 			}
 		} else {
 			fs.Debugf(nil, "No code found on request")
 			w.WriteHeader(500)
-			fmt.Fprintf(w, "<h1>Failed!</h1>\nNo code found returned by remote server.")
+			_, _ = fmt.Fprintf(w, "<h1>Failed!</h1>\nNo code found returned by remote server.")
 		}
 		if s.code != nil {
 			s.code <- code

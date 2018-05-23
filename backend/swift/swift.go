@@ -221,7 +221,7 @@ func swiftConnection(name string) (*swift.Connection, error) {
 			return nil, errors.Wrap(err, "failed to read environment variables")
 		}
 	}
-	StorageUrl, AuthToken := c.StorageUrl, c.AuthToken
+	StorageUrl, AuthToken := c.StorageUrl, c.AuthToken // nolint
 	if !c.Authenticated() {
 		if c.UserName == "" && c.UserId == "" {
 			return nil, errors.New("user name or user id not found for authentication (and no storage_url+auth_token is provided)")
@@ -391,7 +391,8 @@ func (f *Fs) list(dir string, recurse bool, fn addEntryFn) error {
 			err = fn(d)
 		} else {
 			// newObjectWithInfo does a full metadata read on 0 size objects which might be dynamic large objects
-			o, err := f.newObjectWithInfo(remote, object)
+			var o fs.Object
+			o, err = f.newObjectWithInfo(remote, object)
 			if err != nil {
 				return err
 			}
@@ -496,6 +497,24 @@ func (f *Fs) ListR(dir string, callback fs.ListRCallback) (err error) {
 	// container must be present if listing succeeded
 	f.markContainerOK()
 	return list.Flush()
+}
+
+// About gets quota information
+func (f *Fs) About() (*fs.Usage, error) {
+	containers, err := f.c.ContainersAll(nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "container listing failed")
+	}
+	var total, objects int64
+	for _, c := range containers {
+		total += c.Bytes
+		objects += c.Count
+	}
+	usage := &fs.Usage{
+		Used:    fs.NewUsageValue(total),   // bytes in use
+		Objects: fs.NewUsageValue(objects), // objects in use
+	}
+	return usage, nil
 }
 
 // Put the object into the container
@@ -719,6 +738,9 @@ func (o *Object) readMetaData() (err error) {
 // It attempts to read the objects mtime and if that isn't present the
 // LastModified returned in the http headers
 func (o *Object) ModTime() time.Time {
+	if fs.Config.UseServerModTime {
+		return o.info.LastModified
+	}
 	err := o.readMetaData()
 	if err != nil {
 		fs.Debugf(o, "Failed to read metadata: %s", err)
@@ -826,7 +848,7 @@ func urlEncode(str string) string {
 // container.  It returns a string which prefixes current segments.
 func (o *Object) updateChunks(in0 io.Reader, headers swift.Headers, size int64, contentType string) (string, error) {
 	// Create the segmentsContainer if it doesn't exist
-	var err error = swift.ContainerNotFound
+	var err error
 	_, _, err = o.fs.c.Container(o.fs.segmentsContainer)
 	if err == swift.ContainerNotFound {
 		err = o.fs.c.ContainerCreate(o.fs.segmentsContainer, nil)

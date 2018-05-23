@@ -19,16 +19,17 @@
 package vfs
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/log"
-	"golang.org/x/net/context" // switch to "context" when we stop supporting go1.6
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/log"
 )
 
 // DefaultOpt is the default values uses for Opt
@@ -165,11 +166,14 @@ var (
 
 // VFS represents the top level filing system
 type VFS struct {
-	f      fs.Fs
-	root   *Dir
-	Opt    Options
-	cache  *cache
-	cancel context.CancelFunc
+	f         fs.Fs
+	root      *Dir
+	Opt       Options
+	cache     *cache
+	cancel    context.CancelFunc
+	usageMu   sync.Mutex
+	usageTime time.Time
+	usage     *fs.Usage
 }
 
 // Options is options for creating the vfs
@@ -185,6 +189,8 @@ type Options struct {
 	GID               uint32
 	DirPerms          os.FileMode
 	FilePerms         os.FileMode
+	ChunkSize         fs.SizeSuffix // if > 0 read files in chunks
+	ChunkSizeLimit    fs.SizeSuffix // if > ChunkSize double the chunk size after each chunk until reached
 	CacheMode         CacheMode
 	CacheMaxAge       time.Duration
 	CachePollInterval time.Duration
@@ -218,25 +224,35 @@ func New(f fs.Fs, opt *Options) *VFS {
 	// Start polling if required
 	if vfs.Opt.PollInterval > 0 {
 		if do := vfs.f.Features().ChangeNotify; do != nil {
-			do(vfs.root.ForgetPath, vfs.Opt.PollInterval)
+			do(vfs.notifyFunc, vfs.Opt.PollInterval)
 		} else {
 			fs.Infof(f, "poll-interval is not supported by this remote")
 		}
 	}
 
-	// Create the cache
-	ctx, cancel := context.WithCancel(context.Background())
-	vfs.cancel = cancel
-	cache, err := newCache(ctx, f, &vfs.Opt) // FIXME pass on context or get from Opt?
-	if err != nil {
-		// FIXME
-		panic(fmt.Sprintf("failed to create local cache: %v", err))
-	}
-	vfs.cache = cache
+	vfs.SetCacheMode(vfs.Opt.CacheMode)
 
 	// add the remote control
 	vfs.addRC()
 	return vfs
+}
+
+// SetCacheMode change the cache mode
+func (vfs *VFS) SetCacheMode(cacheMode CacheMode) {
+	vfs.Shutdown()
+	vfs.cache = nil
+	if vfs.Opt.CacheMode > CacheModeOff {
+		ctx, cancel := context.WithCancel(context.Background())
+		cache, err := newCache(ctx, vfs.f, &vfs.Opt) // FIXME pass on context or get from Opt?
+		if err != nil {
+			fs.Errorf(nil, "Failed to create vfs cache - disabling: %v", err)
+			vfs.Opt.CacheMode = CacheModeOff
+			cancel()
+			return
+		}
+		vfs.cancel = cancel
+		vfs.cache = cache
+	}
 }
 
 // Shutdown stops any background go-routines
@@ -249,6 +265,9 @@ func (vfs *VFS) Shutdown() {
 
 // CleanUp deletes the contents of the on disk cache
 func (vfs *VFS) CleanUp() error {
+	if vfs.Opt.CacheMode == CacheModeOff {
+		return nil
+	}
 	return vfs.cache.cleanUp()
 }
 
@@ -438,4 +457,51 @@ func (vfs *VFS) Rename(oldName, newName string) error {
 		return err
 	}
 	return nil
+}
+
+// Statfs returns into about the filing system if known
+//
+// The values will be -1 if they aren't known
+//
+// This information is cached for the DirCacheTime interval
+func (vfs *VFS) Statfs() (total, used, free int64) {
+	// defer log.Trace("/", "")("total=%d, used=%d, free=%d", &total, &used, &free)
+	vfs.usageMu.Lock()
+	defer vfs.usageMu.Unlock()
+	total, used, free = -1, -1, -1
+	doAbout := vfs.f.Features().About
+	if doAbout == nil {
+		return
+	}
+	if vfs.usageTime.IsZero() || time.Since(vfs.usageTime) >= vfs.Opt.DirCacheTime {
+		var err error
+		vfs.usage, err = doAbout()
+		vfs.usageTime = time.Now()
+		if err != nil {
+			fs.Errorf(vfs.f, "Statfs failed: %v", err)
+			return
+		}
+	}
+	if u := vfs.usage; u != nil {
+		if u.Total != nil {
+			total = *u.Total
+		}
+		if u.Free != nil {
+			free = *u.Free
+		}
+		if u.Used != nil {
+			used = *u.Used
+		}
+	}
+	return
+}
+
+// notifyFunc removes the last path segement for directories and calls ForgetPath with the result.
+//
+// This ensures that new or renamed directories appear in their parent.
+func (vfs *VFS) notifyFunc(relativePath string, entryType fs.EntryType) {
+	if entryType == fs.EntryDirectory {
+		relativePath = path.Dir(relativePath)
+	}
+	vfs.root.ForgetPath(relativePath, entryType)
 }

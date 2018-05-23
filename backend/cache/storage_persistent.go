@@ -1,4 +1,4 @@
-// +build !plan9,go1.7
+// +build !plan9
 
 package cache
 
@@ -1069,11 +1069,4 @@ func itob(v int64) []byte {
 
 func btoi(d []byte) int64 {
 	return int64(binary.BigEndian.Uint64(d))
-}
-
-// cloneBytes returns a copy of a given slice.
-func cloneBytes(v []byte) []byte {
-	var clone = make([]byte, len(v))
-	copy(clone, v)
-	return clone
 }

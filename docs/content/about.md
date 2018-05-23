@@ -26,16 +26,18 @@ Rclone is a command line program to sync files and directories to and from:
 * {{< provider name="Google Drive" home="https://www.google.com/drive/" config="/drive/" >}}
 * {{< provider name="HTTP" home="https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol" config="/http/" >}}
 * {{< provider name="Hubic" home="https://hubic.com/" config="/hubic/" >}}
-* {{< provider name="IBM COS S3" home="http://www.ibm.com/cloud/object-storage" config="/s3/" >}}
+* {{< provider name="IBM COS S3" home="http://www.ibm.com/cloud/object-storage" config="/s3/#ibm-cos-s3" >}}
 * {{< provider name="Memset Memstore" home="https://www.memset.com/cloud/storage/" config="/swift/" >}}
+* {{< provider name="Mega" home="https://mega.nz/" config="/mega/" >}}
 * {{< provider name="Microsoft Azure Blob Storage" home="https://azure.microsoft.com/en-us/services/storage/blobs/" config="/azureblob/" >}}
 * {{< provider name="Microsoft OneDrive" home="https://onedrive.live.com/" config="/onedrive/" >}}
 * {{< provider name="Minio" home="https://www.minio.io/" config="/s3/#minio" >}}
-* {{< provider name="Nextloud" home="https://nextcloud.com/" config="/webdav/#nextcloud" >}}
+* {{< provider name="Nextcloud" home="https://nextcloud.com/" config="/webdav/#nextcloud" >}}
 * {{< provider name="OVH" home="https://www.ovh.co.uk/public-cloud/storage/object-storage/" config="/swift/" >}}
+* {{< provider name="OpenDrive" home="https://www.opendrive.com/" config="/opendrive/" >}}
 * {{< provider name="Openstack Swift" home="https://docs.openstack.org/swift/latest/" config="/swift/" >}}
 * {{< provider name="Oracle Cloud Storage" home="https://cloud.oracle.com/storage-opc" config="/swift/" >}}
-* {{< provider name="Ownloud" home="https://owncloud.org/" config="/webdav/#owncloud" >}}
+* {{< provider name="ownCloud" home="https://owncloud.org/" config="/webdav/#owncloud" >}}
 * {{< provider name="pCloud" home="https://www.pcloud.com/" config="/pcloud/" >}}
 * {{< provider name="put.io" home="https://put.io/" config="/webdav/#put-io" >}}
 * {{< provider name="QingStor" home="https://www.qingcloud.com/products/storage" config="/qingstor/" >}}

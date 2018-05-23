@@ -27,14 +27,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/flags"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/walk"
-	"github.com/artpar/rclone/lib/oauthutil"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config"
+	"github.com/ncw/rclone/fs/config/flags"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/fshttp"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/fs/walk"
+	"github.com/ncw/rclone/lib/oauthutil"
+	"github.com/ncw/rclone/lib/pacer"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -49,6 +51,7 @@ const (
 	timeFormatOut               = "2006-01-02T15:04:05.000000000Z07:00"
 	metaMtime                   = "mtime" // key to store mtime under in metadata
 	listChunks                  = 1000    // chunk size to read directory listings
+	minSleep                    = 10 * time.Millisecond
 )
 
 var (
@@ -219,6 +222,7 @@ type Fs struct {
 	bucketACL     string           // used when creating new buckets
 	location      string           // location of new buckets
 	storageClass  string           // storage class of new buckets
+	pacer         *pacer.Pacer     // To pace the API calls
 }
 
 // Object describes a storage object
@@ -262,6 +266,30 @@ func (f *Fs) Features() *fs.Features {
 	return f.features
 }
 
+// shouldRetry determines whehter a given err rates being retried
+func shouldRetry(err error) (again bool, errOut error) {
+	again = false
+	if err != nil {
+		if fserrors.ShouldRetry(err) {
+			again = true
+		} else {
+			switch gerr := err.(type) {
+			case *googleapi.Error:
+				if gerr.Code >= 500 && gerr.Code < 600 {
+					// All 5xx errors should be retried
+					again = true
+				} else if len(gerr.Errors) > 0 {
+					reason := gerr.Errors[0].Reason
+					if reason == "rateLimitExceeded" || reason == "userRateLimitExceeded" {
+						again = true
+					}
+				}
+			}
+		}
+	}
+	return again, err
+}
+
 // Pattern to match a storage path
 var matcher = regexp.MustCompile(`^([^/]*)(.*)$`)
 
@@ -277,12 +305,8 @@ func parsePath(path string) (bucket, directory string, err error) {
 	return
 }
 
-func getServiceAccountClient(keyJsonfilePath string) (*http.Client, error) {
-	data, err := ioutil.ReadFile(os.ExpandEnv(keyJsonfilePath))
-	if err != nil {
-		return nil, errors.Wrap(err, "error opening credentials file")
-	}
-	conf, err := google.JWTConfigFromJSON(data, storageConfig.Scopes...)
+func getServiceAccountClient(credentialsData []byte) (*http.Client, error) {
+	conf, err := google.JWTConfigFromJSON(credentialsData, storageConfig.Scopes...)
 	if err != nil {
 		return nil, errors.Wrap(err, "error processing credentials")
 	}
@@ -295,11 +319,20 @@ func NewFs(name, root string) (fs.Fs, error) {
 	var oAuthClient *http.Client
 	var err error
 
+	// try loading service account credentials from env variable, then from a file
+	serviceAccountCreds := []byte(config.FileGet(name, "service_account_credentials"))
 	serviceAccountPath := config.FileGet(name, "service_account_file")
-	if serviceAccountPath != "" {
-		oAuthClient, err = getServiceAccountClient(serviceAccountPath)
+	if len(serviceAccountCreds) == 0 && serviceAccountPath != "" {
+		loadedCreds, err := ioutil.ReadFile(os.ExpandEnv(serviceAccountPath))
 		if err != nil {
-			log.Printf("Failed configuring Google Cloud Storage Service Account: %v", err)
+			return nil, errors.Wrap(err, "error opening service account credentials file")
+		}
+		serviceAccountCreds = loadedCreds
+	}
+	if len(serviceAccountCreds) > 0 {
+		oAuthClient, err = getServiceAccountClient(serviceAccountCreds)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed configuring Google Cloud Storage Service Account")
 		}
 	} else {
 
@@ -313,7 +346,7 @@ func NewFs(name, root string) (fs.Fs, error) {
 
 		oAuthClient, _, err = oauthutil.NewClient(name, &oauthConf1)
 		if err != nil {
-			log.Printf("Failed to configure Google Cloud Storage: %v", err)
+			return nil, errors.Wrap(err, "failed to configure Google Cloud Storage")
 		}
 	}
 
@@ -331,6 +364,7 @@ func NewFs(name, root string) (fs.Fs, error) {
 		bucketACL:     config.FileGet(name, "bucket_acl"),
 		location:      config.FileGet(name, "location"),
 		storageClass:  config.FileGet(name, "storage_class"),
+		pacer:         pacer.New().SetMinSleep(minSleep).SetPacer(pacer.GoogleDrivePacer),
 	}
 	f.features = (&fs.Features{
 		ReadMimeType:  true,
@@ -360,7 +394,10 @@ func NewFs(name, root string) (fs.Fs, error) {
 	if f.root != "" {
 		f.root += "/"
 		// Check to see if the object exists
-		_, err = f.svc.Objects.Get(bucket, directory).Do()
+		err = f.pacer.Call(func() (bool, error) {
+			_, err = f.svc.Objects.Get(bucket, directory).Do()
+			return shouldRetry(err)
+		})
 		if err == nil {
 			f.root = path.Dir(directory)
 			if f.root == "." {
@@ -408,7 +445,7 @@ type listFn func(remote string, object *storage.Object, isDirectory bool) error
 // dir is the starting directory, "" for root
 //
 // Set recurse to read sub directories
-func (f *Fs) list(dir string, recurse bool, fn listFn) error {
+func (f *Fs) list(dir string, recurse bool, fn listFn) (err error) {
 	root := f.root
 	rootLength := len(root)
 	if dir != "" {
@@ -419,7 +456,11 @@ func (f *Fs) list(dir string, recurse bool, fn listFn) error {
 		list = list.Delimiter("/")
 	}
 	for {
-		objects, err := list.Do()
+		var objects *storage.Objects
+		err = f.pacer.Call(func() (bool, error) {
+			objects, err = list.Do()
+			return shouldRetry(err)
+		})
 		if err != nil {
 			if gErr, ok := err.(*googleapi.Error); ok {
 				if gErr.Code == http.StatusNotFound {
@@ -523,7 +564,11 @@ func (f *Fs) listBuckets(dir string) (entries fs.DirEntries, err error) {
 	}
 	listBuckets := f.svc.Buckets.List(f.projectNumber).MaxResults(listChunks)
 	for {
-		buckets, err := listBuckets.Do()
+		var buckets *storage.Buckets
+		err = f.pacer.Call(func() (bool, error) {
+			buckets, err = listBuckets.Do()
+			return shouldRetry(err)
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -611,13 +656,19 @@ func (f *Fs) PutStream(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption
 }
 
 // Mkdir creates the bucket if it doesn't exist
-func (f *Fs) Mkdir(dir string) error {
+func (f *Fs) Mkdir(dir string) (err error) {
 	f.bucketOKMu.Lock()
 	defer f.bucketOKMu.Unlock()
 	if f.bucketOK {
 		return nil
 	}
-	_, err := f.svc.Buckets.Get(f.bucket).Do()
+	// List something from the bucket to see if it exists.  Doing it like this enables the use of a
+	// service account that only has the "Storage Object Admin" role.  See #2193 for details.
+
+	err = f.pacer.Call(func() (bool, error) {
+		_, err = f.svc.Objects.List(f.bucket).MaxResults(1).Do()
+		return shouldRetry(err)
+	})
 	if err == nil {
 		// Bucket already exists
 		f.bucketOK = true
@@ -639,7 +690,10 @@ func (f *Fs) Mkdir(dir string) error {
 		Location:     f.location,
 		StorageClass: f.storageClass,
 	}
-	_, err = f.svc.Buckets.Insert(f.projectNumber, &bucket).PredefinedAcl(f.bucketACL).Do()
+	err = f.pacer.Call(func() (bool, error) {
+		_, err = f.svc.Buckets.Insert(f.projectNumber, &bucket).PredefinedAcl(f.bucketACL).Do()
+		return shouldRetry(err)
+	})
 	if err == nil {
 		f.bucketOK = true
 	}
@@ -650,13 +704,16 @@ func (f *Fs) Mkdir(dir string) error {
 //
 // Returns an error if it isn't empty: Error 409: The bucket you tried
 // to delete was not empty.
-func (f *Fs) Rmdir(dir string) error {
+func (f *Fs) Rmdir(dir string) (err error) {
 	f.bucketOKMu.Lock()
 	defer f.bucketOKMu.Unlock()
 	if f.root != "" || dir != "" {
 		return nil
 	}
-	err := f.svc.Buckets.Delete(f.bucket).Do()
+	err = f.pacer.Call(func() (bool, error) {
+		err = f.svc.Buckets.Delete(f.bucket).Do()
+		return shouldRetry(err)
+	})
 	if err == nil {
 		f.bucketOK = false
 	}
@@ -698,7 +755,11 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	srcObject := srcObj.fs.root + srcObj.remote
 	dstBucket := f.bucket
 	dstObject := f.root + remote
-	newObject, err := f.svc.Objects.Copy(srcBucket, srcObject, dstBucket, dstObject, nil).Do()
+	var newObject *storage.Object
+	err = f.pacer.Call(func() (bool, error) {
+		newObject, err = f.svc.Objects.Copy(srcBucket, srcObject, dstBucket, dstObject, nil).Do()
+		return shouldRetry(err)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -786,7 +847,11 @@ func (o *Object) readMetaData() (err error) {
 	if !o.modTime.IsZero() {
 		return nil
 	}
-	object, err := o.fs.svc.Objects.Get(o.fs.bucket, o.fs.root+o.remote).Do()
+	var object *storage.Object
+	err = o.fs.pacer.Call(func() (bool, error) {
+		object, err = o.fs.svc.Objects.Get(o.fs.bucket, o.fs.root+o.remote).Do()
+		return shouldRetry(err)
+	})
 	if err != nil {
 		if gErr, ok := err.(*googleapi.Error); ok {
 			if gErr.Code == http.StatusNotFound {
@@ -820,14 +885,18 @@ func metadataFromModTime(modTime time.Time) map[string]string {
 }
 
 // SetModTime sets the modification time of the local fs object
-func (o *Object) SetModTime(modTime time.Time) error {
+func (o *Object) SetModTime(modTime time.Time) (err error) {
 	// This only adds metadata so will perserve other metadata
 	object := storage.Object{
 		Bucket:   o.fs.bucket,
 		Name:     o.fs.root + o.remote,
 		Metadata: metadataFromModTime(modTime),
 	}
-	newObject, err := o.fs.svc.Objects.Patch(o.fs.bucket, o.fs.root+o.remote, &object).Do()
+	var newObject *storage.Object
+	err = o.fs.pacer.Call(func() (bool, error) {
+		newObject, err = o.fs.svc.Objects.Patch(o.fs.bucket, o.fs.root+o.remote, &object).Do()
+		return shouldRetry(err)
+	})
 	if err != nil {
 		return err
 	}
@@ -847,7 +916,17 @@ func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
 		return nil, err
 	}
 	fs.OpenOptionAddHTTPHeaders(req.Header, options)
-	res, err := o.fs.client.Do(req)
+	var res *http.Response
+	err = o.fs.pacer.Call(func() (bool, error) {
+		res, err = o.fs.client.Do(req)
+		if err == nil {
+			err = googleapi.CheckResponse(res)
+			if err != nil {
+				_ = res.Body.Close() // ignore error
+			}
+		}
+		return shouldRetry(err)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -876,7 +955,11 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		Updated:     modTime.Format(timeFormatOut), // Doesn't get set
 		Metadata:    metadataFromModTime(modTime),
 	}
-	newObject, err := o.fs.svc.Objects.Insert(o.fs.bucket, &object).Media(in, googleapi.ContentType("")).Name(object.Name).PredefinedAcl(o.fs.objectACL).Do()
+	var newObject *storage.Object
+	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
+		newObject, err = o.fs.svc.Objects.Insert(o.fs.bucket, &object).Media(in, googleapi.ContentType("")).Name(object.Name).PredefinedAcl(o.fs.objectACL).Do()
+		return shouldRetry(err)
+	})
 	if err != nil {
 		return err
 	}
@@ -886,8 +969,12 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 }
 
 // Remove an object
-func (o *Object) Remove() error {
-	return o.fs.svc.Objects.Delete(o.fs.bucket, o.fs.root+o.remote).Do()
+func (o *Object) Remove() (err error) {
+	err = o.fs.pacer.Call(func() (bool, error) {
+		err = o.fs.svc.Objects.Delete(o.fs.bucket, o.fs.root+o.remote).Do()
+		return shouldRetry(err)
+	})
+	return err
 }
 
 // MimeType of an Object if known, "" otherwise

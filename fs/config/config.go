@@ -151,7 +151,7 @@ func makeConfigPath() string {
 	// Default to ./.rclone.conf (current working directory)
 	fs.Errorf(nil, "Couldn't find home directory or read HOME or XDG_CONFIG_HOME environment variables.")
 	fs.Errorf(nil, "Defaulting to storing config in current directory.")
-	fs.Errorf(nil, "Use -config flag to workaround.")
+	fs.Errorf(nil, "Use --config flag to workaround.")
 	fs.Errorf(nil, "Error was: %v", err)
 	return hiddenConfigFileName
 }
@@ -275,7 +275,7 @@ func checkPassword(password string) (string, error) {
 	trimmedPassword := strings.TrimSpace(password)
 	// Warn user if password has leading+trailing whitespace
 	if len(password) != len(trimmedPassword) {
-		fmt.Fprintln(os.Stderr, "Your password contains leading/trailing whitespace - in previous versions of rclone this was stripped")
+		_, _ = fmt.Fprintln(os.Stderr, "Your password contains leading/trailing whitespace - in previous versions of rclone this was stripped")
 	}
 	// Normalize to reduce weird variations.
 	password = norm.NFKC.String(password)
@@ -287,15 +287,15 @@ func checkPassword(password string) (string, error) {
 
 // GetPassword asks the user for a password with the prompt given.
 func GetPassword(prompt string) string {
-	fmt.Fprintln(os.Stderr, prompt)
+	_, _ = fmt.Fprintln(os.Stderr, prompt)
 	for {
-		fmt.Fprint(os.Stderr, "password:")
+		_, _ = fmt.Fprint(os.Stderr, "password:")
 		password := ReadPassword()
 		password, err := checkPassword(password)
 		if err == nil {
 			return password
 		}
-		fmt.Fprintf(os.Stderr, "Bad password: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Bad password: %v\n", err)
 	}
 }
 
@@ -324,7 +324,7 @@ func getConfigPassword(q string) {
 		if err == nil {
 			return
 		}
-		fmt.Fprintln(os.Stderr, "Error:", err)
+		_, _ = fmt.Fprintln(os.Stderr, "Error:", err)
 	}
 }
 
@@ -382,9 +382,9 @@ func saveConfig() error {
 			return errors.Errorf("Failed to write temp config file: %v", err)
 		}
 	} else {
-		fmt.Fprintln(f, "# Encrypted rclone configuration File")
-		fmt.Fprintln(f, "")
-		fmt.Fprintln(f, "RCLONE_ENCRYPT_V0:")
+		_, _ = fmt.Fprintln(f, "# Encrypted rclone configuration File")
+		_, _ = fmt.Fprintln(f, "")
+		_, _ = fmt.Fprintln(f, "RCLONE_ENCRYPT_V0:")
 
 		// Generate new nonce and write it to the start of the ciphertext
 		var nonce [24]byte
@@ -539,12 +539,21 @@ func Command(commands []string) byte {
 	}
 }
 
-// Confirm asks the user for Yes or No and returns true or false
-func Confirm() bool {
+// ConfirmWithDefault asks the user for Yes or No and returns true or false.
+//
+// If AutoConfirm is set, it will return the Default value passed in
+func ConfirmWithDefault(Default bool) bool {
 	if fs.Config.AutoConfirm {
-		return true
+		return Default
 	}
 	return Command([]string{"yYes", "nNo"}) == 'y'
+}
+
+// Confirm asks the user for Yes or No and returns true or false
+//
+// If AutoConfirm is set, it will return true
+func Confirm() bool {
+	return ConfirmWithDefault(true)
 }
 
 // Choose one of the defaults or type a new string if newOk is set
@@ -683,8 +692,39 @@ func RemoteConfig(name string) {
 	}
 }
 
+// matchProvider returns true if provider matches the providerConfig string.
+//
+// The providerConfig string can either be a list of providers to
+// match, or if it starts with "!" it will be a list of providers not
+// to match.
+//
+// If either providerConfig or provider is blank then it will return true
+func matchProvider(providerConfig, provider string) bool {
+	if providerConfig == "" || provider == "" {
+		return true
+	}
+	negate := false
+	if strings.HasPrefix(providerConfig, "!") {
+		providerConfig = providerConfig[1:]
+		negate = true
+	}
+	providers := strings.Split(providerConfig, ",")
+	matched := false
+	for _, p := range providers {
+		if p == provider {
+			matched = true
+			break
+		}
+	}
+	if negate {
+		return !matched
+	}
+	return matched
+}
+
 // ChooseOption asks the user to choose an option
-func ChooseOption(o *fs.Option) string {
+func ChooseOption(o *fs.Option, name string) string {
+	var subProvider = getConfigData().MustValue(name, fs.ConfigProvider, "")
 	fmt.Println(o.Help)
 	if o.IsPassword {
 		actions := []string{"yYes type in my own password", "gGenerate random password"}
@@ -726,8 +766,10 @@ func ChooseOption(o *fs.Option) string {
 		var values []string
 		var help []string
 		for _, example := range o.Examples {
-			values = append(values, example.Value)
-			help = append(help, example.Help)
+			if matchProvider(example.Provider, subProvider) {
+				values = append(values, example.Value)
+				help = append(help, example.Help)
+			}
 		}
 		return Choose(o.Name, values, help, true)
 	}
@@ -836,33 +878,44 @@ func NewRemoteName() (name string) {
 
 // NewRemote make a new remote from its name
 func NewRemote(name string) {
-	newType := ChooseOption(fsOption())
+	newType := ChooseOption(fsOption(), name)
 	getConfigData().SetValue(name, "type", newType)
-	fs := fs.MustFind(newType)
-	for _, option := range fs.Options {
-		getConfigData().SetValue(name, option.Name, ChooseOption(&option))
+	ri := fs.MustFind(newType)
+	for _, option := range ri.Options {
+		subProvider := getConfigData().MustValue(name, fs.ConfigProvider, "")
+		if matchProvider(option.Provider, subProvider) {
+			getConfigData().SetValue(name, option.Name, ChooseOption(&option, name))
+		}
 	}
 	RemoteConfig(name)
 	if OkRemote(name) {
 		SaveConfig()
 		return
 	}
-	EditRemote(fs, name)
+	EditRemote(ri, name)
 }
 
 // EditRemote gets the user to edit a remote
-func EditRemote(fs *fs.RegInfo, name string) {
+func EditRemote(ri *fs.RegInfo, name string) {
 	ShowRemote(name)
 	fmt.Printf("Edit remote\n")
+	subProvider := getConfigData().MustValue(name, fs.ConfigProvider, "")
 	for {
-		for _, option := range fs.Options {
+		for _, option := range ri.Options {
 			key := option.Name
 			value := FileGet(name, key)
+			if !matchProvider(option.Provider, subProvider) {
+				continue
+			}
 			fmt.Printf("Value %q = %q\n", key, value)
 			fmt.Printf("Edit? (y/n)>\n")
 			if Confirm() {
-				newValue := ChooseOption(&option)
+				newValue := ChooseOption(&option, name)
 				getConfigData().SetValue(name, key, newValue)
+				// Update subProvider if it changed
+				if key == fs.ConfigProvider {
+					subProvider = newValue
+				}
 			}
 		}
 		if OkRemote(name) {

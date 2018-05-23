@@ -83,6 +83,7 @@ type RegInfo struct {
 type Option struct {
 	Name       string
 	Help       string
+	Provider   string
 	Optional   bool
 	IsPassword bool
 	Examples   OptionExamples `json:",omitempty"`
@@ -105,8 +106,9 @@ func (os OptionExamples) Sort() { sort.Sort(os) }
 
 // OptionExample describes an example for an Option
 type OptionExample struct {
-	Value string
-	Help  string
+	Value    string
+	Help     string
+	Provider string
 }
 
 // Register a filesystem
@@ -244,6 +246,12 @@ type MimeTyper interface {
 	MimeType() string
 }
 
+// IDer is an optional interface for Object
+type IDer interface {
+	// ID returns the ID of the Object if known, or "" if not
+	ID() string
+}
+
 // ObjectUnWrapper is an optional interface for Object
 type ObjectUnWrapper interface {
 	// UnWrap returns the Object that this Object is wrapping or
@@ -259,6 +267,25 @@ type ListRCallback func(entries DirEntries) error
 
 // ListRFn is defines the call used to recursively list a directory
 type ListRFn func(dir string, callback ListRCallback) error
+
+// NewUsageValue makes a valid value
+func NewUsageValue(value int64) *int64 {
+	p := new(int64)
+	*p = value
+	return p
+}
+
+// Usage is returned by the About call
+//
+// If a value is nil then it isn't supported by that backend
+type Usage struct {
+	Total   *int64 `json:"total,omitempty"`   // quota of bytes that can be used
+	Used    *int64 `json:"used,omitempty"`    // bytes in use
+	Trashed *int64 `json:"trashed,omitempty"` // bytes in trash
+	Other   *int64 `json:"other,omitempty"`   // other usage eg gmail in drive
+	Free    *int64 `json:"free,omitempty"`    // bytes which can be uploaded before reaching the quota
+	Objects *int64 `json:"objects,omitempty"` // objects in the storage system
+}
 
 // Features describe the optional features of the Fs
 type Features struct {
@@ -375,6 +402,9 @@ type Features struct {
 	// Don't implement this unless you have a more efficient way
 	// of listing recursively that doing a directory traversal.
 	ListR ListRFn
+
+	// About gets quota information from the Fs
+	About func() (*Usage, error)
 }
 
 // Disable nil's out the named feature.  If it isn't found then it
@@ -464,6 +494,9 @@ func (ft *Features) Fill(f Fs) *Features {
 	if do, ok := f.(ListRer); ok {
 		ft.ListR = do.ListR
 	}
+	if do, ok := f.(Abouter); ok {
+		ft.About = do.About
+	}
 	return ft.DisableList(Config.DisableFeatures)
 }
 
@@ -516,6 +549,9 @@ func (ft *Features) Mask(f Fs) *Features {
 	}
 	if mask.ListR == nil {
 		ft.ListR = nil
+	}
+	if mask.About == nil {
+		ft.About = nil
 	}
 	return ft.DisableList(Config.DisableFeatures)
 }
@@ -702,6 +738,12 @@ type RangeSeeker interface {
 	//
 	// RangeSeek with a limit of < 0 is equivalent to a regular Seek.
 	RangeSeek(offset int64, whence int, length int64) (int64, error)
+}
+
+// Abouter is an optional interface for Fs
+type Abouter interface {
+	// About gets quota information from the Fs
+	About() (*Usage, error)
 }
 
 // ObjectsChan is a channel of Objects

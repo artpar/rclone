@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"regexp"
 	"strings"
 	"time"
 
@@ -129,9 +128,6 @@ func (f *Fs) String() string {
 func (f *Fs) Features() *fs.Features {
 	return f.features
 }
-
-// Pattern to match a pcloud path
-var matcher = regexp.MustCompile(`^([^/]*)(.*)$`)
 
 // parsePath parses an pcloud 'url'
 func parsePath(path string) (root string) {
@@ -806,6 +802,30 @@ func (f *Fs) DirCacheFlush() {
 	f.dirCache.ResetRoot()
 }
 
+// About gets quota information
+func (f *Fs) About() (usage *fs.Usage, err error) {
+	opts := rest.Opts{
+		Method: "POST",
+		Path:   "/userinfo",
+	}
+	var resp *http.Response
+	var q api.UserInfo
+	err = f.pacer.Call(func() (bool, error) {
+		resp, err = f.srv.CallJSON(&opts, nil, &q)
+		err = q.Error.Update(err)
+		return shouldRetry(resp, err)
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "about failed")
+	}
+	usage = &fs.Usage{
+		Total: fs.NewUsageValue(q.Quota),               // quota of bytes that can be used
+		Used:  fs.NewUsageValue(q.UsedQuota),           // bytes in use
+		Free:  fs.NewUsageValue(q.Quota - q.UsedQuota), // bytes which can be uploaded before reaching the quota
+	}
+	return usage, nil
+}
+
 // Hashes returns the supported hash sets.
 func (f *Fs) Hashes() hash.Set {
 	return hash.Set(hash.MD5 | hash.SHA1)
@@ -1098,6 +1118,11 @@ func (o *Object) Remove() error {
 	})
 }
 
+// ID returns the ID of the Object if known, or "" if not
+func (o *Object) ID() string {
+	return o.id
+}
+
 // Check the interfaces are satisfied
 var (
 	_ fs.Fs              = (*Fs)(nil)
@@ -1107,5 +1132,7 @@ var (
 	_ fs.Mover           = (*Fs)(nil)
 	_ fs.DirMover        = (*Fs)(nil)
 	_ fs.DirCacheFlusher = (*Fs)(nil)
+	_ fs.Abouter         = (*Fs)(nil)
 	_ fs.Object          = (*Object)(nil)
+	_ fs.IDer            = (*Object)(nil)
 )

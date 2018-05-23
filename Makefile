@@ -56,19 +56,29 @@ else
 	@echo Skipping source quality tests as version of go too old
 endif
 
+gometalinter_install:
+	go get -u github.com/alecthomas/gometalinter
+	gometalinter --install --update
+
+# We aren't using gometalinter as the default linter yet because
+# 1. it doesn't support build tags: https://github.com/alecthomas/gometalinter/issues/275
+# 2. can't get -printfuncs working with the vet linter
+gometalinter:
+	gometalinter ./...
+
 # Get the build dependencies
 build_dep:
 ifdef FULL_TESTS
 	go get -u github.com/kisielk/errcheck
 	go get -u golang.org/x/tools/cmd/goimports
 	go get -u github.com/golang/lint/golint
-	go get -u github.com/inconshreveable/mousetrap
 	go get -u github.com/tools/godep
 endif
 
 # Get the release dependencies
 release_dep:
-	go get -u github.com/goreleaser/nfpm
+	go get -u github.com/goreleaser/nfpm/...
+	go get -u github.com/aktau/github-release
 
 # Update dependencies
 update:
@@ -92,6 +102,9 @@ MANUAL.txt:	MANUAL.md
 commanddocs: rclone
 	rclone gendocs docs/content/commands/
 
+rcdocs: rclone
+	bin/make_rc_docs.sh
+
 install: rclone
 	install -d ${DESTDIR}/usr/bin
 	install -t ${DESTDIR}/usr/bin ${GOPATH}/bin/rclone
@@ -112,9 +125,9 @@ tarball:
 	git archive -9 --format=tar.gz --prefix=rclone-$(TAG)/ -o build/rclone-$(TAG).tar.gz $(TAG)
 
 sign_upload:
-	cd build && md5sum rclone-* | gpg --clearsign > MD5SUMS
-	cd build && sha1sum rclone-* | gpg --clearsign > SHA1SUMS
-	cd build && sha256sum rclone-* | gpg --clearsign > SHA256SUMS
+	cd build && md5sum rclone-v* | gpg --clearsign > MD5SUMS
+	cd build && sha1sum rclone-v* | gpg --clearsign > SHA1SUMS
+	cd build && sha256sum rclone-v* | gpg --clearsign > SHA256SUMS
 
 check_sign:
 	cd build && gpg --verify MD5SUMS && gpg --decrypt MD5SUMS | md5sum -c
@@ -192,9 +205,6 @@ retag:
 startdev:
 	echo -e "package fs\n\n// Version of rclone\nvar Version = \"$(LAST_TAG)-DEV\"\n" | gofmt > fs/version.go
 	git commit -m "Start $(LAST_TAG)-DEV development" fs/version.go
-
-gen_tests:
-	cd fstest/fstests && go generate
 
 winzip:
 	zip -9 rclone-$(TAG).zip rclone.exe

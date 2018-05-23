@@ -1,4 +1,4 @@
-// +build !plan9,go1.7
+// +build !plan9
 
 package cache
 
@@ -108,7 +108,7 @@ func (p *plexConnector) closeWebsocket() {
 
 func (p *plexConnector) listenWebsocket() {
 	u := strings.Replace(p.url.String(), "http://", "ws://", 1)
-	u = strings.Replace(u, "https://", "ws://", 1)
+	u = strings.Replace(u, "https://", "wss://", 1)
 	conn, err := websocket.Dial(fmt.Sprintf(defPlexNotificationURL, strings.TrimRight(u, "/"), p.token),
 		"", "http://localhost")
 	if err != nil {

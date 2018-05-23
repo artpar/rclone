@@ -1,7 +1,4 @@
 // Package dropbox provides an interface to Dropbox object storage
-
-// +build go1.7
-
 package dropbox
 
 // FIXME dropbox for business would be quite easy to add
@@ -25,7 +22,6 @@ of path_display and all will be well.
 */
 
 import (
-	"crypto/md5"
 	"fmt"
 	"io"
 	"log"
@@ -37,15 +33,16 @@ import (
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/files"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/sharing"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/flags"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/readers"
+	"github.com/dropbox/dropbox-sdk-go-unofficial/dropbox/users"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config"
+	"github.com/ncw/rclone/fs/config/flags"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/lib/oauthutil"
+	"github.com/ncw/rclone/lib/pacer"
+	"github.com/ncw/rclone/lib/readers"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 )
@@ -135,6 +132,7 @@ type Fs struct {
 	features       *fs.Features   // optional features
 	srv            files.Client   // the connection to the dropbox server
 	sharingClient  sharing.Client // as above, but for generating sharing links
+	users          users.Client   // as above, but for accessing user information
 	slashRoot      string         // root with "/" prefix, lowercase
 	slashRootSlash string         // root with "/" prefix and postfix, lowercase
 	pacer          *pacer.Pacer   // To pace the API calls
@@ -216,11 +214,13 @@ func NewFs(name, root string) (fs.Fs, error) {
 	}
 	srv := files.New(config)
 	sharingClient := sharing.New(config)
+	users := users.New(config)
 
 	f := &Fs{
 		name:          name,
 		srv:           srv,
 		sharingClient: sharingClient,
+		users:         users,
 		pacer:         pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
 	}
 	f.features = (&fs.Features{
@@ -247,11 +247,9 @@ func NewFs(name, root string) (fs.Fs, error) {
 // Sets root in f
 func (f *Fs) setRoot(root string) {
 	f.root = strings.Trim(root, "/")
-	lowerCaseRoot := strings.ToLower(f.root)
-
-	f.slashRoot = "/" + lowerCaseRoot
+	f.slashRoot = "/" + f.root
 	f.slashRootSlash = f.slashRoot
-	if lowerCaseRoot != "" {
+	if f.root != "" {
 		f.slashRootSlash += "/"
 	}
 }
@@ -422,21 +420,6 @@ func (f *Fs) List(dir string) (entries fs.DirEntries, err error) {
 		}
 	}
 	return entries, nil
-}
-
-// A read closer which doesn't close the input
-type readCloser struct {
-	in io.Reader
-}
-
-// Read bytes from the object - see io.Reader
-func (rc *readCloser) Read(p []byte) (n int, err error) {
-	return rc.in.Read(p)
-}
-
-// Dummy close function
-func (rc *readCloser) Close() error {
-	return nil
 }
 
 // Put the object
@@ -736,6 +719,33 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 	return nil
 }
 
+// About gets quota information
+func (f *Fs) About() (usage *fs.Usage, err error) {
+	var q *users.SpaceUsage
+	err = f.pacer.Call(func() (bool, error) {
+		q, err = f.users.GetSpaceUsage()
+		return shouldRetry(err)
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "about failed")
+	}
+	var total uint64
+	if q.Allocation != nil {
+		if q.Allocation.Individual != nil {
+			total += q.Allocation.Individual.Allocated
+		}
+		if q.Allocation.Team != nil {
+			total += q.Allocation.Team.Allocated
+		}
+	}
+	usage = &fs.Usage{
+		Total: fs.NewUsageValue(int64(total)),          // quota of bytes that can be used
+		Used:  fs.NewUsageValue(int64(q.Used)),         // bytes in use
+		Free:  fs.NewUsageValue(int64(total - q.Used)), // bytes which can be uploaded before reaching the quota
+	}
+	return usage, nil
+}
+
 // Hashes returns the supported hash sets.
 func (f *Fs) Hashes() hash.Set {
 	return hash.Set(hash.Dropbox)
@@ -811,20 +821,6 @@ func (o *Object) remotePath() string {
 	return o.fs.slashRootSlash + o.remote
 }
 
-// Returns the key for the metadata database for a given path
-func metadataKey(path string) string {
-	// NB File system is case insensitive
-	path = strings.ToLower(path)
-	hash := md5.New()
-	_, _ = hash.Write([]byte(path))
-	return fmt.Sprintf("%x", hash.Sum(nil))
-}
-
-// Returns the key for the metadata database
-func (o *Object) metadataKey() string {
-	return metadataKey(o.remotePath())
-}
-
 // readMetaData gets the info if it hasn't already been fetched
 func (o *Object) readMetaData() (err error) {
 	if !o.modTime.IsZero() {
@@ -854,7 +850,7 @@ func (o *Object) SetModTime(modTime time.Time) error {
 	// Dropbox doesn't have a way of doing this so returning this
 	// error will cause the file to be deleted first then
 	// re-uploaded to set the time.
-	return fs.ErrorCantSetModTime
+	return fs.ErrorCantSetModTimeWithoutDelete
 }
 
 // Storable returns whether this object is storable
@@ -912,7 +908,7 @@ func (o *Object) uploadChunked(in0 io.Reader, commitInfo *files.CommitInfo, size
 	chunk := readers.NewRepeatableLimitReaderBuffer(in, buf, chunkSize)
 	err = o.fs.pacer.Call(func() (bool, error) {
 		// seek to the start in case this is a retry
-		if _, err = chunk.Seek(0, 0); err != nil {
+		if _, err = chunk.Seek(0, io.SeekStart); err != nil {
 			return false, nil
 		}
 		res, err = o.fs.srv.UploadSessionStart(&files.UploadSessionStartArg{}, chunk)
@@ -948,7 +944,7 @@ func (o *Object) uploadChunked(in0 io.Reader, commitInfo *files.CommitInfo, size
 		chunk = readers.NewRepeatableLimitReaderBuffer(in, buf, chunkSize)
 		err = o.fs.pacer.Call(func() (bool, error) {
 			// seek to the start in case this is a retry
-			if _, err = chunk.Seek(0, 0); err != nil {
+			if _, err = chunk.Seek(0, io.SeekStart); err != nil {
 				return false, nil
 			}
 			err = o.fs.srv.UploadSessionAppendV2(&appendArg, chunk)
@@ -971,7 +967,7 @@ func (o *Object) uploadChunked(in0 io.Reader, commitInfo *files.CommitInfo, size
 	chunk = readers.NewRepeatableReaderBuffer(in, buf)
 	err = o.fs.pacer.Call(func() (bool, error) {
 		// seek to the start in case this is a retry
-		if _, err = chunk.Seek(0, 0); err != nil {
+		if _, err = chunk.Seek(0, io.SeekStart); err != nil {
 			return false, nil
 		}
 		entry, err = o.fs.srv.UploadSessionFinish(args, chunk)
@@ -1035,5 +1031,6 @@ var (
 	_ fs.Mover        = (*Fs)(nil)
 	_ fs.PublicLinker = (*Fs)(nil)
 	_ fs.DirMover     = (*Fs)(nil)
+	_ fs.Abouter      = (*Fs)(nil)
 	_ fs.Object       = (*Object)(nil)
 )

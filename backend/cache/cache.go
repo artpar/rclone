@@ -1,20 +1,19 @@
-// +build !plan9,go1.7
+// +build !plan9
 
 package cache
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
-
-	"os"
-
-	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/artpar/rclone/backend/crypt"
 	"github.com/artpar/rclone/fs"
@@ -26,7 +25,6 @@ import (
 	"github.com/artpar/rclone/fs/walk"
 	"github.com/artpar/rclone/lib/atexit"
 	"github.com/pkg/errors"
-	"golang.org/x/net/context"
 	"golang.org/x/time/rate"
 )
 
@@ -431,6 +429,11 @@ Purge a remote from the cache backend. Supports either a directory or a file.
 Params:
   - remote = path to remote (required)
   - withData = true/false to delete cached data (chunks) as well (optional)
+
+Eg
+
+    rclone rc cache/expire remote=path/to/sub/folder/
+    rclone rc cache/expire remote=/ withData=true 
 `,
 	})
 
@@ -644,7 +647,6 @@ func (f *Fs) NewObject(remote string) (fs.Object, error) {
 
 	// search for entry in source or temp fs
 	var obj fs.Object
-	err = nil
 	if f.tempWritePath != "" {
 		obj, err = f.tempFs.NewObject(remote)
 		// not found in temp fs
@@ -1415,6 +1417,15 @@ func (f *Fs) CleanUp() error {
 	return do()
 }
 
+// About gets quota information from the Fs
+func (f *Fs) About() (*fs.Usage, error) {
+	do := f.Fs.Features().About
+	if do == nil {
+		return nil, errors.New("About not supported")
+	}
+	return do()
+}
+
 // Stats returns stats about the cache storage
 func (f *Fs) Stats() (map[string]map[string]interface{}, error) {
 	return f.cache.Stats()
@@ -1553,4 +1564,5 @@ var (
 	_ fs.Wrapper        = (*Fs)(nil)
 	_ fs.ListRer        = (*Fs)(nil)
 	_ fs.ChangeNotifier = (*Fs)(nil)
+	_ fs.Abouter        = (*Fs)(nil)
 )
