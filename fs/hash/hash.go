@@ -9,8 +9,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/ncw/rclone/backend/dropbox/dbhash"
-	"github.com/ncw/rclone/backend/onedrive/quickxorhash"
+	"github.com/artpar/rclone/backend/dropbox/dbhash"
+	"github.com/artpar/rclone/backend/onedrive/quickxorhash"
 	"github.com/pkg/errors"
 )
 

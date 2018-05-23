@@ -16,14 +16,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/accounting"
-	"github.com/ncw/rclone/fs/fserrors"
-	"github.com/ncw/rclone/fs/hash"
-	"github.com/ncw/rclone/fs/march"
-	"github.com/ncw/rclone/fs/object"
-	"github.com/ncw/rclone/fs/walk"
-	"github.com/ncw/rclone/lib/readers"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/march"
+	"github.com/artpar/rclone/fs/object"
+	"github.com/artpar/rclone/fs/walk"
+	"github.com/artpar/rclone/lib/readers"
 	"github.com/pkg/errors"
 )
 

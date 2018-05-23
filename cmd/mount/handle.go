@@ -7,8 +7,8 @@ import (
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
-	"github.com/ncw/rclone/fs/log"
-	"github.com/ncw/rclone/vfs"
+	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/vfs"
 	"golang.org/x/net/context" // switch to "context" when we stop supporting go1.8
 )
 

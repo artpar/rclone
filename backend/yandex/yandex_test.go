@@ -4,8 +4,8 @@ package yandex_test
 import (
 	"testing"
 
-	"github.com/ncw/rclone/backend/yandex"
-	"github.com/ncw/rclone/fstest/fstests"
+	"github.com/artpar/rclone/backend/yandex"
+	"github.com/artpar/rclone/fstest/fstests"
 )
 
 // TestIntegration runs integration tests against the remote

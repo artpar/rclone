@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/ncw/rclone/cmd"
-	"github.com/ncw/rclone/fs/config"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs/config"
 	"github.com/spf13/cobra"
 )
 

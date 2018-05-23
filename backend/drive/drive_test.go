@@ -4,8 +4,8 @@ package drive_test
 import (
 	"testing"
 
-	"github.com/ncw/rclone/backend/drive"
-	"github.com/ncw/rclone/fstest/fstests"
+	"github.com/artpar/rclone/backend/drive"
+	"github.com/artpar/rclone/fstest/fstests"
 )
 
 // TestIntegration runs integration tests against the remote

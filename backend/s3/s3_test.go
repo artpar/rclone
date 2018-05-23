@@ -4,8 +4,8 @@ package s3_test
 import (
 	"testing"
 
-	"github.com/ncw/rclone/backend/s3"
-	"github.com/ncw/rclone/fstest/fstests"
+	"github.com/artpar/rclone/backend/s3"
+	"github.com/artpar/rclone/fstest/fstests"
 )
 
 // TestIntegration runs integration tests against the remote

@@ -6,7 +6,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
 )
 

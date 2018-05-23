@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ncw/rclone/cmd"
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
