@@ -39,12 +39,13 @@ import (
 // Globals
 var (
 	// Flags
-	cpuProfile    = flags.StringP("cpuprofile", "", "", "Write cpu profile to file")
-	memProfile    = flags.StringP("memprofile", "", "", "Write memory profile to file")
-	statsInterval = flags.DurationP("stats", "", time.Minute*1, "Interval between printing stats, e.g 500ms, 60s, 5m. (0 to disable)")
-	dataRateUnit  = flags.StringP("stats-unit", "", "bytes", "Show data rate in stats as either 'bits' or 'bytes'/s")
-	version       bool
-	retries       = flags.IntP("retries", "", 3, "Retry operations this many times if they fail")
+	cpuProfile      = flags.StringP("cpuprofile", "", "", "Write cpu profile to file")
+	memProfile      = flags.StringP("memprofile", "", "", "Write memory profile to file")
+	statsInterval   = flags.DurationP("stats", "", time.Minute*1, "Interval between printing stats, e.g 500ms, 60s, 5m. (0 to disable)")
+	dataRateUnit    = flags.StringP("stats-unit", "", "bytes", "Show data rate in stats as either 'bits' or 'bytes'/s")
+	version         bool
+	retries         = flags.IntP("retries", "", 3, "Retry operations this many times if they fail")
+	retriesInterval = flags.DurationP("retries-sleep", "", 0, "Interval between retrying operations if they fail, e.g 500ms, 60s, 5m. (0 to disable)")
 	// Errors
 	errorCommandNotFound    = errors.New("command not found")
 	errorUncategorized      = errors.New("uncategorized error")
@@ -200,7 +201,6 @@ func newFsFileAddFilter(remote string) (fs.Fs, string) {
 // limit the Fs to a single file.
 func NewFsSrc(args []string) fs.Fs {
 	fsrc, _ := newFsFileAddFilter(args[0])
-	fs.CalculateModifyWindow(fsrc)
 	return fsrc
 }
 
@@ -221,7 +221,6 @@ func newFsDir(remote string) fs.Fs {
 // The argument must point a directory
 func NewFsDir(args []string) fs.Fs {
 	fdst := newFsDir(args[0])
-	fs.CalculateModifyWindow(fdst)
 	return fdst
 }
 
@@ -229,7 +228,6 @@ func NewFsDir(args []string) fs.Fs {
 func NewFsSrcDst(args []string) (fs.Fs, fs.Fs) {
 	fsrc, _ := newFsFileAddFilter(args[0])
 	fdst := newFsDir(args[1])
-	fs.CalculateModifyWindow(fdst, fsrc)
 	return fsrc, fdst
 }
 
@@ -239,7 +237,6 @@ func NewFsSrcDst(args []string) (fs.Fs, fs.Fs) {
 func NewFsSrcFileDst(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs) {
 	fsrc, srcFileName = NewFsFile(args[0])
 	fdst = newFsDir(args[1])
-	fs.CalculateModifyWindow(fdst, fsrc)
 	return fsrc, srcFileName, fdst
 }
 
@@ -270,7 +267,6 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 		fs.CountError(err)
 		log.Fatalf("Failed to create file system for destination %q: %v", dstRemote, err)
 	}
-	fs.CalculateModifyWindow(fdst, fsrc)
 	return
 }
 
@@ -284,7 +280,6 @@ func NewFsDstFile(args []string) (fdst fs.Fs, dstFileName string) {
 		log.Fatalf("%q is a directory", args[0])
 	}
 	fdst = newFsDir(dstRemote)
-	fs.CalculateModifyWindow(fdst)
 	return
 }
 
@@ -307,6 +302,7 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 	if showStats {
 		stopStats = StartStats()
 	}
+	SigInfoHandler()
 	for try := 1; try <= *retries; try++ {
 		err = f()
 		if !Retry || (err == nil && !accounting.Stats.Errored()) {
@@ -330,6 +326,9 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 		}
 		if try < *retries {
 			accounting.Stats.ResetErrors()
+		}
+		if *retriesInterval > 0 {
+			time.Sleep(*retriesInterval)
 		}
 	}
 	if showStats {

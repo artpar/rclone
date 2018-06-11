@@ -52,6 +52,8 @@ func RunTests(t *testing.T, fn MountFn) {
 		run.cacheMode(cacheMode)
 		log.Printf("Starting test run with cache mode %v", cacheMode)
 		ok := t.Run(fmt.Sprintf("CacheMode=%v", cacheMode), func(t *testing.T) {
+			t.Run("TestTouchAndDelete", TestTouchAndDelete)
+			t.Run("TestRenameOpenHandle", TestRenameOpenHandle)
 			t.Run("TestDirLs", TestDirLs)
 			t.Run("TestDirCreateAndRemoveDir", TestDirCreateAndRemoveDir)
 			t.Run("TestDirCreateAndRemoveFile", TestDirCreateAndRemoveFile)
@@ -122,30 +124,34 @@ func newRun() *Run {
 		log.Printf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
 	}
 
-	if runtime.GOOS != "windows" {
-		r.mountPath, err = ioutil.TempDir("", "rclonefs-mount")
-		if err != nil {
-			log.Printf("Failed to create mount dir: %v", err)
-		}
-	} else {
-		// Find a free drive letter
-		drive := ""
-		for letter := 'E'; letter <= 'Z'; letter++ {
-			drive = string(letter) + ":"
-			_, err := os.Stat(drive + "\\")
-			if os.IsNotExist(err) {
-				goto found
-			}
-		}
-		log.Printf("Couldn't find free drive letter for test")
-	found:
-		r.mountPath = drive
-	}
-
+	r.mountPath = findMountPath()
 	// Mount it up
 	r.mount()
 
 	return r
+}
+
+func findMountPath() string {
+	if runtime.GOOS != "windows" {
+		mountPath, err := ioutil.TempDir("", "rclonefs-mount")
+		if err != nil {
+			log.Printf("Failed to create mount dir: %v", err)
+		}
+		return mountPath
+	}
+
+	// Find a free drive letter
+	drive := ""
+	for letter := 'E'; letter <= 'Z'; letter++ {
+		drive = string(letter) + ":"
+		_, err := os.Stat(drive + "\\")
+		if os.IsNotExist(err) {
+			goto found
+		}
+	}
+	log.Fatalf("Couldn't find free drive letter for test")
+found:
+	return drive
 }
 
 func (r *Run) mount() {

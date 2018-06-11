@@ -591,6 +591,12 @@ files which didn't get transferred because of errors.
 
 Disable retries with `--retries 1`.
 
+### --retries-sleep=TIME ###
+
+This sets the interval between each retry specified by `--retries` 
+
+The default is 0. Use 0 to disable.
+
 ### --size-only ###
 
 Normally rclone will look at modification time and size of files to
@@ -619,6 +625,9 @@ Stats are logged at `INFO` level by default which means they won't
 show at default log level `NOTICE`.  Use `--stats-log-level NOTICE` or
 `-v` to make them show.  See the [Logging section](#logging) for more
 info on log levels.
+
+Note that on macOS you can send a SIGINFO (which is normally ctrl-T in
+the terminal) to make the stats print immediately.
 
 ### --stats-file-name-length integer ###
 By default, the `--stats` output will truncate file names and paths longer 

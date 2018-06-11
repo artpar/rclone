@@ -132,16 +132,16 @@ func equal(src fs.ObjectInfo, dst fs.Object, sizeOnly, checkSum bool) bool {
 	}
 
 	// Sizes the same so check the mtime
-	if fs.Config.ModifyWindow == fs.ModTimeNotSupported {
+	modifyWindow := fs.GetModifyWindow(src.Fs(), dst.Fs())
+	if modifyWindow == fs.ModTimeNotSupported {
 		fs.Debugf(src, "Sizes identical")
 		return true
 	}
 	srcModTime := src.ModTime()
 	dstModTime := dst.ModTime()
 	dt := dstModTime.Sub(srcModTime)
-	ModifyWindow := fs.Config.ModifyWindow
-	if dt < ModifyWindow && dt > -ModifyWindow {
-		fs.Debugf(src, "Size and modification time the same (differ by %s, within tolerance %s)", dt, ModifyWindow)
+	if dt < modifyWindow && dt > -modifyWindow {
+		fs.Debugf(src, "Size and modification time the same (differ by %s, within tolerance %s)", dt, modifyWindow)
 		return true
 	}
 
@@ -561,6 +561,7 @@ type checkFn func(a, b fs.Object) (differ bool, noHash bool)
 type checkMarch struct {
 	fdst, fsrc      fs.Fs
 	check           checkFn
+	oneway          bool
 	differences     int32
 	noHashes        int32
 	srcFilesMissing int32
@@ -571,6 +572,9 @@ type checkMarch struct {
 func (c *checkMarch) DstOnly(dst fs.DirEntry) (recurse bool) {
 	switch dst.(type) {
 	case fs.Object:
+		if c.oneway {
+			return false
+		}
 		err := errors.Errorf("File not in %v", c.fsrc)
 		fs.Errorf(dst, "%v", err)
 		fs.CountError(err)
@@ -666,11 +670,12 @@ func (c *checkMarch) Match(dst, src fs.DirEntry) (recurse bool) {
 //
 // it returns true if differences were found
 // it also returns whether it couldn't be hashed
-func CheckFn(fdst, fsrc fs.Fs, check checkFn) error {
+func CheckFn(fdst, fsrc fs.Fs, check checkFn, oneway bool) error {
 	c := &checkMarch{
-		fdst:  fdst,
-		fsrc:  fsrc,
-		check: check,
+		fdst:   fdst,
+		fsrc:   fsrc,
+		check:  check,
+		oneway: oneway,
 	}
 
 	// set up a march over fdst and fsrc
@@ -696,8 +701,8 @@ func CheckFn(fdst, fsrc fs.Fs, check checkFn) error {
 }
 
 // Check the files in fsrc and fdst according to Size and hash
-func Check(fdst, fsrc fs.Fs) error {
-	return CheckFn(fdst, fsrc, checkIdentical)
+func Check(fdst, fsrc fs.Fs, oneway bool) error {
+	return CheckFn(fdst, fsrc, checkIdentical, oneway)
 }
 
 // CheckEqualReaders checks to see if in1 and in2 have the same
@@ -754,7 +759,7 @@ func CheckIdentical(dst, src fs.Object) (differ bool, err error) {
 
 // CheckDownload checks the files in fsrc and fdst according to Size
 // and the actual contents of the files.
-func CheckDownload(fdst, fsrc fs.Fs) error {
+func CheckDownload(fdst, fsrc fs.Fs, oneway bool) error {
 	check := func(a, b fs.Object) (differ bool, noHash bool) {
 		differ, err := CheckIdentical(a, b)
 		if err != nil {
@@ -764,7 +769,7 @@ func CheckDownload(fdst, fsrc fs.Fs) error {
 		}
 		return differ, false
 	}
-	return CheckFn(fdst, fsrc, check)
+	return CheckFn(fdst, fsrc, check, oneway)
 }
 
 // ListFn lists the Fs to the supplied function
@@ -1280,7 +1285,7 @@ func NeedTransfer(dst, src fs.Object) bool {
 		dstModTime := dst.ModTime()
 		dt := dstModTime.Sub(srcModTime)
 		// If have a mutually agreed precision then use that
-		modifyWindow := fs.Config.ModifyWindow
+		modifyWindow := fs.GetModifyWindow(dst.Fs(), src.Fs())
 		if modifyWindow == fs.ModTimeNotSupported {
 			// Otherwise use 1 second as a safe default as
 			// the resolution of the time a file was
@@ -1367,6 +1372,7 @@ func CopyFile(fdst fs.Fs, fsrc fs.Fs, dstFileName string, srcFileName string) (e
 type ListFormat struct {
 	separator string
 	dirSlash  bool
+	absolute  bool
 	output    []func() string
 	entry     fs.DirEntry
 	csv       *csv.Writer
@@ -1381,6 +1387,11 @@ func (l *ListFormat) SetSeparator(separator string) {
 // SetDirSlash defines if slash should be printed
 func (l *ListFormat) SetDirSlash(dirSlash bool) {
 	l.dirSlash = dirSlash
+}
+
+// SetAbsolute prints a leading slash in front of path names
+func (l *ListFormat) SetAbsolute(absolute bool) {
+	l.absolute = absolute
 }
 
 // SetCSV defines if the output should be csv
@@ -1418,12 +1429,15 @@ func (l *ListFormat) AddSize() {
 // AddPath adds path to file to output
 func (l *ListFormat) AddPath() {
 	l.AppendOutput(func() string {
-		_, isDir := l.entry.(fs.Directory)
-
-		if isDir && l.dirSlash {
-			return l.entry.Remote() + "/"
+		remote := l.entry.Remote()
+		if l.absolute && !strings.HasPrefix(remote, "/") {
+			remote = "/" + remote
 		}
-		return l.entry.Remote()
+		_, isDir := l.entry.(fs.Directory)
+		if isDir && l.dirSlash {
+			remote += "/"
+		}
+		return remote
 	})
 }
 
