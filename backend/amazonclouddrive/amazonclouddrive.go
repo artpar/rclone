@@ -22,17 +22,17 @@ import (
 	"time"
 
 	"github.com/ncw/go-acd"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config"
-	"github.com/ncw/rclone/fs/config/configmap"
-	"github.com/ncw/rclone/fs/config/configstruct"
-	"github.com/ncw/rclone/fs/fserrors"
-	"github.com/ncw/rclone/fs/fshttp"
-	"github.com/ncw/rclone/fs/hash"
-	"github.com/ncw/rclone/lib/dircache"
-	"github.com/ncw/rclone/lib/oauthutil"
-	"github.com/ncw/rclone/lib/pacer"
-	"github.com/ncw/rclone/lib/rest"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/fshttp"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/oauthutil"
+	"github.com/artpar/rclone/lib/pacer"
+	"github.com/artpar/rclone/lib/rest"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 )
@@ -49,7 +49,7 @@ const (
 
 // Globals
 var (
-	// Description of how to auth for this app
+	//Description of how to auth for this app
 	acdConfig = &oauth2.Config{
 		Scopes: []string{"clouddrive:read_all", "clouddrive:write"},
 		Endpoint: oauth2.Endpoint{
@@ -233,7 +233,30 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	} else {
 		fs.Debugf(name+":", "Couldn't add request filter - large file downloads will fail")
 	}
-	oAuthClient, ts, err := oauthutil.NewClientWithBaseClient(name, m, acdConfig, baseClient)
+
+	client_id, ok := fs.ConfigFileGet(name, "client_id")
+	if !ok {
+		return nil, errors.Wrap(nil, "failed to configure google cloud storage")
+	}
+	client_secret, ok := fs.ConfigFileGet(name, "client_secret")
+	if !ok {
+		return nil, errors.Wrap(nil, "failed to configure google cloud storage")
+	}
+	scopes, ok := fs.ConfigFileGet(name, "client_scopes")
+	redirect_url, ok := fs.ConfigFileGet(name, "redirect_url")
+
+	oauthConf1 := oauth2.Config{
+		ClientID:     client_id,
+		ClientSecret: client_secret,
+		Scopes:       strings.Split(scopes, ","),
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://www.amazon.com/ap/oa",
+			TokenURL: "https://api.amazon.com/auth/o2/token",
+		},
+		RedirectURL: redirect_url,
+	}
+
+	oAuthClient, ts, err := oauthutil.NewClientWithBaseClient(name, m, &oauthConf1, baseClient)
 	if err != nil {
 		log.Printf("Failed to configure Amazon Drive: %v", err)
 	}

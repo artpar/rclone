@@ -13,14 +13,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ncw/rclone/backend/swift"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config"
-	"github.com/ncw/rclone/fs/config/configmap"
-	"github.com/ncw/rclone/fs/config/configstruct"
-	"github.com/ncw/rclone/fs/config/obscure"
-	"github.com/ncw/rclone/fs/fshttp"
-	"github.com/ncw/rclone/lib/oauthutil"
+	"github.com/artpar/rclone/backend/swift"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fs/fshttp"
+	"github.com/artpar/rclone/lib/oauthutil"
 	swiftLib "github.com/ncw/swift"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
@@ -149,18 +149,30 @@ func (f *Fs) getCredentials() (err error) {
 
 // NewFs constructs an Fs from the path, container:path
 func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
+
+	client_id, ok := fs.ConfigFileGet(name, "client_id")
+	if !ok {
+		return nil, errors.Wrap(nil, "failed to configure google cloud storage")
+	}
+	client_secret, ok := fs.ConfigFileGet(name, "client_secret")
+	if !ok {
+		return nil, errors.Wrap(nil, "failed to configure google cloud storage")
+	}
+	scopes, ok := fs.ConfigFileGet(name, "client_scopes")
+	redirect_url, ok := fs.ConfigFileGet(name, "redirect_url")
+
 	oauthConf1 := oauth2.Config{
-		ClientID:     fs.ConfigFileGet(name, "client_id"),
-		ClientSecret: fs.ConfigFileGet(name, "client_secret"),
-		Scopes:       strings.Split(fs.ConfigFileGet(name, "client_scopes"), ","),
+		ClientID:     client_id,
+		ClientSecret: client_secret,
+		Scopes:       strings.Split(scopes, ","),
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  "https://api.hubic.com/oauth/auth/",
 			TokenURL: "https://api.hubic.com/oauth/token/",
 		},
-		RedirectURL: fs.ConfigFileGet(name, "redirect_url"),
+		RedirectURL: redirect_url,
 	}
 
-	client, _, err := oauthutil.NewClient(name, m, oauthConfig1)
+	client, _, err := oauthutil.NewClient(name, m, &oauthConf1)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to configure Hubic")
 	}

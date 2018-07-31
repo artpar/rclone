@@ -4,7 +4,7 @@
 package main
 
 import (
-	"github.com/ncw/rclone/cmd"
+	"github.com/artpar/rclone/cmd"
 
 	_ "github.com/artpar/rclone/backend/all" // import all backends
 	_ "github.com/artpar/rclone/cmd/all"     // import all commands
