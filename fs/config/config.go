@@ -25,11 +25,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/Unknwon/goconfig"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/driveletter"
-	"github.com/artpar/rclone/fs/fshttp"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/accounting"
+	"github.com/ncw/rclone/fs/config/configstruct"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/driveletter"
+	"github.com/ncw/rclone/fs/fshttp"
+	"github.com/ncw/rclone/fs/fspath"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/nacl/secretbox"
 	"golang.org/x/text/unicode/norm"
@@ -80,8 +82,9 @@ var (
 )
 
 func init() {
-	// Set the function pointer up in fs
-	fs.ConfigFileGet = FileGet
+	// Set the function pointers up in fs
+	fs.ConfigFileGet = FileGetFlag
+	fs.ConfigFileSet = FileSet
 }
 
 func getConfigData() *goconfig.ConfigFile {
@@ -151,11 +154,24 @@ func makeConfigPath() string {
 		return homeconf
 	}
 
+	// Check to see if user supplied a --config variable or environment
+	// variable.  We can't use pflag for this because it isn't initialised
+	// yet so we search the command line manually.
+	_, configSupplied := os.LookupEnv("RCLONE_CONFIG")
+	for _, item := range os.Args {
+		if item == "--config" || strings.HasPrefix(item, "--config=") {
+			configSupplied = true
+			break
+		}
+	}
+
 	// Default to ./.rclone.conf (current working directory)
-	fs.Errorf(nil, "Couldn't find home directory or read HOME or XDG_CONFIG_HOME environment variables.")
-	fs.Errorf(nil, "Defaulting to storing config in current directory.")
-	fs.Errorf(nil, "Use --config flag to workaround.")
-	fs.Errorf(nil, "Error was: %v", err)
+	if !configSupplied {
+		fs.Errorf(nil, "Couldn't find home directory or read HOME or XDG_CONFIG_HOME environment variables.")
+		fs.Errorf(nil, "Defaulting to storing config in current directory.")
+		fs.Errorf(nil, "Use --config flag to workaround.")
+		fs.Errorf(nil, "Error was: %v", err)
+	}
 	return hiddenConfigFileName
 }
 
@@ -691,7 +707,8 @@ func RemoteConfig(name string) {
 	fmt.Printf("Remote config\n")
 	f := MustFindByName(name)
 	if f.Config != nil {
-		f.Config(name)
+		m := fs.ConfigMap(f, name)
+		f.Config(name, m)
 	}
 }
 
@@ -731,7 +748,7 @@ func ChooseOption(o *fs.Option, name string) string {
 	fmt.Println(o.Help)
 	if o.IsPassword {
 		actions := []string{"yYes type in my own password", "gGenerate random password"}
-		if o.Optional {
+		if !o.Required {
 			actions = append(actions, "nNo leave this optional password blank")
 		}
 		var password string
@@ -765,19 +782,52 @@ func ChooseOption(o *fs.Option, name string) string {
 		}
 		return obscure.MustObscure(password)
 	}
-	if len(o.Examples) > 0 {
-		var values []string
-		var help []string
-		for _, example := range o.Examples {
-			if matchProvider(example.Provider, subProvider) {
-				values = append(values, example.Value)
-				help = append(help, example.Help)
-			}
-		}
-		return Choose(o.Name, values, help, true)
+	what := fmt.Sprintf("%T value", o.Default)
+	switch o.Default.(type) {
+	case bool:
+		what = "boolean value (true or false)"
+	case fs.SizeSuffix:
+		what = "size with suffix k,M,G,T"
+	case fs.Duration:
+		what = "duration s,m,h,d,w,M,y"
+	case int, int8, int16, int32, int64:
+		what = "signed integer"
+	case uint, byte, uint16, uint32, uint64:
+		what = "unsigned integer"
 	}
-	fmt.Printf("%s> ", o.Name)
-	return ReadLine()
+	var in string
+	for {
+		fmt.Printf("Enter a %s. Press Enter for the default (%q).\n", what, fmt.Sprint(o.Default))
+		if len(o.Examples) > 0 {
+			var values []string
+			var help []string
+			for _, example := range o.Examples {
+				if matchProvider(example.Provider, subProvider) {
+					values = append(values, example.Value)
+					help = append(help, example.Help)
+				}
+			}
+			in = Choose(o.Name, values, help, true)
+		} else {
+			fmt.Printf("%s> ", o.Name)
+			in = ReadLine()
+		}
+		if in == "" {
+			if o.Required && fmt.Sprint(o.Default) == "" {
+				fmt.Printf("This value is required and it has no default.\n")
+				continue
+			}
+			break
+		}
+		newIn, err := configstruct.StringToInterface(o.Default, in)
+		if err != nil {
+			fmt.Printf("Failed to parse %q: %v\n", in, err)
+			continue
+		}
+		in = fmt.Sprint(newIn) // canonicalise
+		break
+	}
+	return in
 }
 
 // UpdateRemote adds the keyValues passed in to the remote of name.
@@ -846,8 +896,9 @@ func JSONListProviders() error {
 // fsOption returns an Option describing the possible remotes
 func fsOption() *fs.Option {
 	o := &fs.Option{
-		Name: "Storage",
-		Help: "Type of storage to configure.",
+		Name:    "Storage",
+		Help:    "Type of storage to configure.",
+		Default: "",
 	}
 	for _, item := range fs.Registry {
 		example := fs.OptionExample{
@@ -865,12 +916,12 @@ func NewRemoteName() (name string) {
 	for {
 		fmt.Printf("name> ")
 		name = ReadLine()
-		parts := fs.Matcher.FindStringSubmatch(name + ":")
+		parts := fspath.Matcher.FindStringSubmatch(name + ":")
 		switch {
 		case name == "":
 			fmt.Printf("Can't use empty name.\n")
 		case driveletter.IsDriveLetter(name):
-			fmt.Printf("Can't use %q as it can be confused a drive letter.\n", name)
+			fmt.Printf("Can't use %q as it can be confused with a drive letter.\n", name)
 		case parts == nil:
 			fmt.Printf("Can't use %q as it has invalid characters in it.\n", name)
 		default:
@@ -879,17 +930,61 @@ func NewRemoteName() (name string) {
 	}
 }
 
-// NewRemote make a new remote from its name
-func NewRemote(name string) {
-	newType := ChooseOption(fsOption(), name)
-	getConfigData().SetValue(name, "type", newType)
-	ri := fs.MustFind(newType)
-	for _, option := range ri.Options {
-		subProvider := getConfigData().MustValue(name, fs.ConfigProvider, "")
-		if matchProvider(option.Provider, subProvider) {
-			getConfigData().SetValue(name, option.Name, ChooseOption(&option, name))
+// editOptions edits the options.  If new is true then it just allows
+// entry and doesn't show any old values.
+func editOptions(ri *fs.RegInfo, name string, new bool) {
+	hasAdvanced := false
+	for _, advanced := range []bool{false, true} {
+		if advanced {
+			if !hasAdvanced {
+				break
+			}
+			fmt.Printf("Edit advanced config? (y/n)\n")
+			if !Confirm() {
+				break
+			}
+		}
+		for _, option := range ri.Options {
+			hasAdvanced = hasAdvanced || option.Advanced
+			if option.Advanced != advanced {
+				continue
+			}
+			subProvider := getConfigData().MustValue(name, fs.ConfigProvider, "")
+			if matchProvider(option.Provider, subProvider) {
+				if !new {
+					fmt.Printf("Value %q = %q\n", option.Name, FileGet(name, option.Name))
+					fmt.Printf("Edit? (y/n)>\n")
+					if !Confirm() {
+						continue
+					}
+				}
+				FileSet(name, option.Name, ChooseOption(&option, name))
+			}
 		}
 	}
+}
+
+// NewRemote make a new remote from its name
+func NewRemote(name string) {
+	var (
+		newType string
+		ri      *fs.RegInfo
+		err     error
+	)
+
+	// Set the type first
+	for {
+		newType = ChooseOption(fsOption(), name)
+		ri, err = fs.Find(newType)
+		if err != nil {
+			fmt.Printf("Bad remote %q: %v\n", newType, err)
+			continue
+		}
+		break
+	}
+	getConfigData().SetValue(name, "type", newType)
+
+	editOptions(ri, name, true)
 	RemoteConfig(name)
 	if OkRemote(name) {
 		SaveConfig()
@@ -902,25 +997,8 @@ func NewRemote(name string) {
 func EditRemote(ri *fs.RegInfo, name string) {
 	ShowRemote(name)
 	fmt.Printf("Edit remote\n")
-	subProvider := getConfigData().MustValue(name, fs.ConfigProvider, "")
 	for {
-		for _, option := range ri.Options {
-			key := option.Name
-			value := FileGet(name, key)
-			if !matchProvider(option.Provider, subProvider) {
-				continue
-			}
-			fmt.Printf("Value %q = %q\n", key, value)
-			fmt.Printf("Edit? (y/n)>\n")
-			if Confirm() {
-				newValue := ChooseOption(&option, name)
-				getConfigData().SetValue(name, key, newValue)
-				// Update subProvider if it changed
-				if key == fs.ConfigProvider {
-					subProvider = newValue
-				}
-			}
-		}
+		editOptions(ri, name, false)
 		if OkRemote(name) {
 			break
 		}
@@ -1075,8 +1153,8 @@ func Authorize(args []string) {
 		log.Fatalf("Invalid number of arguments: %d", len(args))
 	}
 	newType := args[0]
-	fs := fs.MustFind(newType)
-	if fs.Config == nil {
+	f := fs.MustFind(newType)
+	if f.Config == nil {
 		log.Fatalf("Can't authorize fs %q", newType)
 	}
 	// Name used for temporary fs
@@ -1091,14 +1169,15 @@ func Authorize(args []string) {
 		getConfigData().SetValue(name, ConfigClientID, args[1])
 		getConfigData().SetValue(name, ConfigClientSecret, args[2])
 	}
-	fs.Config(name)
+	m := fs.ConfigMap(f, name)
+	f.Config(name, m)
 }
 
-// configToEnv converts an config section and name, eg ("myremote",
-// "ignore-size") into an environment name
-// "RCLONE_CONFIG_MYREMOTE_IGNORE_SIZE"
-func configToEnv(section, name string) string {
-	return "RCLONE_CONFIG_" + strings.ToUpper(strings.Replace(section+"_"+name, "-", "_", -1))
+// FileGetFlag gets the config key under section returning the
+// the value and true if found and or ("", false) otherwise
+func FileGetFlag(section, key string) (string, bool) {
+	newValue, err := getConfigData().GetValue(section, key)
+	return newValue, err == nil
 }
 
 // FileGet gets the config key under section returning the
@@ -1106,7 +1185,7 @@ func configToEnv(section, name string) string {
 //
 // It looks up defaults in the environment if they are present
 func FileGet(section, key string, defaultVal ...string) string {
-	envKey := configToEnv(section, key)
+	envKey := fs.ConfigToEnv(section, key)
 	newValue, found := os.LookupEnv(envKey)
 	if found {
 		defaultVal = []string{newValue}
@@ -1114,46 +1193,14 @@ func FileGet(section, key string, defaultVal ...string) string {
 	return getConfigData().MustValue(section, key, defaultVal...)
 }
 
-// FileGetBool gets the config key under section returning the
-// default or false if not set.
-//
-// It looks up defaults in the environment if they are present
-func FileGetBool(section, key string, defaultVal ...bool) bool {
-	envKey := configToEnv(section, key)
-	newValue, found := os.LookupEnv(envKey)
-	if found {
-		newBool, err := strconv.ParseBool(newValue)
-		if err != nil {
-			fs.Errorf(nil, "Couldn't parse %q into bool - ignoring: %v", envKey, err)
-		} else {
-			defaultVal = []bool{newBool}
-		}
-	}
-	return getConfigData().MustBool(section, key, defaultVal...)
-}
-
-// FileGetInt gets the config key under section returning the
-// default or 0 if not set.
-//
-// It looks up defaults in the environment if they are present
-func FileGetInt(section, key string, defaultVal ...int) int {
-	envKey := configToEnv(section, key)
-	newValue, found := os.LookupEnv(envKey)
-	if found {
-		newInt, err := strconv.Atoi(newValue)
-		if err != nil {
-			fs.Errorf(nil, "Couldn't parse %q into int - ignoring: %v", envKey, err)
-		} else {
-			defaultVal = []int{newInt}
-		}
-	}
-	return getConfigData().MustInt(section, key, defaultVal...)
-}
-
 // FileSet sets the key in section to value.  It doesn't save
 // the config file.
 func FileSet(section, key, value string) {
-	getConfigData().SetValue(section, key, value)
+	if value != "" {
+		getConfigData().SetValue(section, key, value)
+	} else {
+		FileDeleteKey(section, key)
+	}
 }
 
 // FileDeleteKey deletes the config key in the config file.

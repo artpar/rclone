@@ -28,16 +28,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/backend/webdav/api"
-	"github.com/artpar/rclone/backend/webdav/odrvcookie"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/ncw/rclone/backend/webdav/api"
+	"github.com/ncw/rclone/backend/webdav/odrvcookie"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config"
+	"github.com/ncw/rclone/fs/config/configmap"
+	"github.com/ncw/rclone/fs/config/configstruct"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/fshttp"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/lib/pacer"
+	"github.com/ncw/rclone/lib/rest"
 	"github.com/pkg/errors"
 )
 
@@ -56,15 +58,14 @@ func init() {
 		Options: []fs.Option{{
 			Name:     "url",
 			Help:     "URL of http host to connect to",
-			Optional: false,
+			Required: true,
 			Examples: []fs.OptionExample{{
 				Value: "https://example.com",
 				Help:  "Connect to example.com",
 			}},
 		}, {
-			Name:     "vendor",
-			Help:     "Name of the Webdav site/service/software you are using",
-			Optional: false,
+			Name: "vendor",
+			Help: "Name of the Webdav site/service/software you are using",
 			Examples: []fs.OptionExample{{
 				Value: "nextcloud",
 				Help:  "Nextcloud",
@@ -79,30 +80,37 @@ func init() {
 				Help:  "Other site/service or software",
 			}},
 		}, {
-			Name:     "user",
-			Help:     "User name",
-			Optional: true,
+			Name: "user",
+			Help: "User name",
 		}, {
 			Name:       "pass",
 			Help:       "Password.",
-			Optional:   true,
 			IsPassword: true,
+		}, {
+			Name: "bearer_token",
+			Help: "Bearer token instead of user/pass (eg a Macaroon)",
 		}},
 	})
+}
+
+// Options defines the configuration for this backend
+type Options struct {
+	URL    string `config:"url"`
+	Vendor string `config:"vendor"`
+	User   string `config:"user"`
+	Pass   string `config:"pass"`
 }
 
 // Fs represents a remote webdav
 type Fs struct {
 	name        string        // name of this remote
 	root        string        // the path we are working on
+	opt         Options       // parsed options
 	features    *fs.Features  // optional features
 	endpoint    *url.URL      // URL of the host
 	endpointURL string        // endpoint as a string
 	srv         *rest.Client  // the connection to the one drive server
 	pacer       *pacer.Pacer  // pacer for API calls
-	user        string        // username
-	pass        string        // password
-	vendor      string        // name of the vendor
 	precision   time.Duration // mod time precision
 	canStream   bool          // set if can stream
 	useOCMtime  bool          // set if can use X-OC-Mtime
@@ -182,6 +190,7 @@ func (f *Fs) readMetaDataForPath(path string) (info *api.Prop, err error) {
 		ExtraHeaders: map[string]string{
 			"Depth": "1",
 		},
+		NoRedirect: true,
 	}
 	var result api.Multistatus
 	var resp *http.Response
@@ -191,7 +200,13 @@ func (f *Fs) readMetaDataForPath(path string) (info *api.Prop, err error) {
 	})
 	if apiErr, ok := err.(*api.Error); ok {
 		// does not exist
-		if apiErr.StatusCode == http.StatusNotFound {
+		switch apiErr.StatusCode {
+		case http.StatusNotFound:
+			return nil, fs.ErrorObjectNotFound
+		case http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther:
+			// Some sort of redirect - go doesn't deal with these properly (it resets
+			// the method to GET).  However we can assume that if it was redirected the
+			// object was not found.
 			return nil, fs.ErrorObjectNotFound
 		}
 	}
@@ -253,26 +268,36 @@ func (o *Object) filePath() string {
 }
 
 // NewFs constructs an Fs from the path, container:path
-func NewFs(name, root string) (fs.Fs, error) {
-	endpoint := config.FileGet(name, "url")
-	if !strings.HasSuffix(endpoint, "/") {
-		endpoint += "/"
+func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
+	// Parse config into Options struct
+	opt := new(Options)
+	err := configstruct.Set(m, opt)
+	if err != nil {
+		return nil, err
 	}
+	rootIsDir := strings.HasSuffix(root, "/")
 	root = strings.Trim(root, "/")
 
 	user := config.FileGet(name, "user")
 	pass := config.FileGet(name, "pass")
-	if pass != "" {
+	bearerToken := config.FileGet(name, "bearer_token")
+	if !strings.HasSuffix(opt.URL, "/") {
+		opt.URL += "/"
+	}
+	if opt.Pass != "" {
 		var err error
-		pass, err = obscure.Reveal(pass)
+		opt.Pass, err = obscure.Reveal(opt.Pass)
 		if err != nil {
 			return nil, errors.Wrap(err, "couldn't decrypt password")
 		}
 	}
-	vendor := config.FileGet(name, "vendor")
+	if opt.Vendor == "" {
+		opt.Vendor = "other"
+	}
+	root = strings.Trim(root, "/")
 
 	// Parse the endpoint
-	u, err := url.Parse(endpoint)
+	u, err := url.Parse(opt.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -280,24 +305,28 @@ func NewFs(name, root string) (fs.Fs, error) {
 	f := &Fs{
 		name:        name,
 		root:        root,
+		opt:         *opt,
 		endpoint:    u,
 		endpointURL: u.String(),
-		srv:         rest.NewClient(fshttp.NewClient(fs.Config)).SetRoot(u.String()).SetUserPass(user, pass),
+		srv:         rest.NewClient(fshttp.NewClient(fs.Config)).SetRoot(u.String()),
 		pacer:       pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
-		user:        user,
-		pass:        pass,
 		precision:   fs.ModTimeNotSupported,
 	}
 	f.features = (&fs.Features{
 		CanHaveEmptyDirectories: true,
 	}).Fill(f)
+	if user != "" || pass != "" {
+		f.srv.SetUserPass(opt.User, opt.Pass)
+	} else if bearerToken != "" {
+		f.srv.SetHeader("Authorization", "BEARER "+bearerToken)
+	}
 	f.srv.SetErrorHandler(errorHandler)
-	err = f.setQuirks(vendor)
+	err = f.setQuirks(opt.Vendor)
 	if err != nil {
 		return nil, err
 	}
 
-	if root != "" {
+	if root != "" && !rootIsDir {
 		// Check to see if the root actually an existing file
 		remote := path.Base(root)
 		f.root = path.Dir(root)
@@ -321,10 +350,6 @@ func NewFs(name, root string) (fs.Fs, error) {
 
 // setQuirks adjusts the Fs for the vendor passed in
 func (f *Fs) setQuirks(vendor string) error {
-	if vendor == "" {
-		vendor = "other"
-	}
-	f.vendor = vendor
 	switch vendor {
 	case "owncloud":
 		f.canStream = true
@@ -337,7 +362,7 @@ func (f *Fs) setQuirks(vendor string) error {
 		// To mount sharepoint, two Cookies are required
 		// They have to be set instead of BasicAuth
 		f.srv.RemoveHeader("Authorization") // We don't need this Header if using cookies
-		spCk := odrvcookie.New(f.user, f.pass, f.endpointURL)
+		spCk := odrvcookie.New(f.opt.User, f.opt.Pass, f.endpointURL)
 		spCookies, err := spCk.Cookies()
 		if err != nil {
 			return err
@@ -542,6 +567,11 @@ func (f *Fs) PutStream(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption
 // mkParentDir makes the parent of the native path dirPath if
 // necessary and any directories above that
 func (f *Fs) mkParentDir(dirPath string) error {
+	// defer log.Trace(dirPath, "")("")
+	// chop off trailing / if it exists
+	if strings.HasSuffix(dirPath, "/") {
+		dirPath = dirPath[:len(dirPath)-1]
+	}
 	parent := path.Dir(dirPath)
 	if parent == "." {
 		parent = ""
@@ -551,9 +581,14 @@ func (f *Fs) mkParentDir(dirPath string) error {
 
 // mkdir makes the directory and parents using native paths
 func (f *Fs) mkdir(dirPath string) error {
+	// defer log.Trace(dirPath, "")("")
 	// We assume the root is already ceated
 	if dirPath == "" {
 		return nil
+	}
+	// Collections must end with /
+	if !strings.HasSuffix(dirPath, "/") {
+		dirPath += "/"
 	}
 	opts := rest.Opts{
 		Method:     "MKCOL",

@@ -11,15 +11,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config/configmap"
+	"github.com/ncw/rclone/fs/config/configstruct"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/fshttp"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/lib/dircache"
+	"github.com/ncw/rclone/lib/pacer"
+	"github.com/ncw/rclone/lib/rest"
 	"github.com/pkg/errors"
 )
 
@@ -37,23 +38,30 @@ func init() {
 		Description: "OpenDrive",
 		NewFs:       NewFs,
 		Options: []fs.Option{{
-			Name: "username",
-			Help: "Username",
+			Name:     "username",
+			Help:     "Username",
+			Required: true,
 		}, {
 			Name:       "password",
 			Help:       "Password.",
 			IsPassword: true,
+			Required:   true,
 		}},
 	})
+}
+
+// Options defines the configuration for this backend
+type Options struct {
+	UserName string `config:"username"`
+	Password string `config:"password"`
 }
 
 // Fs represents a remote server
 type Fs struct {
 	name     string             // name of this remote
 	root     string             // the path we are working on
+	opt      Options            // parsed options
 	features *fs.Features       // optional features
-	username string             // account name
-	password string             // auth key0
 	srv      *rest.Client       // the connection to the server
 	pacer    *pacer.Pacer       // To pace and retry the API calls
 	session  UserSessionInfo    // contains the session data
@@ -110,27 +118,31 @@ func (f *Fs) DirCacheFlush() {
 }
 
 // NewFs contstructs an Fs from the path, bucket:path
-func NewFs(name, root string) (fs.Fs, error) {
+func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
+	// Parse config into Options struct
+	opt := new(Options)
+	err := configstruct.Set(m, opt)
+	if err != nil {
+		return nil, err
+	}
 	root = parsePath(root)
-	username := config.FileGet(name, "username")
-	if username == "" {
+	if opt.UserName == "" {
 		return nil, errors.New("username not found")
 	}
-	password, err := obscure.Reveal(config.FileGet(name, "password"))
+	opt.Password, err = obscure.Reveal(opt.Password)
 	if err != nil {
-		return nil, errors.New("password coudl not revealed")
+		return nil, errors.New("password could not revealed")
 	}
-	if password == "" {
+	if opt.Password == "" {
 		return nil, errors.New("password not found")
 	}
 
 	f := &Fs{
-		name:     name,
-		username: username,
-		password: password,
-		root:     root,
-		srv:      rest.NewClient(fshttp.NewClient(fs.Config)).SetErrorHandler(errorHandler),
-		pacer:    pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
+		name:  name,
+		root:  root,
+		opt:   *opt,
+		srv:   rest.NewClient(fshttp.NewClient(fs.Config)).SetErrorHandler(errorHandler),
+		pacer: pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
 	}
 
 	f.dirCache = dircache.New(root, "0", f)
@@ -141,7 +153,7 @@ func NewFs(name, root string) (fs.Fs, error) {
 	// get sessionID
 	var resp *http.Response
 	err = f.pacer.Call(func() (bool, error) {
-		account := Account{Username: username, Password: password}
+		account := Account{Username: opt.UserName, Password: opt.Password}
 
 		opts := rest.Opts{
 			Method: "POST",
@@ -1027,7 +1039,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 	o.id = closeResponse.FileID
 	o.size = closeResponse.Size
 
-	// Set the mod time now and read metadata
+	// Set the mod time now
 	err = o.SetModTime(modTime)
 	if err != nil {
 		return err
@@ -1049,7 +1061,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		return err
 	}
 
-	return nil
+	return o.readMetaData()
 }
 
 func (o *Object) readMetaData() (err error) {

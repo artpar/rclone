@@ -2,6 +2,7 @@ package fs
 
 import (
 	"net"
+	"strings"
 	"time"
 )
 
@@ -14,7 +15,15 @@ var (
 	//
 	// This is a function pointer to decouple the config
 	// implementation from the fs
-	ConfigFileGet = func(section, key string, defaultVal ...string) string { return "" }
+	ConfigFileGet = func(section, key string) (string, bool) { return "", false }
+
+	// Set a value into the config file
+	//
+	// This is a function pointer to decouple the config
+	// implementation from the fs
+	ConfigFileSet = func(section, key, value string) {
+		Errorf(nil, "No config handler to set %q = %q in section %q of the config file", key, value, section)
+	}
 
 	// CountError counts an error.  If any errors have been
 	// counted then it will exit with a non zero error code.
@@ -102,4 +111,17 @@ func NewConfig() *ConfigInfo {
 	c.MaxTransfer = -1
 
 	return c
+}
+
+// ConfigToEnv converts an config section and name, eg ("myremote",
+// "ignore-size") into an environment name
+// "RCLONE_CONFIG_MYREMOTE_IGNORE_SIZE"
+func ConfigToEnv(section, name string) string {
+	return "RCLONE_CONFIG_" + strings.ToUpper(strings.Replace(section+"_"+name, "-", "_", -1))
+}
+
+// OptionToEnv converts an option name, eg "ignore-size" into an
+// environment name "RCLONE_IGNORE_SIZE"
+func OptionToEnv(name string) string {
+	return "RCLONE_" + strings.ToUpper(strings.Replace(name, "-", "_", -1))
 }

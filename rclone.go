@@ -4,16 +4,12 @@
 package main
 
 import (
-	"log"
-
-	"github.com/artpar/rclone/cmd"
+	"github.com/ncw/rclone/cmd"
 
 	_ "github.com/artpar/rclone/backend/all" // import all backends
 	_ "github.com/artpar/rclone/cmd/all"     // import all commands
 )
 
 func main() {
-	if err := cmd.Root.Execute(); err != nil {
-		log.Printf("Fatal error: %v", err)
-	}
+	cmd.Main()
 }

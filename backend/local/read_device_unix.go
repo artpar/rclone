@@ -8,18 +8,13 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config/flags"
-)
-
-var (
-	oneFileSystem = flags.BoolP("one-file-system", "x", false, "Don't cross filesystem boundaries.")
+	"github.com/ncw/rclone/fs"
 )
 
 // readDevice turns a valid os.FileInfo into a device number,
 // returning devUnset if it fails.
-func readDevice(fi os.FileInfo) uint64 {
-	if !*oneFileSystem {
+func readDevice(fi os.FileInfo, oneFileSystem bool) uint64 {
+	if !oneFileSystem {
 		return devUnset
 	}
 	statT, ok := fi.Sys().(*syscall.Stat_t)
