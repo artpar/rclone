@@ -770,7 +770,9 @@ func ChooseOption(o *fs.Option, name string) string {
 				}
 				password = base64.RawURLEncoding.EncodeToString(pw)
 				fmt.Printf("Your password is: %s\n", password)
-				fmt.Printf("Use this password?\n")
+				fmt.Printf("Use this password? Please note that an obscured version of this \npassword (and not the " +
+					"password itself) will be stored under your \nconfiguration file, so keep this generated password " +
+					"in a safe place.\n")
 				if Confirm() {
 					break
 				}
@@ -932,7 +934,7 @@ func NewRemoteName() (name string) {
 
 // editOptions edits the options.  If new is true then it just allows
 // entry and doesn't show any old values.
-func editOptions(ri *fs.RegInfo, name string, new bool) {
+func editOptions(ri *fs.RegInfo, name string, isNew bool) {
 	hasAdvanced := false
 	for _, advanced := range []bool{false, true} {
 		if advanced {
@@ -951,7 +953,7 @@ func editOptions(ri *fs.RegInfo, name string, new bool) {
 			}
 			subProvider := getConfigData().MustValue(name, fs.ConfigProvider, "")
 			if matchProvider(option.Provider, subProvider) {
-				if !new {
+				if !isNew {
 					fmt.Printf("Value %q = %q\n", option.Name, FileGet(name, option.Name))
 					fmt.Printf("Edit? (y/n)>\n")
 					if !Confirm() {

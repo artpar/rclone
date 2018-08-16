@@ -31,11 +31,6 @@ func (e *Error) Fatal() bool {
 
 var _ fserrors.Fataler = (*Error)(nil)
 
-// Account describes a B2 account
-type Account struct {
-	ID string `json:"accountId"` // The identifier for the account.
-}
-
 // Bucket describes a B2 bucket
 type Bucket struct {
 	ID        string `json:"bucketId"`
@@ -74,7 +69,7 @@ const versionFormat = "-v2006-01-02-150405.000"
 func (t Timestamp) AddVersion(remote string) string {
 	ext := path.Ext(remote)
 	base := remote[:len(remote)-len(ext)]
-	s := (time.Time)(t).Format(versionFormat)
+	s := time.Time(t).Format(versionFormat)
 	// Replace the '.' with a '-'
 	s = strings.Replace(s, ".", "-", -1)
 	return base + s + ext
@@ -107,20 +102,20 @@ func RemoveVersion(remote string) (t Timestamp, newRemote string) {
 
 // IsZero returns true if the timestamp is unitialised
 func (t Timestamp) IsZero() bool {
-	return (time.Time)(t).IsZero()
+	return time.Time(t).IsZero()
 }
 
 // Equal compares two timestamps
 //
 // If either are !IsZero then it returns false
 func (t Timestamp) Equal(s Timestamp) bool {
-	if (time.Time)(t).IsZero() {
+	if time.Time(t).IsZero() {
 		return false
 	}
-	if (time.Time)(s).IsZero() {
+	if time.Time(s).IsZero() {
 		return false
 	}
-	return (time.Time)(t).Equal((time.Time)(s))
+	return time.Time(t).Equal(time.Time(s))
 }
 
 // File is info about a file
@@ -137,10 +132,26 @@ type File struct {
 
 // AuthorizeAccountResponse is as returned from the b2_authorize_account call
 type AuthorizeAccountResponse struct {
-	AccountID          string `json:"accountId"`          // The identifier for the account.
-	AuthorizationToken string `json:"authorizationToken"` // An authorization token to use with all calls, other than b2_authorize_account, that need an Authorization header.
-	APIURL             string `json:"apiUrl"`             // The base URL to use for all API calls except for uploading and downloading files.
-	DownloadURL        string `json:"downloadUrl"`        // The base URL to use for downloading files.
+	AbsoluteMinimumPartSize int      `json:"absoluteMinimumPartSize"` // The smallest possible size of a part of a large file.
+	AccountID               string   `json:"accountId"`               // The identifier for the account.
+	Allowed                 struct { // An object (see below) containing the capabilities of this auth token, and any restrictions on using it.
+		BucketID     string      `json:"bucketId"`     // When present, access is restricted to one bucket.
+		Capabilities []string    `json:"capabilities"` // A list of strings, each one naming a capability the key has.
+		NamePrefix   interface{} `json:"namePrefix"`   // When present, access is restricted to files whose names start with the prefix
+	} `json:"allowed"`
+	APIURL              string `json:"apiUrl"`              // The base URL to use for all API calls except for uploading and downloading files.
+	AuthorizationToken  string `json:"authorizationToken"`  // An authorization token to use with all calls, other than b2_authorize_account, that need an Authorization header.
+	DownloadURL         string `json:"downloadUrl"`         // The base URL to use for downloading files.
+	MinimumPartSize     int    `json:"minimumPartSize"`     // DEPRECATED: This field will always have the same value as recommendedPartSize. Use recommendedPartSize instead.
+	RecommendedPartSize int    `json:"recommendedPartSize"` // The recommended size for each part of a large file. We recommend using this part size for optimal upload performance.
+}
+
+// ListBucketsRequest is parameters for b2_list_buckets call
+type ListBucketsRequest struct {
+	AccountID   string   `json:"accountId"`             // The identifier for the account.
+	BucketID    string   `json:"bucketId,omitempty"`    // When specified, the result will be a list containing just this bucket.
+	BucketName  string   `json:"bucketName,omitempty"`  // When specified, the result will be a list containing just this bucket.
+	BucketTypes []string `json:"bucketTypes,omitempty"` // If present, B2 will use it as a filter for bucket types returned in the list buckets response.
 }
 
 // ListBucketsResponse is as returned from the b2_list_buckets call

@@ -8,8 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/list"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/list"
+	"github.com/ncw/rclone/fs/walk"
 	"github.com/pkg/errors"
 )
 
@@ -187,6 +188,25 @@ func (d *Dir) _readDir() error {
 		return err
 	}
 
+	err = d._readDirFromEntries(entries, nil, time.Time{})
+	if err != nil {
+		return err
+	}
+
+	d.read = when
+	return nil
+}
+
+// update d.items for each dir in the DirTree below this one and
+// set the last read time - must be called with the lock held
+func (d *Dir) _readDirFromDirTree(dirTree walk.DirTree, when time.Time) error {
+	return d._readDirFromEntries(dirTree[d.path], dirTree, when)
+}
+
+// update d.items and if dirTree is not nil update each dir in the DirTree below this one and
+// set the last read time - must be called with the lock held
+func (d *Dir) _readDirFromEntries(entries fs.DirEntries, dirTree walk.DirTree, when time.Time) error {
+	var err error
 	// Cache the items by name
 	found := make(map[string]struct{})
 	for _, entry := range entries {
@@ -206,10 +226,23 @@ func (d *Dir) _readDir() error {
 				node = newFile(d, obj, name)
 			}
 		case fs.Directory:
-			dir := item
 			// Reuse old dir value if it exists
 			if node == nil || !node.IsDir() {
-				node = newDir(d.vfs, d.f, d, dir)
+				node = newDir(d.vfs, d.f, d, item)
+			}
+			if dirTree != nil {
+				dir := node.(*Dir)
+				dir.mu.Lock()
+				err = dir._readDirFromDirTree(dirTree, when)
+				if err != nil {
+					dir.read = time.Time{}
+				} else {
+					dir.read = when
+				}
+				dir.mu.Unlock()
+				if err != nil {
+					return err
+				}
 			}
 		default:
 			err = errors.Errorf("unknown type %T", item)
@@ -224,8 +257,35 @@ func (d *Dir) _readDir() error {
 			delete(d.items, name)
 		}
 	}
+	return nil
+}
+
+// readDirTree forces a refresh of the complete directory tree
+func (d *Dir) readDirTree() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	when := time.Now()
+	d.read = time.Time{}
+	fs.Debugf(d.path, "Reading directory tree")
+	dt, err := walk.NewDirTree(d.f, d.path, false, -1)
+	if err != nil {
+		return err
+	}
+	err = d._readDirFromDirTree(dt, when)
+	if err != nil {
+		return err
+	}
+	fs.Debugf(d.path, "Reading directory tree done in %s", time.Since(when))
 	d.read = when
 	return nil
+}
+
+// readDir forces a refresh of the directory
+func (d *Dir) readDir() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.read = time.Time{}
+	return d._readDir()
 }
 
 // stat a single item in the directory
