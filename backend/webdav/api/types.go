@@ -12,6 +12,9 @@ import (
 const (
 	// Wed, 27 Sep 2017 14:28:34 GMT
 	timeFormat = time.RFC1123
+	// The same as time.RFC1123 with optional leading zeros on the date
+	// see https://github.com/ncw/rclone/issues/2574
+	noZerosRFC1123 = "Mon, _2 Jan 2006 15:04:05 MST"
 )
 
 // Multistatus contains responses returned from an HTTP 207 return code
@@ -138,9 +141,11 @@ func (t *Time) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 // Possible time formats to parse the time with
 var timeFormats = []string{
-	timeFormat,    // Wed, 27 Sep 2017 14:28:34 GMT (as per RFC)
-	time.RFC1123Z, // Fri, 05 Jan 2018 14:14:38 +0000 (as used by mydrive.ch)
-	time.UnixDate, // Wed May 17 15:31:58 UTC 2017 (as used in an internal server)
+	timeFormat,     // Wed, 27 Sep 2017 14:28:34 GMT (as per RFC)
+	time.RFC1123Z,  // Fri, 05 Jan 2018 14:14:38 +0000 (as used by mydrive.ch)
+	time.UnixDate,  // Wed May 17 15:31:58 UTC 2017 (as used in an internal server)
+	noZerosRFC1123, // Fri, 7 Sep 2018 08:49:58 GMT (as used by server in #2574)
+	time.RFC3339,   // Wed, 31 Oct 2018 13:57:11 CET (as used by komfortcloud.de)
 }
 
 // UnmarshalXML turns XML into a Time
@@ -149,6 +154,12 @@ func (t *Time) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	err := d.DecodeElement(&v, &start)
 	if err != nil {
 		return err
+	}
+
+	// If time is missing then return the epoch
+	if v == "" {
+		*t = Time(time.Unix(0, 0))
+		return nil
 	}
 
 	// Parse the time format in multiple possible ways

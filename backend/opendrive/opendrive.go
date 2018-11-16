@@ -6,21 +6,23 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config/configmap"
+	"github.com/ncw/rclone/fs/config/configstruct"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/fshttp"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/lib/dircache"
+	"github.com/ncw/rclone/lib/pacer"
+	"github.com/ncw/rclone/lib/readers"
+	"github.com/ncw/rclone/lib/rest"
 	"github.com/pkg/errors"
 )
 
@@ -177,17 +179,17 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	if err != nil {
 		// Assume it is a file
 		newRoot, remote := dircache.SplitPath(root)
-		newF := *f
-		newF.dirCache = dircache.New(newRoot, "0", &newF)
-		newF.root = newRoot
+		tempF := *f
+		tempF.dirCache = dircache.New(newRoot, "0", &tempF)
+		tempF.root = newRoot
 
 		// Make new Fs which is the parent
-		err = newF.dirCache.FindRoot(false)
+		err = tempF.dirCache.FindRoot(false)
 		if err != nil {
 			// No root so return old f
 			return f, nil
 		}
-		_, err := newF.newObjectWithInfo(remote, nil)
+		_, err := tempF.newObjectWithInfo(remote, nil)
 		if err != nil {
 			if err == fs.ErrorObjectNotFound {
 				// File doesn't exist so return old f
@@ -195,8 +197,13 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 			}
 			return nil, err
 		}
+		// XXX: update the old f here instead of returning tempF, since
+		// `features` were already filled with functions having *f as a receiver.
+		// See https://github.com/ncw/rclone/issues/2182
+		f.dirCache = tempF.dirCache
+		f.root = tempF.root
 		// return an error with an fs which points to the parent
-		return &newF, fs.ErrorIsFile
+		return f, fs.ErrorIsFile
 	}
 	return f, nil
 }
@@ -925,8 +932,9 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 	// resp.Body.Close()
 	// fs.Debugf(nil, "PostOpen: %#v", openResponse)
 
-	// 1 MB chunks size
+	// 10 MB chunks size
 	chunkSize := int64(1024 * 1024 * 10)
+	buf := make([]byte, int(chunkSize))
 	chunkOffset := int64(0)
 	remainingBytes := size
 	chunkCounter := 0
@@ -939,14 +947,19 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		remainingBytes -= currentChunkSize
 		fs.Debugf(o, "Uploading chunk %d, size=%d, remain=%d", chunkCounter, currentChunkSize, remainingBytes)
 
+		chunk := readers.NewRepeatableLimitReaderBuffer(in, buf, currentChunkSize)
 		err = o.fs.pacer.Call(func() (bool, error) {
+			// seek to the start in case this is a retry
+			if _, err = chunk.Seek(0, io.SeekStart); err != nil {
+				return false, err
+			}
 			var formBody bytes.Buffer
 			w := multipart.NewWriter(&formBody)
 			fw, err := w.CreateFormFile("file_data", o.remote)
 			if err != nil {
 				return false, err
 			}
-			if _, err = io.CopyN(fw, in, currentChunkSize); err != nil {
+			if _, err = io.Copy(fw, chunk); err != nil {
 				return false, err
 			}
 			// Add session_id
@@ -1077,7 +1090,7 @@ func (o *Object) readMetaData() (err error) {
 	err = o.fs.pacer.Call(func() (bool, error) {
 		opts := rest.Opts{
 			Method: "GET",
-			Path:   "/folder/itembyname.json/" + o.fs.session.SessionID + "/" + directoryID + "?name=" + rest.URLPathEscape(replaceReservedChars(leaf)),
+			Path:   "/folder/itembyname.json/" + o.fs.session.SessionID + "/" + directoryID + "?name=" + url.QueryEscape(replaceReservedChars(leaf)),
 		}
 		resp, err = o.fs.srv.CallJSON(&opts, nil, &folderList)
 		return o.fs.shouldRetry(resp, err)

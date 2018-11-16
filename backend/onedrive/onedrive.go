@@ -10,71 +10,56 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"path"
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/backend/onedrive/api"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/readers"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/ncw/rclone/backend/onedrive/api"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config"
+	"github.com/ncw/rclone/fs/config/configmap"
+	"github.com/ncw/rclone/fs/config/configstruct"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/lib/dircache"
+	"github.com/ncw/rclone/lib/oauthutil"
+	"github.com/ncw/rclone/lib/pacer"
+	"github.com/ncw/rclone/lib/readers"
+	"github.com/ncw/rclone/lib/rest"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 )
 
 const (
-	rclonePersonalClientID              = "0000000044165769"
-	rclonePersonalEncryptedClientSecret = "ugVWLNhKkVT1-cbTRO-6z1MlzwdW6aMwpKgNaFG-qXjEn_WfDnG9TVyRA5yuoliU"
-	rcloneBusinessClientID              = "52857fec-4bc2-483f-9f1b-5fe28e97532c"
-	rcloneBusinessEncryptedClientSecret = "6t4pC8l6L66SFYVIi8PgECDyjXy_ABo1nsTaE-Lr9LpzC6yT4vNOwHsakwwdEui0O6B0kX8_xbBLj91J"
-	minSleep                            = 10 * time.Millisecond
-	maxSleep                            = 2 * time.Second
-	decayConstant                       = 2                                     // bigger for slower decay, exponential
-	rootURLPersonal                     = "https://api.onedrive.com/v1.0/drive" // root URL for requests
-	discoveryServiceURL                 = "https://api.office.com/discovery/"
-	configResourceURL                   = "resource_url"
+	rcloneClientID              = "b15665d9-eda6-4092-8539-0eec376afd59"
+	rcloneEncryptedClientSecret = "_JUdzh3LnKNqSPcf4Wu5fgMFIQOI8glZu_akYgR8yf6egowNBg-R"
+	minSleep                    = 10 * time.Millisecond
+	maxSleep                    = 2 * time.Second
+	decayConstant               = 2 // bigger for slower decay, exponential
+	graphURL                    = "https://graph.microsoft.com/v1.0"
+	configDriveID               = "drive_id"
+	configDriveType             = "drive_type"
+	driveTypePersonal           = "personal"
+	driveTypeBusiness           = "business"
+	driveTypeSharepoint         = "documentLibrary"
+	defaultChunkSize            = 10 * fs.MebiByte
+	chunkSizeMultiple           = 320 * fs.KibiByte
 )
 
 // Globals
 var (
-	// Description of how to auth for this app for a personal account
-	oauthPersonalConfig = &oauth2.Config{
-		Scopes: []string{
-			"wl.signin",          // Allow single sign-on capabilities
-			"wl.offline_access",  // Allow receiving a refresh token
-			"onedrive.readwrite", // r/w perms to all of a user's OneDrive files
-		},
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://login.live.com/oauth20_authorize.srf",
-			TokenURL: "https://login.live.com/oauth20_token.srf",
-		},
-		ClientID:     rclonePersonalClientID,
-		ClientSecret: obscure.MustReveal(rclonePersonalEncryptedClientSecret),
-		RedirectURL:  oauthutil.RedirectLocalhostURL,
-	}
-
 	// Description of how to auth for this app for a business account
-	oauthBusinessConfig = &oauth2.Config{
+	oauthConfig = &oauth2.Config{
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://login.microsoftonline.com/common/oauth2/authorize",
-			TokenURL: "https://login.microsoftonline.com/common/oauth2/token",
+			AuthURL:  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+			TokenURL: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
 		},
-		ClientID:     rcloneBusinessClientID,
-		ClientSecret: obscure.MustReveal(rcloneBusinessEncryptedClientSecret),
+		Scopes:       []string{"Files.Read", "Files.ReadWrite", "Files.Read.All", "Files.ReadWrite.All", "offline_access"},
+		ClientID:     rcloneClientID,
+		ClientSecret: obscure.MustReveal(rcloneEncryptedClientSecret),
 		RedirectURL:  oauthutil.RedirectLocalhostURL,
 	}
-	oauthBusinessResource = oauth2.SetAuthURLParam("resource", discoveryServiceURL)
-	sharedURL             = "https://api.onedrive.com/v1.0/drives" // root URL for remote shared resources
 )
 
 // Register with Fs
@@ -84,147 +69,143 @@ func init() {
 		Description: "Microsoft OneDrive",
 		NewFs:       NewFs,
 		Config: func(name string, m configmap.Mapper) {
-			// choose account type
-			fmt.Printf("Choose OneDrive account type?\n")
-			fmt.Printf(" * Say b for a OneDrive business account\n")
-			fmt.Printf(" * Say p for a personal OneDrive account\n")
-			isPersonal := config.Command([]string{"bBusiness", "pPersonal"}) == 'p'
+			err := oauthutil.Config("onedrive", name, m, oauthConfig)
+			if err != nil {
+				log.Fatalf("Failed to configure token: %v", err)
+				return
+			}
 
-			if isPersonal {
-				// for personal accounts we don't safe a field about the account
-				err := oauthutil.Config("onedrive", name, m, oauthPersonalConfig)
-				if err != nil {
-					log.Printf("Failed to configure token: %v", err)
-				}
-			} else {
-				err := oauthutil.ConfigErrorCheck("onedrive", name, m, func(req *http.Request) oauthutil.AuthError {
-					var resp oauthutil.AuthError
+			// Are we running headless?
+			if automatic, _ := m.Get(config.ConfigAutomatic); automatic != "" {
+				// Yes, okay we are done
+				return
+			}
 
-					resp.Name = req.URL.Query().Get("error")
-					resp.Code = strings.Split(req.URL.Query().Get("error_description"), ":")[0] // error_description begins with XXXXXXXXXXXX:
-					resp.Description = strings.Join(strings.Split(req.URL.Query().Get("error_description"), ":")[1:], ":")
-					resp.HelpURL = "https://rclone.org/onedrive/#troubleshooting"
-					return resp
-				}, oauthBusinessConfig, oauthBusinessResource)
-				if err != nil {
-					log.Printf("Failed to configure token: %v", err)
-					return
-				}
+			type driveResource struct {
+				DriveID   string `json:"id"`
+				DriveName string `json:"name"`
+				DriveType string `json:"driveType"`
+			}
+			type drivesResponse struct {
+				Drives []driveResource `json:"value"`
+			}
 
-				// Are we running headless?
-				if automatic, _ := m.Get(config.ConfigAutomatic); automatic != "" {
-					// Yes, okay we are done
-					return
-				}
+			type siteResource struct {
+				SiteID   string `json:"id"`
+				SiteName string `json:"displayName"`
+				SiteURL  string `json:"webUrl"`
+			}
+			type siteResponse struct {
+				Sites []siteResource `json:"value"`
+			}
 
-				type serviceResource struct {
-					ServiceAPIVersion  string `json:"serviceApiVersion"`
-					ServiceEndpointURI string `json:"serviceEndpointUri"`
-					ServiceResourceID  string `json:"serviceResourceId"`
-				}
-				type serviceResponse struct {
-					Services []serviceResource `json:"value"`
-				}
+			oAuthClient, _, err := oauthutil.NewClient(name, m, oauthConfig)
+			if err != nil {
+				log.Fatalf("Failed to configure OneDrive: %v", err)
+			}
+			srv := rest.NewClient(oAuthClient)
 
-				oAuthClient, _, err := oauthutil.NewClient(name, m, oauthBusinessConfig)
-				if err != nil {
-					log.Printf("Failed to configure OneDrive: %v", err)
-					return
-				}
-				srv := rest.NewClient(oAuthClient)
+			var opts rest.Opts
+			var finalDriveID string
+			var siteID string
+			switch config.Choose("Your choice",
+				[]string{"onedrive", "sharepoint", "driveid", "siteid", "search"},
+				[]string{"OneDrive Personal or Business", "Root Sharepoint site", "Type in driveID", "Type in SiteID", "Search a Sharepoint site"},
+				false) {
 
-				opts := rest.Opts{
-					Method:  "GET",
-					RootURL: discoveryServiceURL,
-					Path:    "/v2.0/me/services",
-				}
-				services := serviceResponse{}
-				resp, err := srv.CallJSON(&opts, nil, &services)
-				if err != nil {
-					fs.Errorf(nil, "Failed to query available services: %v", err)
-					return
-				}
-				if resp.StatusCode != 200 {
-					fs.Errorf(nil, "Failed to query available services: Got HTTP error code %d", resp.StatusCode)
-					return
-				}
-
-				var resourcesURL []string
-				var resourcesID []string
-
-				for _, service := range services.Services {
-					if service.ServiceAPIVersion == "v2.0" {
-						resourcesID = append(resourcesID, service.ServiceResourceID)
-						resourcesURL = append(resourcesURL, service.ServiceEndpointURI)
-					}
-					// we only support 2.0 API
-					fs.Infof(nil, "Skipping API %s endpoint %s", service.ServiceAPIVersion, service.ServiceEndpointURI)
-				}
-
-				var foundService string
-				if len(resourcesID) == 0 {
-					fs.Errorf(nil, "No Service found")
-					return
-				} else if len(resourcesID) == 1 {
-					foundService = resourcesID[0]
-				} else {
-					foundService = config.Choose("Choose resource URL", resourcesID, resourcesURL, false)
-				}
-
-				m.Set(configResourceURL, foundService)
-				oauthBusinessResource = oauth2.SetAuthURLParam("resource", foundService)
-
-				// get the token from the inital config
-				// we need to update the token with a resource
-				// specific token we will query now
-				token, err := oauthutil.GetToken(name, m)
-				if err != nil {
-					fs.Errorf(nil, "Error while getting token: %s", err)
-					return
-				}
-
-				// values for the token query
-				values := url.Values{}
-				values.Set("refresh_token", token.RefreshToken)
-				values.Set("grant_type", "refresh_token")
-				values.Set("resource", foundService)
-				values.Set("client_id", oauthBusinessConfig.ClientID)
-				values.Set("client_secret", oauthBusinessConfig.ClientSecret)
+			case "onedrive":
 				opts = rest.Opts{
-					Method:      "POST",
-					RootURL:     oauthBusinessConfig.Endpoint.TokenURL,
-					ContentType: "application/x-www-form-urlencoded",
-					Body:        strings.NewReader(values.Encode()),
+					Method:  "GET",
+					RootURL: graphURL,
+					Path:    "/me/drives",
+				}
+			case "sharepoint":
+				opts = rest.Opts{
+					Method:  "GET",
+					RootURL: graphURL,
+					Path:    "/sites/root/drives",
+				}
+			case "driveid":
+				fmt.Printf("Paste your Drive ID here> ")
+				finalDriveID = config.ReadLine()
+			case "siteid":
+				fmt.Printf("Paste your Site ID here> ")
+				siteID = config.ReadLine()
+			case "search":
+				fmt.Printf("What to search for> ")
+				searchTerm := config.ReadLine()
+				opts = rest.Opts{
+					Method:  "GET",
+					RootURL: graphURL,
+					Path:    "/sites?search=" + searchTerm,
 				}
 
-				// tokenJSON is the struct representing the HTTP response from OAuth2
-				// providers returning a token in JSON form.
-				// we are only interested in the new tokens, all other fields we don't care
-				type tokenJSON struct {
-					AccessToken  string `json:"access_token"`
-					RefreshToken string `json:"refresh_token"`
-				}
-				jsonToken := tokenJSON{}
-				resp, err = srv.CallJSON(&opts, nil, &jsonToken)
+				sites := siteResponse{}
+				_, err := srv.CallJSON(&opts, nil, &sites)
 				if err != nil {
-					fs.Errorf(nil, "Failed to get resource token: %v", err)
-					return
-				}
-				if resp.StatusCode != 200 {
-					fs.Errorf(nil, "Failed to get resource token: Got HTTP error code %d", resp.StatusCode)
-					return
+					log.Fatalf("Failed to query available sites: %v", err)
 				}
 
-				// update the tokens
-				token.AccessToken = jsonToken.AccessToken
-				token.RefreshToken = jsonToken.RefreshToken
-
-				// finally save them in the config
-				err = oauthutil.PutToken(name, m, token, true)
-				if err != nil {
-					fs.Errorf(nil, "Error while setting token: %s", err)
+				if len(sites.Sites) == 0 {
+					log.Fatalf("Search for '%s' returned no results", searchTerm)
+				} else {
+					fmt.Printf("Found %d sites, please select the one you want to use:\n", len(sites.Sites))
+					for index, site := range sites.Sites {
+						fmt.Printf("%d: %s (%s) id=%s\n", index, site.SiteName, site.SiteURL, site.SiteID)
+					}
+					siteID = sites.Sites[config.ChooseNumber("Chose drive to use:", 0, len(sites.Sites)-1)].SiteID
 				}
 			}
+
+			// if we have a siteID we need to ask for the drives
+			if siteID != "" {
+				opts = rest.Opts{
+					Method:  "GET",
+					RootURL: graphURL,
+					Path:    "/sites/" + siteID + "/drives",
+				}
+			}
+
+			// We don't have the final ID yet?
+			// query Microsoft Graph
+			if finalDriveID == "" {
+				drives := drivesResponse{}
+				_, err := srv.CallJSON(&opts, nil, &drives)
+				if err != nil {
+					log.Fatalf("Failed to query available drives: %v", err)
+				}
+
+				if len(drives.Drives) == 0 {
+					log.Fatalf("No drives found")
+				} else {
+					fmt.Printf("Found %d drives, please select the one you want to use:\n", len(drives.Drives))
+					for index, drive := range drives.Drives {
+						fmt.Printf("%d: %s (%s) id=%s\n", index, drive.DriveName, drive.DriveType, drive.DriveID)
+					}
+					finalDriveID = drives.Drives[config.ChooseNumber("Chose drive to use:", 0, len(drives.Drives)-1)].DriveID
+				}
+			}
+
+			// Test the driveID and get drive type
+			opts = rest.Opts{
+				Method:  "GET",
+				RootURL: graphURL,
+				Path:    "/drives/" + finalDriveID + "/root"}
+			var rootItem api.Item
+			_, err = srv.CallJSON(&opts, nil, &rootItem)
+			if err != nil {
+				log.Fatalf("Failed to query root for drive %s: %v", finalDriveID, err)
+			}
+
+			fmt.Printf("Found drive '%s' of type '%s', URL: %s\nIs that okay?\n", rootItem.Name, rootItem.ParentReference.DriveType, rootItem.WebURL)
+			// This does not work, YET :)
+			if !config.Confirm() {
+				log.Fatalf("Cancelled by user")
+			}
+
+			m.Set(configDriveID, finalDriveID)
+			m.Set(configDriveType, rootItem.ParentReference.DriveType)
+			config.SaveConfig()
 		},
 		Options: []fs.Option{{
 			Name: config.ConfigClientID,
@@ -233,9 +214,33 @@ func init() {
 			Name: config.ConfigClientSecret,
 			Help: "Microsoft App Client Secret\nLeave blank normally.",
 		}, {
-			Name:     "chunk_size",
-			Help:     "Chunk size to upload files with - must be multiple of 320k.",
-			Default:  fs.SizeSuffix(10 * 1024 * 1024),
+			Name: "chunk_size",
+			Help: `Chunk size to upload files with - must be multiple of 320k.
+
+Above this size files will be chunked - must be multiple of 320k. Note
+that the chunks will be buffered into memory.`,
+			Default:  defaultChunkSize,
+			Advanced: true,
+		}, {
+			Name:     "drive_id",
+			Help:     "The ID of the drive to use",
+			Default:  "",
+			Advanced: true,
+		}, {
+			Name:     "drive_type",
+			Help:     "The type of the drive ( personal | business | documentLibrary )",
+			Default:  "",
+			Advanced: true,
+		}, {
+			Name: "expose_onenote_files",
+			Help: `Set to make OneNote files show up in directory listings.
+
+By default rclone will hide OneNote files in directory listings because
+operations like "Open" and "Update" won't work on them.  But this
+behaviour may also prevent you from deleting them.  If you want to
+delete OneNote files or otherwise want them to show up in directory
+listing, set this option.`,
+			Default:  false,
 			Advanced: true,
 		}},
 	})
@@ -243,8 +248,10 @@ func init() {
 
 // Options defines the configuration for this backend
 type Options struct {
-	ChunkSize   fs.SizeSuffix `config:"chunk_size"`
-	ResourceURL string        `config:"resource_url"`
+	ChunkSize          fs.SizeSuffix `config:"chunk_size"`
+	DriveID            string        `config:"drive_id"`
+	DriveType          string        `config:"drive_type"`
+	ExposeOneNoteFiles bool          `config:"expose_onenote_files"`
 }
 
 // Fs represents a remote one drive
@@ -257,22 +264,24 @@ type Fs struct {
 	dirCache     *dircache.DirCache // Map of directory path to directory id
 	pacer        *pacer.Pacer       // pacer for API calls
 	tokenRenewer *oauthutil.Renew   // renew the token on expiry
-	isBusiness   bool               // true if this is an OneDrive Business account
+	driveID      string             // ID to use for querying Microsoft Graph
+	driveType    string             // https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/drive
 }
 
 // Object describes a one drive object
 //
 // Will definitely have info but maybe not meta
 type Object struct {
-	fs           *Fs       // what this object is part of
-	remote       string    // The remote path
-	hasMetaData  bool      // whether info below has been set
-	size         int64     // size of the object
-	modTime      time.Time // modification time of the object
-	id           string    // ID of the object
-	sha1         string    // SHA-1 of the object content
-	quickxorhash string    // QuickXorHash of the object content
-	mimeType     string    // Content-Type of object from server (may not be as uploaded)
+	fs            *Fs       // what this object is part of
+	remote        string    // The remote path
+	hasMetaData   bool      // whether info below has been set
+	isOneNoteFile bool      // Whether the object is a OneNote file
+	size          int64     // size of the object
+	modTime       time.Time // modification time of the object
+	id            string    // ID of the object
+	sha1          string    // SHA-1 of the object content
+	quickxorhash  string    // QuickXorHash of the object content
+	mimeType      string    // Content-Type of object from server (may not be as uploaded)
 }
 
 // ------------------------------------------------------------
@@ -327,9 +336,17 @@ func shouldRetry(resp *http.Response, err error) (bool, error) {
 
 // readMetaDataForPath reads the metadata from the path
 func (f *Fs) readMetaDataForPath(path string) (info *api.Item, resp *http.Response, err error) {
-	opts := rest.Opts{
-		Method: "GET",
-		Path:   "/root:/" + rest.URLPathEscape(replaceReservedChars(path)),
+	var opts rest.Opts
+	if len(path) == 0 {
+		opts = rest.Opts{
+			Method: "GET",
+			Path:   "/root",
+		}
+	} else {
+		opts = rest.Opts{
+			Method: "GET",
+			Path:   "/root:/" + rest.URLPathEscape(replaceReservedChars(path)),
+		}
 	}
 	err = f.pacer.Call(func() (bool, error) {
 		resp, err = f.srv.CallJSON(&opts, nil, &info)
@@ -353,6 +370,25 @@ func errorHandler(resp *http.Response) error {
 	return errResponse
 }
 
+func checkUploadChunkSize(cs fs.SizeSuffix) error {
+	const minChunkSize = fs.Byte
+	if cs%chunkSizeMultiple != 0 {
+		return errors.Errorf("%s is not a multiple of %s", cs, chunkSizeMultiple)
+	}
+	if cs < minChunkSize {
+		return errors.Errorf("%s is less than %s", cs, minChunkSize)
+	}
+	return nil
+}
+
+func (f *Fs) setUploadChunkSize(cs fs.SizeSuffix) (old fs.SizeSuffix, err error) {
+	err = checkUploadChunkSize(cs)
+	if err == nil {
+		old, f.opt.ChunkSize = f.opt.ChunkSize, cs
+	}
+	return
+}
+
 // NewFs constructs an Fs from the path, container:path
 func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	// Parse config into Options struct
@@ -361,85 +397,34 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	if err != nil {
 		return nil, err
 	}
-	if opt.ChunkSize%(320*1024) != 0 {
-		return nil, errors.Errorf("chunk size %d is not a multiple of 320k", opt.ChunkSize)
+
+	err = checkUploadChunkSize(opt.ChunkSize)
+	if err != nil {
+		return nil, errors.Wrap(err, "onedrive: chunk size")
 	}
-	// if we have a resource URL it's a business account otherwise a personal one
-	isBusiness := opt.ResourceURL != ""
-	var rootURL string
-	var oauthConfig *oauth2.Config
-	if !isBusiness {
-		// personal account setup
-		oauthConfig = oauthPersonalConfig
-		rootURL = rootURLPersonal
 
-		client_id, ok := fs.ConfigFileGet(name, "client_id")
-		if !ok {
-			return nil, errors.Wrap(nil, "failed to configure google cloud storage")
-		}
-		client_secret, ok := fs.ConfigFileGet(name, "client_secret")
-		if !ok {
-			return nil, errors.Wrap(nil, "failed to configure google cloud storage")
-		}
-		scopes, ok := fs.ConfigFileGet(name, "client_scopes")
-		redirect_url, ok := fs.ConfigFileGet(name, "redirect_url")
-
-		oauthConfig = &oauth2.Config{
-			ClientID:     client_id,
-			ClientSecret: client_secret,
-			Scopes:       strings.Split(scopes, ","),
-			Endpoint:     oauthPersonalConfig.Endpoint,
-			RedirectURL:  redirect_url,
-		}
-
-	} else {
-		// business account setup
-		oauthConfig = oauthBusinessConfig
-		rootURL = opt.ResourceURL + "_api/v2.0/drives/me"
-		sharedURL = opt.ResourceURL + "_api/v2.0/drives"
-
-		client_id, ok := fs.ConfigFileGet(name, "client_id")
-		if !ok {
-			return nil, errors.Wrap(nil, "failed to configure google cloud storage")
-		}
-		client_secret, ok := fs.ConfigFileGet(name, "client_secret")
-		if !ok {
-			return nil, errors.Wrap(nil, "failed to configure google cloud storage")
-		}
-		scopes, ok := fs.ConfigFileGet(name, "client_scopes")
-		redirect_url, ok := fs.ConfigFileGet(name, "redirect_url")
-
-		oauthConfig = &oauth2.Config{
-			ClientID:     client_id,
-			ClientSecret: client_secret,
-			Scopes:       strings.Split(scopes, ","),
-			Endpoint:     oauthBusinessConfig.Endpoint,
-			RedirectURL:  redirect_url,
-		}
-
-		// update the URL in the AuthOptions
-		oauthBusinessResource = oauth2.SetAuthURLParam("resource", opt.ResourceURL)
+	if opt.DriveID == "" || opt.DriveType == "" {
+		return nil, errors.New("unable to get drive_id and drive_type - if you are upgrading from older versions of rclone, please run `rclone config` and re-configure this backend")
 	}
+
 	root = parsePath(root)
 	oAuthClient, ts, err := oauthutil.NewClient(name, m, oauthConfig)
 	if err != nil {
-		log.Printf("Failed to configure OneDrive: %v", err)
+		return nil, errors.Wrap(err, "failed to configure OneDrive")
 	}
 
 	f := &Fs{
-		name:       name,
-		root:       root,
-		opt:        *opt,
-		srv:        rest.NewClient(oAuthClient).SetRoot(rootURL),
-		pacer:      pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
-		isBusiness: isBusiness,
+		name:      name,
+		root:      root,
+		opt:       *opt,
+		driveID:   opt.DriveID,
+		driveType: opt.DriveType,
+		srv:       rest.NewClient(oAuthClient).SetRoot(graphURL + "/drives/" + opt.DriveID),
+		pacer:     pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
 	}
 	f.features = (&fs.Features{
-		CaseInsensitive: true,
-		// OneDrive for business doesn't support mime types properly
-		// so we disable it until resolved
-		// https://github.com/OneDrive/onedrive-api-docs/issues/643
-		ReadMimeType:            !f.isBusiness,
+		CaseInsensitive:         true,
+		ReadMimeType:            true,
 		CanHaveEmptyDirectories: true,
 	}).Fill(f)
 	f.srv.SetErrorHandler(errorHandler)
@@ -463,16 +448,16 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	if err != nil {
 		// Assume it is a file
 		newRoot, remote := dircache.SplitPath(root)
-		newF := *f
-		newF.dirCache = dircache.New(newRoot, rootInfo.ID, &newF)
-		newF.root = newRoot
+		tempF := *f
+		tempF.dirCache = dircache.New(newRoot, rootInfo.ID, &tempF)
+		tempF.root = newRoot
 		// Make new Fs which is the parent
-		err = newF.dirCache.FindRoot(false)
+		err = tempF.dirCache.FindRoot(false)
 		if err != nil {
 			// No root so return old f
 			return f, nil
 		}
-		_, err := newF.newObjectWithInfo(remote, nil)
+		_, err := tempF.newObjectWithInfo(remote, nil)
 		if err != nil {
 			if err == fs.ErrorObjectNotFound {
 				// File doesn't exist so return old f
@@ -480,8 +465,13 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 			}
 			return nil, err
 		}
+		// XXX: update the old f here instead of returning tempF, since
+		// `features` were already filled with functions having *f as a receiver.
+		// See https://github.com/ncw/rclone/issues/2182
+		f.dirCache = tempF.dirCache
+		f.root = tempF.root
 		// return an error with an fs which points to the parent
-		return &newF, fs.ErrorIsFile
+		return f, fs.ErrorIsFile
 	}
 	return f, nil
 }
@@ -542,6 +532,9 @@ func (f *Fs) FindLeaf(pathID, leaf string) (pathIDOut string, found bool, err er
 		}
 		return "", false, err
 	}
+	if info.GetPackageType() == api.PackageTypeOneNote {
+		return "", false, errors.New("found OneNote file when looking for folder")
+	}
 	if info.GetFolder() == nil {
 		return "", false, errors.New("found file when looking for folder")
 	}
@@ -585,8 +578,7 @@ type listAllFn func(*api.Item) bool
 func (f *Fs) listAll(dirID string, directoriesOnly bool, filesOnly bool, fn listAllFn) (found bool, err error) {
 	// Top parameter asks for bigger pages of data
 	// https://dev.onedrive.com/odata/optional-query-parameters.htm
-	opts := newOptsCall(dirID, "GET", "/children?top=1000")
-
+	opts := newOptsCall(dirID, "GET", "/children?$top=1000")
 OUTER:
 	for {
 		var result api.ListChildrenResponse
@@ -651,6 +643,11 @@ func (f *Fs) List(dir string) (entries fs.DirEntries, err error) {
 	}
 	var iErr error
 	_, err = f.listAll(directoryID, false, false, func(info *api.Item) bool {
+		if !f.opt.ExposeOneNoteFiles && info.GetPackageType() == api.PackageTypeOneNote {
+			fs.Debugf(info.Name, "OneNote file not shown in directory listing")
+			return false
+		}
+
 		remote := path.Join(dir, info.GetName())
 		folder := info.GetFolder()
 		if folder != nil {
@@ -757,15 +754,17 @@ func (f *Fs) purgeCheck(dir string, check bool) error {
 	if err != nil {
 		return err
 	}
-	item, _, err := f.readMetaDataForPath(root)
-	if err != nil {
-		return err
-	}
-	if item.Folder == nil {
-		return errors.New("not a folder")
-	}
-	if check && item.Folder.ChildCount != 0 {
-		return errors.New("folder not empty")
+	if check {
+		// check to see if there are any items
+		found, err := f.listAll(rootID, false, false, func(item *api.Item) bool {
+			return true
+		})
+		if err != nil {
+			return err
+		}
+		if found {
+			return fs.ErrorDirectoryNotEmpty
+		}
 	}
 	err = f.deleteObject(rootID)
 	if err != nil {
@@ -794,16 +793,11 @@ func (f *Fs) Precision() time.Duration {
 func (f *Fs) waitForJob(location string, o *Object) error {
 	deadline := time.Now().Add(fs.Config.Timeout)
 	for time.Now().Before(deadline) {
-		opts := rest.Opts{
-			Method:       "GET",
-			RootURL:      location,
-			IgnoreStatus: true, // Ignore the http status response since it seems to return valid info on 500 errors
-		}
 		var resp *http.Response
 		var err error
 		var body []byte
 		err = f.pacer.Call(func() (bool, error) {
-			resp, err = f.srv.Call(&opts)
+			resp, err = http.Get(location)
 			if err != nil {
 				return fserrors.ShouldRetry(err), err
 			}
@@ -819,19 +813,18 @@ func (f *Fs) waitForJob(location string, o *Object) error {
 		if err != nil {
 			return errors.Wrapf(err, "async status result not JSON: %q", body)
 		}
-		// See if we decoded anything...
-		if !(status.Operation == "" && status.PercentageComplete == 0 && status.Status == "") {
-			if status.Status == "failed" || status.Status == "deleteFailed" {
-				return errors.Errorf("%s: async operation %q returned %q", o.remote, status.Operation, status.Status)
+
+		switch status.Status {
+		case "failed":
+		case "deleteFailed":
+			{
+				return errors.Errorf("%s: async operation returned %q", o.remote, status.Status)
 			}
-		} else if resp.StatusCode == 200 {
-			var info api.Item
-			err = json.Unmarshal(body, &info)
-			if err != nil {
-				return errors.Wrapf(err, "async item result not JSON: %q", body)
-			}
-			return o.setMetaData(&info)
+		case "completed":
+			err = o.readMetaData()
+			return errors.Wrapf(err, "async operation completed but readMetaData failed")
 		}
+
 		time.Sleep(1 * time.Second)
 	}
 	return errors.Errorf("async operation didn't complete after %v", fs.Config.Timeout)
@@ -870,7 +863,7 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	}
 
 	// Copy the object
-	opts := newOptsCall(srcObj.id, "POST", "/action.copy")
+	opts := newOptsCall(srcObj.id, "POST", "/copy")
 	opts.ExtraHeaders = map[string]string{"Prefer": "respond-async"}
 	opts.NoResponse = true
 
@@ -880,7 +873,8 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	copyReq := api.CopyItemRequest{
 		Name: &replacedLeaf,
 		ParentReference: api.ItemReference{
-			ID: id,
+			DriveID: f.driveID,
+			ID:      id,
 		},
 	}
 	var resp *http.Response
@@ -1116,10 +1110,36 @@ func (f *Fs) About() (usage *fs.Usage, err error) {
 
 // Hashes returns the supported hash sets.
 func (f *Fs) Hashes() hash.Set {
-	if f.isBusiness {
-		return hash.Set(hash.QuickXorHash)
+	if f.driveType == driveTypePersonal {
+		return hash.Set(hash.SHA1)
 	}
-	return hash.Set(hash.SHA1)
+	return hash.Set(hash.QuickXorHash)
+}
+
+// PublicLink returns a link for downloading without accout.
+func (f *Fs) PublicLink(remote string) (link string, err error) {
+	info, _, err := f.readMetaDataForPath(f.srvPath(remote))
+	if err != nil {
+		return "", err
+	}
+	opts := newOptsCall(info.ID, "POST", "/createLink")
+
+	share := api.CreateShareLinkRequest{
+		Type:  "view",
+		Scope: "anonymous",
+	}
+
+	var resp *http.Response
+	var result api.CreateShareLinkResponse
+	err = f.pacer.Call(func() (bool, error) {
+		resp, err = f.srv.CallJSON(&opts, &share, &result)
+		return shouldRetry(resp, err)
+	})
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	return result.Link.WebURL, nil
 }
 
 // ------------------------------------------------------------
@@ -1142,23 +1162,28 @@ func (o *Object) Remote() string {
 	return o.remote
 }
 
+// srvPath returns a path for use in server given a remote
+func (f *Fs) srvPath(remote string) string {
+	return replaceReservedChars(f.rootSlash() + remote)
+}
+
 // srvPath returns a path for use in server
 func (o *Object) srvPath() string {
-	return replaceReservedChars(o.fs.rootSlash() + o.remote)
+	return o.fs.srvPath(o.remote)
 }
 
 // Hash returns the SHA-1 of an object returning a lowercase hex string
 func (o *Object) Hash(t hash.Type) (string, error) {
-	if o.fs.isBusiness {
-		if t != hash.QuickXorHash {
-			return "", hash.ErrUnsupported
+	if o.fs.driveType == driveTypePersonal {
+		if t == hash.SHA1 {
+			return o.sha1, nil
 		}
-		return o.quickxorhash, nil
+	} else {
+		if t == hash.QuickXorHash {
+			return o.quickxorhash, nil
+		}
 	}
-	if t != hash.SHA1 {
-		return "", hash.ErrUnsupported
-	}
-	return o.sha1, nil
+	return "", hash.ErrUnsupported
 }
 
 // Size returns the size of an object in bytes
@@ -1178,6 +1203,8 @@ func (o *Object) setMetaData(info *api.Item) (err error) {
 	}
 	o.hasMetaData = true
 	o.size = info.GetSize()
+
+	o.isOneNoteFile = info.GetPackageType() == api.PackageTypeOneNote
 
 	// Docs: https://docs.microsoft.com/en-us/onedrive/developer/rest-api/resources/hashes
 	//
@@ -1290,6 +1317,10 @@ func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
 	if o.id == "" {
 		return nil, errors.New("can't download - no id")
 	}
+	if o.isOneNoteFile {
+		return nil, errors.New("can't open a OneNote file")
+	}
+
 	fs.FixRangeOption(options, o.size)
 	var resp *http.Response
 	opts := newOptsCall(o.id, "GET", "/content")
@@ -1319,12 +1350,12 @@ func (o *Object) createUploadSession(modTime time.Time) (response *api.CreateUpl
 		opts = rest.Opts{
 			Method:  "POST",
 			RootURL: rootURL,
-			Path:    "/" + drive + "/items/" + id + ":/" + rest.URLPathEscape(leaf) + ":/upload.createSession",
+			Path:    "/" + drive + "/items/" + id + ":/" + rest.URLPathEscape(replaceReservedChars(leaf)) + ":/createUploadSession",
 		}
 	} else {
 		opts = rest.Opts{
 			Method: "POST",
-			Path:   "/root:/" + rest.URLPathEscape(o.srvPath()) + ":/upload.createSession",
+			Path:   "/root:/" + rest.URLPathEscape(o.srvPath()) + ":/createUploadSession",
 		}
 	}
 	createRequest := api.CreateUploadRequest{}
@@ -1333,6 +1364,12 @@ func (o *Object) createUploadSession(modTime time.Time) (response *api.CreateUpl
 	var resp *http.Response
 	err = o.fs.pacer.Call(func() (bool, error) {
 		resp, err = o.fs.srv.CallJSON(&opts, &createRequest, &response)
+		if apiErr, ok := err.(*api.Error); ok {
+			if apiErr.ErrorInfo.Code == "nameAlreadyExists" {
+				// Make the error more user-friendly
+				err = errors.New(err.Error() + " (is it a OneNote file?)")
+			}
+		}
 		return shouldRetry(resp, err)
 	})
 	return response, err
@@ -1386,6 +1423,10 @@ func (o *Object) cancelUploadSession(url string) (err error) {
 
 // uploadMultipart uploads a file using multipart upload
 func (o *Object) uploadMultipart(in io.Reader, size int64, modTime time.Time) (info *api.Item, err error) {
+	if size <= 0 {
+		panic("size passed into uploadMultipart must be > 0")
+	}
+
 	// Create upload session
 	fs.Debugf(o, "Starting multipart upload")
 	session, err := o.createUploadSession(modTime)
@@ -1426,8 +1467,14 @@ func (o *Object) uploadMultipart(in io.Reader, size int64, modTime time.Time) (i
 	return info, nil
 }
 
-// uploadSinglepart uploads a file as a single part
+// Update the content of a remote file within 4MB size in one single request
+// This function will set modtime after uploading, which will create a new version for the remote file
 func (o *Object) uploadSinglepart(in io.Reader, size int64, modTime time.Time) (info *api.Item, err error) {
+	if size < 0 || size > int64(fs.SizeSuffix(4*1024*1024)) {
+		panic("size passed into uploadSinglepart must be >= 0 and <= 4MiB")
+	}
+
+	fs.Debugf(o, "Starting singlepart upload")
 	var resp *http.Response
 	var opts rest.Opts
 	_, directoryID, _ := o.fs.dirCache.FindPath(o.remote, false)
@@ -1448,13 +1495,19 @@ func (o *Object) uploadSinglepart(in io.Reader, size int64, modTime time.Time) (
 			Body:          in,
 		}
 	}
-	// for go1.8 (see release notes) we must nil the Body if we want a
-	// "Content-Length: 0" header which onedrive requires for all files.
+
 	if size == 0 {
 		opts.Body = nil
 	}
-	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
+
+	err = o.fs.pacer.Call(func() (bool, error) {
 		resp, err = o.fs.srv.CallJSON(&opts, nil, &info)
+		if apiErr, ok := err.(*api.Error); ok {
+			if apiErr.ErrorInfo.Code == "nameAlreadyExists" {
+				// Make the error more user-friendly
+				err = errors.New(err.Error() + " (is it a OneNote file?)")
+			}
+		}
 		return shouldRetry(resp, err)
 	})
 	if err != nil {
@@ -1473,6 +1526,10 @@ func (o *Object) uploadSinglepart(in io.Reader, size int64, modTime time.Time) (
 //
 // The new object may have been created if an error is returned
 func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (err error) {
+	if o.hasMetaData && o.isOneNoteFile {
+		return errors.New("can't upload content to a OneNote file")
+	}
+
 	o.fs.tokenRenewer.Start()
 	defer o.fs.tokenRenewer.Stop()
 
@@ -1480,15 +1537,17 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 	modTime := src.ModTime()
 
 	var info *api.Item
-	if size <= 0 {
-		// This is for 0 length files, or files with an unknown size
+	if size > 0 {
+		info, err = o.uploadMultipart(in, size, modTime)
+	} else if size == 0 {
 		info, err = o.uploadSinglepart(in, size, modTime)
 	} else {
-		info, err = o.uploadMultipart(in, size, modTime)
+		panic("src file size must be >= 0")
 	}
 	if err != nil {
 		return err
 	}
+
 	return o.setMetaData(info)
 }
 
@@ -1526,20 +1585,21 @@ func newOptsCall(id string, method string, route string) (opts rest.Opts) {
 func parseDirID(ID string) (string, string, string) {
 	if strings.Index(ID, "#") >= 0 {
 		s := strings.Split(ID, "#")
-		return s[1], s[0], sharedURL
+		return s[1], s[0], graphURL + "/drives"
 	}
 	return ID, "", ""
 }
 
 // Check the interfaces are satisfied
 var (
-	_ fs.Fs     = (*Fs)(nil)
-	_ fs.Purger = (*Fs)(nil)
-	_ fs.Copier = (*Fs)(nil)
-	_ fs.Mover  = (*Fs)(nil)
-	// _ fs.DirMover = (*Fs)(nil)
+	_ fs.Fs              = (*Fs)(nil)
+	_ fs.Purger          = (*Fs)(nil)
+	_ fs.Copier          = (*Fs)(nil)
+	_ fs.Mover           = (*Fs)(nil)
+	_ fs.DirMover        = (*Fs)(nil)
 	_ fs.DirCacheFlusher = (*Fs)(nil)
 	_ fs.Abouter         = (*Fs)(nil)
+	_ fs.PublicLinker    = (*Fs)(nil)
 	_ fs.Object          = (*Object)(nil)
 	_ fs.MimeTyper       = &Object{}
 	_ fs.IDer            = &Object{}

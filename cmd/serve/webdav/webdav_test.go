@@ -16,11 +16,19 @@ import (
 	"github.com/artpar/rclone/cmd/serve/httplib"
 	"github.com/artpar/rclone/fstest"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/webdav"
 )
 
 const (
 	testBindAddress = "localhost:51778"
 	testURL         = "http://" + testBindAddress + "/"
+)
+
+// check interfaces
+var (
+	_ os.FileInfo         = FileInfo{nil}
+	_ webdav.ETager       = FileInfo{nil}
+	_ webdav.ContentTyper = FileInfo{nil}
 )
 
 // TestWebDav runs the webdav server then runs the unit tests for the
@@ -40,8 +48,11 @@ func TestWebDav(t *testing.T) {
 
 	// Start the server
 	w := newWebDAV(fremote, &opt)
-	go w.serve()
-	defer w.srv.Close()
+	assert.NoError(t, w.serve())
+	defer func() {
+		w.Close()
+		w.Wait()
+	}()
 
 	// Change directory to run the tests
 	err = os.Chdir("../../../backend/webdav")

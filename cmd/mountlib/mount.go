@@ -8,11 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config/flags"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
+	"github.com/ncw/rclone/cmd"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config"
+	"github.com/ncw/rclone/fs/config/flags"
+	"github.com/ncw/rclone/vfs"
+	"github.com/ncw/rclone/vfs/vfsflags"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
@@ -65,13 +66,11 @@ func checkMountEmpty(mountpoint string) error {
 func NewMountCommand(commandName string, Mount func(f fs.Fs, mountpoint string) error) *cobra.Command {
 	var commandDefintion = &cobra.Command{
 		Use:   commandName + " remote:path /path/to/mountpoint",
-		Short: `Mount the remote as a mountpoint. **EXPERIMENTAL**`,
+		Short: `Mount the remote as file system on a mountpoint.`,
 		Long: `
 rclone ` + commandName + ` allows Linux, FreeBSD, macOS and Windows to
 mount any of Rclone's cloud storage systems as a file system with
 FUSE.
-
-This is **EXPERIMENTAL** - use with care.
 
 First set up your remote using ` + "`rclone config`" + `.  Check it works with ` + "`rclone ls`" + ` etc.
 
@@ -147,8 +146,8 @@ File systems expect things to be 100% reliable, whereas cloud storage
 systems are a long way from 100% reliable. The rclone sync/copy
 commands cope with this with lots of retries.  However rclone ` + commandName + `
 can't use retries in the same way without making local copies of the
-uploads. Look at the **EXPERIMENTAL** [file caching](#file-caching)
-for solutions to make ` + commandName + ` mount more reliable.
+uploads. Look at the [file caching](#file-caching)
+for solutions to make ` + commandName + ` more reliable.
 
 ### Attribute caching
 
@@ -161,9 +160,9 @@ too many callbacks to rclone from the kernel.
 In theory 0s should be the correct value for filesystems which can
 change outside the control of the kernel. However this causes quite a
 few problems such as
-[rclone using too much memory](https://github.com/artpar/rclone/issues/2157),
+[rclone using too much memory](https://github.com/ncw/rclone/issues/2157),
 [rclone not serving files to samba](https://forum.rclone.org/t/rclone-1-39-vs-1-40-mount-issue/5112)
-and [excessive time listing directories](https://github.com/artpar/rclone/issues/2095#issuecomment-371141147).
+and [excessive time listing directories](https://github.com/ncw/rclone/issues/2095#issuecomment-371141147).
 
 The kernel can cache the info about a file for the time given by
 "--attr-timeout". You may see corruption if the remote file changes
@@ -216,12 +215,16 @@ be copied to the vfs cache before opening with --vfs-cache-mode full.
 ` + vfs.Help,
 		Run: func(command *cobra.Command, args []string) {
 			cmd.CheckArgs(2, 2, command, args)
+
+			if Daemon {
+				config.PassConfigKeyForDaemonization = true
+			}
+
 			fdst := cmd.NewFsDir(args)
 
 			// Show stats if the user has specifically requested them
 			if cmd.ShowStats() {
-				stopStats := cmd.StartStats()
-				defer close(stopStats)
+				defer cmd.StartStats()()
 			}
 
 			// Skip checkMountEmpty if --allow-non-empty flag is used or if
@@ -286,4 +289,23 @@ be copied to the vfs cache before opening with --vfs-cache-mode full.
 	vfsflags.AddFlags(flagSet)
 
 	return commandDefintion
+}
+
+// ClipBlocks clips the blocks pointed to to the OS max
+func ClipBlocks(b *uint64) {
+	var max uint64
+	switch runtime.GOOS {
+	case "windows":
+		max = (1 << 43) - 1
+	case "darwin":
+		// OSX FUSE only supports 32 bit number of blocks
+		// https://github.com/osxfuse/osxfuse/issues/396
+		max = (1 << 32) - 1
+	default:
+		// no clipping
+		return
+	}
+	if *b > max {
+		*b = max
+	}
 }

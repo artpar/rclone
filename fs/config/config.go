@@ -25,13 +25,14 @@ import (
 	"unicode/utf8"
 
 	"github.com/Unknwon/goconfig"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/driveletter"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/fspath"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/accounting"
+	"github.com/ncw/rclone/fs/config/configstruct"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/driveletter"
+	"github.com/ncw/rclone/fs/fshttp"
+	"github.com/ncw/rclone/fs/fspath"
+	"github.com/ncw/rclone/fs/rc"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/nacl/secretbox"
 	"golang.org/x/text/unicode/norm"
@@ -79,6 +80,13 @@ var (
 
 	// output of prompt for password
 	PasswordPromptOutput = os.Stderr
+
+	// If set to true, the configKey is obscured with obscure.Obscure and saved to a temp file when it is
+	// calculated from the password. The path of that temp file is then written to the environment variable
+	// `_RCLONE_CONFIG_KEY_FILE`. If `_RCLONE_CONFIG_KEY_FILE` is present, password prompt is skipped and `RCLONE_CONFIG_PASS` ignored.
+	// For security reasons, the temp file is deleted once the configKey is successfully loaded.
+	// This can be used to pass the configKey to a child process.
+	PassConfigKeyForDaemonization = false
 )
 
 func init() {
@@ -108,29 +116,31 @@ func makeConfigPath() string {
 		homedir = os.Getenv("HOME")
 	}
 
-	// Possibly find the user's XDG config paths
+	// Find user's configuration directory.
+	// Prefer XDG config path, with fallback to $HOME/.config.
 	// See XDG Base Directory specification
-	// https://specifications.freedesktop.org/basedir-spec/latest/
+	// https://specifications.freedesktop.org/basedir-spec/latest/),
 	xdgdir := os.Getenv("XDG_CONFIG_HOME")
-	var xdgcfgdir string
+	var cfgdir string
 	if xdgdir != "" {
-		xdgcfgdir = filepath.Join(xdgdir, "rclone")
+		// User's configuration directory for rclone is $XDG_CONFIG_HOME/rclone
+		cfgdir = filepath.Join(xdgdir, "rclone")
 	} else if homedir != "" {
-		xdgdir = filepath.Join(homedir, ".config")
-		xdgcfgdir = filepath.Join(xdgdir, "rclone")
+		// User's configuration directory for rclone is $HOME/.config/rclone
+		cfgdir = filepath.Join(homedir, ".config", "rclone")
 	}
 
-	// Use $XDG_CONFIG_HOME/rclone/rclone.conf if already existing
-	var xdgconf string
-	if xdgcfgdir != "" {
-		xdgconf = filepath.Join(xdgcfgdir, configFileName)
-		_, err := os.Stat(xdgconf)
+	// Use rclone.conf from user's configuration directory if already existing
+	var cfgpath string
+	if cfgdir != "" {
+		cfgpath = filepath.Join(cfgdir, configFileName)
+		_, err := os.Stat(cfgpath)
 		if err == nil {
-			return xdgconf
+			return cfgpath
 		}
 	}
 
-	// Use $HOME/.rclone.conf if already existing
+	// Use .rclone.conf from user's home directory if already existing
 	var homeconf string
 	if homedir != "" {
 		homeconf = filepath.Join(homedir, hiddenConfigFileName)
@@ -140,32 +150,39 @@ func makeConfigPath() string {
 		}
 	}
 
-	// Try to create $XDG_CONFIG_HOME/rclone/rclone.conf
-	if xdgconf != "" {
-		// xdgconf != "" implies xdgcfgdir != ""
-		err := os.MkdirAll(xdgcfgdir, os.ModePerm)
-		if err == nil {
-			return xdgconf
-		}
-	}
-
-	// Try to create $HOME/.rclone.conf
-	if homeconf != "" {
-		return homeconf
-	}
-
 	// Check to see if user supplied a --config variable or environment
 	// variable.  We can't use pflag for this because it isn't initialised
 	// yet so we search the command line manually.
 	_, configSupplied := os.LookupEnv("RCLONE_CONFIG")
-	for _, item := range os.Args {
-		if item == "--config" || strings.HasPrefix(item, "--config=") {
-			configSupplied = true
-			break
+	if !configSupplied {
+		for _, item := range os.Args {
+			if item == "--config" || strings.HasPrefix(item, "--config=") {
+				configSupplied = true
+				break
+			}
 		}
 	}
 
-	// Default to ./.rclone.conf (current working directory)
+	// If user's configuration directory was found, then try to create it
+	// and assume rclone.conf can be written there. If user supplied config
+	// then skip creating the directory since it will not be used.
+	if cfgpath != "" {
+		// cfgpath != "" implies cfgdir != ""
+		if configSupplied {
+			return cfgpath
+		}
+		err := os.MkdirAll(cfgdir, os.ModePerm)
+		if err == nil {
+			return cfgpath
+		}
+	}
+
+	// Assume .rclone.conf can be written to user's home directory.
+	if homeconf != "" {
+		return homeconf
+	}
+
+	// Default to ./.rclone.conf (current working directory) if everything else fails.
 	if !configSupplied {
 		fs.Errorf(nil, "Couldn't find home directory or read HOME or XDG_CONFIG_HOME environment variables.")
 		fs.Errorf(nil, "Defaulting to storing config in current directory.")
@@ -249,19 +266,37 @@ func loadConfigFile() (*goconfig.ConfigFile, error) {
 
 	var out []byte
 	for {
-		if len(configKey) == 0 && envpw != "" {
-			err := setConfigPassword(envpw)
+		if envKeyFile := os.Getenv("_RCLONE_CONFIG_KEY_FILE"); len(envKeyFile) > 0 {
+			fs.Debugf(nil, "attempting to obtain configKey from temp file %s", envKeyFile)
+			obscuredKey, err := ioutil.ReadFile(envKeyFile)
 			if err != nil {
-				fmt.Println("Using RCLONE_CONFIG_PASS returned:", err)
-			} else {
-				fs.Debugf(nil, "Using RCLONE_CONFIG_PASS password.")
+				errRemove := os.Remove(envKeyFile)
+				if errRemove != nil {
+					log.Fatalf("unable to read obscured config key and unable to delete the temp file: %v", err)
+				}
+				log.Fatalf("unable to read obscured config key: %v", err)
 			}
-		}
-		if len(configKey) == 0 {
-			if !fs.Config.AskPassword {
-				return nil, errors.New("unable to decrypt configuration and not allowed to ask for password - set RCLONE_CONFIG_PASS to your configuration password")
+			errRemove := os.Remove(envKeyFile)
+			if errRemove != nil {
+				log.Fatalf("unable to delete temp file with configKey: %v", err)
 			}
-			getConfigPassword("Enter configuration password:")
+			configKey = []byte(obscure.MustReveal(string(obscuredKey)))
+			fs.Debugf(nil, "using _RCLONE_CONFIG_KEY_FILE for configKey")
+		} else {
+			if len(configKey) == 0 && envpw != "" {
+				err := setConfigPassword(envpw)
+				if err != nil {
+					fmt.Println("Using RCLONE_CONFIG_PASS returned:", err)
+				} else {
+					fs.Debugf(nil, "Using RCLONE_CONFIG_PASS password.")
+				}
+			}
+			if len(configKey) == 0 {
+				if !fs.Config.AskPassword {
+					return nil, errors.New("unable to decrypt configuration and not allowed to ask for password - set RCLONE_CONFIG_PASS to your configuration password")
+				}
+				getConfigPassword("Enter configuration password:")
+			}
 		}
 
 		// Nonce is first 24 bytes of the ciphertext
@@ -362,6 +397,37 @@ func setConfigPassword(password string) error {
 		return err
 	}
 	configKey = sha.Sum(nil)
+	if PassConfigKeyForDaemonization {
+		tempFile, err := ioutil.TempFile("", "rclone")
+		if err != nil {
+			log.Fatalf("cannot create temp file to store configKey: %v", err)
+		}
+		_, err = tempFile.WriteString(obscure.MustObscure(string(configKey)))
+		if err != nil {
+			errRemove := os.Remove(tempFile.Name())
+			if errRemove != nil {
+				log.Fatalf("error writing configKey to temp file and also error deleting it: %v", err)
+			}
+			log.Fatalf("error writing configKey to temp file: %v", err)
+		}
+		err = tempFile.Close()
+		if err != nil {
+			errRemove := os.Remove(tempFile.Name())
+			if errRemove != nil {
+				log.Fatalf("error closing temp file with configKey and also error deleting it: %v", err)
+			}
+			log.Fatalf("error closing temp file with configKey: %v", err)
+		}
+		fs.Debugf(nil, "saving configKey to temp file")
+		err = os.Setenv("_RCLONE_CONFIG_KEY_FILE", tempFile.Name())
+		if err != nil {
+			errRemove := os.Remove(tempFile.Name())
+			if errRemove != nil {
+				log.Fatalf("unable to set environment variable _RCLONE_CONFIG_KEY_FILE and unable to delete the temp file: %v", err)
+			}
+			log.Fatalf("unable to set environment variable _RCLONE_CONFIG_KEY_FILE: %v", err)
+		}
+	}
 	return nil
 }
 
@@ -380,6 +446,10 @@ func changeConfigPassword() {
 // if configKey has been set, the file will be encrypted.
 func saveConfig() error {
 	dir, name := filepath.Split(ConfigPath)
+	err := os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		return errors.Wrap(err, "failed to create config directory")
+	}
 	f, err := ioutil.TempFile(dir, name)
 	if err != nil {
 		return errors.Errorf("Failed to create temp file for new config: %v", err)
@@ -832,18 +902,24 @@ func ChooseOption(o *fs.Option, name string) string {
 	return in
 }
 
+// Suppress the confirm prompts and return a function to undo that
+func suppressConfirm() func() {
+	old := fs.Config.AutoConfirm
+	fs.Config.AutoConfirm = true
+	return func() {
+		fs.Config.AutoConfirm = old
+	}
+}
+
 // UpdateRemote adds the keyValues passed in to the remote of name.
 // keyValues should be key, value pairs.
-func UpdateRemote(name string, keyValues []string) error {
-	if len(keyValues)%2 != 0 {
-		return errors.New("found key without value")
-	}
+func UpdateRemote(name string, keyValues rc.Params) error {
+	defer suppressConfirm()()
 	// Set the config
-	for i := 0; i < len(keyValues); i += 2 {
-		getConfigData().SetValue(name, keyValues[i], keyValues[i+1])
+	for k, v := range keyValues {
+		getConfigData().SetValue(name, k, fmt.Sprint(v))
 	}
 	RemoteConfig(name)
-	ShowRemote(name)
 	SaveConfig()
 	return nil
 }
@@ -851,9 +927,7 @@ func UpdateRemote(name string, keyValues []string) error {
 // CreateRemote creates a new remote with name, provider and a list of
 // parameters which are key, value pairs.  If update is set then it
 // adds the new keys rather than replacing all of them.
-func CreateRemote(name string, provider string, keyValues []string) error {
-	// Suppress Confirm
-	fs.Config.AutoConfirm = true
+func CreateRemote(name string, provider string, keyValues rc.Params) error {
 	// Delete the old config if it exists
 	getConfigData().DeleteSection(name)
 	// Set the type
@@ -866,20 +940,12 @@ func CreateRemote(name string, provider string, keyValues []string) error {
 
 // PasswordRemote adds the keyValues passed in to the remote of name.
 // keyValues should be key, value pairs.
-func PasswordRemote(name string, keyValues []string) error {
-	if len(keyValues) != 2 {
-		return errors.New("found key without value")
+func PasswordRemote(name string, keyValues rc.Params) error {
+	defer suppressConfirm()()
+	for k, v := range keyValues {
+		keyValues[k] = obscure.MustObscure(fmt.Sprint(v))
 	}
-	// Suppress Confirm
-	fs.Config.AutoConfirm = true
-	passwd := obscure.MustObscure(keyValues[1])
-	if passwd != "" {
-		getConfigData().SetValue(name, keyValues[0], passwd)
-		RemoteConfig(name)
-		ShowRemote(name)
-		SaveConfig()
-	}
-	return nil
+	return UpdateRemote(name, keyValues)
 }
 
 // JSONListProviders prints all the providers and options in JSON format
@@ -935,6 +1001,7 @@ func NewRemoteName() (name string) {
 // editOptions edits the options.  If new is true then it just allows
 // entry and doesn't show any old values.
 func editOptions(ri *fs.RegInfo, name string, isNew bool) {
+	fmt.Printf("** See help for %s backend at: https://rclone.org/%s/ **\n\n", ri.Name, ri.FileName())
 	hasAdvanced := false
 	for _, advanced := range []bool{false, true} {
 		if advanced {
@@ -1227,16 +1294,28 @@ func FileSections() []string {
 	return sections
 }
 
+// DumpRcRemote dumps the config for a single remote
+func DumpRcRemote(name string) (dump rc.Params) {
+	params := rc.Params{}
+	for _, key := range getConfigData().GetKeyList(name) {
+		params[key] = FileGet(name, key)
+	}
+	return params
+}
+
+// DumpRcBlob dumps all the config as an unstructured blob suitable
+// for the rc
+func DumpRcBlob() (dump rc.Params) {
+	dump = rc.Params{}
+	for _, name := range getConfigData().GetSectionList() {
+		dump[name] = DumpRcRemote(name)
+	}
+	return dump
+}
+
 // Dump dumps all the config as a JSON file
 func Dump() error {
-	dump := make(map[string]map[string]string)
-	for _, name := range getConfigData().GetSectionList() {
-		params := make(map[string]string)
-		for _, key := range getConfigData().GetKeyList(name) {
-			params[key] = FileGet(name, key)
-		}
-		dump[name] = params
-	}
+	dump := DumpRcBlob()
 	b, err := json.MarshalIndent(dump, "", "    ")
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal config dump")

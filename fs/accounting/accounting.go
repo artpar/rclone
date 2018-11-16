@@ -7,10 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/VividCortex/ewma"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/asyncreader"
-	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/asyncreader"
+	"github.com/ncw/rclone/fs/fserrors"
 	"github.com/pkg/errors"
 )
 
@@ -31,17 +30,19 @@ type Account struct {
 	close   io.Closer
 	size    int64
 	name    string
-	statmu  sync.Mutex         // Separate mutex for stat values.
-	bytes   int64              // Total number of bytes read
-	max     int64              // if >=0 the max number of bytes to transfer
-	start   time.Time          // Start time of first read
-	lpTime  time.Time          // Time of last average measurement
-	lpBytes int                // Number of bytes read since last measurement
-	avg     ewma.MovingAverage // Moving average of last few measurements
-	closed  bool               // set if the file is closed
-	exit    chan struct{}      // channel that will be closed when transfer is finished
-	withBuf bool               // is using a buffered in
+	statmu  sync.Mutex    // Separate mutex for stat values.
+	bytes   int64         // Total number of bytes read
+	max     int64         // if >=0 the max number of bytes to transfer
+	start   time.Time     // Start time of first read
+	lpTime  time.Time     // Time of last average measurement
+	lpBytes int           // Number of bytes read since last measurement
+	avg     float64       // Moving average of last few measurements in bytes/s
+	closed  bool          // set if the file is closed
+	exit    chan struct{} // channel that will be closed when transfer is finished
+	withBuf bool          // is using a buffered in
 }
+
+const averagePeriod = 16 // period to do exponentially weighted averages over
 
 // NewAccountSizeName makes a Account reader for an io.ReadCloser of
 // the given size and name
@@ -53,7 +54,7 @@ func NewAccountSizeName(in io.ReadCloser, size int64, name string) *Account {
 		size:   size,
 		name:   name,
 		exit:   make(chan struct{}),
-		avg:    ewma.NewMovingAverage(),
+		avg:    0,
 		lpTime: time.Now(),
 		max:    int64(fs.Config.MaxTransfer),
 	}
@@ -96,6 +97,16 @@ func (acc *Account) GetReader() io.ReadCloser {
 	return acc.origIn
 }
 
+// GetAsyncReader returns the current AsyncReader or nil if Account is unbuffered
+func (acc *Account) GetAsyncReader() *asyncreader.AsyncReader {
+	acc.mu.Lock()
+	defer acc.mu.Unlock()
+	if asyncIn, ok := acc.in.(*asyncreader.AsyncReader); ok {
+		return asyncIn
+	}
+	return nil
+}
+
 // StopBuffering stops the async buffer doing any more buffering
 func (acc *Account) StopBuffering() {
 	if asyncIn, ok := acc.in.(*asyncreader.AsyncReader); ok {
@@ -118,6 +129,7 @@ func (acc *Account) UpdateReader(in io.ReadCloser) {
 // averageLoop calculates averages for the stats in the background
 func (acc *Account) averageLoop() {
 	tick := time.NewTicker(time.Second)
+	var period float64
 	defer tick.Stop()
 	for {
 		select {
@@ -126,7 +138,11 @@ func (acc *Account) averageLoop() {
 			// Add average of last second.
 			elapsed := now.Sub(acc.lpTime).Seconds()
 			avg := float64(acc.lpBytes) / elapsed
-			acc.avg.Add(avg)
+			// Soft start the moving average
+			if period < averagePeriod {
+				period++
+			}
+			acc.avg = (avg + (period-1)*acc.avg) / period
 			acc.lpBytes = 0
 			acc.lpTime = now
 			// Unlock stats
@@ -211,33 +227,20 @@ func (acc *Account) speed() (bps, current float64) {
 	// Calculate speed from first read.
 	total := float64(time.Now().Sub(acc.start)) / float64(time.Second)
 	bps = float64(acc.bytes) / total
-	current = acc.avg.Value()
+	current = acc.avg
 	return
 }
 
 // eta returns the ETA of the current operation,
 // rounded to full seconds.
 // If the ETA cannot be determined 'ok' returns false.
-func (acc *Account) eta() (eta time.Duration, ok bool) {
-	if acc == nil || acc.size <= 0 {
+func (acc *Account) eta() (etaDuration time.Duration, ok bool) {
+	if acc == nil {
 		return 0, false
 	}
 	acc.statmu.Lock()
 	defer acc.statmu.Unlock()
-	if acc.bytes == 0 {
-		return 0, false
-	}
-	left := acc.size - acc.bytes
-	if left <= 0 {
-		return 0, true
-	}
-	avg := acc.avg.Value()
-	if avg <= 0 {
-		return 0, false
-	}
-	seconds := float64(left) / acc.avg.Value()
-
-	return time.Duration(time.Second * time.Duration(int(seconds))), true
+	return eta(acc.bytes, acc.size, acc.avg)
 }
 
 // String produces stats for this file
@@ -253,11 +256,14 @@ func (acc *Account) String() string {
 			etas = "0s"
 		}
 	}
+
 	name := []rune(acc.name)
 	if fs.Config.StatsFileNameLength > 0 {
 		if len(name) > fs.Config.StatsFileNameLength {
-			where := len(name) - fs.Config.StatsFileNameLength
-			name = append([]rune{'.', '.', '.'}, name[where:]...)
+			suffixLength := fs.Config.StatsFileNameLength / 2
+			prefixLength := fs.Config.StatsFileNameLength - suffixLength
+			suffixStart := len(name) - suffixLength
+			name = append(append(name[:prefixLength], '…'), name[suffixStart:]...)
 		}
 	}
 

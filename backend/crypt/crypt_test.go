@@ -6,14 +6,31 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/artpar/rclone/backend/crypt"
-	_ "github.com/artpar/rclone/backend/local"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fstest/fstests"
+	"github.com/ncw/rclone/backend/crypt"
+	_ "github.com/ncw/rclone/backend/drive" // for integration tests
+	_ "github.com/ncw/rclone/backend/local"
+	_ "github.com/ncw/rclone/backend/swift" // for integration tests
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fstest"
+	"github.com/ncw/rclone/fstest/fstests"
 )
+
+// TestIntegration runs integration tests against the remote
+func TestIntegration(t *testing.T) {
+	if *fstest.RemoteName == "" {
+		t.Skip("Skipping as -remote not set")
+	}
+	fstests.Run(t, &fstests.Opt{
+		RemoteName: *fstest.RemoteName,
+		NilObject:  (*crypt.Object)(nil),
+	})
+}
 
 // TestStandard runs integration tests against the remote
 func TestStandard(t *testing.T) {
+	if *fstest.RemoteName != "" {
+		t.Skip("Skipping as -remote set")
+	}
 	tempdir := filepath.Join(os.TempDir(), "rclone-crypt-test-standard")
 	name := "TestCrypt"
 	fstests.Run(t, &fstests.Opt{
@@ -30,6 +47,9 @@ func TestStandard(t *testing.T) {
 
 // TestOff runs integration tests against the remote
 func TestOff(t *testing.T) {
+	if *fstest.RemoteName != "" {
+		t.Skip("Skipping as -remote set")
+	}
 	tempdir := filepath.Join(os.TempDir(), "rclone-crypt-test-off")
 	name := "TestCrypt2"
 	fstests.Run(t, &fstests.Opt{
@@ -46,6 +66,9 @@ func TestOff(t *testing.T) {
 
 // TestObfuscate runs integration tests against the remote
 func TestObfuscate(t *testing.T) {
+	if *fstest.RemoteName != "" {
+		t.Skip("Skipping as -remote set")
+	}
 	tempdir := filepath.Join(os.TempDir(), "rclone-crypt-test-obfuscate")
 	name := "TestCrypt3"
 	fstests.Run(t, &fstests.Opt{

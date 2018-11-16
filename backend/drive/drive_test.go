@@ -1,17 +1,34 @@
 // Test Drive filesystem interface
-package drive_test
+package drive
 
 import (
 	"testing"
 
-	"github.com/artpar/rclone/backend/drive"
-	"github.com/artpar/rclone/fstest/fstests"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fstest/fstests"
 )
 
 // TestIntegration runs integration tests against the remote
 func TestIntegration(t *testing.T) {
 	fstests.Run(t, &fstests.Opt{
 		RemoteName: "TestDrive:",
-		NilObject:  (*drive.Object)(nil),
+		NilObject:  (*Object)(nil),
+		ChunkedUpload: fstests.ChunkedUploadConfig{
+			MinChunkSize:  minChunkSize,
+			CeilChunkSize: fstests.NextPowerOfTwo,
+		},
 	})
 }
+
+func (f *Fs) SetUploadChunkSize(cs fs.SizeSuffix) (fs.SizeSuffix, error) {
+	return f.setUploadChunkSize(cs)
+}
+
+func (f *Fs) SetUploadCutoff(cs fs.SizeSuffix) (fs.SizeSuffix, error) {
+	return f.setUploadCutoff(cs)
+}
+
+var (
+	_ fstests.SetUploadChunkSizer = (*Fs)(nil)
+	_ fstests.SetUploadCutoffer   = (*Fs)(nil)
+)

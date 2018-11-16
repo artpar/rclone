@@ -36,13 +36,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/walk"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config/configmap"
+	"github.com/ncw/rclone/fs/config/configstruct"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/fshttp"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/fs/walk"
+	"github.com/ncw/rclone/lib/pacer"
+	"github.com/ncw/rclone/lib/rest"
 	"github.com/ncw/swift"
 	"github.com/pkg/errors"
 )
@@ -446,7 +448,12 @@ func init() {
 			Provider: "!AWS,IBMCOS",
 		}, {
 			Name: "acl",
-			Help: "Canned ACL used when creating buckets and/or storing objects in S3.\nFor more info visit https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl",
+			Help: `Canned ACL used when creating buckets and storing or copying objects.
+
+For more info visit https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl
+
+Note that this ACL is applied when server side copying objects as S3
+doesn't copy the ACL from the source but rather writes a fresh one.`,
 			Examples: []fs.OptionExample{{
 				Value:    "private",
 				Help:     "Owner gets FULL_CONTROL. No one else has access rights (default).",
@@ -498,10 +505,24 @@ func init() {
 			}, {
 				Value: "AES256",
 				Help:  "AES256",
+			}, {
+				Value: "aws:kms",
+				Help:  "aws:kms",
+			}},
+		}, {
+			Name:     "sse_kms_key_id",
+			Help:     "If using KMS ID you must provide the ARN of Key.",
+			Provider: "AWS",
+			Examples: []fs.OptionExample{{
+				Value: "",
+				Help:  "None",
+			}, {
+				Value: "arn:aws:kms:us-east-1:*",
+				Help:  "arn:aws:kms:*",
 			}},
 		}, {
 			Name:     "storage_class",
-			Help:     "The storage class to use when storing objects in S3.",
+			Help:     "The storage class to use when storing new objects in S3.",
 			Provider: "AWS",
 			Examples: []fs.OptionExample{{
 				Value: "",
@@ -520,9 +541,18 @@ func init() {
 				Help:  "One Zone Infrequent Access storage class",
 			}},
 		}, {
-			Name:     "chunk_size",
-			Help:     "Chunk size to use for uploading",
-			Default:  fs.SizeSuffix(s3manager.MinUploadPartSize),
+			Name: "chunk_size",
+			Help: `Chunk size to use for uploading.
+
+Any files larger than this will be uploaded in chunks of this
+size. The default is 5MB. The minimum is 5MB.
+
+Note that "--s3-upload-concurrency" chunks of this size are buffered
+in memory per transfer.
+
+If you are transferring large files over high speed links and you have
+enough memory, then increasing this will speed up the transfers.`,
+			Default:  minChunkSize,
 			Advanced: true,
 		}, {
 			Name:     "disable_checksum",
@@ -532,17 +562,40 @@ func init() {
 		}, {
 			Name:     "session_token",
 			Help:     "An AWS session token",
-			Hide:     fs.OptionHideBoth,
 			Advanced: true,
 		}, {
-			Name:     "upload_concurrency",
-			Help:     "Concurrency for multipart uploads.",
+			Name: "upload_concurrency",
+			Help: `Concurrency for multipart uploads.
+
+This is the number of chunks of the same file that are uploaded
+concurrently.
+
+If you are uploading small numbers of large file over high speed link
+and these uploads do not fully utilize your bandwidth, then increasing
+this may help to speed up the transfers.`,
 			Default:  2,
 			Advanced: true,
 		}, {
-			Name:     "force_path_style",
-			Help:     "If true use path style access if false use virtual hosted style.\nSome providers (eg Aliyun OSS or Netease COS) require this.",
+			Name: "force_path_style",
+			Help: `If true use path style access if false use virtual hosted style.
+
+If this is true (the default) then rclone will use path style access,
+if false then rclone will use virtual path style. See [the AWS S3
+docs](https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingBucket.html#access-bucket-intro)
+for more info.
+
+Some providers (eg Aliyun OSS or Netease COS) require this set to false.`,
 			Default:  true,
+			Advanced: true,
+		}, {
+			Name: "v2_auth",
+			Help: `If true use v2 authentication.
+
+If this is false (the default) then rclone will use v4 authentication.
+If it is set then rclone will use v2 authentication.
+
+Use this only if v4 signatures don't work, eg pre Jewel/v10 CEPH.`,
+			Default:  false,
 			Advanced: true,
 		}},
 	})
@@ -556,6 +609,8 @@ const (
 	maxRetries     = 10                            // number of retries to make of operations
 	maxSizeForCopy = 5 * 1024 * 1024 * 1024        // The maximum size of object we can COPY
 	maxFileSize    = 5 * 1024 * 1024 * 1024 * 1024 // largest possible upload file size
+	minChunkSize   = fs.SizeSuffix(s3manager.MinUploadPartSize)
+	minSleep       = 10 * time.Millisecond // In case of error, start at 10ms sleep.
 )
 
 // Options defines the configuration for this backend
@@ -569,12 +624,14 @@ type Options struct {
 	LocationConstraint   string        `config:"location_constraint"`
 	ACL                  string        `config:"acl"`
 	ServerSideEncryption string        `config:"server_side_encryption"`
+	SSEKMSKeyID          string        `config:"sse_kms_key_id"`
 	StorageClass         string        `config:"storage_class"`
 	ChunkSize            fs.SizeSuffix `config:"chunk_size"`
 	DisableChecksum      bool          `config:"disable_checksum"`
 	SessionToken         string        `config:"session_token"`
 	UploadConcurrency    int           `config:"upload_concurrency"`
 	ForcePathStyle       bool          `config:"force_path_style"`
+	V2Auth               bool          `config:"v2_auth"`
 }
 
 // Fs represents a remote s3 server
@@ -589,6 +646,7 @@ type Fs struct {
 	bucketOKMu    sync.Mutex       // mutex to protect bucket OK
 	bucketOK      bool             // true if we have created the bucket
 	bucketDeleted bool             // true if we have deleted the bucket
+	pacer         *pacer.Pacer     // To pace the API calls
 }
 
 // Object describes a s3 object
@@ -634,8 +692,39 @@ func (f *Fs) Features() *fs.Features {
 	return f.features
 }
 
+// retryErrorCodes is a slice of error codes that we will retry
+// See: https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
+var retryErrorCodes = []int{
+	409, // Conflict - various states that could be resolved on a retry
+	503, // Service Unavailable/Slow Down - "Reduce your request rate"
+}
+
+//S3 is pretty resilient, and the built in retry handling is probably sufficient
+// as it should notice closed connections and timeouts which are the most likely
+// sort of failure modes
+func shouldRetry(err error) (bool, error) {
+
+	// If this is an awserr object, try and extract more useful information to determine if we should retry
+	if awsError, ok := err.(awserr.Error); ok {
+		// Simple case, check the original embedded error in case it's generically retriable
+		if fserrors.ShouldRetry(awsError.OrigErr()) {
+			return true, err
+		}
+		//Failing that, if it's a RequestFailure it's probably got an http status code we can check
+		if reqErr, ok := err.(awserr.RequestFailure); ok {
+			for _, e := range retryErrorCodes {
+				if reqErr.StatusCode() == e {
+					return true, err
+				}
+			}
+		}
+	}
+	//Ok, not an awserr, check for generic failure conditions
+	return fserrors.ShouldRetry(err), err
+}
+
 // Pattern to match a s3 path
-var matcher = regexp.MustCompile(`^([^/]*)(.*)$`)
+var matcher = regexp.MustCompile(`^/*([^/]*)(.*)$`)
 
 // parseParse parses a s3 'url'
 func s3ParsePath(path string) (bucket, directory string, err error) {
@@ -715,9 +804,22 @@ func s3Connection(opt *Options) (*s3.S3, *session.Session, error) {
 		WithHTTPClient(fshttp.NewClient(fs.Config)).
 		WithS3ForcePathStyle(opt.ForcePathStyle)
 	// awsConfig.WithLogLevel(aws.LogDebugWithSigning)
-	ses := session.New()
-	c := s3.New(ses, awsConfig)
-	if opt.Region == "other-v2-signature" {
+	awsSessionOpts := session.Options{
+		Config: *awsConfig,
+	}
+	if opt.EnvAuth && opt.AccessKeyID == "" && opt.SecretAccessKey == "" {
+		// Enable loading config options from ~/.aws/config (selected by AWS_PROFILE env)
+		awsSessionOpts.SharedConfigState = session.SharedConfigEnable
+		// The session constructor (aws/session/mergeConfigSrcs) will only use the user's preferred credential source
+		// (from the shared config file) if the passed-in Options.Config.Credentials is nil.
+		awsSessionOpts.Config.Credentials = nil
+	}
+	ses, err := session.NewSessionWithOptions(awsSessionOpts)
+	if err != nil {
+		return nil, nil, err
+	}
+	c := s3.New(ses)
+	if opt.V2Auth || opt.Region == "other-v2-signature" {
 		fs.Debugf(nil, "Using v2 auth")
 		signer := func(req *request.Request) {
 			// Ignore AnonymousCredentials object
@@ -733,6 +835,21 @@ func s3Connection(opt *Options) (*s3.S3, *session.Session, error) {
 	return c, ses, nil
 }
 
+func checkUploadChunkSize(cs fs.SizeSuffix) error {
+	if cs < minChunkSize {
+		return errors.Errorf("%s is less than %s", cs, minChunkSize)
+	}
+	return nil
+}
+
+func (f *Fs) setUploadChunkSize(cs fs.SizeSuffix) (old fs.SizeSuffix, err error) {
+	err = checkUploadChunkSize(cs)
+	if err == nil {
+		old, f.opt.ChunkSize = f.opt.ChunkSize, cs
+	}
+	return
+}
+
 // NewFs constructs an Fs from the path, bucket:path
 func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	// Parse config into Options struct
@@ -741,8 +858,9 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	if err != nil {
 		return nil, err
 	}
-	if opt.ChunkSize < fs.SizeSuffix(s3manager.MinUploadPartSize) {
-		return nil, errors.Errorf("s3 chunk size (%v) must be >= %v", opt.ChunkSize, fs.SizeSuffix(s3manager.MinUploadPartSize))
+	err = checkUploadChunkSize(opt.ChunkSize)
+	if err != nil {
+		return nil, errors.Wrap(err, "s3: chunk size")
 	}
 	bucket, directory, err := s3ParsePath(root)
 	if err != nil {
@@ -759,6 +877,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		c:      c,
 		bucket: bucket,
 		ses:    ses,
+		pacer:  pacer.New().SetMinSleep(minSleep).SetPacer(pacer.S3Pacer),
 	}
 	f.features = (&fs.Features{
 		ReadMimeType:  true,
@@ -772,7 +891,10 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 			Bucket: &f.bucket,
 			Key:    &directory,
 		}
-		_, err = f.c.HeadObject(&req)
+		err = f.pacer.Call(func() (bool, error) {
+			_, err = f.c.HeadObject(&req)
+			return shouldRetry(err)
+		})
 		if err == nil {
 			f.root = path.Dir(directory)
 			if f.root == "." {
@@ -849,7 +971,12 @@ func (f *Fs) list(dir string, recurse bool, fn listFn) error {
 			MaxKeys:   &maxKeys,
 			Marker:    marker,
 		}
-		resp, err := f.c.ListObjects(&req)
+		var resp *s3.ListObjectsOutput
+		var err error
+		err = f.pacer.Call(func() (bool, error) {
+			resp, err = f.c.ListObjects(&req)
+			return shouldRetry(err)
+		})
 		if err != nil {
 			if awsErr, ok := err.(awserr.RequestFailure); ok {
 				if awsErr.StatusCode() == http.StatusNotFound {
@@ -974,7 +1101,11 @@ func (f *Fs) listBuckets(dir string) (entries fs.DirEntries, err error) {
 		return nil, fs.ErrorListBucketRequired
 	}
 	req := s3.ListBucketsInput{}
-	resp, err := f.c.ListBuckets(&req)
+	var resp *s3.ListBucketsOutput
+	err = f.pacer.Call(func() (bool, error) {
+		resp, err = f.c.ListBuckets(&req)
+		return shouldRetry(err)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1059,7 +1190,10 @@ func (f *Fs) dirExists() (bool, error) {
 	req := s3.HeadBucketInput{
 		Bucket: &f.bucket,
 	}
-	_, err := f.c.HeadBucket(&req)
+	err := f.pacer.Call(func() (bool, error) {
+		_, err := f.c.HeadBucket(&req)
+		return shouldRetry(err)
+	})
 	if err == nil {
 		return true, nil
 	}
@@ -1096,7 +1230,10 @@ func (f *Fs) Mkdir(dir string) error {
 			LocationConstraint: &f.opt.LocationConstraint,
 		}
 	}
-	_, err := f.c.CreateBucket(&req)
+	err := f.pacer.Call(func() (bool, error) {
+		_, err := f.c.CreateBucket(&req)
+		return shouldRetry(err)
+	})
 	if err, ok := err.(awserr.Error); ok {
 		if err.Code() == "BucketAlreadyOwnedByYou" {
 			err = nil
@@ -1121,7 +1258,10 @@ func (f *Fs) Rmdir(dir string) error {
 	req := s3.DeleteBucketInput{
 		Bucket: &f.bucket,
 	}
-	_, err := f.c.DeleteBucket(&req)
+	err := f.pacer.Call(func() (bool, error) {
+		_, err := f.c.DeleteBucket(&req)
+		return shouldRetry(err)
+	})
 	if err == nil {
 		f.bucketOK = false
 		f.bucketDeleted = true
@@ -1164,11 +1304,24 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	source := pathEscape(srcFs.bucket + "/" + srcFs.root + srcObj.remote)
 	req := s3.CopyObjectInput{
 		Bucket:            &f.bucket,
+		ACL:               &f.opt.ACL,
 		Key:               &key,
 		CopySource:        &source,
 		MetadataDirective: aws.String(s3.MetadataDirectiveCopy),
 	}
-	_, err = f.c.CopyObject(&req)
+	if f.opt.ServerSideEncryption != "" {
+		req.ServerSideEncryption = &f.opt.ServerSideEncryption
+	}
+	if f.opt.SSEKMSKeyID != "" {
+		req.SSEKMSKeyId = &f.opt.SSEKMSKeyID
+	}
+	if f.opt.StorageClass != "" {
+		req.StorageClass = &f.opt.StorageClass
+	}
+	err = f.pacer.Call(func() (bool, error) {
+		_, err = f.c.CopyObject(&req)
+		return shouldRetry(err)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1245,7 +1398,12 @@ func (o *Object) readMetaData() (err error) {
 		Bucket: &o.fs.bucket,
 		Key:    &key,
 	}
-	resp, err := o.fs.c.HeadObject(&req)
+	var resp *s3.HeadObjectOutput
+	err = o.fs.pacer.Call(func() (bool, error) {
+		var err error
+		resp, err = o.fs.c.HeadObject(&req)
+		return shouldRetry(err)
+	})
 	if err != nil {
 		if awsErr, ok := err.(awserr.RequestFailure); ok {
 			if awsErr.StatusCode() == http.StatusNotFound {
@@ -1329,7 +1487,19 @@ func (o *Object) SetModTime(modTime time.Time) error {
 		Metadata:          o.meta,
 		MetadataDirective: &directive,
 	}
-	_, err = o.fs.c.CopyObject(&req)
+	if o.fs.opt.ServerSideEncryption != "" {
+		req.ServerSideEncryption = &o.fs.opt.ServerSideEncryption
+	}
+	if o.fs.opt.SSEKMSKeyID != "" {
+		req.SSEKMSKeyId = &o.fs.opt.SSEKMSKeyID
+	}
+	if o.fs.opt.StorageClass != "" {
+		req.StorageClass = &o.fs.opt.StorageClass
+	}
+	err = o.fs.pacer.Call(func() (bool, error) {
+		_, err := o.fs.c.CopyObject(&req)
+		return shouldRetry(err)
+	})
 	return err
 }
 
@@ -1356,7 +1526,12 @@ func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
 			}
 		}
 	}
-	resp, err := o.fs.c.GetObject(&req)
+	var resp *s3.GetObjectOutput
+	err = o.fs.pacer.Call(func() (bool, error) {
+		var err error
+		resp, err = o.fs.c.GetObject(&req)
+		return shouldRetry(err)
+	})
 	if err, ok := err.(awserr.RequestFailure); ok {
 		if err.Code() == "InvalidObjectState" {
 			return nil, errors.Errorf("Object in GLACIER, restore first: %v", key)
@@ -1429,10 +1604,16 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 	if o.fs.opt.ServerSideEncryption != "" {
 		req.ServerSideEncryption = &o.fs.opt.ServerSideEncryption
 	}
+	if o.fs.opt.SSEKMSKeyID != "" {
+		req.SSEKMSKeyId = &o.fs.opt.SSEKMSKeyID
+	}
 	if o.fs.opt.StorageClass != "" {
 		req.StorageClass = &o.fs.opt.StorageClass
 	}
-	_, err = uploader.Upload(&req)
+	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
+		_, err = uploader.Upload(&req)
+		return shouldRetry(err)
+	})
 	if err != nil {
 		return err
 	}
@@ -1450,7 +1631,10 @@ func (o *Object) Remove() error {
 		Bucket: &o.fs.bucket,
 		Key:    &key,
 	}
-	_, err := o.fs.c.DeleteObject(&req)
+	err := o.fs.pacer.Call(func() (bool, error) {
+		_, err := o.fs.c.DeleteObject(&req)
+		return shouldRetry(err)
+	})
 	return err
 }
 

@@ -126,6 +126,7 @@ type Object struct {
 	size        int64     // size of the object
 	modTime     time.Time // modification time of the object
 	id          string    // ID of the object
+	publicLink  string    // Public Link for the object
 	sha1        string    // SHA-1 of the object content
 }
 
@@ -274,7 +275,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 
 	oAuthClient, ts, err := oauthutil.NewClient(name, m, &oauthConf1)
 	if err != nil {
-		log.Printf("Failed to configure Box: %v", err)
+		return nil, errors.Wrap(err, "failed to configure Box")
 	}
 
 	f := &Fs{
@@ -305,16 +306,16 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	if err != nil {
 		// Assume it is a file
 		newRoot, remote := dircache.SplitPath(root)
-		newF := *f
-		newF.dirCache = dircache.New(newRoot, rootID, &newF)
-		newF.root = newRoot
+		tempF := *f
+		tempF.dirCache = dircache.New(newRoot, rootID, &tempF)
+		tempF.root = newRoot
 		// Make new Fs which is the parent
-		err = newF.dirCache.FindRoot(false)
+		err = tempF.dirCache.FindRoot(false)
 		if err != nil {
 			// No root so return old f
 			return f, nil
 		}
-		_, err := newF.newObjectWithInfo(remote, nil)
+		_, err := tempF.newObjectWithInfo(remote, nil)
 		if err != nil {
 			if err == fs.ErrorObjectNotFound {
 				// File doesn't exist so return old f
@@ -322,8 +323,14 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 			}
 			return nil, err
 		}
+		f.features.Fill(&tempF)
+		// XXX: update the old f here instead of returning tempF, since
+		// `features` were already filled with functions having *f as a receiver.
+		// See https://github.com/ncw/rclone/issues/2182
+		f.dirCache = tempF.dirCache
+		f.root = tempF.root
 		// return an error with an fs which points to the parent
-		return &newF, fs.ErrorIsFile
+		return f, fs.ErrorIsFile
 	}
 	return f, nil
 }
@@ -867,6 +874,46 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 	return nil
 }
 
+// PublicLink adds a "readable by anyone with link" permission on the given file or folder.
+func (f *Fs) PublicLink(remote string) (string, error) {
+	id, err := f.dirCache.FindDir(remote, false)
+	var opts rest.Opts
+	if err == nil {
+		fs.Debugf(f, "attempting to share directory '%s'", remote)
+
+		opts = rest.Opts{
+			Method:     "PUT",
+			Path:       "/folders/" + id,
+			Parameters: fieldsValue(),
+		}
+	} else {
+		fs.Debugf(f, "attempting to share single file '%s'", remote)
+		o, err := f.NewObject(remote)
+		if err != nil {
+			return "", err
+		}
+
+		if o.(*Object).publicLink != "" {
+			return o.(*Object).publicLink, nil
+		}
+
+		opts = rest.Opts{
+			Method:     "PUT",
+			Path:       "/files/" + o.(*Object).id,
+			Parameters: fieldsValue(),
+		}
+	}
+
+	shareLink := api.CreateSharedLink{}
+	var info api.Item
+	var resp *http.Response
+	err = f.pacer.Call(func() (bool, error) {
+		resp, err = f.srv.CallJSON(&opts, &shareLink, &info)
+		return shouldRetry(resp, err)
+	})
+	return info.SharedLink.URL, err
+}
+
 // DirCacheFlush resets the directory cache - used in testing as an
 // optional interface
 func (f *Fs) DirCacheFlush() {
@@ -931,6 +978,7 @@ func (o *Object) setMetaData(info *api.Item) (err error) {
 	o.sha1 = info.SHA1
 	o.modTime = info.ModTime()
 	o.id = info.ID
+	o.publicLink = info.SharedLink.URL
 	return nil
 }
 
@@ -1110,6 +1158,7 @@ var (
 	_ fs.Mover           = (*Fs)(nil)
 	_ fs.DirMover        = (*Fs)(nil)
 	_ fs.DirCacheFlusher = (*Fs)(nil)
+	_ fs.PublicLinker    = (*Fs)(nil)
 	_ fs.Object          = (*Object)(nil)
 	_ fs.IDer            = (*Object)(nil)
 )

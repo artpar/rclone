@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/fserrors"
 	"github.com/ncw/rclone/fs/rc"
 )
 
@@ -36,6 +37,8 @@ Returns the following values:
 	"speed": average speed in bytes/sec since start of the process,
 	"bytes": total transferred bytes since the start of the process,
 	"errors": number of errors,
+	"fatalError": whether there has been at least one FatalError,
+	"retryError": whether there has been at least one non-NoRetryError,
 	"checks": number of checked files,
 	"transfers": number of transferred files,
 	"deletes" : number of deleted files,
@@ -65,17 +68,25 @@ The value for "eta" is null if an eta cannot be determined.
 
 // StatsInfo accounts all transfers
 type StatsInfo struct {
-	mu           sync.RWMutex
-	bytes        int64
-	errors       int64
-	lastError    error
-	checks       int64
-	checking     *stringSet
-	transfers    int64
-	transferring *stringSet
-	deletes      int64
-	start        time.Time
-	inProgress   *inProgress
+	mu                sync.RWMutex
+	bytes             int64
+	errors            int64
+	lastError         error
+	fatalError        bool
+	retryError        bool
+	checks            int64
+	checking          *stringSet
+	checkQueue        int
+	checkQueueSize    int64
+	transfers         int64
+	transferring      *stringSet
+	transferQueue     int
+	transferQueueSize int64
+	renameQueue       int
+	renameQueueSize   int64
+	deletes           int64
+	start             time.Time
+	inProgress        *inProgress
 }
 
 // NewStats cretates an initialised StatsInfo
@@ -101,6 +112,8 @@ func (s *StatsInfo) RemoteStats(in rc.Params) (out rc.Params, err error) {
 	out["speed"] = speed
 	out["bytes"] = s.bytes
 	out["errors"] = s.errors
+	out["fatalError"] = s.fatalError
+	out["retryError"] = s.retryError
 	out["checks"] = s.checks
 	out["transfers"] = s.transfers
 	out["deletes"] = s.deletes
@@ -134,8 +147,50 @@ func (s *StatsInfo) RemoteStats(in rc.Params) (out rc.Params, err error) {
 	return out, nil
 }
 
+// eta returns the ETA of the current operation,
+// rounded to full seconds.
+// If the ETA cannot be determined 'ok' returns false.
+func eta(size, total int64, rate float64) (eta time.Duration, ok bool) {
+	if total <= 0 || size < 0 || rate <= 0 {
+		return 0, false
+	}
+	remaining := total - size
+	if remaining < 0 {
+		return 0, false
+	}
+	seconds := float64(remaining) / rate
+	return time.Second * time.Duration(seconds), true
+}
+
+// etaString returns the ETA of the current operation,
+// rounded to full seconds.
+// If the ETA cannot be determined it returns "-"
+func etaString(done, total int64, rate float64) string {
+	d, ok := eta(done, total, rate)
+	if !ok {
+		return "-"
+	}
+	return d.String()
+}
+
+// percent returns a/b as a percentage rounded to the nearest integer
+// as a string
+//
+// if the percentage is invalid it returns "-"
+func percent(a int64, b int64) string {
+	if a < 0 || b <= 0 {
+		return "-"
+	}
+	return fmt.Sprintf("%d%%", int(float64(a)*100/float64(b)+0.5))
+}
+
 // String convert the StatsInfo to a string for printing
 func (s *StatsInfo) String() string {
+	// checking and transferring have their own locking so read
+	// here before lock to prevent deadlock on GetBytes
+	transferring, checking := s.transferring.count(), s.checking.count()
+	transferringBytesDone, transferringBytesTotal := s.transferring.progress()
+
 	s.mu.RLock()
 
 	dt := time.Now().Sub(s.start)
@@ -145,35 +200,83 @@ func (s *StatsInfo) String() string {
 		speed = float64(s.bytes) / dtSeconds
 	}
 	dtRounded := dt - (dt % (time.Second / 10))
-	buf := &bytes.Buffer{}
 
 	if fs.Config.DataRateUnit == "bits" {
 		speed = speed * 8
 	}
 
-	_, _ = fmt.Fprintf(buf, `
-Transferred:   %10s (%s)
-Errors:        %10d
-Checks:        %10d
-Transferred:   %10d
+	var (
+		totalChecks   = int64(s.checkQueue) + s.checks + int64(checking)
+		totalTransfer = int64(s.transferQueue) + s.transfers + int64(transferring)
+		// note that s.bytes already includes transferringBytesDone so
+		// we take it off here to avoid double counting
+		totalSize    = s.transferQueueSize + s.bytes + transferringBytesTotal - transferringBytesDone
+		currentSize  = s.bytes
+		buf          = &bytes.Buffer{}
+		xfrchkString = ""
+	)
+
+	if !fs.Config.StatsOneLine {
+		_, _ = fmt.Fprintf(buf, "\nTransferred:   	")
+	} else {
+		xfrchk := []string{}
+		if totalTransfer > 0 && s.transferQueue > 0 {
+			xfrchk = append(xfrchk, fmt.Sprintf("xfr#%d/%d", s.transfers, totalTransfer))
+		}
+		if totalChecks > 0 && s.checkQueue > 0 {
+			xfrchk = append(xfrchk, fmt.Sprintf("chk#%d/%d", s.checks, totalChecks))
+		}
+		if len(xfrchk) > 0 {
+			xfrchkString = fmt.Sprintf(" (%s)", strings.Join(xfrchk, ", "))
+		}
+	}
+
+	_, _ = fmt.Fprintf(buf, "%10s / %s, %s, %s, ETA %s%s",
+		fs.SizeSuffix(s.bytes),
+		fs.SizeSuffix(totalSize).Unit("Bytes"),
+		percent(s.bytes, totalSize),
+		fs.SizeSuffix(speed).Unit(strings.Title(fs.Config.DataRateUnit)+"/s"),
+		etaString(currentSize, totalSize, speed),
+		xfrchkString,
+	)
+
+	if !fs.Config.StatsOneLine {
+		errorDetails := ""
+		switch {
+		case s.fatalError:
+			errorDetails = " (fatal error encountered)"
+		case s.retryError:
+			errorDetails = " (retrying may help)"
+		case s.errors != 0:
+			errorDetails = " (no need to retry)"
+		}
+
+		_, _ = fmt.Fprintf(buf, `
+Errors:        %10d%s
+Checks:        %10d / %d, %s
+Transferred:   %10d / %d, %s
 Elapsed time:  %10v
 `,
-		fs.SizeSuffix(s.bytes).Unit("Bytes"), fs.SizeSuffix(speed).Unit(strings.Title(fs.Config.DataRateUnit)+"/s"),
-		s.errors,
-		s.checks,
-		s.transfers,
-		dtRounded)
+			s.errors, errorDetails,
+			s.checks, totalChecks, percent(s.checks, totalChecks),
+			s.transfers, totalTransfer, percent(s.transfers, totalTransfer),
+			dtRounded)
+	}
 
 	// checking and transferring have their own locking so unlock
 	// here to prevent deadlock on GetBytes
 	s.mu.RUnlock()
 
-	if !s.checking.empty() {
-		_, _ = fmt.Fprintf(buf, "Checking:\n%s\n", s.checking)
+	// Add per transfer stats if required
+	if !fs.Config.StatsOneLine {
+		if !s.checking.empty() {
+			_, _ = fmt.Fprintf(buf, "Checking:\n%s\n", s.checking)
+		}
+		if !s.transferring.empty() {
+			_, _ = fmt.Fprintf(buf, "Transferring:\n%s\n", s.transferring)
+		}
 	}
-	if !s.transferring.empty() {
-		_, _ = fmt.Fprintf(buf, "Transferring:\n%s\n", s.transferring)
-	}
+
 	return buf.String()
 }
 
@@ -217,6 +320,34 @@ func (s *StatsInfo) GetLastError() error {
 	return s.lastError
 }
 
+// FatalError sets the fatalError flag
+func (s *StatsInfo) FatalError() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fatalError = true
+}
+
+// HadFatalError returns whether there has been at least one FatalError
+func (s *StatsInfo) HadFatalError() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.fatalError
+}
+
+// RetryError sets the retryError flag
+func (s *StatsInfo) RetryError() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.retryError = true
+}
+
+// HadRetryError returns whether there has been at least one non-NoRetryError
+func (s *StatsInfo) HadRetryError() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.retryError
+}
+
 // Deletes updates the stats for deletes
 func (s *StatsInfo) Deletes(deletes int64) int64 {
 	s.mu.Lock()
@@ -225,22 +356,28 @@ func (s *StatsInfo) Deletes(deletes int64) int64 {
 	return s.deletes
 }
 
-// ResetCounters sets the counters (bytes, checks, errors, transfers) to 0
+// ResetCounters sets the counters (bytes, checks, errors, transfers, deletes) to 0 and resets lastError, fatalError and retryError
 func (s *StatsInfo) ResetCounters() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.bytes = 0
 	s.errors = 0
+	s.lastError = nil
+	s.fatalError = false
+	s.retryError = false
 	s.checks = 0
 	s.transfers = 0
 	s.deletes = 0
 }
 
-// ResetErrors sets the errors count to 0
+// ResetErrors sets the errors count to 0 and resets lastError, fatalError and retryError
 func (s *StatsInfo) ResetErrors() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.errors = 0
+	s.lastError = nil
+	s.fatalError = false
+	s.retryError = false
 }
 
 // Errored returns whether there have been any errors
@@ -250,12 +387,18 @@ func (s *StatsInfo) Errored() bool {
 	return s.errors != 0
 }
 
-// Error adds a single error into the stats and assigns lastError
+// Error adds a single error into the stats, assigns lastError and eventually sets fatalError or retryError
 func (s *StatsInfo) Error(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.errors++
 	s.lastError = err
+	switch {
+	case fserrors.IsFatalError(err):
+		s.fatalError = true
+	case !fserrors.IsNoRetryError(err):
+		s.retryError = true
+	}
 }
 
 // Checking adds a check into the stats
@@ -293,4 +436,28 @@ func (s *StatsInfo) DoneTransferring(remote string, ok bool) {
 		s.transfers++
 		s.mu.Unlock()
 	}
+}
+
+// SetCheckQueue sets the number of queued checks
+func (s *StatsInfo) SetCheckQueue(n int, size int64) {
+	s.mu.Lock()
+	s.checkQueue = n
+	s.checkQueueSize = size
+	s.mu.Unlock()
+}
+
+// SetTransferQueue sets the number of queued transfers
+func (s *StatsInfo) SetTransferQueue(n int, size int64) {
+	s.mu.Lock()
+	s.transferQueue = n
+	s.transferQueueSize = size
+	s.mu.Unlock()
+}
+
+// SetRenameQueue sets the number of queued transfers
+func (s *StatsInfo) SetRenameQueue(n int, size int64) {
+	s.mu.Lock()
+	s.renameQueue = n
+	s.renameQueueSize = size
+	s.mu.Unlock()
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"path"
 	"sort"
 	"strconv"
@@ -358,6 +359,11 @@ func Copy(f fs.Fs, dst fs.Object, remote string, src fs.Object) (newDst fs.Objec
 
 // Move src object to dst or fdst if nil.  If dst is nil then it uses
 // remote as the name of the new object.
+//
+// Note that you must check the destination does not exist before
+// calling this and pass it as dst.  If you pass dst=nil and the
+// destination does exist then this may create duplicates or return
+// errors.
 //
 // It returns the destination object if possible.  Note that this may
 // be nil.
@@ -970,7 +976,7 @@ func Purge(f fs.Fs, dir string) error {
 		if err != nil {
 			return err
 		}
-		err = Rmdirs(f, "", false)
+		err = Rmdirs(f, dir, false)
 	}
 	if err != nil {
 		fs.CountError(err)
@@ -1201,7 +1207,7 @@ func PublicLink(f fs.Fs, remote string) (string, error) {
 // containing empty directories) under f, including f.
 func Rmdirs(f fs.Fs, dir string, leaveRoot bool) error {
 	dirEmpty := make(map[string]bool)
-	dirEmpty[""] = !leaveRoot
+	dirEmpty[dir] = !leaveRoot
 	err := walk.Walk(f, dir, true, fs.Config.MaxDepth, func(dirPath string, entries fs.DirEntries, err error) error {
 		if err != nil {
 			fs.CountError(err)
@@ -1315,6 +1321,55 @@ func NeedTransfer(dst, src fs.Object) bool {
 	return true
 }
 
+// RcatSize reads data from the Reader until EOF and uploads it to a file on remote.
+// Pass in size >=0 if known, <0 if not known
+func RcatSize(fdst fs.Fs, dstFileName string, in io.ReadCloser, size int64, modTime time.Time) (dst fs.Object, err error) {
+	var obj fs.Object
+
+	if size >= 0 {
+		// Size known use Put
+		accounting.Stats.Transferring(dstFileName)
+		body := ioutil.NopCloser(in)                                 // we let the server close the body
+		in := accounting.NewAccountSizeName(body, size, dstFileName) // account the transfer (no buffering)
+		var err error
+		defer func() {
+			closeErr := in.Close()
+			if closeErr != nil {
+				accounting.Stats.Error(closeErr)
+				fs.Errorf(dstFileName, "Post request: close failed: %v", closeErr)
+			}
+			accounting.Stats.DoneTransferring(dstFileName, err == nil)
+		}()
+		info := object.NewStaticObjectInfo(dstFileName, modTime, size, true, nil, fdst)
+		obj, err = fdst.Put(in, info)
+		if err != nil {
+			fs.Errorf(dstFileName, "Post request put error: %v", err)
+
+			return nil, err
+		}
+	} else {
+		// Size unknown use Rcat
+		obj, err = Rcat(fdst, dstFileName, in, modTime)
+		if err != nil {
+			fs.Errorf(dstFileName, "Post request rcat error: %v", err)
+
+			return nil, err
+		}
+	}
+
+	return obj, nil
+}
+
+// CopyURL copies the data from the url to (fdst, dstFileName)
+func CopyURL(fdst fs.Fs, dstFileName string, url string) (dst fs.Object, err error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer fs.CheckClose(resp.Body, &err)
+	return RcatSize(fdst, dstFileName, resp.Body, resp.ContentLength, time.Now())
+}
+
 // moveOrCopyFile moves or copies a single file possibly to a new name
 func moveOrCopyFile(fdst fs.Fs, fsrc fs.Fs, dstFileName string, srcFileName string, cp bool) (err error) {
 	dstFilePath := path.Join(fdst.Root(), dstFileName)
@@ -1366,6 +1421,21 @@ func MoveFile(fdst fs.Fs, fsrc fs.Fs, dstFileName string, srcFileName string) (e
 // CopyFile moves a single file possibly to a new name
 func CopyFile(fdst fs.Fs, fsrc fs.Fs, dstFileName string, srcFileName string) (err error) {
 	return moveOrCopyFile(fdst, fsrc, dstFileName, srcFileName, true)
+}
+
+// SetTier changes tier of object in remote
+func SetTier(fsrc fs.Fs, tier string) error {
+	return ListFn(fsrc, func(o fs.Object) {
+		objImpl, ok := o.(fs.SetTierer)
+		if !ok {
+			fs.Errorf(fsrc, "Remote object does not implement SetTier")
+			return
+		}
+		err := objImpl.SetTier(tier)
+		if err != nil {
+			fs.Errorf(fsrc, "Failed to do SetTier, %v", err)
+		}
+	})
 }
 
 // ListFormat defines files information print format

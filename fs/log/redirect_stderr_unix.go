@@ -8,8 +8,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/artpar/rclone/fs/config"
-
+	"github.com/ncw/rclone/fs/config"
 	"golang.org/x/sys/unix"
 )
 
@@ -22,6 +21,6 @@ func redirectStderr(f *os.File) {
 	config.PasswordPromptOutput = os.NewFile(uintptr(passPromptFd), "passPrompt")
 	err = unix.Dup2(int(f.Fd()), int(os.Stderr.Fd()))
 	if err != nil {
-		log.Printf("Failed to redirect stderr to file: %v", err)
+		log.Fatalf("Failed to redirect stderr to file: %v", err)
 	}
 }

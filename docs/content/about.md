@@ -58,14 +58,15 @@ Features
   * [Sync](/commands/rclone_sync/) (one way) mode to make a directory identical
   * [Check](/commands/rclone_check/) mode to check for file hash equality
   * Can sync to and from network, eg two different cloud accounts
-  * Optional encryption ([Crypt](/crypt/))
-  * Optional cache ([Cache](/cache/))
+  * ([Encryption](/crypt/)) backend
+  * ([Cache](/cache/)) backend
+  * ([Union](/union/)) backend
   * Optional FUSE mount ([rclone mount](/commands/rclone_mount/))
 
 Links
 
   * <i class="fa fa-home"></i> [Home page](https://rclone.org/)
-  * <i class="fa fa-github"></i> [Github project page for source and bug tracker](https://github.com/artpar/rclone)
+  * <i class="fa fa-github"></i> [GitHub project page for source and bug tracker](https://github.com/ncw/rclone)
   * <i class="fa fa-comments"></i> [Rclone Forum](https://forum.rclone.org)
   * <i class="fa fa-google-plus"></i> <a href="https://google.com/+RcloneOrg" rel="publisher">Google+ page</a>
   * <i class="fa fa-cloud-download"></i>[Downloads](/downloads/)

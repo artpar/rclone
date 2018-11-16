@@ -83,6 +83,11 @@ type RegInfo struct {
 	Options Options
 }
 
+// FileName returns the on disk file name for this backend
+func (ri *RegInfo) FileName() string {
+	return strings.Replace(ri.Name, " ", "", -1)
+}
+
 // Options is a slice of configuration Option for a backend
 type Options []Option
 
@@ -125,8 +130,8 @@ type Option struct {
 	Advanced   bool             // set if this is an advanced config option
 }
 
-// Gets the current current value which is the default if not set
-func (o *Option) value() interface{} {
+// GetValue gets the current current value which is the default if not set
+func (o *Option) GetValue() interface{} {
 	val := o.Value
 	if val == nil {
 		val = o.Default
@@ -136,12 +141,12 @@ func (o *Option) value() interface{} {
 
 // String turns Option into a string
 func (o *Option) String() string {
-	return fmt.Sprint(o.value())
+	return fmt.Sprint(o.GetValue())
 }
 
 // Set a Option from a string
 func (o *Option) Set(s string) (err error) {
-	newValue, err := configstruct.StringToInterface(o.value(), s)
+	newValue, err := configstruct.StringToInterface(o.GetValue(), s)
 	if err != nil {
 		return err
 	}
@@ -151,7 +156,21 @@ func (o *Option) Set(s string) (err error) {
 
 // Type of the value
 func (o *Option) Type() string {
-	return reflect.TypeOf(o.value()).Name()
+	return reflect.TypeOf(o.GetValue()).Name()
+}
+
+// FlagName for the option
+func (o *Option) FlagName(prefix string) string {
+	name := strings.Replace(o.Name, "_", "-", -1) // convert snake_case to kebab-case
+	if !o.NoPrefix {
+		name = prefix + "-" + name
+	}
+	return name
+}
+
+// EnvVarName for the option
+func (o *Option) EnvVarName(prefix string) string {
+	return OptionToEnv(prefix + "-" + o.Name)
 }
 
 // OptionExamples is a slice of examples
@@ -328,6 +347,19 @@ type ObjectUnWrapper interface {
 	UnWrap() Object
 }
 
+// SetTierer is an optional interface for Object
+type SetTierer interface {
+	// SetTier performs changing storage tier of the Object if
+	// multiple storage classes supported
+	SetTier(tier string) error
+}
+
+// GetTierer is an optional interface for Object
+type GetTierer interface {
+	// GetTier returns storage tier or class of the Object
+	GetTier() string
+}
+
 // ListRCallback defines a callback function for ListR to use
 //
 // It is called for each tranche of entries read from the listing and
@@ -365,6 +397,8 @@ type Features struct {
 	WriteMimeType           bool // can set the mime type of objects
 	CanHaveEmptyDirectories bool // can have empty directories
 	BucketBased             bool // is bucket based (like s3, swift etc)
+	SetTier                 bool // allows set tier functionality on objects
+	GetTier                 bool // allows to retrieve storage tier of objects
 
 	// Purge all files in the root and the root directory
 	//
@@ -409,7 +443,7 @@ type Features struct {
 	// ChangeNotify calls the passed function with a path
 	// that has had changes. If the implementation
 	// uses polling, it should adhere to the given interval.
-	ChangeNotify func(func(string, EntryType), time.Duration) chan bool
+	ChangeNotify func(func(string, EntryType), <-chan time.Duration)
 
 	// UnWrap returns the Fs that this Fs is wrapping
 	UnWrap func() Fs
@@ -583,6 +617,9 @@ func (ft *Features) Mask(f Fs) *Features {
 	ft.WriteMimeType = ft.WriteMimeType && mask.WriteMimeType
 	ft.CanHaveEmptyDirectories = ft.CanHaveEmptyDirectories && mask.CanHaveEmptyDirectories
 	ft.BucketBased = ft.BucketBased && mask.BucketBased
+	ft.SetTier = ft.SetTier && mask.SetTier
+	ft.GetTier = ft.GetTier && mask.GetTier
+
 	if mask.Purge == nil {
 		ft.Purge = nil
 	}
@@ -706,7 +743,13 @@ type ChangeNotifier interface {
 	// ChangeNotify calls the passed function with a path
 	// that has had changes. If the implementation
 	// uses polling, it should adhere to the given interval.
-	ChangeNotify(func(string, EntryType), time.Duration) chan bool
+	// At least one value will be written to the channel,
+	// specifying the initial value and updated values might
+	// follow. A 0 Duration should pause the polling.
+	// The ChangeNotify implemantion must empty the channel
+	// regulary. When the channel gets closed, the implemantion
+	// should stop polling and release resources.
+	ChangeNotify(func(string, EntryType), <-chan time.Duration)
 }
 
 // UnWrapper is an optional interfaces for Fs
@@ -827,19 +870,17 @@ type ObjectPair struct {
 	Src, Dst Object
 }
 
-// ObjectPairChan is a channel of ObjectPair
-type ObjectPairChan chan ObjectPair
-
-// Find looks for an Info object for the name passed in
+// Find looks for an RegInfo object for the name passed in.  The name
+// can be either the Name or the Prefix.
 //
 // Services are looked up in the config file
 func Find(name string) (*RegInfo, error) {
 	for _, item := range Registry {
-		if item.Name == name {
+		if item.Name == name || item.Prefix == name || item.FileName() == name {
 			return item, nil
 		}
 	}
-	return nil, errors.Errorf("didn't find filing system for %q", name)
+	return nil, errors.Errorf("didn't find backend called %q", name)
 }
 
 // MustFind looks for an Info object for the type name passed in
@@ -862,10 +903,14 @@ func ParseRemote(path string) (fsInfo *RegInfo, configName, fsPath string, err e
 	var fsName string
 	var ok bool
 	if configName != "" {
-		m := ConfigMap(nil, configName)
-		fsName, ok = m.Get("type")
-		if !ok {
-			return nil, "", "", ErrorNotFoundInConfigFile
+		if strings.HasPrefix(configName, ":") {
+			fsName = configName[1:]
+		} else {
+			m := ConfigMap(nil, configName)
+			fsName, ok = m.Get("type")
+			if !ok {
+				return nil, "", "", ErrorNotFoundInConfigFile
+			}
 		}
 	} else {
 		fsName = "local"

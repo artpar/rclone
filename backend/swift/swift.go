@@ -29,7 +29,19 @@ import (
 const (
 	directoryMarkerContentType = "application/directory" // content type of directory marker objects
 	listChunks                 = 1000                    // chunk size to read directory listings
+	defaultChunkSize           = 5 * fs.GibiByte
 )
+
+// SharedOptions are shared between swift and hubic
+var SharedOptions = []fs.Option{{
+	Name: "chunk_size",
+	Help: `Above this size files will be chunked into a _segments container.
+
+Above this size files will be chunked into a _segments container.  The
+default for this is 5GB which is its maximum value.`,
+	Default:  defaultChunkSize,
+	Advanced: true,
+}}
 
 // Register with Fs
 func init() {
@@ -37,7 +49,7 @@ func init() {
 		Name:        "swift",
 		Description: "Openstack Swift (Rackspace Cloud Files, Memset Memstore, OVH)",
 		NewFs:       NewFs,
-		Options: []fs.Option{{
+		Options: append([]fs.Option{{
 			Name:    "env_auth",
 			Help:    "Get swift credentials from environment variables in standard OpenStack form.",
 			Default: false,
@@ -121,8 +133,13 @@ func init() {
 				Value: "admin",
 			}},
 		}, {
-			Name:    "storage_policy",
-			Help:    "The storage policy to use when creating a new container",
+			Name: "storage_policy",
+			Help: `The storage policy to use when creating a new container
+
+This applies the specified storage policy when creating a new
+container. The policy cannot be changed afterwards. The allowed
+configuration values and their meaning depend on your Swift storage
+provider.`,
 			Default: "",
 			Examples: []fs.OptionExample{{
 				Help:  "Default",
@@ -134,12 +151,7 @@ func init() {
 				Help:  "OVH Public Cloud Archive",
 				Value: "pca",
 			}},
-		}, {
-			Name:     "chunk_size",
-			Help:     "Above this size files will be chunked into a _segments container.",
-			Default:  fs.SizeSuffix(5 * 1024 * 1024 * 1024),
-			Advanced: true,
-		}},
+		}}, SharedOptions...),
 	})
 }
 
@@ -216,7 +228,7 @@ func (f *Fs) Features() *fs.Features {
 }
 
 // Pattern to match a swift path
-var matcher = regexp.MustCompile(`^([^/]*)(.*)$`)
+var matcher = regexp.MustCompile(`^/*([^/]*)(.*)$`)
 
 // parseParse parses a swift 'url'
 func parsePath(path string) (container, directory string, err error) {
@@ -277,12 +289,37 @@ func swiftConnection(opt *Options, name string) (*swift.Connection, error) {
 	// provided by wrapping the existing auth, so we can just
 	// override one or the other or both.
 	if StorageUrl != "" || AuthToken != "" {
+		// Re-write StorageURL and AuthToken if they are being
+		// overridden as c.Authenticate above will have
+		// overwritten them.
+		if StorageUrl != "" {
+			c.StorageUrl = StorageUrl
+		}
+		if AuthToken != "" {
+			c.AuthToken = AuthToken
+		}
 		c.Auth = newAuth(c.Auth, StorageUrl, AuthToken)
 	}
 	return c, nil
 }
 
-// NewFsWithConnection contstructs an Fs from the path, container:path
+func checkUploadChunkSize(cs fs.SizeSuffix) error {
+	const minChunkSize = fs.Byte
+	if cs < minChunkSize {
+		return errors.Errorf("%s is less than %s", cs, minChunkSize)
+	}
+	return nil
+}
+
+func (f *Fs) setUploadChunkSize(cs fs.SizeSuffix) (old fs.SizeSuffix, err error) {
+	err = checkUploadChunkSize(cs)
+	if err == nil {
+		old, f.opt.ChunkSize = f.opt.ChunkSize, cs
+	}
+	return
+}
+
+// NewFsWithConnection constructs an Fs from the path, container:path
 // and authenticated connection.
 //
 // if noCheckContainer is set then the Fs won't check the container
@@ -331,6 +368,10 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	err := configstruct.Set(m, opt)
 	if err != nil {
 		return nil, err
+	}
+	err = checkUploadChunkSize(opt.ChunkSize)
+	if err != nil {
+		return nil, errors.Wrap(err, "swift: chunk size")
 	}
 
 	c, err := swiftConnection(opt, name)

@@ -15,11 +15,13 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/readers"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/accounting"
+	"github.com/ncw/rclone/fs/config/configmap"
+	"github.com/ncw/rclone/fs/config/configstruct"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/lib/readers"
 	"github.com/pkg/errors"
 )
 
@@ -47,19 +49,33 @@ func init() {
 			ShortOpt: "L",
 			Advanced: true,
 		}, {
-			Name:     "skip_links",
-			Help:     "Don't warn about skipped symlinks.",
+			Name: "skip_links",
+			Help: `Don't warn about skipped symlinks.
+This flag disables warning messages on skipped symlinks or junction
+points, as you explicitly acknowledge that they should be skipped.`,
 			Default:  false,
 			NoPrefix: true,
 			Advanced: true,
 		}, {
-			Name:     "no_unicode_normalization",
-			Help:     "Don't apply unicode normalization to paths and filenames",
+			Name: "no_unicode_normalization",
+			Help: `Don't apply unicode normalization to paths and filenames (Deprecated)
+
+This flag is deprecated now.  Rclone no longer normalizes unicode file
+names, but it compares them with unicode normalization in the sync
+routine instead.`,
 			Default:  false,
 			Advanced: true,
 		}, {
-			Name:     "no_check_updated",
-			Help:     "Don't check to see if the files change during upload",
+			Name: "no_check_updated",
+			Help: `Don't check to see if the files change during upload
+
+Normally rclone checks the size and modification time of files as they
+are being uploaded and aborts with a message which starts "can't copy
+- source file is being updated" if the file changes during upload.
+
+However on some file systems this modification time check may fail (eg
+[Glusterfs #2206](https://github.com/ncw/rclone/issues/2206)) so this
+check can be disabled with this flag.`,
 			Default:  false,
 			Advanced: true,
 		}, {
@@ -151,7 +167,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	}
 	if err == nil && fi.Mode().IsRegular() {
 		// It is a file, so use the parent as the root
-		f.root, _ = getDirFile(f.root)
+		f.root = filepath.Dir(f.root)
 		// return an error with an fs which points to the parent
 		return f, fs.ErrorIsFile
 	}
@@ -280,6 +296,13 @@ func (f *Fs) List(dir string) (entries fs.DirEntries, err error) {
 			// Follow symlinks if required
 			if f.opt.FollowSymlinks && (mode&os.ModeSymlink) != 0 {
 				fi, err = os.Stat(newPath)
+				if os.IsNotExist(err) {
+					// Skip bad symlinks
+					err = fserrors.NoRetryError(errors.Wrap(err, "symlink"))
+					fs.Errorf(newRemote, "Listing error: %v", err)
+					accounting.Stats.Error(err)
+					continue
+				}
 				if err != nil {
 					return nil, err
 				}
@@ -565,7 +588,7 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 	}
 
 	// Create parent of destination
-	dstParentPath, _ := getDirFile(dstPath)
+	dstParentPath := filepath.Dir(dstPath)
 	err = os.MkdirAll(dstParentPath, 0777)
 	if err != nil {
 		return err
@@ -784,7 +807,7 @@ func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
 
 // mkdirAll makes all the directories needed to store the object
 func (o *Object) mkdirAll() error {
-	dir, _ := getDirFile(o.path)
+	dir := filepath.Dir(o.path)
 	return os.MkdirAll(dir, 0777)
 }
 
@@ -806,6 +829,12 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 	out, err := os.OpenFile(o.path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		return err
+	}
+
+	// Pre-allocate the file for performance reasons
+	err = preAllocate(src.Size(), out)
+	if err != nil {
+		fs.Debugf(o, "Failed to pre-allocate: %v", err)
 	}
 
 	// Calculate the hash of the object we are reading as we go along
@@ -870,17 +899,6 @@ func (o *Object) lstat() error {
 // Remove an object
 func (o *Object) Remove() error {
 	return remove(o.path)
-}
-
-// Return the directory and file from an OS path. Assumes
-// os.PathSeparator is used.
-func getDirFile(s string) (string, string) {
-	i := strings.LastIndex(s, string(os.PathSeparator))
-	dir, file := s[:i], s[i+1:]
-	if dir == "" {
-		dir = string(os.PathSeparator)
-	}
-	return dir, file
 }
 
 // cleanPathFragment cleans an OS path fragment which is part of a

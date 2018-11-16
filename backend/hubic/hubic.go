@@ -61,13 +61,13 @@ func init() {
 				log.Printf("Failed to configure token: %v", err)
 			}
 		},
-		Options: []fs.Option{{
+		Options: append([]fs.Option{{
 			Name: config.ConfigClientID,
 			Help: "Hubic Client Id\nLeave blank normally.",
 		}, {
 			Name: config.ConfigClientSecret,
 			Help: "Hubic Client Secret\nLeave blank normally.",
-		}},
+		}}, swift.SharedOptions...),
 	})
 }
 

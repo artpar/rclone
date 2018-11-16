@@ -21,20 +21,20 @@ with the [latest beta of rclone](https://beta.rclone.org/):
 ## Submitting a pull request ##
 
 If you find a bug that you'd like to fix, or a new feature that you'd
-like to implement then please submit a pull request via Github.
+like to implement then please submit a pull request via GitHub.
 
 If it is a big feature then make an issue first so it can be discussed.
 
 You'll need a Go environment set up with GOPATH set.  See [the Go
 getting started docs](https://golang.org/doc/install) for more info.
 
-First in your web browser press the fork button on [rclone's Github
-page](https://github.com/artpar/rclone).
+First in your web browser press the fork button on [rclone's GitHub
+page](https://github.com/ncw/rclone).
 
 Now in your terminal
 
-    go get github.com/artpar/rclone
-    cd $GOPATH/src/github.com/artpar/rclone
+    go get -u github.com/ncw/rclone
+    cd $GOPATH/src/github.com/ncw/rclone
     git remote rename origin upstream
     git remote add origin git@github.com:YOURUSER/rclone.git
 
@@ -64,22 +64,31 @@ packages which you can install with
 
 Make sure you
 
-  * Add documentation for a new feature (see below for where)
-  * Add unit tests for a new feature
+  * Add [documentation](#writing-documentation) for a new feature.
+  * Follow the [commit message guidelines](#commit-messages).
+  * Add [unit tests](#testing) for a new feature
   * squash commits down to one per feature
-  * rebase to master `git rebase master`
+  * rebase to master with `git rebase master`
 
 When you are done with that
 
-  git push origin my-new-feature
+    git push origin my-new-feature
 
-Go to the Github website and click [Create pull
+Go to the GitHub website and click [Create pull
 request](https://help.github.com/articles/creating-a-pull-request/).
 
 You patch will get reviewed and you might get asked to fix some stuff.
 
 If so, then make the changes in the same branch, squash the commits,
-rebase it to master then push it to Github with `--force`.
+rebase it to master then push it to GitHub with `--force`.
+
+## Enabling CI for your fork ##
+
+The CI config files for rclone have taken care of forks of the project, so you can enable CI for your fork repo easily.
+
+rclone currently uses [Travis CI](https://travis-ci.org/), [AppVeyor](https://ci.appveyor.com/), and
+[Circle CI](https://circleci.com/) to build the project. To enable them for your fork, simply go into their
+websites, find your fork of rclone, and enable building there.
 
 ## Testing ##
 
@@ -113,6 +122,13 @@ but they can be run against any of the remotes.
 
     cd fs/operations
     go test -v -remote TestDrive:
+
+If you want to use the integration test framework to run these tests
+all together with an HTML report and test retries then from the
+project root:
+
+    go install github.com/ncw/rclone/fstest/test_all
+    test_all -backend drive
 
 If you want to run all the integration tests against all the remotes,
 then change into the project root and run
@@ -166,17 +182,21 @@ with modules beneath.
     * pacer - retries with backoff and paces operations
     * readers - a selection of useful io.Readers
     * rest - a thin abstraction over net/http for REST
-  * vendor - 3rd party code managed by the dep tool
+  * vendor - 3rd party code managed by `go mod`
   * vfs - Virtual FileSystem layer for implementing rclone mount and similar
 
 ## Writing Documentation ##
 
 If you are adding a new feature then please update the documentation.
 
-If you add a new flag, then if it is a general flag, document it in
+If you add a new general flag (not for a backend), then document it in
 `docs/content/docs.md` - the flags there are supposed to be in
-alphabetical order.  If it is a remote specific flag, then document it
-in `docs/content/remote.md`.
+alphabetical order.
+
+If you add a new backend option/flag, then it should be documented in
+the source file in the `Help:` field.  The first line of this is used
+for the flag help, the remainder is shown to the user in `rclone
+config` and is added to the docs with `make backenddocs`.
 
 The only documentation you need to edit are the `docs/content/*.md`
 files.  The MANUAL.*, rclone.1, web site etc are all auto generated
@@ -195,13 +215,19 @@ file.
 ## Commit messages ##
 
 Please make the first line of your commit message a summary of the
-change, and prefix it with the directory of the change followed by a
-colon.  The changelog gets made by looking at just these first lines
-so make it good!
+change that a user (not a developer) of rclone would like to read, and
+prefix it with the directory of the change followed by a colon.  The
+changelog gets made by looking at just these first lines so make it
+good!
 
 If you have more to say about the commit, then enter a blank line and
 carry on the description.  Remember to say why the change was needed -
 the commit itself shows what was changed.
+
+Writing more is better than less.  Comparing the behaviour before the
+change to that after the change is very useful.  Imagine you are
+writing to yourself in 12 months time when you've forgotten everything
+about what you just did and you need to get up to speed quickly.
 
 If the change fixes an issue then write `Fixes #1234` in the commit
 message.  This can be on the subject line if it will fit.  If you
@@ -229,37 +255,53 @@ Fixes #1498
 
 ## Adding a dependency ##
 
-rclone uses the [dep](https://github.com/golang/dep) tool to manage
-its dependencies.  All code that rclone needs for building is stored
-in the `vendor` directory for perfectly reproducable builds.
+rclone uses the [go
+modules](https://tip.golang.org/cmd/go/#hdr-Modules__module_versions__and_more)
+support in go1.11 and later to manage its dependencies.
 
-The `vendor` directory is entirely managed by the `dep` tool.
+**NB** you must be using go1.11 or above to add a dependency to
+rclone.  Rclone will still build with older versions of go, but we use
+the `go mod` command for dependencies which is only in go1.11 and
+above.
 
-To add a new dependency, run `dep ensure` and `dep` will pull in the
-new dependency to the `vendor` directory and update the `Gopkg.lock`
-file.
+rclone can be built with modules outside of the GOPATH, but for
+backwards compatibility with older go versions, rclone also maintains
+a `vendor` directory with all the external code rclone needs for
+building.
 
-You can add constraints on that package in the `Gopkg.toml` file (see
-the `dep` documentation), but don't unless you really need to.
+The `vendor` directory is entirely managed by the `go mod` tool, do
+not add things manually.
 
-Please check in the changes generated by `dep` including the `vendor`
-directory and `Godep.toml` and `Godep.lock` in a single commit
-separate from any other code changes.  Watch out for new files in
-`vendor`.
+To add a dependency `github.com/ncw/new_dependency` see the
+instructions below.  These will fetch the dependency, add it to
+`go.mod` and `go.sum` and vendor it for older go versions.
+
+    GO111MODULE=on go get github.com/ncw/new_dependency
+    GO111MODULE=on go mod vendor
+
+You can add constraints on that package when doing `go get` (see the
+go docs linked above), but don't unless you really need to.
+
+Please check in the changes generated by `go mod` including the
+`vendor` directory and `go.mod` and `go.sum` in a single commit
+separate from any other code changes with the title "vendor: add
+github.com/ncw/new_dependency".  Remember to `git add` any new files
+in `vendor`.
 
 ## Updating a dependency ##
 
 If you need to update a dependency then run
 
-    dep ensure -update github.com/pkg/errors
+    GO111MODULE=on go get -u github.com/pkg/errors
+    GO111MODULE=on go mod vendor
 
 Check in in a single commit as above.
 
 ## Updating all the dependencies ##
 
 In order to update all the dependencies then run `make update`.  This
-just runs `dep ensure -update`.  Check in the changes in a single
-commit as above.
+just uses the go modules to update all the modules to their latest
+stable release. Check in the changes in a single commit as above.
 
 This should be done early in the release cycle to pick up new versions
 of packages in time for them to get some testing.
@@ -308,7 +350,7 @@ Unit tests
 
 Integration tests
 
-  * Add your fs to `fstest/test_all/test_all.go`
+  * Add your backend to `fstest/test_all/config.yaml`
   * Make sure integration tests pass with
       * `cd fs/operations`
       * `go test -v -remote TestRemote:`
@@ -323,8 +365,8 @@ See the [testing](#testing) section for more information on integration tests.
 
 Add your fs to the docs - you'll need to pick an icon for it from [fontawesome](http://fontawesome.io/icons/).  Keep lists of remotes in alphabetical order but with the local file system last.
 
-  * `README.md` - main Github page
-  * `docs/content/remote.md` - main docs page
+  * `README.md` - main GitHub page
+  * `docs/content/remote.md` - main docs page (note the backend options are automatically added to this file with `make backenddocs`)
   * `docs/content/overview.md` - overview docs
   * `docs/content/docs.md` - list of remotes in config section
   * `docs/content/about.md` - front page of rclone.org

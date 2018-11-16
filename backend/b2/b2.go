@@ -48,9 +48,9 @@ const (
 	decayConstant       = 1 // bigger for slower decay, exponential
 	maxParts            = 10000
 	maxVersions         = 100 // maximum number of versions we search in --b2-versions mode
-	minChunkSize        = 5E6
-	defaultChunkSize    = 96 * 1024 * 1024
-	defaultUploadCutoff = 200E6
+	minChunkSize        = 5 * fs.MebiByte
+	defaultChunkSize    = 96 * fs.MebiByte
+	defaultUploadCutoff = 200 * fs.MebiByte
 )
 
 // Globals
@@ -77,14 +77,24 @@ func init() {
 			Help:     "Endpoint for the service.\nLeave blank normally.",
 			Advanced: true,
 		}, {
-			Name:     "test_mode",
-			Help:     "A flag string for X-Bz-Test-Mode header for debugging.",
+			Name: "test_mode",
+			Help: `A flag string for X-Bz-Test-Mode header for debugging.
+
+This is for debugging purposes only. Setting it to one of the strings
+below will cause b2 to return specific errors:
+
+  * "fail_some_uploads"
+  * "expire_some_account_authorization_tokens"
+  * "force_cap_exceeded"
+
+These will be set in the "X-Bz-Test-Mode" header which is documented
+in the [b2 integrations checklist](https://www.backblaze.com/b2/docs/integration_checklist.html).`,
 			Default:  "",
 			Hide:     fs.OptionHideConfigurator,
 			Advanced: true,
 		}, {
 			Name:     "versions",
-			Help:     "Include old versions in directory listings.",
+			Help:     "Include old versions in directory listings.\nNote that when using this no file write operations are permitted,\nso you can't upload files or delete them.",
 			Default:  false,
 			Advanced: true,
 		}, {
@@ -92,13 +102,22 @@ func init() {
 			Help:    "Permanently delete files on remote removal, otherwise hide files.",
 			Default: false,
 		}, {
-			Name:     "upload_cutoff",
-			Help:     "Cutoff for switching to chunked upload.",
+			Name: "upload_cutoff",
+			Help: `Cutoff for switching to chunked upload.
+
+Files above this size will be uploaded in chunks of "--b2-chunk-size".
+
+This value should be set no larger than 4.657GiB (== 5GB).`,
 			Default:  fs.SizeSuffix(defaultUploadCutoff),
 			Advanced: true,
 		}, {
-			Name:     "chunk_size",
-			Help:     "Upload chunk size. Must fit in memory.",
+			Name: "chunk_size",
+			Help: `Upload chunk size. Must fit in memory.
+
+When uploading large files, chunk the file into this size.  Note that
+these chunks are buffered in memory and there might a maximum of
+"--transfers" chunks in progress at once.  5,000,000 Bytes is the
+minimim size.`,
 			Default:  fs.SizeSuffix(defaultChunkSize),
 			Advanced: true,
 		}},
@@ -177,7 +196,7 @@ func (f *Fs) Features() *fs.Features {
 }
 
 // Pattern to match a b2 path
-var matcher = regexp.MustCompile(`^([^/]*)(.*)$`)
+var matcher = regexp.MustCompile(`^/*([^/]*)(.*)$`)
 
 // parseParse parses a b2 'url'
 func parsePath(path string) (bucket, directory string, err error) {
@@ -263,6 +282,37 @@ func errorHandler(resp *http.Response) error {
 	return errResponse
 }
 
+func checkUploadChunkSize(cs fs.SizeSuffix) error {
+	if cs < minChunkSize {
+		return errors.Errorf("%s is less than %s", cs, minChunkSize)
+	}
+	return nil
+}
+
+func (f *Fs) setUploadChunkSize(cs fs.SizeSuffix) (old fs.SizeSuffix, err error) {
+	err = checkUploadChunkSize(cs)
+	if err == nil {
+		old, f.opt.ChunkSize = f.opt.ChunkSize, cs
+		f.fillBufferTokens() // reset the buffer tokens
+	}
+	return
+}
+
+func checkUploadCutoff(opt *Options, cs fs.SizeSuffix) error {
+	if cs < opt.ChunkSize {
+		return errors.Errorf("%v is less than chunk size %v", cs, opt.ChunkSize)
+	}
+	return nil
+}
+
+func (f *Fs) setUploadCutoff(cs fs.SizeSuffix) (old fs.SizeSuffix, err error) {
+	err = checkUploadCutoff(&f.opt, cs)
+	if err == nil {
+		old, f.opt.UploadCutoff = f.opt.UploadCutoff, cs
+	}
+	return
+}
+
 // NewFs contstructs an Fs from the path, bucket:path
 func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	// Parse config into Options struct
@@ -271,11 +321,13 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	if err != nil {
 		return nil, err
 	}
-	if opt.UploadCutoff < opt.ChunkSize {
-		return nil, errors.Errorf("b2: upload cutoff (%v) must be greater than or equal to chunk size (%v)", opt.UploadCutoff, opt.ChunkSize)
+	err = checkUploadCutoff(opt, opt.UploadCutoff)
+	if err != nil {
+		return nil, errors.Wrap(err, "b2: upload cutoff")
 	}
-	if opt.ChunkSize < minChunkSize {
-		return nil, errors.Errorf("b2: chunk size can't be less than %v - was %v", minChunkSize, opt.ChunkSize)
+	err = checkUploadChunkSize(opt.ChunkSize)
+	if err != nil {
+		return nil, errors.Wrap(err, "b2: chunk size")
 	}
 	bucket, directory, err := parsePath(root)
 	if err != nil {
@@ -291,13 +343,12 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		opt.Endpoint = defaultEndpoint
 	}
 	f := &Fs{
-		name:         name,
-		opt:          *opt,
-		bucket:       bucket,
-		root:         directory,
-		srv:          rest.NewClient(fshttp.NewClient(fs.Config)).SetErrorHandler(errorHandler),
-		pacer:        pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
-		bufferTokens: make(chan []byte, fs.Config.Transfers),
+		name:   name,
+		opt:    *opt,
+		bucket: bucket,
+		root:   directory,
+		srv:    rest.NewClient(fshttp.NewClient(fs.Config)).SetErrorHandler(errorHandler),
+		pacer:  pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
 	}
 	f.features = (&fs.Features{
 		ReadMimeType:  true,
@@ -310,13 +361,15 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		f.srv.SetHeader(testModeHeader, testMode)
 		fs.Debugf(f, "Setting test header \"%s: %s\"", testModeHeader, testMode)
 	}
-	// Fill up the buffer tokens
-	for i := 0; i < fs.Config.Transfers; i++ {
-		f.bufferTokens <- nil
-	}
+	f.fillBufferTokens()
 	err = f.authorizeAccount()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to authorize account")
+	}
+	// If this is a key limited to a single bucket, it must exist already
+	if f.bucket != "" && f.info.Allowed.BucketID != "" {
+		f.markBucketOK()
+		f.setBucketID(f.info.Allowed.BucketID)
 	}
 	if f.root != "" {
 		f.root += "/"
@@ -414,6 +467,14 @@ func (f *Fs) clearUploadURL() {
 	f.uploadMu.Lock()
 	f.uploads = nil
 	f.uploadMu.Unlock()
+}
+
+// Fill up (or reset) the buffer tokens
+func (f *Fs) fillBufferTokens() {
+	f.bufferTokens = make(chan []byte, fs.Config.Transfers)
+	for i := 0; i < fs.Config.Transfers; i++ {
+		f.bufferTokens <- nil
+	}
 }
 
 // getUploadBlock gets a block from the pool of size chunkSize

@@ -15,14 +15,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/object"
-	"github.com/artpar/rclone/fs/operations"
-	"github.com/artpar/rclone/fs/walk"
-	"github.com/artpar/rclone/fstest"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/fs/object"
+	"github.com/ncw/rclone/fs/operations"
+	"github.com/ncw/rclone/fs/walk"
+	"github.com/ncw/rclone/fstest"
+	"github.com/ncw/rclone/lib/readers"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +34,57 @@ import (
 // This interface should be implemented in 'backend'_internal_test.go and not in 'backend'.go
 type InternalTester interface {
 	InternalTest(*testing.T)
+}
+
+// ChunkedUploadConfig contains the values used by TestFsPutChunked
+// to determine the limits of chunked uploading
+type ChunkedUploadConfig struct {
+	// Minimum allowed chunk size
+	MinChunkSize fs.SizeSuffix
+	// Maximum allowed chunk size, 0 is no limit
+	MaxChunkSize fs.SizeSuffix
+	// Rounds the given chunk size up to the next valid value
+	// nil will disable rounding
+	// e.g. the next power of 2
+	CeilChunkSize func(fs.SizeSuffix) fs.SizeSuffix
+	// More than one chunk is required on upload
+	NeedMultipleChunks bool
+}
+
+// SetUploadChunkSizer is a test only interface to change the upload chunk size at runtime
+type SetUploadChunkSizer interface {
+	// Change the configured UploadChunkSize.
+	// Will only be called while no transfer is in progress.
+	SetUploadChunkSize(fs.SizeSuffix) (fs.SizeSuffix, error)
+}
+
+// SetUploadCutoffer is a test only interface to change the upload cutoff size at runtime
+type SetUploadCutoffer interface {
+	// Change the configured UploadCutoff.
+	// Will only be called while no transfer is in progress.
+	SetUploadCutoff(fs.SizeSuffix) (fs.SizeSuffix, error)
+}
+
+// NextPowerOfTwo returns the current or next bigger power of two.
+// All values less or equal 0 will return 0
+func NextPowerOfTwo(i fs.SizeSuffix) fs.SizeSuffix {
+	return 1 << uint(64-leadingZeros64(uint64(i)-1))
+}
+
+// NextMultipleOf returns a function that can be used as a CeilChunkSize function.
+// This function will return the next multiple of m that is equal or bigger than i.
+// All values less or equal 0 will return 0.
+func NextMultipleOf(m fs.SizeSuffix) func(fs.SizeSuffix) fs.SizeSuffix {
+	if m <= 0 {
+		panic(fmt.Sprintf("invalid multiplier %s", m))
+	}
+	return func(i fs.SizeSuffix) fs.SizeSuffix {
+		if i <= 0 {
+			return 0
+		}
+
+		return (((i - 1) / m) + 1) * m
+	}
 }
 
 // dirsToNames returns a sorted list of names
@@ -59,48 +111,98 @@ func objsToNames(objs []fs.Object) []string {
 func findObject(t *testing.T, f fs.Fs, Name string) fs.Object {
 	var obj fs.Object
 	var err error
+	sleepTime := 1 * time.Second
 	for i := 1; i <= *fstest.ListRetries; i++ {
 		obj, err = f.NewObject(Name)
 		if err == nil {
 			break
 		}
-		t.Logf("Sleeping for 1 second for findObject eventual consistency: %d/%d (%v)", i, *fstest.ListRetries, err)
-		time.Sleep(1 * time.Second)
+		t.Logf("Sleeping for %v for findObject eventual consistency: %d/%d (%v)", sleepTime, i, *fstest.ListRetries, err)
+		time.Sleep(sleepTime)
+		sleepTime = (sleepTime * 3) / 2
 	}
 	require.NoError(t, err)
 	return obj
 }
 
-// testPut puts file to the remote
-func testPut(t *testing.T, f fs.Fs, file *fstest.Item) string {
-	tries := 1
+// retry f() until no retriable error
+func retry(t *testing.T, what string, f func() error) {
 	const maxTries = 10
-again:
-	contents := fstest.RandomString(100)
-	buf := bytes.NewBufferString(contents)
-	hash := hash.NewMultiHasher()
-	in := io.TeeReader(buf, hash)
-
-	file.Size = int64(buf.Len())
-	obji := object.NewStaticObjectInfo(file.Path, file.ModTime, file.Size, true, nil, nil)
-	obj, err := f.Put(in, obji)
-	if err != nil {
-		// Retry if err returned a retry error
-		if fserrors.IsRetryError(err) && tries < maxTries {
-			t.Logf("Put error: %v - low level retry %d/%d", err, tries, maxTries)
-			time.Sleep(2 * time.Second)
-
-			tries++
-			goto again
+	var err error
+	for tries := 1; tries <= maxTries; tries++ {
+		err = f()
+		// exit if no error, or error is not retriable
+		if err == nil || !fserrors.IsRetryError(err) {
+			break
 		}
-		require.NoError(t, err, fmt.Sprintf("Put error: %v", err))
+		t.Logf("%s error: %v - low level retry %d/%d", what, err, tries, maxTries)
+		time.Sleep(2 * time.Second)
 	}
-	file.Hashes = hash.Sums()
+	require.NoError(t, err, what)
+}
+
+// testPut puts file to the remote
+func testPut(t *testing.T, f fs.Fs, file *fstest.Item) (string, fs.Object) {
+	var (
+		err        error
+		obj        fs.Object
+		uploadHash *hash.MultiHasher
+		contents   string
+	)
+	retry(t, "Put", func() error {
+		contents = fstest.RandomString(100)
+		buf := bytes.NewBufferString(contents)
+		uploadHash = hash.NewMultiHasher()
+		in := io.TeeReader(buf, uploadHash)
+
+		file.Size = int64(buf.Len())
+		obji := object.NewStaticObjectInfo(file.Path, file.ModTime, file.Size, true, nil, nil)
+		obj, err = f.Put(in, obji)
+		return err
+	})
+	file.Hashes = uploadHash.Sums()
 	file.Check(t, obj, f.Precision())
 	// Re-read the object and check again
 	obj = findObject(t, f, file.Path)
 	file.Check(t, obj, f.Precision())
-	return contents
+	return contents, obj
+}
+
+// testPutLarge puts file to the remote, checks it and removes it on success.
+func testPutLarge(t *testing.T, f fs.Fs, file *fstest.Item) {
+	var (
+		err        error
+		obj        fs.Object
+		uploadHash *hash.MultiHasher
+	)
+	retry(t, "PutLarge", func() error {
+		r := readers.NewPatternReader(file.Size)
+		uploadHash = hash.NewMultiHasher()
+		in := io.TeeReader(r, uploadHash)
+
+		obji := object.NewStaticObjectInfo(file.Path, file.ModTime, file.Size, true, nil, nil)
+		obj, err = f.Put(in, obji)
+		return err
+	})
+	file.Hashes = uploadHash.Sums()
+	file.Check(t, obj, f.Precision())
+
+	// Re-read the object and check again
+	obj = findObject(t, f, file.Path)
+	file.Check(t, obj, f.Precision())
+
+	// Download the object and check it is OK
+	downloadHash := hash.NewMultiHasher()
+	download, err := obj.Open()
+	require.NoError(t, err)
+	n, err := io.Copy(downloadHash, download)
+	require.NoError(t, err)
+	assert.Equal(t, file.Size, n)
+	require.NoError(t, download.Close())
+	assert.Equal(t, file.Hashes, downloadHash.Sums())
+
+	// Remove the object
+	require.NoError(t, obj.Remove())
 }
 
 // errorReader just returne an error on Read
@@ -134,11 +236,13 @@ type ExtraConfigItem struct{ Name, Key, Value string }
 
 // Opt is options for Run
 type Opt struct {
-	RemoteName  string
-	NilObject   fs.Object
-	ExtraConfig []ExtraConfigItem
-	// SkipBadWindowsCharacters skips unusable characters for windows if set
-	SkipBadWindowsCharacters bool
+	RemoteName               string
+	NilObject                fs.Object
+	ExtraConfig              []ExtraConfigItem
+	SkipBadWindowsCharacters bool     // skips unusable characters for windows if set
+	SkipFsMatch              bool     // if set skip exact matching of Fs value
+	TiersToTest              []string // List of tiers which can be tested in setTier test
+	ChunkedUpload            ChunkedUploadConfig
 }
 
 // Run runs the basic integration tests for a remote using the remote
@@ -196,6 +300,15 @@ func Run(t *testing.T, opt *Opt) {
 		fs.Config.UseListR = true
 		return func() {
 			fs.Config.UseListR = previous
+		}
+	}
+
+	// Skip if remote is not SetTier and GetTier capable
+	skipIfNotSetTier := func(t *testing.T) {
+		skipIfNotOk(t)
+		if remote.Features().SetTier == false ||
+			remote.Features().GetTier == false {
+			t.Skip("FS has no SetTier & GetTier interfaces")
 		}
 	}
 
@@ -272,9 +385,25 @@ func Run(t *testing.T, opt *Opt) {
 		require.NoError(t, err)
 	})
 
+	// Return true if f (or any of the things it wraps) is bucket
+	// based but not at the root.
+	isBucketBasedButNotRoot := func(f fs.Fs) bool {
+		for {
+			doUnWrap := f.Features().UnWrap
+			if doUnWrap == nil {
+				break
+			}
+			f = doUnWrap()
+		}
+		return f.Features().BucketBased && strings.Contains(strings.Trim(f.Root(), "/"), "/")
+	}
+
 	// TestFsRmdirNotFound tests deleting a non existent directory
 	t.Run("TestFsRmdirNotFound", func(t *testing.T) {
 		skipIfNotOk(t)
+		if isBucketBasedButNotRoot(remote) {
+			t.Skip("Skipping test as non root bucket based remote")
+		}
 		err := remote.Rmdir("")
 		assert.Error(t, err, "Expecting error on Rmdir non existent")
 	})
@@ -372,23 +501,26 @@ func Run(t *testing.T, opt *Opt) {
 	// TestFsPutFile1 tests putting a file
 	t.Run("TestFsPutFile1", func(t *testing.T) {
 		skipIfNotOk(t)
-		file1Contents = testPut(t, remote, &file1)
+		file1Contents, _ = testPut(t, remote, &file1)
 	})
 
 	// TestFsPutError tests uploading a file where there is an error
 	//
 	// It makes sure that aborting a file half way through does not create
 	// a file on the remote.
+	//
+	// go test -v -run 'TestIntegration/Test(Setup|Init|FsMkdir|FsPutError)$'
 	t.Run("TestFsPutError", func(t *testing.T) {
 		skipIfNotOk(t)
 
-		// Read 50 bytes then produce an error
-		contents := fstest.RandomString(50)
+		const N = 5 * 1024
+		// Read N bytes then produce an error
+		contents := fstest.RandomString(N)
 		buf := bytes.NewBufferString(contents)
 		er := &errorReader{errors.New("potato")}
 		in := io.MultiReader(buf, er)
 
-		obji := object.NewStaticObjectInfo(file2.Path, file2.ModTime, 100, true, nil, nil)
+		obji := object.NewStaticObjectInfo(file2.Path, file2.ModTime, 2*N, true, nil, nil)
 		_, err := remote.Put(in, obji)
 		// assert.Nil(t, obj) - FIXME some remotes return the object even on nil
 		assert.NotNil(t, err)
@@ -407,8 +539,111 @@ func Run(t *testing.T, opt *Opt) {
 	// TestFsUpdateFile1 tests updating file1 with new contents
 	t.Run("TestFsUpdateFile1", func(t *testing.T) {
 		skipIfNotOk(t)
-		file1Contents = testPut(t, remote, &file1)
+		file1Contents, _ = testPut(t, remote, &file1)
 		// Note that the next test will check there are no duplicated file names
+	})
+
+	t.Run("TestFsPutChunked", func(t *testing.T) {
+		skipIfNotOk(t)
+
+		setUploadChunkSizer, _ := remote.(SetUploadChunkSizer)
+		if setUploadChunkSizer == nil {
+			t.Skipf("%T does not implement SetUploadChunkSizer", remote)
+		}
+
+		setUploadCutoffer, _ := remote.(SetUploadCutoffer)
+
+		minChunkSize := opt.ChunkedUpload.MinChunkSize
+		if minChunkSize < 100 {
+			minChunkSize = 100
+		}
+		if opt.ChunkedUpload.CeilChunkSize != nil {
+			minChunkSize = opt.ChunkedUpload.CeilChunkSize(minChunkSize)
+		}
+
+		maxChunkSize := 2 * fs.MebiByte
+		if maxChunkSize < 2*minChunkSize {
+			maxChunkSize = 2 * minChunkSize
+		}
+		if opt.ChunkedUpload.MaxChunkSize > 0 && maxChunkSize > opt.ChunkedUpload.MaxChunkSize {
+			maxChunkSize = opt.ChunkedUpload.MaxChunkSize
+		}
+		if opt.ChunkedUpload.CeilChunkSize != nil {
+			maxChunkSize = opt.ChunkedUpload.CeilChunkSize(maxChunkSize)
+		}
+
+		next := func(f func(fs.SizeSuffix) fs.SizeSuffix) fs.SizeSuffix {
+			s := f(minChunkSize)
+			if s > maxChunkSize {
+				s = minChunkSize
+			}
+			return s
+		}
+
+		chunkSizes := fs.SizeSuffixList{
+			minChunkSize,
+			minChunkSize + (maxChunkSize-minChunkSize)/3,
+			next(NextPowerOfTwo),
+			next(NextMultipleOf(100000)),
+			next(NextMultipleOf(100001)),
+			maxChunkSize,
+		}
+		chunkSizes.Sort()
+
+		// Set the minimum chunk size, upload cutoff and reset it at the end
+		oldChunkSize, err := setUploadChunkSizer.SetUploadChunkSize(minChunkSize)
+		require.NoError(t, err)
+		var oldUploadCutoff fs.SizeSuffix
+		if setUploadCutoffer != nil {
+			oldUploadCutoff, err = setUploadCutoffer.SetUploadCutoff(minChunkSize)
+			require.NoError(t, err)
+		}
+		defer func() {
+			_, err := setUploadChunkSizer.SetUploadChunkSize(oldChunkSize)
+			assert.NoError(t, err)
+			if setUploadCutoffer != nil {
+				_, err := setUploadCutoffer.SetUploadCutoff(oldUploadCutoff)
+				assert.NoError(t, err)
+			}
+		}()
+
+		var lastCs fs.SizeSuffix
+		for _, cs := range chunkSizes {
+			if cs <= lastCs {
+				continue
+			}
+			if opt.ChunkedUpload.CeilChunkSize != nil {
+				cs = opt.ChunkedUpload.CeilChunkSize(cs)
+			}
+			lastCs = cs
+
+			t.Run(cs.String(), func(t *testing.T) {
+				_, err := setUploadChunkSizer.SetUploadChunkSize(cs)
+				require.NoError(t, err)
+				if setUploadCutoffer != nil {
+					_, err = setUploadCutoffer.SetUploadCutoff(cs)
+					require.NoError(t, err)
+				}
+
+				var testChunks []fs.SizeSuffix
+				if opt.ChunkedUpload.NeedMultipleChunks {
+					// If NeedMultipleChunks is set then test with > cs
+					testChunks = []fs.SizeSuffix{cs + 1, 2 * cs, 2*cs + 1}
+				} else {
+					testChunks = []fs.SizeSuffix{cs - 1, cs, 2*cs + 1}
+				}
+
+				for _, fileSize := range testChunks {
+					t.Run(fmt.Sprintf("%d", fileSize), func(t *testing.T) {
+						testPutLarge(t, remote, &fstest.Item{
+							ModTime: fstest.Time("2001-02-03T04:05:06.499999999Z"),
+							Path:    fmt.Sprintf("chunked-%s-%s.bin", cs.String(), fileSize.String()),
+							Size:    int64(fileSize),
+						})
+					})
+				}
+			})
+		}
 	})
 
 	// TestFsListDirFile2 tests the files are correctly uploaded by doing
@@ -724,6 +959,9 @@ func Run(t *testing.T, opt *Opt) {
 	// TestFsRmdirFull tests removing a non empty directory
 	t.Run("TestFsRmdirFull", func(t *testing.T) {
 		skipIfNotOk(t)
+		if isBucketBasedButNotRoot(remote) {
+			t.Skip("Skipping test as non root bucket based remote")
+		}
 		err := remote.Rmdir("")
 		require.Error(t, err, "Expecting error on RMdir on non empty remote")
 	})
@@ -757,21 +995,27 @@ func Run(t *testing.T, opt *Opt) {
 		err := operations.Mkdir(remote, "dir")
 		require.NoError(t, err)
 
+		pollInterval := make(chan time.Duration)
 		dirChanges := []string{}
 		objChanges := []string{}
-		quitChannel := doChangeNotify(func(x string, e fs.EntryType) {
+		doChangeNotify(func(x string, e fs.EntryType) {
 			fs.Debugf(nil, "doChangeNotify(%q, %+v)", x, e)
 			if strings.HasPrefix(x, file1.Path[:5]) || strings.HasPrefix(x, file2.Path[:5]) {
 				fs.Debugf(nil, "Ignoring notify for file1 or file2: %q, %v", x, e)
 				return
 			}
 			if e == fs.EntryDirectory {
-				dirChanges = append(dirChanges, x)
+				if x != "dir" {
+					// ignore the base directory creation which we sometimes
+					// catch and sometimes don't
+					dirChanges = append(dirChanges, x)
+				}
 			} else if e == fs.EntryObject {
 				objChanges = append(objChanges, x)
 			}
-		}, time.Second)
-		defer func() { close(quitChannel) }()
+		}, pollInterval)
+		defer func() { close(pollInterval) }()
+		pollInterval <- time.Second
 
 		var dirs []string
 		for _, idx := range []int{1, 3, 2} {
@@ -781,14 +1025,13 @@ func Run(t *testing.T, opt *Opt) {
 			dirs = append(dirs, dir)
 		}
 
-		contents := fstest.RandomString(100)
-		buf := bytes.NewBufferString(contents)
-
 		var objs []fs.Object
 		for _, idx := range []int{2, 4, 3} {
-			obji := object.NewStaticObjectInfo(fmt.Sprintf("dir/file%d", idx), time.Now(), int64(buf.Len()), true, nil, nil)
-			o, err := remote.Put(buf, obji)
-			require.NoError(t, err)
+			file := fstest.Item{
+				ModTime: time.Now(),
+				Path:    fmt.Sprintf("dir/file%d", idx),
+			}
+			_, o := testPut(t, remote, &file)
 			objs = append(objs, o)
 		}
 
@@ -812,13 +1055,20 @@ func Run(t *testing.T, opt *Opt) {
 		skipIfNotOk(t)
 		obj := findObject(t, remote, file1.Path)
 		assert.Equal(t, file1.Path, obj.String())
-		assert.Equal(t, "<nil>", opt.NilObject.String())
+		if opt.NilObject != nil {
+			assert.Equal(t, "<nil>", opt.NilObject.String())
+		}
 	})
 
 	// TestObjectFs tests the object can be found
 	t.Run("TestObjectFs", func(t *testing.T) {
 		skipIfNotOk(t)
 		obj := findObject(t, remote, file1.Path)
+		// If this is set we don't do the direct comparison of
+		// the Fs from the object as it may be different
+		if opt.SkipFsMatch {
+			return
+		}
 		testRemote := remote
 		if obj.Fs() != testRemote {
 			// Check to see if this wraps something else
@@ -993,6 +1243,7 @@ func Run(t *testing.T, opt *Opt) {
 	})
 
 	// TestPublicLink tests creation of sharable, public links
+	// go test -v -run 'TestIntegration/Test(Setup|Init|FsMkdir|FsPutFile1|FsPutFile2|FsUpdateFile1|PublicLink)$'
 	t.Run("TestPublicLink", func(t *testing.T) {
 		skipIfNotOk(t)
 
@@ -1048,6 +1299,27 @@ func Run(t *testing.T, opt *Opt) {
 		require.NotEqual(t, "", link4, "Link should not be empty")
 	})
 
+	// TestSetTier tests SetTier and GetTier functionality
+	t.Run("TestSetTier", func(t *testing.T) {
+		skipIfNotSetTier(t)
+		obj := findObject(t, remote, file1.Path)
+		setter, ok := obj.(fs.SetTierer)
+		assert.NotNil(t, ok)
+		getter, ok := obj.(fs.GetTierer)
+		assert.NotNil(t, ok)
+		// If interfaces are supported TiersToTest should contain
+		// at least one entry
+		supportedTiers := opt.TiersToTest
+		assert.NotEmpty(t, supportedTiers)
+		// test set tier changes on supported storage classes or tiers
+		for _, tier := range supportedTiers {
+			err := setter.SetTier(tier)
+			assert.Nil(t, err)
+			got := getter.GetTier()
+			assert.Equal(t, tier, got)
+		}
+	})
+
 	// TestObjectRemove tests Remove
 	t.Run("TestObjectRemove", func(t *testing.T) {
 		skipIfNotOk(t)
@@ -1071,30 +1343,24 @@ func Run(t *testing.T, opt *Opt) {
 			Size:    -1, // use unknown size during upload
 		}
 
-		tries := 1
-		const maxTries = 10
-	again:
-		contentSize := 100
-		contents := fstest.RandomString(contentSize)
-		buf := bytes.NewBufferString(contents)
-		hash := hash.NewMultiHasher()
-		in := io.TeeReader(buf, hash)
+		var (
+			err         error
+			obj         fs.Object
+			uploadHash  *hash.MultiHasher
+			contentSize = 100
+		)
+		retry(t, "PutStream", func() error {
+			contents := fstest.RandomString(contentSize)
+			buf := bytes.NewBufferString(contents)
+			uploadHash = hash.NewMultiHasher()
+			in := io.TeeReader(buf, uploadHash)
 
-		file.Size = -1
-		obji := object.NewStaticObjectInfo(file.Path, file.ModTime, file.Size, true, nil, nil)
-		obj, err := remote.Features().PutStream(in, obji)
-		if err != nil {
-			// Retry if err returned a retry error
-			if fserrors.IsRetryError(err) && tries < maxTries {
-				t.Logf("Put error: %v - low level retry %d/%d", err, tries, maxTries)
-				time.Sleep(2 * time.Second)
-
-				tries++
-				goto again
-			}
-			require.NoError(t, err, fmt.Sprintf("PutStream Unknown Length error: %v", err))
-		}
-		file.Hashes = hash.Sums()
+			file.Size = -1
+			obji := object.NewStaticObjectInfo(file.Path, file.ModTime, file.Size, true, nil, nil)
+			obj, err = remote.Features().PutStream(in, obji)
+			return err
+		})
+		file.Hashes = uploadHash.Sums()
 		file.Size = int64(contentSize) // use correct size when checking
 		file.Check(t, obj, remote.Precision())
 		// Re-read the object and check again
@@ -1119,6 +1385,16 @@ func Run(t *testing.T, opt *Opt) {
 		assert.NotEqual(t, int64(0), usage.Total)
 	})
 
+	// TestInternal calls InternalTest() on the Fs
+	t.Run("TestInternal", func(t *testing.T) {
+		skipIfNotOk(t)
+		if it, ok := remote.(InternalTester); ok {
+			it.InternalTest(t)
+		} else {
+			t.Skipf("%T does not implement InternalTester", remote)
+		}
+	})
+
 	// TestObjectPurge tests Purge
 	t.Run("TestObjectPurge", func(t *testing.T) {
 		skipIfNotOk(t)
@@ -1127,17 +1403,9 @@ func Run(t *testing.T, opt *Opt) {
 		require.NoError(t, err)
 		fstest.CheckListing(t, remote, []fstest.Item{})
 
-		err = operations.Purge(remote, "")
-		assert.Error(t, err, "Expecting error after on second purge")
-	})
-
-	// TestInternal calls InternalTest() on the Fs
-	t.Run("TestInternal", func(t *testing.T) {
-		skipIfNotOk(t)
-		if it, ok := remote.(InternalTester); ok {
-			it.InternalTest(t)
-		} else {
-			t.Skipf("%T does not implement InternalTester", remote)
+		if !isBucketBasedButNotRoot(remote) {
+			err = operations.Purge(remote, "")
+			assert.Error(t, err, "Expecting error after on second purge")
 		}
 	})
 

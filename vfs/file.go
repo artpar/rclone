@@ -7,8 +7,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/log"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/log"
+	"github.com/ncw/rclone/fs/operations"
 	"github.com/pkg/errors"
 )
 
@@ -108,18 +109,16 @@ func (f *File) applyPendingRename() {
 // Otherwise it will queue the rename operation on the remote until no writers
 // remain.
 func (f *File) rename(destDir *Dir, newName string) error {
-	// FIXME: could Copy then Delete if Move not available
-	// - though care needed if case insensitive...
-	doMove := f.d.f.Features().Move
-	if doMove == nil {
-		err := errors.Errorf("Fs %q can't rename files (no Move)", f.d.f)
+	if features := f.d.f.Features(); features.Move == nil && features.Copy == nil {
+		err := errors.Errorf("Fs %q can't rename files (no server side Move or Copy)", f.d.f)
 		fs.Errorf(f.Path(), "Dir.Rename error: %v", err)
 		return err
 	}
 
 	renameCall := func() error {
 		newPath := path.Join(destDir.path, newName)
-		newObject, err := doMove(f.o, newPath)
+		dstOverwritten, _ := f.d.f.NewObject(newPath)
+		newObject, err := operations.Move(f.d.f, dstOverwritten, newPath, f.o)
 		if err != nil {
 			fs.Errorf(f.Path(), "File.Rename error: %v", err)
 			return err
@@ -441,6 +440,8 @@ func (f *File) Sync() error {
 
 // Remove the file
 func (f *File) Remove() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.muRW.Lock()
 	defer f.muRW.Unlock()
 	if f.d.vfs.Opt.ReadOnly {

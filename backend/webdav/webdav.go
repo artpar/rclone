@@ -372,6 +372,17 @@ func (f *Fs) setQuirks(vendor string) error {
 		if err != nil {
 			return err
 		}
+
+		odrvcookie.NewRenew(12*time.Hour, func() {
+			spCookies, err := spCk.Cookies()
+			if err != nil {
+				fs.Errorf("could not renew cookies: %s", err.Error())
+				return
+			}
+			f.srv.SetCookie(&spCookies.FedAuth, &spCookies.RtFa)
+			fs.Debugf(spCookies, "successfully renewed sharepoint cookies")
+		})
+
 		f.srv.SetCookie(&spCookies.FedAuth, &spCookies.RtFa)
 
 		// sharepoint, unlike the other vendors, only lists files if the depth header is set to 0
@@ -957,6 +968,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		Body:          in,
 		NoResponse:    true,
 		ContentLength: &size, // FIXME this isn't necessary with owncloud - See https://github.com/nextcloud/nextcloud-snap/issues/365
+		ContentType:   fs.MimeType(src),
 	}
 	if o.fs.useOCMtime {
 		opts.ExtraHeaders = map[string]string{
@@ -968,6 +980,14 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		return shouldRetry(resp, err)
 	})
 	if err != nil {
+		// Give the WebDAV server a chance to get its internal state in order after the
+		// error.  The error may have been local in which case we closed the connection.
+		// The server may still be dealing with it for a moment. A sleep isn't ideal but I
+		// haven't been able to think of a better method to find out if the server has
+		// finished - ncw
+		time.Sleep(1 * time.Second)
+		// Remove failed upload
+		_ = o.Remove()
 		return err
 	}
 	// read metadata from remote

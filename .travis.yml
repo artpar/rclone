@@ -4,11 +4,12 @@ dist: trusty
 os:
 - linux
 go:
-- 1.7.6
-- 1.8.7
-- 1.9.3
-- "1.10.1"
+- 1.8.x
+- 1.9.x
+- 1.10.x
+- 1.11.x
 - tip
+go_import_path: github.com/ncw/rclone
 before_install:
 - if [[ $TRAVIS_OS_NAME == linux ]]; then sudo modprobe fuse ; sudo chmod 666 /dev/fuse ; sudo chown root:$USER /etc/fuse.conf ; fi
 - if [[ $TRAVIS_OS_NAME == osx ]]; then brew update && brew tap caskroom/cask && brew cask install osxfuse ; fi
@@ -33,18 +34,25 @@ addons:
     - libfuse-dev
     - rpm
     - pkg-config
+cache:
+  directories:
+    - $HOME/.cache/go-build
 matrix:
   allow_failures:
   - go: tip
   include:
   - os: osx
-    go: "1.10.1"
+    go: 1.11.x
     env: GOTAGS=""
+    cache:
+      directories:
+        - $HOME/Library/Caches/go-build
 deploy:
   provider: script
   script: make travis_beta
   skip_cleanup: true
   on:
+    repo: ncw/rclone
     all_branches: true
-    go: "1.10.1"
+    go: 1.11.x
     condition: $TRAVIS_PULL_REQUEST == false

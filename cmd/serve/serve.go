@@ -3,10 +3,11 @@ package serve
 import (
 	"errors"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/cmd/serve/http"
-	"github.com/artpar/rclone/cmd/serve/restic"
-	"github.com/artpar/rclone/cmd/serve/webdav"
+	"github.com/ncw/rclone/cmd"
+	"github.com/ncw/rclone/cmd/serve/ftp"
+	"github.com/ncw/rclone/cmd/serve/http"
+	"github.com/ncw/rclone/cmd/serve/restic"
+	"github.com/ncw/rclone/cmd/serve/webdav"
 	"github.com/spf13/cobra"
 )
 
@@ -14,6 +15,9 @@ func init() {
 	Command.AddCommand(http.Command)
 	Command.AddCommand(webdav.Command)
 	Command.AddCommand(restic.Command)
+	if ftp.Command != nil {
+		Command.AddCommand(ftp.Command)
+	}
 	cmd.Root.AddCommand(Command)
 }
 

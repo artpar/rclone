@@ -388,64 +388,74 @@ Drive, the size of all files in the Trash and the space used by other
 Google services such as Gmail. This command does not take any path
 arguments.
 
-### Specific options ###
+#### Import/Export of google documents ####
 
-Here are the command line options specific to this cloud storage
-system.
+Google documents can be exported from and uploaded to Google Drive.
 
-#### --drive-acknowledge-abuse ####
-
-If downloading a file returns the error `This file has been identified
-as malware or spam and cannot be downloaded` with the error code
-`cannotDownloadAbusiveFile` then supply this flag to rclone to
-indicate you acknowledge the risks of downloading the file and rclone
-will download it anyway.
-
-#### --drive-auth-owner-only ####
-
-Only consider files owned by the authenticated user.
-
-#### --drive-chunk-size=SIZE ####
-
-Upload chunk size. Must a power of 2 >= 256k. Default value is 8 MB.
-
-Making this larger will improve performance, but note that each chunk
-is buffered in memory one per transfer.
-
-Reducing this will reduce memory usage but decrease performance.
-
-#### --drive-formats ####
-
-Google documents can only be exported from Google drive.  When rclone
-downloads a Google doc it chooses a format to download depending upon
-this setting.
-
-By default the formats are `docx,xlsx,pptx,svg` which are a sensible
-default for an editable document.
+When rclone downloads a Google doc it chooses a format to download
+depending upon the `--drive-export-formats` setting.
+By default the export formats are `docx,xlsx,pptx,svg` which are a
+sensible default for an editable document.
 
 When choosing a format, rclone runs down the list provided in order
 and chooses the first file format the doc can be exported as from the
 list. If the file can't be exported to a format on the formats list,
 then rclone will choose a format from the default list.
 
-If you prefer an archive copy then you might use `--drive-formats
+If you prefer an archive copy then you might use `--drive-export-formats
 pdf`, or if you prefer openoffice/libreoffice formats you might use
-`--drive-formats ods,odt,odp`.
+`--drive-export-formats ods,odt,odp`.
 
 Note that rclone adds the extension to the google doc, so if it is
 calles `My Spreadsheet` on google docs, it will be exported as `My
 Spreadsheet.xlsx` or `My Spreadsheet.pdf` etc.
 
-Here are the possible extensions with their corresponding mime types.
+When importing files into Google Drive, rclone will conververt all
+files with an extension in `--drive-import-formats` to their
+associated document type.
+rclone will not convert any files by default, since the conversion
+is lossy process.
+
+The conversion must result in a file with the same extension when
+the `--drive-export-formats` rules are applied to the uploded document.
+
+Here are some examples for allowed and prohibited conversions.
+
+| export-formats | import-formats | Upload Ext | Document Ext | Allowed |
+| -------------- | -------------- | ---------- | ------------ | ------- |
+| odt | odt | odt | odt | Yes |
+| odt | docx,odt | odt | odt | Yes |
+|  | docx | docx | docx | Yes |
+|  | odt | odt | docx | No |
+| odt,docx | docx,odt | docx | odt | No |
+| docx,odt | docx,odt | docx | docx | Yes |
+| docx,odt | docx,odt | odt | docx | No |
+
+This limitation can be disabled by specifying `--drive-allow-import-name-change`.
+When using this flag, rclone can convert multiple files types resulting
+in the same document type at once, eg with `--drive-import-formats docx,odt,txt`,
+all files having these extension would result in a doument represented as a docx file.
+This brings the additional risk of overwriting a document, if multiple files
+have the same stem. Many rclone operations will not handle this name change
+in any way. They assume an equal name when copying files and might copy the
+file again or delete them when the name changes. 
+
+Here are the possible export extensions with their corresponding mime types.
+Most of these can also be used for importing, but there more that are not
+listed here. Some of these additional ones might only be available when
+the operating system provides the correct MIME type entries.
+
+This list can be changed by Google Drive at any time and might not
+represent the currently available converions.
 
 | Extension | Mime Type | Description |
 | --------- |-----------| ------------|
 | csv  | text/csv | Standard CSV format for Spreadsheets |
-| doc  | application/msword | Micosoft Office Document |
 | docx | application/vnd.openxmlformats-officedocument.wordprocessingml.document | Microsoft Office Document |
 | epub | application/epub+zip | E-book format |
 | html | text/html | An HTML Document |
 | jpg  | image/jpeg | A JPEG Image File |
+| json | application/vnd.google-apps.script+json | JSON Text Format |
 | odp  | application/vnd.oasis.opendocument.presentation | Openoffice Presentation |
 | ods  | application/vnd.oasis.opendocument.spreadsheet | Openoffice Spreadsheet |
 | ods  | application/x-vnd.oasis.opendocument.spreadsheet | Openoffice Spreadsheet |
@@ -457,34 +467,150 @@ Here are the possible extensions with their corresponding mime types.
 | svg  | image/svg+xml | Scalable Vector Graphics Format |
 | tsv  | text/tab-separated-values | Standard TSV format for spreadsheets |
 | txt  | text/plain | Plain Text |
-| xls  | application/vnd.ms-excel | Microsoft Office Spreadsheet |
 | xlsx | application/vnd.openxmlformats-officedocument.spreadsheetml.sheet | Microsoft Office Spreadsheet |
 | zip  | application/zip | A ZIP file of HTML, Images CSS |
 
-#### --drive-alternate-export ####
+Google douments can also be exported as link files. These files will
+open a browser window for the Google Docs website of that dument
+when opened. The link file extension has to be specified as a
+`--drive-export-formats` parameter. They will match all available
+Google Documents.
 
-If this option is set this instructs rclone to use an alternate set of
-export URLs for drive documents.  Users have reported that the
-official export URLs can't export large documents, whereas these
-unofficial ones can.
+| Extension | Description | OS Support |
+| --------- | ----------- | ---------- |
+| desktop | freedesktop.org specified desktop entry | Linux |
+| link.html | An HTML Document with a redirect | All |
+| url | INI style link file | macOS, Windows |
+| webloc | macOS specific XML format | macOS |
 
-See rclone issue [#2243](https://github.com/artpar/rclone/issues/2243) for background,
-[this google drive issue](https://issuetracker.google.com/issues/36761333) and
-[this helpful post](https://www.labnol.org/internet/direct-links-for-google-drive/28356/).
+<!--- autogenerated options start - DO NOT EDIT, instead edit fs.RegInfo in backend/drive/drive.go then run make backenddocs -->
+### Standard Options
 
-#### --drive-impersonate user ####
+Here are the standard options specific to drive (Google Drive).
 
-When using a service account, this instructs rclone to impersonate the user passed in.
+#### --drive-client-id
 
-#### --drive-keep-revision-forever ####
+Google Application Client Id
+Leave blank normally.
 
-Keeps new head revision of the file forever.
+- Config:      client_id
+- Env Var:     RCLONE_DRIVE_CLIENT_ID
+- Type:        string
+- Default:     ""
 
-#### --drive-list-chunk int ####
+#### --drive-client-secret
 
-Size of listing chunk 100-1000. 0 to disable. (default 1000)
+Google Application Client Secret
+Leave blank normally.
 
-#### --drive-shared-with-me ####
+- Config:      client_secret
+- Env Var:     RCLONE_DRIVE_CLIENT_SECRET
+- Type:        string
+- Default:     ""
+
+#### --drive-scope
+
+Scope that rclone should use when requesting access from drive.
+
+- Config:      scope
+- Env Var:     RCLONE_DRIVE_SCOPE
+- Type:        string
+- Default:     ""
+- Examples:
+    - "drive"
+        - Full access all files, excluding Application Data Folder.
+    - "drive.readonly"
+        - Read-only access to file metadata and file contents.
+    - "drive.file"
+        - Access to files created by rclone only.
+        - These are visible in the drive website.
+        - File authorization is revoked when the user deauthorizes the app.
+    - "drive.appfolder"
+        - Allows read and write access to the Application Data folder.
+        - This is not visible in the drive website.
+    - "drive.metadata.readonly"
+        - Allows read-only access to file metadata but
+        - does not allow any access to read or download file content.
+
+#### --drive-root-folder-id
+
+ID of the root folder
+Leave blank normally.
+Fill in to access "Computers" folders. (see docs).
+
+- Config:      root_folder_id
+- Env Var:     RCLONE_DRIVE_ROOT_FOLDER_ID
+- Type:        string
+- Default:     ""
+
+#### --drive-service-account-file
+
+Service Account Credentials JSON file path 
+Leave blank normally.
+Needed only if you want use SA instead of interactive login.
+
+- Config:      service_account_file
+- Env Var:     RCLONE_DRIVE_SERVICE_ACCOUNT_FILE
+- Type:        string
+- Default:     ""
+
+### Advanced Options
+
+Here are the advanced options specific to drive (Google Drive).
+
+#### --drive-service-account-credentials
+
+Service Account Credentials JSON blob
+Leave blank normally.
+Needed only if you want use SA instead of interactive login.
+
+- Config:      service_account_credentials
+- Env Var:     RCLONE_DRIVE_SERVICE_ACCOUNT_CREDENTIALS
+- Type:        string
+- Default:     ""
+
+#### --drive-team-drive
+
+ID of the Team Drive
+
+- Config:      team_drive
+- Env Var:     RCLONE_DRIVE_TEAM_DRIVE
+- Type:        string
+- Default:     ""
+
+#### --drive-auth-owner-only
+
+Only consider files owned by the authenticated user.
+
+- Config:      auth_owner_only
+- Env Var:     RCLONE_DRIVE_AUTH_OWNER_ONLY
+- Type:        bool
+- Default:     false
+
+#### --drive-use-trash
+
+Send files to the trash instead of deleting permanently.
+Defaults to true, namely sending files to the trash.
+Use `--drive-use-trash=false` to delete files permanently instead.
+
+- Config:      use_trash
+- Env Var:     RCLONE_DRIVE_USE_TRASH
+- Type:        bool
+- Default:     true
+
+#### --drive-skip-gdocs
+
+Skip google documents in all listings.
+If given, gdocs practically become invisible to rclone.
+
+- Config:      skip_gdocs
+- Env Var:     RCLONE_DRIVE_SKIP_GDOCS
+- Type:        bool
+- Default:     false
+
+#### --drive-shared-with-me
+
+Only show files that are shared with me.
 
 Instructs rclone to operate on your "Shared with me" folder (where
 Google Drive lets you access the files and folders others have shared
@@ -493,29 +619,60 @@ with you).
 This works both with the "list" (lsd, lsl, etc) and the "copy"
 commands (copy, sync, etc), and with all other commands too.
 
-#### --drive-skip-gdocs ####
+- Config:      shared_with_me
+- Env Var:     RCLONE_DRIVE_SHARED_WITH_ME
+- Type:        bool
+- Default:     false
 
-Skip google documents in all listings. If given, gdocs practically become invisible to rclone.
+#### --drive-trashed-only
 
-#### --drive-trashed-only ####
+Only show files that are in the trash.
+This will show trashed files in their original directory structure.
 
-Only show files that are in the trash.  This will show trashed files
-in their original directory structure.
+- Config:      trashed_only
+- Env Var:     RCLONE_DRIVE_TRASHED_ONLY
+- Type:        bool
+- Default:     false
 
-#### --drive-upload-cutoff=SIZE ####
+#### --drive-formats
 
-File size cutoff for switching to chunked upload.  Default is 8 MB.
+Deprecated: see export_formats
 
-#### --drive-use-trash ####
+- Config:      formats
+- Env Var:     RCLONE_DRIVE_FORMATS
+- Type:        string
+- Default:     ""
 
-Controls whether files are sent to the trash or deleted
-permanently. Defaults to true, namely sending files to the trash.  Use
-`--drive-use-trash=false` to delete files permanently instead.
+#### --drive-export-formats
 
-#### --drive-use-created-date ####
+Comma separated list of preferred formats for downloading Google docs.
 
-Use the file creation date in place of the modification date. Defaults
-to false.
+- Config:      export_formats
+- Env Var:     RCLONE_DRIVE_EXPORT_FORMATS
+- Type:        string
+- Default:     "docx,xlsx,pptx,svg"
+
+#### --drive-import-formats
+
+Comma separated list of preferred formats for uploading Google docs.
+
+- Config:      import_formats
+- Env Var:     RCLONE_DRIVE_IMPORT_FORMATS
+- Type:        string
+- Default:     ""
+
+#### --drive-allow-import-name-change
+
+Allow the filetype to change when uploading Google docs (e.g. file.doc to file.docx). This will confuse sync and reupload every time.
+
+- Config:      allow_import_name_change
+- Env Var:     RCLONE_DRIVE_ALLOW_IMPORT_NAME_CHANGE
+- Type:        bool
+- Default:     false
+
+#### --drive-use-created-date
+
+Use file created date instead of modified date.,
 
 Useful when downloading data and you want the creation date used in
 place of the last modified date.
@@ -525,13 +682,112 @@ place of the last modified date.
 When uploading to your drive all files will be overwritten unless they
 haven't been modified since their creation. And the inverse will occur
 while downloading.  This side effect can be avoided by using the
-`--checksum` flag.
+"--checksum" flag.
 
 This feature was implemented to retain photos capture date as recorded
 by google photos. You will first need to check the "Create a Google
 Photos folder" option in your google drive settings. You can then copy
 or move the photos locally and use the date the image was taken
 (created) set as the modification date.
+
+- Config:      use_created_date
+- Env Var:     RCLONE_DRIVE_USE_CREATED_DATE
+- Type:        bool
+- Default:     false
+
+#### --drive-list-chunk
+
+Size of listing chunk 100-1000. 0 to disable.
+
+- Config:      list_chunk
+- Env Var:     RCLONE_DRIVE_LIST_CHUNK
+- Type:        int
+- Default:     1000
+
+#### --drive-impersonate
+
+Impersonate this user when using a service account.
+
+- Config:      impersonate
+- Env Var:     RCLONE_DRIVE_IMPERSONATE
+- Type:        string
+- Default:     ""
+
+#### --drive-alternate-export
+
+Use alternate export URLs for google documents export.,
+
+If this option is set this instructs rclone to use an alternate set of
+export URLs for drive documents.  Users have reported that the
+official export URLs can't export large documents, whereas these
+unofficial ones can.
+
+See rclone issue [#2243](https://github.com/ncw/rclone/issues/2243) for background,
+[this google drive issue](https://issuetracker.google.com/issues/36761333) and
+[this helpful post](https://www.labnol.org/internet/direct-links-for-google-drive/28356/).
+
+- Config:      alternate_export
+- Env Var:     RCLONE_DRIVE_ALTERNATE_EXPORT
+- Type:        bool
+- Default:     false
+
+#### --drive-upload-cutoff
+
+Cutoff for switching to chunked upload
+
+- Config:      upload_cutoff
+- Env Var:     RCLONE_DRIVE_UPLOAD_CUTOFF
+- Type:        SizeSuffix
+- Default:     8M
+
+#### --drive-chunk-size
+
+Upload chunk size. Must a power of 2 >= 256k.
+
+Making this larger will improve performance, but note that each chunk
+is buffered in memory one per transfer.
+
+Reducing this will reduce memory usage but decrease performance.
+
+- Config:      chunk_size
+- Env Var:     RCLONE_DRIVE_CHUNK_SIZE
+- Type:        SizeSuffix
+- Default:     8M
+
+#### --drive-acknowledge-abuse
+
+Set to allow files which return cannotDownloadAbusiveFile to be downloaded.
+
+If downloading a file returns the error "This file has been identified
+as malware or spam and cannot be downloaded" with the error code
+"cannotDownloadAbusiveFile" then supply this flag to rclone to
+indicate you acknowledge the risks of downloading the file and rclone
+will download it anyway.
+
+- Config:      acknowledge_abuse
+- Env Var:     RCLONE_DRIVE_ACKNOWLEDGE_ABUSE
+- Type:        bool
+- Default:     false
+
+#### --drive-keep-revision-forever
+
+Keep new head revision of each file forever.
+
+- Config:      keep_revision_forever
+- Env Var:     RCLONE_DRIVE_KEEP_REVISION_FOREVER
+- Type:        bool
+- Default:     false
+
+#### --drive-v2-download-min-size
+
+If Object's are greater, use drive v2 API to download.
+
+- Config:      v2_download_min_size
+- Env Var:     RCLONE_DRIVE_V2_DOWNLOAD_MIN_SIZE
+- Type:        SizeSuffix
+- Default:     off
+
+<!--- autogenerated options stop -->
 
 ### Limitations ###
 

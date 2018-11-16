@@ -9,10 +9,11 @@ import (
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/log"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
+	"github.com/ncw/rclone/cmd/mountlib"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/log"
+	"github.com/ncw/rclone/vfs"
+	"github.com/ncw/rclone/vfs/vfsflags"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context" // switch to "context" when we stop supporting go1.8
 )
@@ -72,6 +73,9 @@ func (f *FS) Statfs(ctx context.Context, req *fuse.StatfsRequest, resp *fuse.Sta
 	if free >= 0 {
 		resp.Bavail = uint64(free) / blockSize
 	}
+	mountlib.ClipBlocks(&resp.Blocks)
+	mountlib.ClipBlocks(&resp.Bfree)
+	mountlib.ClipBlocks(&resp.Bavail)
 	return nil
 }
 

@@ -1,17 +1,23 @@
 // Test Swift filesystem interface
-package swift_test
+package swift
 
 import (
 	"testing"
 
-	"github.com/artpar/rclone/backend/swift"
-	"github.com/artpar/rclone/fstest/fstests"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fstest/fstests"
 )
 
 // TestIntegration runs integration tests against the remote
 func TestIntegration(t *testing.T) {
 	fstests.Run(t, &fstests.Opt{
 		RemoteName: "TestSwift:",
-		NilObject:  (*swift.Object)(nil),
+		NilObject:  (*Object)(nil),
 	})
 }
+
+func (f *Fs) SetUploadChunkSize(cs fs.SizeSuffix) (fs.SizeSuffix, error) {
+	return f.setUploadChunkSize(cs)
+}
+
+var _ fstests.SetUploadChunkSizer = (*Fs)(nil)
