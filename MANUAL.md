@@ -62,7 +62,7 @@ Features
 Links
 
   * [Home page](https://rclone.org/)
-  * [GitHub project page for source and bug tracker](https://github.com/ncw/rclone)
+  * [GitHub project page for source and bug tracker](https://github.com/artpar/rclone)
   * [Rclone Forum](https://forum.rclone.org)
   * <a href="https://google.com/+RcloneOrg" rel="publisher">Google+ page</a>
   * [Downloads](https://rclone.org/downloads/)
@@ -150,7 +150,7 @@ Make sure you have at least [Go](https://golang.org/) 1.7
 installed.  [Download go](https://golang.org/dl/) if necessary.  The
 latest release is recommended. Then
 
-    git clone https://github.com/ncw/rclone.git
+    git clone https://github.com/artpar/rclone.git
     cd rclone
     go build
     ./rclone version
@@ -159,11 +159,11 @@ You can also build and install rclone in the
 [GOPATH](https://github.com/golang/go/wiki/GOPATH) (which defaults to
 `~/go`) with:
 
-    go get -u -v github.com/ncw/rclone
+    go get -u -v github.com/artpar/rclone
 
 and this will build the binary in `$GOPATH/bin` (`~/go/bin/rclone` by
 default) after downloading the source to
-`$GOPATH/src/github.com/ncw/rclone` (`~/go/src/github.com/ncw/rclone`
+`$GOPATH/src/github.com/artpar/rclone` (`~/go/src/github.com/artpar/rclone`
 by default).
 
 ## Installation with Ansible ##
@@ -1953,9 +1953,9 @@ too many callbacks to rclone from the kernel.
 In theory 0s should be the correct value for filesystems which can
 change outside the control of the kernel. However this causes quite a
 few problems such as
-[rclone using too much memory](https://github.com/ncw/rclone/issues/2157),
+[rclone using too much memory](https://github.com/artpar/rclone/issues/2157),
 [rclone not serving files to samba](https://forum.rclone.org/t/rclone-1-39-vs-1-40-mount-issue/5112)
-and [excessive time listing directories](https://github.com/ncw/rclone/issues/2095#issuecomment-371141147).
+and [excessive time listing directories](https://github.com/artpar/rclone/issues/2095#issuecomment-371141147).
 
 The kernel can cache the info about a file for the time given by
 "--attr-timeout". You may see corruption if the remote file changes
@@ -3436,7 +3436,7 @@ If your names have spaces in you need to put them in `"`, eg
     rclone copy "E:\folder name\folder name\folder name" remote:backup
 
 If you are using the root directory on its own then don't quote it
-(see [#464](https://github.com/ncw/rclone/issues/464) for why), eg
+(see [#464](https://github.com/artpar/rclone/issues/464) for why), eg
 
     rclone copy E:\ remote:backup
 
@@ -3733,7 +3733,7 @@ after transfer.
 
 This can be useful for transferring files to and from OneDrive which
 occasionally misreports the size of image files (see
-[#399](https://github.com/ncw/rclone/issues/399) for more info).
+[#399](https://github.com/artpar/rclone/issues/399) for more info).
 
 ### -I, --ignore-times ###
 
@@ -5460,14 +5460,14 @@ You can also use the `-text` flag to produce a textual summary
 $ go tool pprof -text http://localhost:5572/debug/pprof/heap
 Showing nodes accounting for 1537.03kB, 100% of 1537.03kB total
       flat  flat%   sum%        cum   cum%
- 1024.03kB 66.62% 66.62%  1024.03kB 66.62%  github.com/ncw/rclone/vendor/golang.org/x/net/http2/hpack.addDecoderNode
+ 1024.03kB 66.62% 66.62%  1024.03kB 66.62%  github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.addDecoderNode
      513kB 33.38%   100%      513kB 33.38%  net/http.newBufioWriterSize
-         0     0%   100%  1024.03kB 66.62%  github.com/ncw/rclone/cmd/all.init
-         0     0%   100%  1024.03kB 66.62%  github.com/ncw/rclone/cmd/serve.init
-         0     0%   100%  1024.03kB 66.62%  github.com/ncw/rclone/cmd/serve/restic.init
-         0     0%   100%  1024.03kB 66.62%  github.com/ncw/rclone/vendor/golang.org/x/net/http2.init
-         0     0%   100%  1024.03kB 66.62%  github.com/ncw/rclone/vendor/golang.org/x/net/http2/hpack.init
-         0     0%   100%  1024.03kB 66.62%  github.com/ncw/rclone/vendor/golang.org/x/net/http2/hpack.init.0
+         0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/cmd/all.init
+         0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/cmd/serve.init
+         0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/cmd/serve/restic.init
+         0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/vendor/golang.org/x/net/http2.init
+         0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.init
+         0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.init.0
          0     0%   100%  1024.03kB 66.62%  main.init
          0     0%   100%      513kB 33.38%  net/http.(*conn).readRequest
          0     0%   100%      513kB 33.38%  net/http.(*conn).serve
@@ -5609,27 +5609,27 @@ operations more efficient.
 
 | Name                         | Purge | Copy | Move | DirMove | CleanUp | ListR | StreamUpload | LinkSharing | About |
 | ---------------------------- |:-----:|:----:|:----:|:-------:|:-------:|:-----:|:------------:|:------------:|:-----:|
-| Amazon Drive                 | Yes   | No   | Yes  | Yes     | No [#575](https://github.com/ncw/rclone/issues/575) | No  | No  | No [#2178](https://github.com/ncw/rclone/issues/2178) | No  |
-| Amazon S3                    | No    | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/ncw/rclone/issues/2178) | No  |
-| Backblaze B2                 | No    | No   | No   | No      | Yes     | Yes   | Yes          | No [#2178](https://github.com/ncw/rclone/issues/2178) | No  |
-| Box                          | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/ncw/rclone/issues/575) | No  | Yes | Yes | No  |
-| Dropbox                      | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/ncw/rclone/issues/575) | No  | Yes | Yes | Yes |
-| FTP                          | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/ncw/rclone/issues/2178) | No  |
-| Google Cloud Storage         | Yes   | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/ncw/rclone/issues/2178) | No  |
+| Amazon Drive                 | Yes   | No   | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | No  | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
+| Amazon S3                    | No    | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
+| Backblaze B2                 | No    | No   | No   | No      | Yes     | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
+| Box                          | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | Yes | Yes | No  |
+| Dropbox                      | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | Yes | Yes | Yes |
+| FTP                          | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
+| Google Cloud Storage         | Yes   | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
 | Google Drive                 | Yes   | Yes  | Yes  | Yes     | Yes     | Yes   | Yes          | Yes         | Yes |
-| HTTP                         | No    | No   | No   | No      | No      | No    | No           | No [#2178](https://github.com/ncw/rclone/issues/2178) | No  |
-| Hubic                        | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/ncw/rclone/issues/2178) | Yes |
+| HTTP                         | No    | No   | No   | No      | No      | No    | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
+| Hubic                        | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes |
 | Jottacloud                   | Yes   | Yes  | Yes  | Yes     | No      | Yes   | No           | Yes                                                   | Yes |
-| Mega                         | Yes   | No   | Yes  | Yes     | No      | No    | No           | No [#2178](https://github.com/ncw/rclone/issues/2178) | Yes |
-| Microsoft Azure Blob Storage | Yes   | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/ncw/rclone/issues/2178) | No  |
-| Microsoft OneDrive           | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/ncw/rclone/issues/575) | No | No | Yes | Yes |
+| Mega                         | Yes   | No   | Yes  | Yes     | No      | No    | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes |
+| Microsoft Azure Blob Storage | Yes   | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
+| Microsoft OneDrive           | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No | No | Yes | Yes |
 | OpenDrive                    | Yes   | Yes  | Yes  | Yes     | No      | No    | No           | No                                                    | No  |
-| Openstack Swift              | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/ncw/rclone/issues/2178) | Yes |
-| pCloud                       | Yes   | Yes  | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/ncw/rclone/issues/2178) | Yes |
-| QingStor                     | No    | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/ncw/rclone/issues/2178) | No  |
-| SFTP                         | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/ncw/rclone/issues/2178) | No  |
-| WebDAV                       | Yes   | Yes  | Yes  | Yes     | No      | No    | Yes ‡        | No [#2178](https://github.com/ncw/rclone/issues/2178) | No  |
-| Yandex Disk                  | Yes   | No   | No   | No      | Yes     | Yes   | Yes          | No [#2178](https://github.com/ncw/rclone/issues/2178) | No  |
+| Openstack Swift              | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes |
+| pCloud                       | Yes   | Yes  | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes |
+| QingStor                     | No    | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
+| SFTP                         | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
+| WebDAV                       | Yes   | Yes  | Yes  | Yes     | No      | No    | Yes ‡        | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
+| Yandex Disk                  | Yes   | No   | No   | No      | Yes     | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
 | The local filesystem         | Yes   | No   | Yes  | Yes     | No      | No    | Yes          | No          | Yes |
 
 ### Purge ###
@@ -6493,7 +6493,7 @@ If you are using server side encryption with KMS then you will find
 you can't transfer small objects.  As a work-around you can use the
 `--ignore-checksum` flag.
 
-A proper fix is being worked on in [issue #1824](https://github.com/ncw/rclone/issues/1824).
+A proper fix is being worked on in [issue #1824](https://github.com/artpar/rclone/issues/1824).
 
 ### Glacier ###
 
@@ -7790,7 +7790,7 @@ support SHA1.
 
 Sources which don't support SHA1, in particular `crypt` will upload
 large files without SHA1 checksums.  This may be fixed in the future
-(see [#1767](https://github.com/ncw/rclone/issues/1767)).
+(see [#1767](https://github.com/artpar/rclone/issues/1767)).
 
 Files sizes below `--b2-upload-cutoff` will always have an SHA1
 regardless of the source.
@@ -7890,7 +7890,7 @@ All copy commands send the following 4 requests:
 The `b2_list_file_names` request will be sent once for every 1k files
 in the remote path, providing the checksum and modification time of
 the listed files. As of version 1.33 issue
-[#818](https://github.com/ncw/rclone/issues/818) causes extra requests
+[#818](https://github.com/artpar/rclone/issues/818) causes extra requests
 to be sent when using B2 with Crypt. When a copy operation does not
 require any files to be uploaded, no more requests will be sent.
 
@@ -8540,9 +8540,9 @@ on Linux flavors and Windows as cache is heavily dependant on them.
 
 Any reports or feedback on how cache behaves on this OS is greatly appreciated.
  
-- https://github.com/ncw/rclone/issues/1935
-- https://github.com/ncw/rclone/issues/1907
-- https://github.com/ncw/rclone/issues/1834 
+- https://github.com/artpar/rclone/issues/1935
+- https://github.com/artpar/rclone/issues/1907
+- https://github.com/artpar/rclone/issues/1834
 
 #### Risk of throttling ####
 
@@ -8561,8 +8561,8 @@ of adding the file in the cache at the same time if configured to do so.
 
 Future enhancements:
 
-- https://github.com/ncw/rclone/issues/1937
-- https://github.com/ncw/rclone/issues/1936 
+- https://github.com/artpar/rclone/issues/1937
+- https://github.com/artpar/rclone/issues/1936
 
 #### cache and crypt ####
 
@@ -10879,7 +10879,7 @@ export URLs for drive documents.  Users have reported that the
 official export URLs can't export large documents, whereas these
 unofficial ones can.
 
-See rclone issue [#2243](https://github.com/ncw/rclone/issues/2243) for background,
+See rclone issue [#2243](https://github.com/artpar/rclone/issues/2243) for background,
 [this google drive issue](https://issuetracker.google.com/issues/36761333) and
 [this helpful post](https://www.labnol.org/internet/direct-links-for-google-drive/28356/).
 
@@ -13937,7 +13937,7 @@ Rclone can be used with Sharepoint provided by OneDrive for Business
 or Office365 Education Accounts.
 This feature is only needed for a few of these Accounts,
 mostly Office365 Education ones. These accounts are sometimes not
-verified by the domain owner [github#1975](https://github.com/ncw/rclone/issues/1975)
+verified by the domain owner [github#1975](https://github.com/artpar/rclone/issues/1975)
 
 This means that these accounts can't be added using the official
 API (other Accounts should work with the "onedrive" option). However,
@@ -14194,7 +14194,7 @@ converted to the UNC path `\\?\c:\files` in the output,
 and `\\server\share` is converted to `\\?\UNC\server\share`.
 
 However, in rare cases this may cause problems with buggy file
-system drivers like [EncFS](https://github.com/ncw/rclone/issues/261).
+system drivers like [EncFS](https://github.com/artpar/rclone/issues/261).
 To disable UNC conversion globally, add this to your `.rclone.conf` file:
 
 ```
@@ -14364,7 +14364,7 @@ are being uploaded and aborts with a message which starts "can't copy
 - source file is being updated" if the file changes during upload.
 
 However on some file systems this modification time check may fail (eg
-[Glusterfs #2206](https://github.com/ncw/rclone/issues/2206)) so this
+[Glusterfs #2206](https://github.com/artpar/rclone/issues/2206)) so this
 check can be disabled with this flag.
 
 - Config:      no_check_updated
@@ -15895,7 +15895,7 @@ You can work round this to some extent with the`purge` command which
 will delete everything under the path, **inluding** empty directories.
 
 This may be fixed at some point in
-[Issue #100](https://github.com/ncw/rclone/issues/100)
+[Issue #100](https://github.com/artpar/rclone/issues/100)
 
 ### Directory timestamps aren't preserved ##
 
@@ -16313,7 +16313,7 @@ Forum for general discussions and questions:
 
 The project website is at:
 
-  * https://github.com/ncw/rclone
+  * https://github.com/artpar/rclone
 
 There you can file bug reports, ask for help or contribute pull
 requests.

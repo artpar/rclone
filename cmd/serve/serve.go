@@ -3,11 +3,11 @@ package serve
 import (
 	"errors"
 
-	"github.com/ncw/rclone/cmd"
-	"github.com/ncw/rclone/cmd/serve/ftp"
-	"github.com/ncw/rclone/cmd/serve/http"
-	"github.com/ncw/rclone/cmd/serve/restic"
-	"github.com/ncw/rclone/cmd/serve/webdav"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/cmd/serve/ftp"
+	"github.com/artpar/rclone/cmd/serve/http"
+	"github.com/artpar/rclone/cmd/serve/restic"
+	"github.com/artpar/rclone/cmd/serve/webdav"
 	"github.com/spf13/cobra"
 )
 

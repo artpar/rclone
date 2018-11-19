@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/fserrors"
-	"github.com/ncw/rclone/fs/rc"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/rc"
 )
 
 var (

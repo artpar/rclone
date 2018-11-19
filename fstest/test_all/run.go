@@ -19,10 +19,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/artpar/rclone/fs"
 )
 
-const testBase = "github.com/ncw/rclone/"
+const testBase = "github.com/artpar/rclone/"
 
 // Control concurrency per backend if required
 var (

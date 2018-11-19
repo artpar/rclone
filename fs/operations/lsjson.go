@@ -4,9 +4,9 @@ import (
 	"path"
 	"time"
 
-	"github.com/ncw/rclone/backend/crypt"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/walk"
+	"github.com/artpar/rclone/backend/crypt"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/walk"
 	"github.com/pkg/errors"
 )
 

@@ -13,7 +13,7 @@ const (
 	// Wed, 27 Sep 2017 14:28:34 GMT
 	timeFormat = time.RFC1123
 	// The same as time.RFC1123 with optional leading zeros on the date
-	// see https://github.com/ncw/rclone/issues/2574
+	// see https://github.com/artpar/rclone/issues/2574
 	noZerosRFC1123 = "Mon, _2 Jan 2006 15:04:05 MST"
 )
 

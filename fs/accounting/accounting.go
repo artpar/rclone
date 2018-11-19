@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/asyncreader"
-	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/asyncreader"
+	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/pkg/errors"
 )
 

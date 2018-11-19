@@ -1,7 +1,7 @@
 package sync
 
 import (
-	"github.com/ncw/rclone/fs/rc"
+	"github.com/artpar/rclone/fs/rc"
 )
 
 func init() {

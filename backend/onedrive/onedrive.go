@@ -14,19 +14,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ncw/rclone/backend/onedrive/api"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config"
-	"github.com/ncw/rclone/fs/config/configmap"
-	"github.com/ncw/rclone/fs/config/configstruct"
-	"github.com/ncw/rclone/fs/config/obscure"
-	"github.com/ncw/rclone/fs/fserrors"
-	"github.com/ncw/rclone/fs/hash"
-	"github.com/ncw/rclone/lib/dircache"
-	"github.com/ncw/rclone/lib/oauthutil"
-	"github.com/ncw/rclone/lib/pacer"
-	"github.com/ncw/rclone/lib/readers"
-	"github.com/ncw/rclone/lib/rest"
+	"github.com/artpar/rclone/backend/onedrive/api"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/oauthutil"
+	"github.com/artpar/rclone/lib/pacer"
+	"github.com/artpar/rclone/lib/readers"
+	"github.com/artpar/rclone/lib/rest"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 )
@@ -467,7 +467,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		}
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
-		// See https://github.com/ncw/rclone/issues/2182
+		// See https://github.com/artpar/rclone/issues/2182
 		f.dirCache = tempF.dirCache
 		f.root = tempF.root
 		// return an error with an fs which points to the parent

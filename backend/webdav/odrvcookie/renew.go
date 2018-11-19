@@ -3,7 +3,7 @@ package odrvcookie
 import (
 	"time"
 
-	"github.com/ncw/rclone/lib/rest"
+	"github.com/artpar/rclone/lib/rest"
 )
 
 // CookieRenew holds information for the renew

@@ -10,12 +10,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ncw/rclone/cmd/serve/httplib"
-	"github.com/ncw/rclone/cmd/serve/httplib/serve"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config"
-	"github.com/ncw/rclone/fs/list"
-	"github.com/ncw/rclone/fs/rc"
+	"github.com/artpar/rclone/cmd/serve/httplib"
+	"github.com/artpar/rclone/cmd/serve/httplib/serve"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/list"
+	"github.com/artpar/rclone/fs/rc"
 	"github.com/pkg/errors"
 	"github.com/skratchdot/open-golang/open"
 )

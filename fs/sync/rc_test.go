@@ -3,8 +3,8 @@ package sync
 import (
 	"testing"
 
-	"github.com/ncw/rclone/fs/rc"
-	"github.com/ncw/rclone/fstest"
+	"github.com/artpar/rclone/fs/rc"
+	"github.com/artpar/rclone/fstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

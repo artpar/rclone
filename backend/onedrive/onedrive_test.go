@@ -4,8 +4,8 @@ package onedrive
 import (
 	"testing"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fstest/fstests"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest/fstests"
 )
 
 // TestIntegration runs integration tests against the remote

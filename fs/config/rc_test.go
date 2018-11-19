@@ -3,10 +3,10 @@ package config
 import (
 	"testing"
 
-	_ "github.com/ncw/rclone/backend/local"
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config/obscure"
-	"github.com/ncw/rclone/fs/rc"
+	_ "github.com/artpar/rclone/backend/local"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fs/rc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

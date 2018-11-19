@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/accounting"
-	"github.com/ncw/rclone/lib/rest"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/lib/rest"
 )
 
 // DirEntry is a directory entry

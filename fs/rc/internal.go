@@ -6,9 +6,9 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config/obscure"
-	"github.com/ncw/rclone/fs/version"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fs/version"
 	"github.com/pkg/errors"
 )
 

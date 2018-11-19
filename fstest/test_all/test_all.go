@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/ncw/rclone/backend/all" // import all fs
-	"github.com/ncw/rclone/lib/pacer"
+	_ "github.com/artpar/rclone/backend/all" // import all fs
+	"github.com/artpar/rclone/lib/pacer"
 )
 
 type remoteConfig struct {

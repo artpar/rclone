@@ -97,7 +97,7 @@ func (o *Object) commitUpload(SessionID string, parts []api.Part, modTime time.T
 	var body []byte
 	var resp *http.Response
 	// For discussion of this value see:
-	// https://github.com/ncw/rclone/issues/2054
+	// https://github.com/artpar/rclone/issues/2054
 	maxTries := o.fs.opt.CommitRetries
 	const defaultDelay = 10
 	var tries int
