@@ -1,6 +1,6 @@
 // Config handling
 
-// +build go1.10
+// +build go1.11
 
 package main
 
@@ -10,7 +10,7 @@ import (
 	"path"
 
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // Test describes an integration test to run with `go test`

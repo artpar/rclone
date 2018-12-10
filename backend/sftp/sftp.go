@@ -28,7 +28,7 @@ import (
 	"github.com/artpar/rclone/lib/readers"
 	"github.com/pkg/errors"
 	"github.com/pkg/sftp"
-	"github.com/xanzy/ssh-agent"
+	sshagent "github.com/xanzy/ssh-agent"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/time/rate"
 )
@@ -594,12 +594,22 @@ func (f *Fs) Mkdir(dir string) error {
 
 // Rmdir removes the root directory of the Fs object
 func (f *Fs) Rmdir(dir string) error {
+	// Check to see if directory is empty as some servers will
+	// delete recursively with RemoveDirectory
+	entries, err := f.List(dir)
+	if err != nil {
+		return errors.Wrap(err, "Rmdir")
+	}
+	if len(entries) != 0 {
+		return fs.ErrorDirectoryNotEmpty
+	}
+	// Remove the directory
 	root := path.Join(f.root, dir)
 	c, err := f.getSftpConnection()
 	if err != nil {
 		return errors.Wrap(err, "Rmdir")
 	}
-	err = c.sftpClient.Remove(root)
+	err = c.sftpClient.RemoveDirectory(root)
 	f.putSftpConnection(&c, err)
 	return err
 }

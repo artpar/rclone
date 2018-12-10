@@ -28,18 +28,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/backend/webdav/api"
-	"github.com/artpar/rclone/backend/webdav/odrvcookie"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/ncw/rclone/backend/webdav/api"
+	"github.com/ncw/rclone/backend/webdav/odrvcookie"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config/configmap"
+	"github.com/ncw/rclone/fs/config/configstruct"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/fshttp"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/lib/pacer"
+	"github.com/ncw/rclone/lib/rest"
 	"github.com/pkg/errors"
 )
 
@@ -96,10 +95,11 @@ func init() {
 
 // Options defines the configuration for this backend
 type Options struct {
-	URL    string `config:"url"`
-	Vendor string `config:"vendor"`
-	User   string `config:"user"`
-	Pass   string `config:"pass"`
+	URL         string `config:"url"`
+	Vendor      string `config:"vendor"`
+	User        string `config:"user"`
+	Pass        string `config:"pass"`
+	BearerToken string `config:"bearer_token"`
 }
 
 // Fs represents a remote webdav
@@ -283,9 +283,6 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	rootIsDir := strings.HasSuffix(root, "/")
 	root = strings.Trim(root, "/")
 
-	user := config.FileGet(name, "user")
-	pass := config.FileGet(name, "pass")
-	bearerToken := config.FileGet(name, "bearer_token")
 	if !strings.HasSuffix(opt.URL, "/") {
 		opt.URL += "/"
 	}
@@ -320,10 +317,10 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	f.features = (&fs.Features{
 		CanHaveEmptyDirectories: true,
 	}).Fill(f)
-	if user != "" || pass != "" {
+	if opt.User != "" || opt.Pass != "" {
 		f.srv.SetUserPass(opt.User, opt.Pass)
-	} else if bearerToken != "" {
-		f.srv.SetHeader("Authorization", "BEARER "+bearerToken)
+	} else if opt.BearerToken != "" {
+		f.srv.SetHeader("Authorization", "BEARER "+opt.BearerToken)
 	}
 	f.srv.SetErrorHandler(errorHandler)
 	err = f.setQuirks(opt.Vendor)
@@ -604,10 +601,9 @@ func (f *Fs) mkParentDir(dirPath string) error {
 	return f.mkdir(parent)
 }
 
-// mkdir makes the directory and parents using native paths
-func (f *Fs) mkdir(dirPath string) error {
-	// defer log.Trace(dirPath, "")("")
-	// We assume the root is already ceated
+// low level mkdir, only makes the directory, doesn't attempt to create parents
+func (f *Fs) _mkdir(dirPath string) error {
+	// We assume the root is already created
 	if dirPath == "" {
 		return nil
 	}
@@ -620,20 +616,26 @@ func (f *Fs) mkdir(dirPath string) error {
 		Path:       dirPath,
 		NoResponse: true,
 	}
-	err := f.pacer.Call(func() (bool, error) {
+	return f.pacer.Call(func() (bool, error) {
 		resp, err := f.srv.Call(&opts)
 		return shouldRetry(resp, err)
 	})
+}
+
+// mkdir makes the directory and parents using native paths
+func (f *Fs) mkdir(dirPath string) error {
+	// defer log.Trace(dirPath, "")("")
+	err := f._mkdir(dirPath)
 	if apiErr, ok := err.(*api.Error); ok {
 		// already exists
 		if apiErr.StatusCode == http.StatusMethodNotAllowed || apiErr.StatusCode == http.StatusNotAcceptable {
 			return nil
 		}
-		// parent does not exists
+		// parent does not exist
 		if apiErr.StatusCode == http.StatusConflict {
 			err = f.mkParentDir(dirPath)
 			if err == nil {
-				err = f.mkdir(dirPath)
+				err = f._mkdir(dirPath)
 			}
 		}
 	}
