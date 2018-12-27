@@ -4,14 +4,18 @@ package httplib
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	auth "github.com/abbot/go-http-auth"
+	"github.com/artpar/rclone/cmd/serve/httplib/serve/data"
 	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
 )
@@ -105,8 +109,9 @@ type Server struct {
 	waitChan        chan struct{} // for waiting on the listener to close
 	httpServer      *http.Server
 	basicPassHashed string
-	useSSL          bool // if server is configured for SSL/TLS
-	usingAuth       bool // set if authentication is configured
+	useSSL          bool               // if server is configured for SSL/TLS
+	usingAuth       bool               // set if authentication is configured
+	HTMLTemplate    *template.Template // HTML template for web interface
 }
 
 // singleUserProvider provides the encrypted password for a single user
@@ -143,7 +148,28 @@ func NewServer(handler http.Handler, opt *Options) *Server {
 			secretProvider = s.singleUserProvider
 		}
 		authenticator := auth.NewBasicAuthenticator(s.Opt.Realm, secretProvider)
-		handler = auth.JustCheck(authenticator, handler.ServeHTTP)
+		oldHandler := handler
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if username := authenticator.CheckAuth(r); username == "" {
+				authHeader := r.Header.Get(authenticator.Headers.V().Authorization)
+				if authHeader != "" {
+					s := strings.SplitN(authHeader, " ", 2)
+					var userName = "UNKNOWN"
+					if len(s) == 2 && s[0] == "Basic" {
+						b, err := base64.StdEncoding.DecodeString(s[1])
+						if err == nil {
+							userName = strings.SplitN(string(b), ":", 2)[0]
+						}
+					}
+					fs.Infof(r.URL.Path, "%s: Unauthorized request from %s", r.RemoteAddr, userName)
+				} else {
+					fs.Infof(r.URL.Path, "%s: Basic auth challenge sent", r.RemoteAddr)
+				}
+				authenticator.RequireAuth(w, r)
+			} else {
+				oldHandler.ServeHTTP(w, r)
+			}
+		})
 		s.usingAuth = true
 	}
 
@@ -181,6 +207,12 @@ func NewServer(handler http.Handler, opt *Options) *Server {
 		s.httpServer.TLSConfig.ClientCAs = certpool
 		s.httpServer.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	}
+
+	htmlTemplate, templateErr := data.GetTemplate()
+	if templateErr != nil {
+		log.Fatalf(templateErr.Error())
+	}
+	s.HTMLTemplate = htmlTemplate
 
 	return s
 }
