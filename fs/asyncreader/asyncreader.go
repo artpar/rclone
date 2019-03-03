@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/lib/pool"
-	"github.com/ncw/rclone/lib/readers"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/lib/pool"
+	"github.com/artpar/rclone/lib/readers"
 	"github.com/pkg/errors"
 )
 

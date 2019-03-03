@@ -16,14 +16,14 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/accounting"
-	"github.com/ncw/rclone/fs/config/configmap"
-	"github.com/ncw/rclone/fs/config/configstruct"
-	"github.com/ncw/rclone/fs/fserrors"
-	"github.com/ncw/rclone/fs/hash"
-	"github.com/ncw/rclone/lib/file"
-	"github.com/ncw/rclone/lib/readers"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/file"
+	"github.com/artpar/rclone/lib/readers"
 	"github.com/pkg/errors"
 )
 

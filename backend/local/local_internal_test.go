@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/config/configmap"
-	"github.com/ncw/rclone/fs/hash"
-	"github.com/ncw/rclone/fstest"
-	"github.com/ncw/rclone/lib/file"
-	"github.com/ncw/rclone/lib/readers"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/lib/file"
+	"github.com/artpar/rclone/lib/readers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

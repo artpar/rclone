@@ -5,9 +5,9 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/ncw/rclone/fs"
-	"github.com/ncw/rclone/fs/hash"
-	"github.com/ncw/rclone/fstest/mockobject"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fstest/mockobject"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )

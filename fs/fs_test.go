@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ncw/rclone/fs/fserrors"
-	"github.com/ncw/rclone/lib/pacer"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/lib/pacer"
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"

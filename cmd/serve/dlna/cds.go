@@ -14,7 +14,7 @@ import (
 	"github.com/anacrolix/dms/dlna"
 	"github.com/anacrolix/dms/upnp"
 	"github.com/anacrolix/dms/upnpav"
-	"github.com/ncw/rclone/vfs"
+	"github.com/artpar/rclone/vfs"
 	"github.com/pkg/errors"
 )
 

@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ncw/rclone/fs/config/configmap"
-	"github.com/ncw/rclone/fs/config/configstruct"
-	"github.com/ncw/rclone/fs/fserrors"
-	"github.com/ncw/rclone/fs/fspath"
-	"github.com/ncw/rclone/fs/hash"
-	"github.com/ncw/rclone/lib/pacer"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/fspath"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/pacer"
 	"github.com/pkg/errors"
 )
 

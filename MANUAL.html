@@ -3435,7 +3435,7 @@ Showing nodes accounting for 1537.03kB, 100% of 1537.03kB total
 <td align="center">No</td>
 <td align="center">No</td>
 <td align="center">Yes ‡</td>
-<td align="center">No <a href="https://github.com/ncw/rclone/issues/2178">#2178</a></td>
+<td align="center">No <a href="https://github.com/artpar/rclone/issues/2178">#2178</a></td>
 <td align="center">Yes</td>
 </tr>
 <tr class="odd">
@@ -8897,7 +8897,7 @@ y/e/d&gt; y</code></pre>
 <p>There are quite a few characters that can't be in OneDrive file names. These can't occur on Windows platforms, but on non-Windows platforms they are common. Rclone will map these names to and from an identical looking unicode equivalent. For example if a file has a <code>?</code> in it will be mapped to <code>？</code> instead.</p>
 <p>The largest allowed file sizes are 15GB for OneDrive for Business and 35GB for OneDrive Personal (Updated 4 Jan 2019).</p>
 <p>The entire path, including the file name, must contain fewer than 400 characters for OneDrive, OneDrive for Business and SharePoint Online. If you are encrypting file and folder names with rclone, you may want to pay attention to this limitation because the encrypted names are typically longer than the original ones.</p>
-<p>OneDrive seems to be OK with at least 50,000 files in a folder, but at 100,000 rclone will get errors listing the directory like <code>couldn’t list files: UnknownError:</code>. See <a href="https://github.com/ncw/rclone/issues/2707">#2707</a> for more info.</p>
+<p>OneDrive seems to be OK with at least 50,000 files in a folder, but at 100,000 rclone will get errors listing the directory like <code>couldn’t list files: UnknownError:</code>. See <a href="https://github.com/artpar/rclone/issues/2707">#2707</a> for more info.</p>
 <p>An official document about the limitations for different types of OneDrive can be found <a href="https://support.office.com/en-us/article/invalid-file-names-and-file-types-in-onedrive-onedrive-for-business-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa">here</a>.</p>
 <h3 id="versioning-issue">Versioning issue</h3>
 <p>Every change in OneDrive causes the service to create a new version. This counts against a users quota. For example changing the modification time of a file creates a second version, so the file is using twice the space.</p>
