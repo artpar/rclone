@@ -98,7 +98,7 @@ The main rclone commands with most used first
 * [rclone genautocomplete](/commands/rclone_genautocomplete/)	- Output shell completion scripts for rclone.
 * [rclone gendocs](/commands/rclone_gendocs/)	- Output markdown docs for rclone to the directory supplied.
 * [rclone listremotes](/commands/rclone_listremotes/)	- List all the remotes in the config file.
-* [rclone mount](/commands/rclone_mount/)	- Mount the remote as a mountpoint. **EXPERIMENTAL**
+* [rclone mount](/commands/rclone_mount/)	- Mount the remote as a mountpoint.
 * [rclone moveto](/commands/rclone_moveto/)	- Move file or directory from source to dest.
 * [rclone obscure](/commands/rclone_obscure/)	- Obscure password for use in the rclone.conf
 * [rclone cryptcheck](/commands/rclone_cryptcheck/)	- Check the integrity of a crypted remote.
@@ -170,11 +170,24 @@ should be the name or prefix of a backend (the `type` in the config
 file) and all the configuration for the backend should be provided on
 the command line (or in environment variables).
 
-Eg
+Here are some examples:
 
     rclone lsd --http-url https://pub.rclone.org :http:
 
-Which lists all the directories in `pub.rclone.org`.
+To list all the directories in the root of `https://pub.rclone.org/`.
+
+    rclone lsf --http-url https://example.com :http:path/to/dir
+
+To list files and directories in `https://example.com/path/to/dir/`
+
+    rclone copy --http-url https://example.com :http:path/to/dir /tmp/dir
+
+To copy files and directories in `https://example.com/path/to/dir` to `/tmp/dir`.
+
+    rclone copy --sftp-host example.com :sftp:path/to/dir /tmp/dir
+
+To copy files and directories from `example.com` in the relative
+directory `path/to/dir` to `/tmp/dir` using sftp.
 
 Quoting and the shell
 ---------------------
@@ -266,6 +279,15 @@ Options
 -------
 
 Rclone has a number of options to control its behaviour.
+
+Options that take parameters can have the values passed in two ways,
+`--option=value` or `--option value`. However boolean (true/false)
+options behave slightly differently to the other options in that
+`--boolean` sets the option to `true` and the absence of the flag sets
+it to `false`.  It is also possible to specify `--boolean=false` or
+`--boolean=true`.  Note that `--boolean false` is not valid - this is
+parsed as `--boolean` and the `false` is parsed as an extra command
+line argument for rclone.
 
 Options which use TIME use the go time parser.  A duration string is a
 possibly signed sequence of decimal numbers, each with optional
@@ -390,6 +412,9 @@ See the [mount](/commands/rclone_mount/#file-buffering) documentation for more d
 
 Set to 0 to disable the buffering for the minimum memory usage.
 
+Note that the memory allocation of the buffers is influenced by the
+[--use-mmap](#use-mmap) flag.
+
 ### --checkers=N ###
 
 The number of checkers to run in parallel.  Checkers do the equality
@@ -428,8 +453,8 @@ Normally the config file is in your home directory as a file called
 older version). If `$XDG_CONFIG_HOME` is set it will be at
 `$XDG_CONFIG_HOME/rclone/rclone.conf`
 
-If you run `rclone -h` and look at the help for the `--config` option
-you will see where the default location is for you.
+If you run `rclone config file` you will see where the default
+location is for you.
 
 Use this flag to override the config location, eg `rclone
 --config=".myconfig" .config`.
@@ -657,6 +682,24 @@ uploaded compressed files.
 
 There is no need to set this in normal operation, and doing so will
 decrease the network transfer efficiency of rclone.
+
+### --no-traverse ###
+
+The `--no-traverse` flag controls whether the destination file system
+is traversed when using the `copy` or `move` commands.
+`--no-traverse` is not compatible with `sync` and will be ignored if
+you supply it with `sync`.
+
+If you are only copying a small number of files (or are filtering most
+of the files) and/or have a large number of files on the destination
+then `--no-traverse` will stop rclone listing the destination and save
+time.
+
+However, if you are copying a large number of files, especially if you
+are doing a copy where lots of the files under consideration haven't
+changed and won't need copying then you shouldn't use `--no-traverse`.
+
+See [rclone copy](/commands/rclone_copy/) for an example of how to use it.
 
 ### --no-update-modtime ###
 
@@ -938,6 +981,21 @@ This can be useful when transferring to a remote which doesn't support
 mod times directly as it is more accurate than a `--size-only` check
 and faster than using `--checksum`.
 
+### --use-mmap ###
+
+If this flag is set then rclone will use anonymous memory allocated by
+mmap on Unix based platforms and VirtualAlloc on Windows for its
+transfer buffers (size controlled by `--buffer-size`).  Memory
+allocated like this does not go on the Go heap and can be returned to
+the OS immediately when it is finished with.
+
+If this flag is not set then rclone will allocate and free the buffers
+using the Go memory allocator which may use more memory as memory
+pages are returned less aggressively to the OS.
+
+It is possible this does not work well on all platforms so it is
+disabled by default; in the future it may be enabled by default.
+
 ### --use-server-modtime ###
 
 Some object-store backends (e.g, Swift, S3) do not preserve file modification
@@ -963,6 +1021,47 @@ with this setting.
 ### -V, --version ###
 
 Prints the version number
+
+SSL/TLS options
+---------------
+
+The outoing SSL/TLS connections rclone makes can be controlled with
+these options.  For example this can be very useful with the HTTP or
+WebDAV backends. Rclone HTTP servers have their own set of
+configuration for SSL/TLS which you can find in their documentation.
+
+### --ca-cert string
+
+This loads the PEM encoded certificate authority certificate and uses
+it to verify the certificates of the servers rclone connects to.
+
+If you have generated certificates signed with a local CA then you
+will need this flag to connect to servers using those certificates.
+
+### --client-cert string
+
+This loads the PEM encoded client side certificate.
+
+This is used for [mutual TLS authentication](https://en.wikipedia.org/wiki/Mutual_authentication).
+
+The `--client-key` flag is required too when using this.
+
+### --client-key string
+
+This loads the PEM encoded client side private key used for mutual TLS
+authentication.  Used in conjunction with `--client-cert`.
+
+### --no-check-certificate=true/false ###
+
+`--no-check-certificate` controls whether a client verifies the
+server's certificate chain and host name.
+If `--no-check-certificate` is true, TLS accepts any certificate
+presented by the server and any host name in that certificate.
+In this mode, TLS is susceptible to man-in-the-middle attacks.
+
+This option defaults to `false`.
+
+**This should be used only for testing.**
 
 Configuration Encryption
 ------------------------
@@ -1119,36 +1218,6 @@ use it.
 ### --memprofile=FILE ###
 
 Write memory profile to file. This can be analysed with `go tool pprof`.
-
-### --no-check-certificate=true/false ###
-
-`--no-check-certificate` controls whether a client verifies the
-server's certificate chain and host name.
-If `--no-check-certificate` is true, TLS accepts any certificate
-presented by the server and any host name in that certificate.
-In this mode, TLS is susceptible to man-in-the-middle attacks.
-
-This option defaults to `false`.
-
-**This should be used only for testing.**
-
-### --no-traverse ###
-
-The `--no-traverse` flag controls whether the destination file system
-is traversed when using the `copy` or `move` commands.
-`--no-traverse` is not compatible with `sync` and will be ignored if
-you supply it with `sync`.
-
-If you are only copying a small number of files (or are filtering most
-of the files) and/or have a large number of files on the destination
-then `--no-traverse` will stop rclone listing the destination and save
-time.
-
-However, if you are copying a large number of files, especially if you
-are doing a copy where lots of the files under consideration haven't
-changed and won't need copying then you shouldn't use `--no-traverse`.
-
-See [rclone copy](/commands/rclone_copy/) for an example of how to use it.
 
 Filtering
 ---------

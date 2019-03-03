@@ -43,13 +43,14 @@ var DefaultOpt = Options{
 	Umask:             0,
 	UID:               ^uint32(0), // these values instruct WinFSP-FUSE to use the current user
 	GID:               ^uint32(0), // overriden for non windows in mount_unix.go
-	DirPerms:          os.FileMode(0777) | os.ModeDir,
+	DirPerms:          os.FileMode(0777),
 	FilePerms:         os.FileMode(0666),
 	CacheMode:         CacheModeOff,
 	CacheMaxAge:       3600 * time.Second,
 	CachePollInterval: 60 * time.Second,
 	ChunkSize:         128 * fs.MebiByte,
 	ChunkSizeLimit:    -1,
+	CacheMaxSize:      -1,
 }
 
 // Node represents either a directory (*Dir) or a file (*File)
@@ -196,6 +197,7 @@ type Options struct {
 	ChunkSizeLimit    fs.SizeSuffix // if > ChunkSize double the chunk size after each chunk until reached
 	CacheMode         CacheMode
 	CacheMaxAge       time.Duration
+	CacheMaxSize      fs.SizeSuffix
 	CachePollInterval time.Duration
 }
 

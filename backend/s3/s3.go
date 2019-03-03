@@ -53,7 +53,7 @@ import (
 func init() {
 	fs.Register(&fs.RegInfo{
 		Name:        "s3",
-		Description: "Amazon S3 Compliant Storage Providers (AWS, Ceph, Dreamhost, IBM COS, Minio)",
+		Description: "Amazon S3 Compliant Storage Provider (AWS, Alibaba, Ceph, Digital Ocean, Dreamhost, IBM COS, Minio, etc)",
 		NewFs:       NewFs,
 		Options: []fs.Option{{
 			Name: fs.ConfigProvider,
@@ -61,6 +61,9 @@ func init() {
 			Examples: []fs.OptionExample{{
 				Value: "AWS",
 				Help:  "Amazon Web Services (AWS) S3",
+			}, {
+				Value: "Alibaba",
+				Help:  "Alibaba Cloud Object Storage System (OSS) formerly Aliyun",
 			}, {
 				Value: "Ceph",
 				Help:  "Ceph Object Storage",
@@ -76,6 +79,9 @@ func init() {
 			}, {
 				Value: "Minio",
 				Help:  "Minio Object Storage",
+			}, {
+				Value: "Netease",
+				Help:  "Netease Object Storage (NOS)",
 			}, {
 				Value: "Wasabi",
 				Help:  "Wasabi Object Storage",
@@ -126,6 +132,9 @@ func init() {
 				Value: "eu-west-2",
 				Help:  "EU (London) Region\nNeeds location constraint eu-west-2.",
 			}, {
+				Value: "eu-north-1",
+				Help:  "EU (Stockholm) Region\nNeeds location constraint eu-north-1.",
+			}, {
 				Value: "eu-central-1",
 				Help:  "EU (Frankfurt) Region\nNeeds location constraint eu-central-1.",
 			}, {
@@ -150,7 +159,7 @@ func init() {
 		}, {
 			Name:     "region",
 			Help:     "Region to connect to.\nLeave blank if you are using an S3 clone and you don't have a region.",
-			Provider: "!AWS",
+			Provider: "!AWS,Alibaba",
 			Examples: []fs.OptionExample{{
 				Value: "",
 				Help:  "Use this if unsure. Will use v4 signatures and an empty region.",
@@ -228,10 +237,10 @@ func init() {
 				Help:  "EU Cross Region Amsterdam Private Endpoint",
 			}, {
 				Value: "s3.eu-gb.objectstorage.softlayer.net",
-				Help:  "Great Britan Endpoint",
+				Help:  "Great Britain Endpoint",
 			}, {
 				Value: "s3.eu-gb.objectstorage.service.networklayer.com",
-				Help:  "Great Britan Private Endpoint",
+				Help:  "Great Britain Private Endpoint",
 			}, {
 				Value: "s3.ap-geo.objectstorage.softlayer.net",
 				Help:  "APAC Cross Regional Endpoint",
@@ -270,11 +279,74 @@ func init() {
 				Help:  "Toronto Single Site Private Endpoint",
 			}},
 		}, {
+			// oss endpoints: https://help.aliyun.com/document_detail/31837.html
+			Name:     "endpoint",
+			Help:     "Endpoint for OSS API.",
+			Provider: "Alibaba",
+			Examples: []fs.OptionExample{{
+				Value: "oss-cn-hangzhou.aliyuncs.com",
+				Help:  "East China 1 (Hangzhou)",
+			}, {
+				Value: "oss-cn-shanghai.aliyuncs.com",
+				Help:  "East China 2 (Shanghai)",
+			}, {
+				Value: "oss-cn-qingdao.aliyuncs.com",
+				Help:  "North China 1 (Qingdao)",
+			}, {
+				Value: "oss-cn-beijing.aliyuncs.com",
+				Help:  "North China 2 (Beijing)",
+			}, {
+				Value: "oss-cn-zhangjiakou.aliyuncs.com",
+				Help:  "North China 3 (Zhangjiakou)",
+			}, {
+				Value: "oss-cn-huhehaote.aliyuncs.com",
+				Help:  "North China 5 (Huhehaote)",
+			}, {
+				Value: "oss-cn-shenzhen.aliyuncs.com",
+				Help:  "South China 1 (Shenzhen)",
+			}, {
+				Value: "oss-cn-hongkong.aliyuncs.com",
+				Help:  "Hong Kong (Hong Kong)",
+			}, {
+				Value: "oss-us-west-1.aliyuncs.com",
+				Help:  "US West 1 (Silicon Valley)",
+			}, {
+				Value: "oss-us-east-1.aliyuncs.com",
+				Help:  "US East 1 (Virginia)",
+			}, {
+				Value: "oss-ap-southeast-1.aliyuncs.com",
+				Help:  "Southeast Asia Southeast 1 (Singapore)",
+			}, {
+				Value: "oss-ap-southeast-2.aliyuncs.com",
+				Help:  "Asia Pacific Southeast 2 (Sydney)",
+			}, {
+				Value: "oss-ap-southeast-3.aliyuncs.com",
+				Help:  "Southeast Asia Southeast 3 (Kuala Lumpur)",
+			}, {
+				Value: "oss-ap-southeast-5.aliyuncs.com",
+				Help:  "Asia Pacific Southeast 5 (Jakarta)",
+			}, {
+				Value: "oss-ap-northeast-1.aliyuncs.com",
+				Help:  "Asia Pacific Northeast 1 (Japan)",
+			}, {
+				Value: "oss-ap-south-1.aliyuncs.com",
+				Help:  "Asia Pacific South 1 (Mumbai)",
+			}, {
+				Value: "oss-eu-central-1.aliyuncs.com",
+				Help:  "Central Europe 1 (Frankfurt)",
+			}, {
+				Value: "oss-eu-west-1.aliyuncs.com",
+				Help:  "West Europe (London)",
+			}, {
+				Value: "oss-me-east-1.aliyuncs.com",
+				Help:  "Middle East 1 (Dubai)",
+			}},
+		}, {
 			Name:     "endpoint",
 			Help:     "Endpoint for S3 API.\nRequired when using an S3 clone.",
-			Provider: "!AWS,IBMCOS",
+			Provider: "!AWS,IBMCOS,Alibaba",
 			Examples: []fs.OptionExample{{
-				Value:    "objects-us-west-1.dream.io",
+				Value:    "objects-us-east-1.dream.io",
 				Help:     "Dream Objects endpoint",
 				Provider: "Dreamhost",
 			}, {
@@ -323,6 +395,9 @@ func init() {
 			}, {
 				Value: "eu-west-2",
 				Help:  "EU (London) Region.",
+			}, {
+				Value: "eu-north-1",
+				Help:  "EU (Stockholm) Region.",
 			}, {
 				Value: "EU",
 				Help:  "EU Region.",
@@ -375,7 +450,7 @@ func init() {
 				Help:  "US East Region Flex",
 			}, {
 				Value: "us-south-standard",
-				Help:  "US Sout hRegion Standard",
+				Help:  "US South Region Standard",
 			}, {
 				Value: "us-south-vault",
 				Help:  "US South Region Vault",
@@ -399,16 +474,16 @@ func init() {
 				Help:  "EU Cross Region Flex",
 			}, {
 				Value: "eu-gb-standard",
-				Help:  "Great Britan Standard",
+				Help:  "Great Britain Standard",
 			}, {
 				Value: "eu-gb-vault",
-				Help:  "Great Britan Vault",
+				Help:  "Great Britain Vault",
 			}, {
 				Value: "eu-gb-cold",
-				Help:  "Great Britan Cold",
+				Help:  "Great Britain Cold",
 			}, {
 				Value: "eu-gb-flex",
-				Help:  "Great Britan Flex",
+				Help:  "Great Britain Flex",
 			}, {
 				Value: "ap-standard",
 				Help:  "APAC Standard",
@@ -449,10 +524,12 @@ func init() {
 		}, {
 			Name:     "location_constraint",
 			Help:     "Location constraint - must be set to match the Region.\nLeave blank if not sure. Used when creating buckets only.",
-			Provider: "!AWS,IBMCOS",
+			Provider: "!AWS,IBMCOS,Alibaba",
 		}, {
 			Name: "acl",
 			Help: `Canned ACL used when creating buckets and storing or copying objects.
+
+This ACL is used for creating objects and if bucket_acl isn't set, for creating buckets too.
 
 For more info visit https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl
 
@@ -498,6 +575,28 @@ doesn't copy the ACL from the source but rather writes a fresh one.`,
 				Value:    "authenticated-read",
 				Help:     "Owner gets FULL_CONTROL. The AuthenticatedUsers group gets READ access. Not supported on Buckets. This acl is available on IBM Cloud (Infra) and On-Premise IBM COS",
 				Provider: "IBMCOS",
+			}},
+		}, {
+			Name: "bucket_acl",
+			Help: `Canned ACL used when creating buckets.
+
+For more info visit https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl
+
+Note that this ACL is applied when only when creating buckets.  If it
+isn't set then "acl" is used instead.`,
+			Advanced: true,
+			Examples: []fs.OptionExample{{
+				Value: "private",
+				Help:  "Owner gets FULL_CONTROL. No one else has access rights (default).",
+			}, {
+				Value: "public-read",
+				Help:  "Owner gets FULL_CONTROL. The AllUsers group gets READ access.",
+			}, {
+				Value: "public-read-write",
+				Help:  "Owner gets FULL_CONTROL. The AllUsers group gets READ and WRITE access.\nGranting this on a bucket is generally not recommended.",
+			}, {
+				Value: "authenticated-read",
+				Help:  "Owner gets FULL_CONTROL. The AuthenticatedUsers group gets READ access.",
 			}},
 		}, {
 			Name:     "server_side_encryption",
@@ -546,6 +645,24 @@ doesn't copy the ACL from the source but rather writes a fresh one.`,
 			}, {
 				Value: "GLACIER",
 				Help:  "Glacier storage class",
+			}},
+		}, {
+			// Mapping from here: https://www.alibabacloud.com/help/doc-detail/64919.htm
+			Name:     "storage_class",
+			Help:     "The storage class to use when storing new objects in OSS.",
+			Provider: "Alibaba",
+			Examples: []fs.OptionExample{{
+				Value: "",
+				Help:  "Default",
+			}, {
+				Value: "STANDARD",
+				Help:  "Standard storage class",
+			}, {
+				Value: "GLACIER",
+				Help:  "Archive storage mode.",
+			}, {
+				Value: "STANDARD_IA",
+				Help:  "Infrequent access storage mode.",
 			}},
 		}, {
 			Name: "upload_cutoff",
@@ -640,6 +757,7 @@ type Options struct {
 	Endpoint             string        `config:"endpoint"`
 	LocationConstraint   string        `config:"location_constraint"`
 	ACL                  string        `config:"acl"`
+	BucketACL            string        `config:"bucket_acl"`
 	ServerSideEncryption string        `config:"server_side_encryption"`
 	SSEKMSKeyID          string        `config:"sse_kms_key_id"`
 	StorageClass         string        `config:"storage_class"`
@@ -664,7 +782,7 @@ type Fs struct {
 	bucketOKMu    sync.Mutex       // mutex to protect bucket OK
 	bucketOK      bool             // true if we have created the bucket
 	bucketDeleted bool             // true if we have deleted the bucket
-	pacer         *pacer.Pacer     // To pace the API calls
+	pacer         *fs.Pacer        // To pace the API calls
 	srv           *http.Client     // a plain http client
 }
 
@@ -714,23 +832,31 @@ func (f *Fs) Features() *fs.Features {
 // retryErrorCodes is a slice of error codes that we will retry
 // See: https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
 var retryErrorCodes = []int{
-	409, // Conflict - various states that could be resolved on a retry
+	// 409, // Conflict - various states that could be resolved on a retry
 	503, // Service Unavailable/Slow Down - "Reduce your request rate"
 }
 
 //S3 is pretty resilient, and the built in retry handling is probably sufficient
 // as it should notice closed connections and timeouts which are the most likely
 // sort of failure modes
-func shouldRetry(err error) (bool, error) {
-
+func (f *Fs) shouldRetry(err error) (bool, error) {
 	// If this is an awserr object, try and extract more useful information to determine if we should retry
 	if awsError, ok := err.(awserr.Error); ok {
-		// Simple case, check the original embedded error in case it's generically retriable
+		// Simple case, check the original embedded error in case it's generically retryable
 		if fserrors.ShouldRetry(awsError.OrigErr()) {
 			return true, err
 		}
-		//Failing that, if it's a RequestFailure it's probably got an http status code we can check
+		// Failing that, if it's a RequestFailure it's probably got an http status code we can check
 		if reqErr, ok := err.(awserr.RequestFailure); ok {
+			// 301 if wrong region for bucket
+			if reqErr.StatusCode() == http.StatusMovedPermanently {
+				urfbErr := f.updateRegionForBucket()
+				if urfbErr != nil {
+					fs.Errorf(f, "Failed to update region for bucket: %v", urfbErr)
+					return false, err
+				}
+				return true, err
+			}
 			for _, e := range retryErrorCodes {
 				if reqErr.StatusCode() == e {
 					return true, err
@@ -738,7 +864,7 @@ func shouldRetry(err error) (bool, error) {
 			}
 		}
 	}
-	//Ok, not an awserr, check for generic failure conditions
+	// Ok, not an awserr, check for generic failure conditions
 	return fserrors.ShouldRetry(err), err
 }
 
@@ -815,13 +941,21 @@ func s3Connection(opt *Options) (*s3.S3, *session.Session, error) {
 	if opt.Region == "" {
 		opt.Region = "us-east-1"
 	}
+	if opt.Provider == "Alibaba" || opt.Provider == "Netease" {
+		opt.ForcePathStyle = false
+	}
 	awsConfig := aws.NewConfig().
-		WithRegion(opt.Region).
 		WithMaxRetries(maxRetries).
 		WithCredentials(cred).
-		WithEndpoint(opt.Endpoint).
 		WithHTTPClient(fshttp.NewClient(fs.Config)).
 		WithS3ForcePathStyle(opt.ForcePathStyle)
+	if opt.Region != "" {
+		awsConfig.WithRegion(opt.Region)
+	}
+	if opt.Endpoint != "" {
+		awsConfig.WithEndpoint(opt.Endpoint)
+	}
+
 	// awsConfig.WithLogLevel(aws.LogDebugWithSigning)
 	awsSessionOpts := session.Options{
 		Config: *awsConfig,
@@ -904,6 +1038,12 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	if err != nil {
 		return nil, err
 	}
+	if opt.ACL == "" {
+		opt.ACL = "private"
+	}
+	if opt.BucketACL == "" {
+		opt.BucketACL = opt.ACL
+	}
 	c, ses, err := s3Connection(opt)
 	if err != nil {
 		return nil, err
@@ -915,7 +1055,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		c:      c,
 		bucket: bucket,
 		ses:    ses,
-		pacer:  pacer.New().SetMinSleep(minSleep).SetPacer(pacer.S3Pacer),
+		pacer:  fs.NewPacer(pacer.NewS3(pacer.MinSleep(minSleep))),
 		srv:    fshttp.NewClient(fs.Config),
 	}
 	f.features = (&fs.Features{
@@ -932,7 +1072,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		}
 		err = f.pacer.Call(func() (bool, error) {
 			_, err = f.c.HeadObject(&req)
-			return shouldRetry(err)
+			return f.shouldRetry(err)
 		})
 		if err == nil {
 			f.root = path.Dir(directory)
@@ -982,6 +1122,51 @@ func (f *Fs) NewObject(remote string) (fs.Object, error) {
 	return f.newObjectWithInfo(remote, nil)
 }
 
+// Gets the bucket location
+func (f *Fs) getBucketLocation() (string, error) {
+	req := s3.GetBucketLocationInput{
+		Bucket: &f.bucket,
+	}
+	var resp *s3.GetBucketLocationOutput
+	var err error
+	err = f.pacer.Call(func() (bool, error) {
+		resp, err = f.c.GetBucketLocation(&req)
+		return f.shouldRetry(err)
+	})
+	if err != nil {
+		return "", err
+	}
+	return s3.NormalizeBucketLocation(aws.StringValue(resp.LocationConstraint)), nil
+}
+
+// Updates the region for the bucket by reading the region from the
+// bucket then updating the session.
+func (f *Fs) updateRegionForBucket() error {
+	region, err := f.getBucketLocation()
+	if err != nil {
+		return errors.Wrap(err, "reading bucket location failed")
+	}
+	if aws.StringValue(f.c.Config.Endpoint) != "" {
+		return errors.Errorf("can't set region to %q as endpoint is set", region)
+	}
+	if aws.StringValue(f.c.Config.Region) == region {
+		return errors.Errorf("region is already %q - not updating", region)
+	}
+
+	// Make a new session with the new region
+	oldRegion := f.opt.Region
+	f.opt.Region = region
+	c, ses, err := s3Connection(&f.opt)
+	if err != nil {
+		return errors.Wrap(err, "creating new session failed")
+	}
+	f.c = c
+	f.ses = ses
+
+	fs.Logf(f, "Switched region to %q from %q", region, oldRegion)
+	return nil
+}
+
 // listFn is called from list to handle an object.
 type listFn func(remote string, object *s3.Object, isDirectory bool) error
 
@@ -1014,7 +1199,7 @@ func (f *Fs) list(dir string, recurse bool, fn listFn) error {
 		var err error
 		err = f.pacer.Call(func() (bool, error) {
 			resp, err = f.c.ListObjects(&req)
-			return shouldRetry(err)
+			return f.shouldRetry(err)
 		})
 		if err != nil {
 			if awsErr, ok := err.(awserr.RequestFailure); ok {
@@ -1143,7 +1328,7 @@ func (f *Fs) listBuckets(dir string) (entries fs.DirEntries, err error) {
 	var resp *s3.ListBucketsOutput
 	err = f.pacer.Call(func() (bool, error) {
 		resp, err = f.c.ListBuckets(&req)
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err != nil {
 		return nil, err
@@ -1231,7 +1416,7 @@ func (f *Fs) dirExists() (bool, error) {
 	}
 	err := f.pacer.Call(func() (bool, error) {
 		_, err := f.c.HeadBucket(&req)
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err == nil {
 		return true, nil
@@ -1262,7 +1447,7 @@ func (f *Fs) Mkdir(dir string) error {
 	}
 	req := s3.CreateBucketInput{
 		Bucket: &f.bucket,
-		ACL:    &f.opt.ACL,
+		ACL:    &f.opt.BucketACL,
 	}
 	if f.opt.LocationConstraint != "" {
 		req.CreateBucketConfiguration = &s3.CreateBucketConfiguration{
@@ -1271,7 +1456,7 @@ func (f *Fs) Mkdir(dir string) error {
 	}
 	err := f.pacer.Call(func() (bool, error) {
 		_, err := f.c.CreateBucket(&req)
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err, ok := err.(awserr.Error); ok {
 		if err.Code() == "BucketAlreadyOwnedByYou" {
@@ -1281,6 +1466,7 @@ func (f *Fs) Mkdir(dir string) error {
 	if err == nil {
 		f.bucketOK = true
 		f.bucketDeleted = false
+		fs.Infof(f, "Bucket created with ACL %q", *req.ACL)
 	}
 	return err
 }
@@ -1299,11 +1485,12 @@ func (f *Fs) Rmdir(dir string) error {
 	}
 	err := f.pacer.Call(func() (bool, error) {
 		_, err := f.c.DeleteBucket(&req)
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err == nil {
 		f.bucketOK = false
 		f.bucketDeleted = true
+		fs.Infof(f, "Bucket deleted")
 	}
 	return err
 }
@@ -1359,7 +1546,7 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	}
 	err = f.pacer.Call(func() (bool, error) {
 		_, err = f.c.CopyObject(&req)
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err != nil {
 		return nil, err
@@ -1441,7 +1628,7 @@ func (o *Object) readMetaData() (err error) {
 	err = o.fs.pacer.Call(func() (bool, error) {
 		var err error
 		resp, err = o.fs.c.HeadObject(&req)
-		return shouldRetry(err)
+		return o.fs.shouldRetry(err)
 	})
 	if err != nil {
 		if awsErr, ok := err.(awserr.RequestFailure); ok {
@@ -1537,7 +1724,7 @@ func (o *Object) SetModTime(modTime time.Time) error {
 	}
 	err = o.fs.pacer.Call(func() (bool, error) {
 		_, err := o.fs.c.CopyObject(&req)
-		return shouldRetry(err)
+		return o.fs.shouldRetry(err)
 	})
 	return err
 }
@@ -1569,7 +1756,7 @@ func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
 	err = o.fs.pacer.Call(func() (bool, error) {
 		var err error
 		resp, err = o.fs.c.GetObject(&req)
-		return shouldRetry(err)
+		return o.fs.shouldRetry(err)
 	})
 	if err, ok := err.(awserr.RequestFailure); ok {
 		if err.Code() == "InvalidObjectState" {
@@ -1660,7 +1847,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		}
 		err = o.fs.pacer.CallNoRetry(func() (bool, error) {
 			_, err = uploader.Upload(&req)
-			return shouldRetry(err)
+			return o.fs.shouldRetry(err)
 		})
 		if err != nil {
 			return err
@@ -1716,11 +1903,11 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		err = o.fs.pacer.CallNoRetry(func() (bool, error) {
 			resp, err := o.fs.srv.Do(httpReq)
 			if err != nil {
-				return shouldRetry(err)
+				return o.fs.shouldRetry(err)
 			}
 			body, err := rest.ReadBody(resp)
 			if err != nil {
-				return shouldRetry(err)
+				return o.fs.shouldRetry(err)
 			}
 			if resp.StatusCode >= 200 && resp.StatusCode < 299 {
 				return false, nil
@@ -1748,7 +1935,7 @@ func (o *Object) Remove() error {
 	}
 	err := o.fs.pacer.Call(func() (bool, error) {
 		_, err := o.fs.c.DeleteObject(&req)
-		return shouldRetry(err)
+		return o.fs.shouldRetry(err)
 	})
 	return err
 }

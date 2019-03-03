@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"github.com/artpar/rclone/fs/walk"
 	"github.com/artpar/rclone/lib/readers"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 // CheckHashes checks the two files to see if they have common
@@ -104,6 +106,8 @@ func sizeDiffers(src, dst fs.ObjectInfo) bool {
 	return src.Size() != dst.Size()
 }
 
+var checksumWarning sync.Once
+
 func equal(src fs.ObjectInfo, dst fs.Object, sizeOnly, checkSum bool) bool {
 	if sizeDiffers(src, dst) {
 		fs.Debugf(src, "Sizes differ (src %d vs dst %d)", src.Size(), dst.Size())
@@ -125,6 +129,9 @@ func equal(src fs.ObjectInfo, dst fs.Object, sizeOnly, checkSum bool) bool {
 			return false
 		}
 		if ht == hash.None {
+			checksumWarning.Do(func() {
+				fs.Logf(dst.Fs(), "--checksum is in use but the source and destination have no hashes in common; falling back to --size-only")
+			})
 			fs.Debugf(src, "Size of src and dst objects identical")
 		} else {
 			fs.Debugf(src, "Size and %v of src and dst objects identical", ht)
@@ -277,27 +284,38 @@ func Copy(f fs.Fs, dst fs.Object, remote string, src fs.Object) (newDst fs.Objec
 		// If can't server side copy, do it manually
 		if err == fs.ErrorCantCopy {
 			var in0 io.ReadCloser
-			in0, err = src.Open(hashOption)
+			in0, err = newReOpen(src, hashOption, fs.Config.LowLevelRetries)
 			if err != nil {
 				err = errors.Wrap(err, "failed to open source object")
 			} else {
-				in := accounting.NewAccount(in0, src).WithBuffer() // account and buffer the transfer
-				var wrappedSrc fs.ObjectInfo = src
-				// We try to pass the original object if possible
-				if src.Remote() != remote {
-					wrappedSrc = &overrideRemoteObject{Object: src, remote: remote}
-				}
-				if doUpdate {
-					actionTaken = "Copied (replaced existing)"
-					err = dst.Update(in, wrappedSrc, hashOption)
-				} else {
-					actionTaken = "Copied (new)"
-					dst, err = f.Put(in, wrappedSrc, hashOption)
-				}
-				closeErr := in.Close()
-				if err == nil {
+				if src.Size() == -1 {
+					// -1 indicates unknown size. Use Rcat to handle both remotes supporting and not supporting PutStream.
+					if doUpdate {
+						actionTaken = "Copied (Rcat, replaced existing)"
+					} else {
+						actionTaken = "Copied (Rcat, new)"
+					}
+					dst, err = Rcat(f, remote, in0, src.ModTime())
 					newDst = dst
-					err = closeErr
+				} else {
+					in := accounting.NewAccount(in0, src).WithBuffer() // account and buffer the transfer
+					var wrappedSrc fs.ObjectInfo = src
+					// We try to pass the original object if possible
+					if src.Remote() != remote {
+						wrappedSrc = &overrideRemoteObject{Object: src, remote: remote}
+					}
+					if doUpdate {
+						actionTaken = "Copied (replaced existing)"
+						err = dst.Update(in, wrappedSrc, hashOption)
+					} else {
+						actionTaken = "Copied (new)"
+						dst, err = f.Put(in, wrappedSrc, hashOption)
+					}
+					closeErr := in.Close()
+					if err == nil {
+						newDst = dst
+						err = closeErr
+					}
 				}
 			}
 		}
@@ -515,7 +533,7 @@ func SameConfig(fdst, fsrc fs.Info) bool {
 
 // Same returns true if fdst and fsrc point to the same underlying Fs
 func Same(fdst, fsrc fs.Info) bool {
-	return SameConfig(fdst, fsrc) && fdst.Root() == fsrc.Root()
+	return SameConfig(fdst, fsrc) && strings.Trim(fdst.Root(), "/") == strings.Trim(fsrc.Root(), "/")
 }
 
 // Overlapping returns true if fdst and fsrc point to the same
@@ -526,7 +544,7 @@ func Overlapping(fdst, fsrc fs.Info) bool {
 	}
 	// Return the Root with a trailing / if not empty
 	fixedRoot := func(f fs.Info) string {
-		s := strings.Trim(f.Root(), "/")
+		s := strings.Trim(filepath.ToSlash(f.Root()), "/")
 		if s != "" {
 			s += "/"
 		}
@@ -572,6 +590,7 @@ type checkMarch struct {
 	noHashes        int32
 	srcFilesMissing int32
 	dstFilesMissing int32
+	matches         int32
 }
 
 // DstOnly have an object which is in the destination only
@@ -639,6 +658,7 @@ func (c *checkMarch) Match(dst, src fs.DirEntry) (recurse bool) {
 			if differ {
 				atomic.AddInt32(&c.differences, 1)
 			} else {
+				atomic.AddInt32(&c.matches, 1)
 				fs.Debugf(dstX, "OK")
 			}
 			if noHash {
@@ -705,6 +725,9 @@ func CheckFn(fdst, fsrc fs.Fs, check checkFn, oneway bool) error {
 	fs.Logf(fdst, "%d differences found", accounting.Stats.GetErrors())
 	if c.noHashes > 0 {
 		fs.Logf(fdst, "%d hashes could not be checked", c.noHashes)
+	}
+	if c.matches > 0 {
+		fs.Logf(fdst, "%d matching files", c.matches)
 	}
 	if c.differences > 0 {
 		return errors.Errorf("%d differences found", c.differences)
@@ -1337,6 +1360,14 @@ func RcatSize(fdst fs.Fs, dstFileName string, in io.ReadCloser, size int64, modT
 		accounting.Stats.Transferring(dstFileName)
 		body := ioutil.NopCloser(in)                                 // we let the server close the body
 		in := accounting.NewAccountSizeName(body, size, dstFileName) // account the transfer (no buffering)
+
+		if fs.Config.DryRun {
+			fs.Logf("stdin", "Not uploading as --dry-run")
+			// prevents "broken pipe" errors
+			_, err = io.Copy(ioutil.Discard, in)
+			return nil, err
+		}
+
 		var err error
 		defer func() {
 			closeErr := in.Close()
@@ -1449,8 +1480,7 @@ type ListFormat struct {
 	separator string
 	dirSlash  bool
 	absolute  bool
-	output    []func() string
-	entry     fs.DirEntry
+	output    []func(entry *ListJSONItem) string
 	csv       *csv.Writer
 	buf       bytes.Buffer
 }
@@ -1486,76 +1516,91 @@ func (l *ListFormat) SetCSV(useCSV bool) {
 }
 
 // SetOutput sets functions used to create files information
-func (l *ListFormat) SetOutput(output []func() string) {
+func (l *ListFormat) SetOutput(output []func(entry *ListJSONItem) string) {
 	l.output = output
 }
 
 // AddModTime adds file's Mod Time to output
 func (l *ListFormat) AddModTime() {
-	l.AppendOutput(func() string { return l.entry.ModTime().Local().Format("2006-01-02 15:04:05") })
+	l.AppendOutput(func(entry *ListJSONItem) string {
+		return entry.ModTime.When.Local().Format("2006-01-02 15:04:05")
+	})
 }
 
 // AddSize adds file's size to output
 func (l *ListFormat) AddSize() {
-	l.AppendOutput(func() string {
-		return strconv.FormatInt(l.entry.Size(), 10)
+	l.AppendOutput(func(entry *ListJSONItem) string {
+		return strconv.FormatInt(entry.Size, 10)
 	})
+}
+
+// normalisePath makes sure the path has the correct slashes for the current mode
+func (l *ListFormat) normalisePath(entry *ListJSONItem, remote string) string {
+	if l.absolute && !strings.HasPrefix(remote, "/") {
+		remote = "/" + remote
+	}
+	if entry.IsDir && l.dirSlash {
+		remote += "/"
+	}
+	return remote
 }
 
 // AddPath adds path to file to output
 func (l *ListFormat) AddPath() {
-	l.AppendOutput(func() string {
-		remote := l.entry.Remote()
-		if l.absolute && !strings.HasPrefix(remote, "/") {
-			remote = "/" + remote
-		}
-		_, isDir := l.entry.(fs.Directory)
-		if isDir && l.dirSlash {
-			remote += "/"
-		}
-		return remote
+	l.AppendOutput(func(entry *ListJSONItem) string {
+		return l.normalisePath(entry, entry.Path)
+	})
+}
+
+// AddEncrypted adds the encrypted path to file to output
+func (l *ListFormat) AddEncrypted() {
+	l.AppendOutput(func(entry *ListJSONItem) string {
+		return l.normalisePath(entry, entry.Encrypted)
 	})
 }
 
 // AddHash adds the hash of the type given to the output
 func (l *ListFormat) AddHash(ht hash.Type) {
-	l.AppendOutput(func() string {
-		o, ok := l.entry.(fs.Object)
-		if !ok {
+	hashName := ht.String()
+	l.AppendOutput(func(entry *ListJSONItem) string {
+		if entry.IsDir {
 			return ""
 		}
-		return hashSum(ht, o)
+		return entry.Hashes[hashName]
 	})
 }
 
 // AddID adds file's ID to the output if known
 func (l *ListFormat) AddID() {
-	l.AppendOutput(func() string {
-		if do, ok := l.entry.(fs.IDer); ok {
-			return do.ID()
-		}
-		return ""
+	l.AppendOutput(func(entry *ListJSONItem) string {
+		return entry.ID
+	})
+}
+
+// AddOrigID adds file's Original ID to the output if known
+func (l *ListFormat) AddOrigID() {
+	l.AppendOutput(func(entry *ListJSONItem) string {
+		return entry.OrigID
 	})
 }
 
 // AddMimeType adds file's MimeType to the output if known
 func (l *ListFormat) AddMimeType() {
-	l.AppendOutput(func() string {
-		return fs.MimeTypeDirEntry(l.entry)
+	l.AppendOutput(func(entry *ListJSONItem) string {
+		return entry.MimeType
 	})
 }
 
 // AppendOutput adds string generated by specific function to printed output
-func (l *ListFormat) AppendOutput(functionToAppend func() string) {
+func (l *ListFormat) AppendOutput(functionToAppend func(item *ListJSONItem) string) {
 	l.output = append(l.output, functionToAppend)
 }
 
 // Format prints information about the DirEntry in the format defined
-func (l *ListFormat) Format(entry fs.DirEntry) (result string) {
-	l.entry = entry
+func (l *ListFormat) Format(entry *ListJSONItem) (result string) {
 	var out []string
 	for _, fun := range l.output {
-		out = append(out, fun())
+		out = append(out, fun(entry))
 	}
 	if l.csv != nil {
 		l.buf.Reset()
@@ -1566,4 +1611,82 @@ func (l *ListFormat) Format(entry fs.DirEntry) (result string) {
 		result = strings.Join(out, l.separator)
 	}
 	return result
+}
+
+// DirMove renames srcRemote to dstRemote
+//
+// It does this by loading the directory tree into memory (using ListR
+// if available) and doing renames in parallel.
+func DirMove(f fs.Fs, srcRemote, dstRemote string) (err error) {
+	// Use DirMove if possible
+	if doDirMove := f.Features().DirMove; doDirMove != nil {
+		return doDirMove(f, srcRemote, dstRemote)
+	}
+
+	// Load the directory tree into memory
+	tree, err := walk.NewDirTree(f, srcRemote, true, -1)
+	if err != nil {
+		return errors.Wrap(err, "RenameDir tree walk")
+	}
+
+	// Get the directories in sorted order
+	dirs := tree.Dirs()
+
+	// Make the destination directories - must be done in order not in parallel
+	for _, dir := range dirs {
+		dstPath := dstRemote + dir[len(srcRemote):]
+		err := f.Mkdir(dstPath)
+		if err != nil {
+			return errors.Wrap(err, "RenameDir mkdir")
+		}
+	}
+
+	// Rename the files in parallel
+	type rename struct {
+		o       fs.Object
+		newPath string
+	}
+	renames := make(chan rename, fs.Config.Transfers)
+	g, ctx := errgroup.WithContext(context.Background())
+	for i := 0; i < fs.Config.Transfers; i++ {
+		g.Go(func() error {
+			for job := range renames {
+				dstOverwritten, _ := f.NewObject(job.newPath)
+				_, err := Move(f, dstOverwritten, job.newPath, job.o)
+				if err != nil {
+					return err
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
+
+			}
+			return nil
+		})
+	}
+	for dir, entries := range tree {
+		dstPath := dstRemote + dir[len(srcRemote):]
+		for _, entry := range entries {
+			if o, ok := entry.(fs.Object); ok {
+				renames <- rename{o, path.Join(dstPath, path.Base(o.Remote()))}
+			}
+		}
+	}
+	close(renames)
+	err = g.Wait()
+	if err != nil {
+		return errors.Wrap(err, "RenameDir renames")
+	}
+
+	// Remove the source directories in reverse order
+	for i := len(dirs) - 1; i >= 0; i-- {
+		err := f.Rmdir(dirs[i])
+		if err != nil {
+			return errors.Wrap(err, "RenameDir rmdir")
+		}
+	}
+
+	return nil
 }

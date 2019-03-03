@@ -8,6 +8,8 @@
 package main
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -15,13 +17,18 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
+	"github.com/ncw/rclone/lib/rest"
+	"golang.org/x/net/html"
 	"golang.org/x/sys/unix"
 )
 
@@ -30,8 +37,15 @@ var (
 	install = flag.Bool("install", false, "Install the downloaded package using sudo dpkg -i.")
 	extract = flag.String("extract", "", "Extract the named executable from the .tar.gz and install into bindir.")
 	bindir  = flag.String("bindir", defaultBinDir(), "Directory to install files downloaded with -extract.")
+	useAPI  = flag.Bool("use-api", false, "Use the API for finding the release instead of scraping the page.")
 	// Globals
-	matchProject = regexp.MustCompile(`^(\w+)/(\w+)$`)
+	matchProject = regexp.MustCompile(`^([\w-]+)/([\w-]+)$`)
+	osAliases    = map[string][]string{
+		"darwin": []string{"macos", "osx"},
+	}
+	archAliases = map[string][]string{
+		"amd64": []string{"x86_64"},
+	}
 )
 
 // A github release
@@ -113,25 +127,41 @@ func writable(path string) bool {
 
 // Directory to install releases in by default
 //
-// Find writable directories on $PATH.  Use the first writable
-// directory which is in $HOME or failing that the first writable
-// directory.
+// Find writable directories on $PATH.  Use $GOPATH/bin if that is on
+// the path and writable or use the first writable directory which is
+// in $HOME or failing that the first writable directory.
 //
 // Returns "" if none of the above were found
 func defaultBinDir() string {
 	home := os.Getenv("HOME")
-	var binDir string
+	var (
+		bin       string
+		homeBin   string
+		goHomeBin string
+		gopath    = os.Getenv("GOPATH")
+	)
 	for _, dir := range strings.Split(os.Getenv("PATH"), ":") {
 		if writable(dir) {
 			if strings.HasPrefix(dir, home) {
-				return dir
+				if homeBin != "" {
+					homeBin = dir
+				}
+				if gopath != "" && strings.HasPrefix(dir, gopath) && goHomeBin == "" {
+					goHomeBin = dir
+				}
 			}
-			if binDir != "" {
-				binDir = dir
+			if bin == "" {
+				bin = dir
 			}
 		}
 	}
-	return binDir
+	if goHomeBin != "" {
+		return goHomeBin
+	}
+	if homeBin != "" {
+		return homeBin
+	}
+	return bin
 }
 
 // read the body or an error message
@@ -175,12 +205,78 @@ func getAsset(project string, matchName *regexp.Regexp) (string, string) {
 	}
 
 	for _, asset := range release.Assets {
-		if matchName.MatchString(asset.Name) {
+		//log.Printf("Finding %s", asset.Name)
+		if matchName.MatchString(asset.Name) && isOurOsArch(asset.Name) {
 			return asset.BrowserDownloadURL, asset.Name
 		}
 	}
 	log.Fatalf("Didn't find asset in info")
 	return "", ""
+}
+
+// Get an asset URL and name by scraping the downloads page
+//
+// This doesn't use the API so isn't rate limited when not using GITHUB login details
+func getAssetFromReleasesPage(project string, matchName *regexp.Regexp) (assetURL string, assetName string) {
+	baseURL := "https://github.com/" + project + "/releases"
+	log.Printf("Fetching asset info for %q from %q", project, baseURL)
+	base, err := url.Parse(baseURL)
+	if err != nil {
+		log.Fatalf("URL Parse failed: %v", err)
+	}
+	resp, err := http.Get(baseURL)
+	if err != nil {
+		log.Fatalf("Failed to fetch release info %q: %v", baseURL, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Error: %s", readBody(resp.Body))
+		log.Fatalf("Bad status %d when fetching %q release info: %s", resp.StatusCode, baseURL, resp.Status)
+	}
+	doc, err := html.Parse(resp.Body)
+	if err != nil {
+		log.Fatalf("Failed to parse web page: %v", err)
+	}
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "a" {
+			for _, a := range n.Attr {
+				if a.Key == "href" {
+					if name := path.Base(a.Val); matchName.MatchString(name) && isOurOsArch(name) {
+						if u, err := rest.URLJoin(base, a.Val); err == nil {
+							assetName = name
+							assetURL = u.String()
+						}
+					}
+					break
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(doc)
+	if assetName == "" || assetURL == "" {
+		log.Fatalf("Didn't find URL in page")
+	}
+	return assetURL, assetName
+}
+
+// isOurOsArch returns true if s contains our OS and our Arch
+func isOurOsArch(s string) bool {
+	s = strings.ToLower(s)
+	check := func(base string, aliases map[string][]string) bool {
+		names := []string{base}
+		names = append(names, aliases[base]...)
+		for _, name := range names {
+			if strings.Contains(s, name) {
+				return true
+			}
+		}
+		return false
+	}
+	return check(runtime.GOARCH, archAliases) && check(runtime.GOOS, osAliases)
 }
 
 // get a file for download
@@ -229,6 +325,66 @@ func run(args ...string) {
 	}
 }
 
+// Untars fileName from srcFile
+func untar(srcFile, fileName, extractDir string) {
+	f, err := os.Open(srcFile)
+	if err != nil {
+		log.Fatalf("Couldn't open tar: %v", err)
+	}
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			log.Fatalf("Couldn't close tar: %v", err)
+		}
+	}()
+
+	var in io.Reader = f
+
+	srcExt := filepath.Ext(srcFile)
+	if srcExt == ".gz" || srcExt == ".tgz" {
+		gzf, err := gzip.NewReader(f)
+		if err != nil {
+			log.Fatalf("Couldn't open gzip: %v", err)
+		}
+		in = gzf
+	}
+
+	tarReader := tar.NewReader(in)
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("Trouble reading tar file: %v", err)
+		}
+		name := header.Name
+		switch header.Typeflag {
+		case tar.TypeReg:
+			baseName := filepath.Base(name)
+			if baseName == fileName {
+				outPath := filepath.Join(extractDir, fileName)
+				out, err := os.OpenFile(outPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
+				if err != nil {
+					log.Fatalf("Couldn't open output file: %v", err)
+				}
+				defer func() {
+					err := out.Close()
+					if err != nil {
+						log.Fatalf("Couldn't close output: %v", err)
+					}
+				}()
+				n, err := io.Copy(out, tarReader)
+				if err != nil {
+					log.Fatalf("Couldn't write output file: %v", err)
+				}
+				log.Printf("Wrote %s (%d bytes) as %q", fileName, n, outPath)
+			}
+		}
+	}
+}
+
 func main() {
 	flag.Parse()
 	args := flag.Args()
@@ -244,7 +400,12 @@ func main() {
 		log.Fatalf("Invalid regexp for name %q: %v", nameRe, err)
 	}
 
-	assetURL, assetName := getAsset(project, matchName)
+	var assetURL, assetName string
+	if *useAPI {
+		assetURL, assetName = getAsset(project, matchName)
+	} else {
+		assetURL, assetName = getAssetFromReleasesPage(project, matchName)
+	}
 	fileName := filepath.Join(os.TempDir(), assetName)
 	getFile(assetURL, fileName)
 
@@ -257,8 +418,6 @@ func main() {
 			log.Fatalf("Need to set -bindir")
 		}
 		log.Printf("Unpacking %s from %s and installing into %s", *extract, fileName, *bindir)
-		run("tar", "xf", fileName, *extract)
-		run("chmod", "a+x", *extract)
-		run("mv", "-f", *extract, *bindir+"/")
+		untar(fileName, *extract, *bindir+"/")
 	}
 }

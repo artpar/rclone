@@ -133,8 +133,8 @@ Any files larger than this will be uploaded in chunks of this size.
 Note that chunks are buffered in memory (one at a time) so rclone can
 deal with retries.  Setting this larger will increase the speed
 slightly (at most 10%% for 128MB in tests) at the cost of using more
-memory.  It can be set smaller if you are tight on memory.`, fs.SizeSuffix(maxChunkSize)),
-			Default:  fs.SizeSuffix(defaultChunkSize),
+memory.  It can be set smaller if you are tight on memory.`, maxChunkSize),
+			Default:  defaultChunkSize,
 			Advanced: true,
 		}, {
 			Name:     "impersonate",
@@ -163,7 +163,7 @@ type Fs struct {
 	team           team.Client    // for the Teams API
 	slashRoot      string         // root with "/" prefix, lowercase
 	slashRootSlash string         // root with "/" prefix and postfix, lowercase
-	pacer          *pacer.Pacer   // To pace the API calls
+	pacer          *fs.Pacer      // To pace the API calls
 	ns             string         // The namespace we are using or "" for none
 }
 
@@ -212,12 +212,12 @@ func shouldRetry(err error) (bool, error) {
 	case auth.RateLimitAPIError:
 		if e.RateLimitError.RetryAfter > 0 {
 			fs.Debugf(baseErrString, "Too many requests or write operations. Trying again in %d seconds.", e.RateLimitError.RetryAfter)
-			time.Sleep(time.Duration(e.RateLimitError.RetryAfter) * time.Second)
+			err = pacer.RetryAfterError(err, time.Duration(e.RateLimitError.RetryAfter)*time.Second)
 		}
 		return true, err
 	}
-	// Keep old behaviour for backward compatibility
-	if strings.Contains(baseErrString, "too_many_write_operations") || strings.Contains(baseErrString, "too_many_requests") {
+	// Keep old behavior for backward compatibility
+	if strings.Contains(baseErrString, "too_many_write_operations") || strings.Contains(baseErrString, "too_many_requests") || baseErrString == "" {
 		return true, err
 	}
 	return fserrors.ShouldRetry(err), err
@@ -242,7 +242,7 @@ func (f *Fs) setUploadChunkSize(cs fs.SizeSuffix) (old fs.SizeSuffix, err error)
 	return
 }
 
-// NewFs contstructs an Fs from the path, container:path
+// NewFs constructs an Fs from the path, container:path
 func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	// Parse config into Options struct
 	opt := new(Options)
@@ -300,7 +300,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	f := &Fs{
 		name:  name,
 		opt:   *opt,
-		pacer: pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
+		pacer: fs.NewPacer(pacer.NewDefault(pacer.MinSleep(minSleep), pacer.MaxSleep(maxSleep), pacer.DecayConstant(decayConstant))),
 	}
 	config := dropbox.Config{
 		LogLevel:        dropbox.LogOff, // logging in the SDK: LogOff, LogDebug, LogInfo

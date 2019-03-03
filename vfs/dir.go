@@ -8,9 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/list"
-	"github.com/artpar/rclone/fs/walk"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/list"
+	"github.com/ncw/rclone/fs/operations"
+	"github.com/ncw/rclone/fs/walk"
 	"github.com/pkg/errors"
 )
 
@@ -457,8 +458,23 @@ func (d *Dir) Mkdir(name string) (*Dir, error) {
 		return nil, EROFS
 	}
 	path := path.Join(d.path, name)
+	node, err := d.stat(name)
+	switch err {
+	case ENOENT:
+		// not found, carry on
+	case nil:
+		// found so check what it is
+		if node.IsDir() {
+			return node.(*Dir), err
+		}
+		return nil, EEXIST
+	default:
+		// a different error - report
+		fs.Errorf(d, "Dir.Mkdir failed to read directory: %v", err)
+		return nil, err
+	}
 	// fs.Debugf(path, "Dir.Mkdir")
-	err := d.f.Mkdir(path)
+	err = d.f.Mkdir(path)
 	if err != nil {
 		fs.Errorf(d, "Dir.Mkdir failed to create directory: %v", err)
 		return nil, err
@@ -576,15 +592,15 @@ func (d *Dir) Rename(oldName, newName string, destDir *Dir) error {
 			return err
 		}
 	case fs.Directory:
-		doDirMove := d.f.Features().DirMove
-		if doDirMove == nil {
-			err := errors.Errorf("Fs %q can't rename directories (no DirMove)", d.f)
+		features := d.f.Features()
+		if features.DirMove == nil && features.Move == nil && features.Copy == nil {
+			err := errors.Errorf("Fs %q can't rename directories (no DirMove, Move or Copy)", d.f)
 			fs.Errorf(oldPath, "Dir.Rename error: %v", err)
 			return err
 		}
 		srcRemote := x.Remote()
 		dstRemote := newPath
-		err = doDirMove(d.f, srcRemote, dstRemote)
+		err = operations.DirMove(d.f, srcRemote, dstRemote)
 		if err != nil {
 			fs.Errorf(oldPath, "Dir.Rename error: %v", err)
 			return err
@@ -599,7 +615,7 @@ func (d *Dir) Rename(oldName, newName string, destDir *Dir) error {
 		}
 	default:
 		err = errors.Errorf("unknown type %T", oldNode)
-		fs.Errorf(d.path, "Dir.ReadDirAll error: %v", err)
+		fs.Errorf(d.path, "Dir.Rename error: %v", err)
 		return err
 	}
 

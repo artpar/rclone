@@ -85,6 +85,11 @@ type ConfigInfo struct {
 	MaxBacklog            int
 	StatsOneLine          bool
 	Progress              bool
+	Cookie                bool
+	UseMmap               bool
+	CaCert                string // Client Side CA
+	ClientCert            string // Client Side Cert
+	ClientKey             string // Client Side Key
 }
 
 // NewConfig creates a new config with everything set to the default
@@ -109,7 +114,7 @@ func NewConfig() *ConfigInfo {
 	c.BufferSize = SizeSuffix(16 << 20)
 	c.UserAgent = "rclone/" + Version
 	c.StreamingUploadCutoff = SizeSuffix(100 * 1024)
-	c.StatsFileNameLength = 40
+	c.StatsFileNameLength = 45
 	c.AskPassword = true
 	c.TPSLimitBurst = 1
 	c.MaxTransfer = -1

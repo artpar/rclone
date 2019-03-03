@@ -92,7 +92,7 @@ type Fs struct {
 	opt      Options      // parsed options
 	features *fs.Features // optional features
 	srv      *rest.Client // the connection to the yandex server
-	pacer    *pacer.Pacer // pacer for API calls
+	pacer    *fs.Pacer    // pacer for API calls
 	diskRoot string       // root path with "disk:/" container name
 }
 
@@ -268,7 +268,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		name:  name,
 		opt:   *opt,
 		srv:   rest.NewClient(oAuthClient).SetRoot(rootURL),
-		pacer: pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
+		pacer: fs.NewPacer(pacer.NewDefault(pacer.MinSleep(minSleep), pacer.MaxSleep(maxSleep), pacer.DecayConstant(decayConstant))),
 	}
 	f.setRoot(root)
 	f.features = (&fs.Features{
@@ -306,7 +306,7 @@ func (f *Fs) itemToDirEntry(remote string, object *api.ResourceInfoResponse) (fs
 		if err != nil {
 			return nil, errors.Wrap(err, "error parsing time in directory item")
 		}
-		d := fs.NewDir(remote, t).SetSize(int64(object.Size))
+		d := fs.NewDir(remote, t).SetSize(object.Size)
 		return d, nil
 	case "file":
 		o, err := f.newObjectWithInfo(remote, object)
@@ -633,7 +633,7 @@ func (f *Fs) Purge() error {
 	return f.purgeCheck("", false)
 }
 
-// copyOrMoves copys or moves directories or files depending on the mthod parameter
+// copyOrMoves copies or moves directories or files depending on the method parameter
 func (f *Fs) copyOrMove(method, src, dst string, overwrite bool) (err error) {
 	opts := rest.Opts{
 		Method:     "POST",
@@ -1106,7 +1106,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		return err
 	}
 
-	//if file uploaded sucessfully then return metadata
+	//if file uploaded successfully then return metadata
 	o.modTime = modTime
 	o.md5sum = ""                   // according to unit tests after put the md5 is empty.
 	o.size = int64(in1.BytesRead()) // better solution o.readMetaData() ?

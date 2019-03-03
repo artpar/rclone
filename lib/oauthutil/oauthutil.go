@@ -153,6 +153,30 @@ type TokenSource struct {
 	expiryTimer *time.Timer // signals whenever the token expires
 }
 
+// If token has expired then first try re-reading it from the config
+// file in case a concurrently runnng rclone has updated it already
+func (ts *TokenSource) reReadToken() bool {
+	tokenString, err := config.FileGetFresh(ts.name, config.ConfigToken)
+	if err != nil {
+		fs.Debugf(ts.name, "Failed to read token out of config file: %v", err)
+		return false
+	}
+	newToken := new(oauth2.Token)
+	err = json.Unmarshal([]byte(tokenString), newToken)
+	if err != nil {
+		fs.Debugf(ts.name, "Failed to parse token out of config file: %v", err)
+		return false
+	}
+	if !newToken.Valid() {
+		fs.Debugf(ts.name, "Loaded invalid token from config file - ignoring")
+		return false
+	}
+	fs.Debugf(ts.name, "Loaded fresh token from config file")
+	ts.token = newToken
+	ts.tokenSource = nil // invalidate since we changed the token
+	return true
+}
+
 // Token returns a token or an error.
 // Token must be safe for concurrent use by multiple goroutines.
 // The returned Token must not be modified.
@@ -161,17 +185,39 @@ type TokenSource struct {
 func (ts *TokenSource) Token() (*oauth2.Token, error) {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
+	var (
+		token   *oauth2.Token
+		err     error
+		changed = false
+	)
+	const maxTries = 5
 
-	// Make a new token source if required
-	if ts.tokenSource == nil {
-		ts.tokenSource = ts.config.TokenSource(ts.ctx, ts.token)
+	// Try getting the token a few times
+	for i := 1; i <= maxTries; i++ {
+		// Try reading the token from the config file in case it has
+		// been updated by a concurrent rclone process
+		if !ts.token.Valid() {
+			if ts.reReadToken() {
+				changed = true
+			}
+		}
+
+		// Make a new token source if required
+		if ts.tokenSource == nil {
+			ts.tokenSource = ts.config.TokenSource(ts.ctx, ts.token)
+		}
+
+		token, err = ts.tokenSource.Token()
+		if err == nil {
+			break
+		}
+		fs.Debugf(ts.name, "Token refresh failed try %d/%d: %v", i, maxTries, err)
+		time.Sleep(1 * time.Second)
 	}
-
-	token, err := ts.tokenSource.Token()
 	if err != nil {
 		return nil, err
 	}
-	changed := *token != *ts.token
+	changed = changed || (*token != *ts.token)
 	ts.token = token
 	if changed {
 		// Bump on the expiry timer if it is set
@@ -312,16 +358,24 @@ func ConfigErrorCheck(id, name string, m configmap.Mapper, errorHandler func(*ht
 
 func doConfig(id, name string, m configmap.Mapper, errorHandler func(*http.Request) AuthError, oauthConfig *oauth2.Config, offline bool, opts []oauth2.AuthCodeOption) error {
 	oauthConfig, changed := overrideCredentials(name, m, oauthConfig)
-	auto, ok := m.Get(config.ConfigAutomatic)
-	automatic := ok && auto != ""
+	authorizeOnlyValue, ok := m.Get(config.ConfigAuthorize)
+	authorizeOnly := ok && authorizeOnlyValue != "" // set if being run by "rclone authorize"
 
 	// See if already have a token
 	tokenString, ok := m.Get("token")
 	if ok && tokenString != "" {
 		fmt.Printf("Already have a token - refresh?\n")
-		if !config.Confirm() {
+		if !config.ConfirmWithConfig(m, "config_refresh_token", true) {
 			return nil
 		}
+	}
+
+	// Ask the user whether they are using a local machine
+	isLocal := func() bool {
+		fmt.Printf("Use auto config?\n")
+		fmt.Printf(" * Say Y if not sure\n")
+		fmt.Printf(" * Say N if you are working on a remote or headless machine\n")
+		return config.ConfirmWithConfig(m, "config_is_local", true)
 	}
 
 	// Detect whether we should use internal web server
@@ -332,14 +386,10 @@ func doConfig(id, name string, m configmap.Mapper, errorHandler func(*http.Reque
 			fmt.Printf("Make sure your Redirect URL is set to %q in your custom config.\n", oauthConfig.RedirectURL)
 		}
 		useWebServer = true
-		if automatic {
+		if authorizeOnly {
 			break
 		}
-		fmt.Printf("Use auto config?\n")
-		fmt.Printf(" * Say Y if not sure\n")
-		fmt.Printf(" * Say N if you are working on a remote or headless machine\n")
-		auto := config.Confirm()
-		if !auto {
+		if !isLocal() {
 			fmt.Printf("For this to work, you will need rclone available on a machine that has a web browser available.\n")
 			fmt.Printf("Execute the following on your machine:\n")
 			if changed {
@@ -358,15 +408,12 @@ func doConfig(id, name string, m configmap.Mapper, errorHandler func(*http.Reque
 			if err != nil {
 				return err
 			}
-			return PutToken(name, m, token, false)
+			return PutToken(name, m, token, true)
 		}
 	case TitleBarRedirectURL:
-		useWebServer = automatic
-		if !automatic {
-			fmt.Printf("Use auto config?\n")
-			fmt.Printf(" * Say Y if not sure\n")
-			fmt.Printf(" * Say N if you are working on a remote or headless machine or Y didn't work\n")
-			useWebServer = config.Confirm()
+		useWebServer = authorizeOnly
+		if !authorizeOnly {
+			useWebServer = isLocal()
 		}
 		if useWebServer {
 			// copy the config and set to use the internal webserver
@@ -433,12 +480,12 @@ func doConfig(id, name string, m configmap.Mapper, errorHandler func(*http.Reque
 	}
 
 	// Print code if we do automatic retrieval
-	if automatic {
+	if authorizeOnly {
 		result, err := json.Marshal(token)
 		if err != nil {
 			return errors.Wrap(err, "failed to marshal token")
 		}
-		fmt.Printf("Paste the following into your remote machine --->\n%s\n<---End paste", result)
+		fmt.Printf("Paste the following into your remote machine --->\n%s\n<---End paste\n", result)
 	}
 	return PutToken(name, m, token, true)
 }

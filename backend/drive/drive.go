@@ -21,24 +21,26 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/walk"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config"
+	"github.com/ncw/rclone/fs/config/configmap"
+	"github.com/ncw/rclone/fs/config/configstruct"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/fshttp"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/fs/walk"
+	"github.com/ncw/rclone/lib/dircache"
+	"github.com/ncw/rclone/lib/oauthutil"
+	"github.com/ncw/rclone/lib/pacer"
+	"github.com/ncw/rclone/lib/readers"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -54,7 +56,8 @@ const (
 	driveFolderType             = "application/vnd.google-apps.folder"
 	timeFormatIn                = time.RFC3339
 	timeFormatOut               = "2006-01-02T15:04:05.000000000Z07:00"
-	minSleep                    = 10 * time.Millisecond
+	defaultMinSleep             = fs.Duration(100 * time.Millisecond)
+	defaultBurst                = 100
 	defaultExportExtensions     = "docx,xlsx,pptx,svg"
 	scopePrefix                 = "https://www.googleapis.com/auth/"
 	defaultScope                = "drive"
@@ -125,6 +128,29 @@ var (
 	_linkTemplates   map[string]*template.Template // available link types
 )
 
+// Parse the scopes option returning a slice of scopes
+func driveScopes(scopesString string) (scopes []string) {
+	if scopesString == "" {
+		scopesString = defaultScope
+	}
+	for _, scope := range strings.Split(scopesString, ",") {
+		scope = strings.TrimSpace(scope)
+		scopes = append(scopes, scopePrefix+scope)
+	}
+	return scopes
+}
+
+// Returns true if one of the scopes was "drive.appfolder"
+func driveScopesContainsAppFolder(scopes []string) bool {
+	for _, scope := range scopes {
+		if scope == scopePrefix+"drive.appfolder" {
+			return true
+		}
+
+	}
+	return false
+}
+
 // Register with Fs
 func init() {
 	fs.Register(&fs.RegInfo{
@@ -139,18 +165,14 @@ func init() {
 				fs.Errorf(nil, "Couldn't parse config into struct: %v", err)
 				return
 			}
+
 			// Fill in the scopes
-			if opt.Scope == "" {
-				opt.Scope = defaultScope
+			driveConfig.Scopes = driveScopes(opt.Scope)
+			// Set the root_folder_id if using drive.appfolder
+			if driveScopesContainsAppFolder(driveConfig.Scopes) {
+				m.Set("root_folder_id", "appDataFolder")
 			}
-			driveConfig.Scopes = nil
-			for _, scope := range strings.Split(opt.Scope, ",") {
-				driveConfig.Scopes = append(driveConfig.Scopes, scopePrefix+strings.TrimSpace(scope))
-				// Set the root_folder_id if using drive.appfolder
-				if scope == "drive.appfolder" {
-					m.Set("root_folder_id", "appDataFolder")
-				}
-			}
+
 			if opt.ServiceAccountFile == "" {
 				err = oauthutil.Config("drive", name, m, driveConfig)
 				if err != nil {
@@ -164,10 +186,10 @@ func init() {
 		},
 		Options: []fs.Option{{
 			Name: config.ConfigClientID,
-			Help: "Google Application Client Id\nLeave blank normally.",
+			Help: "Google Application Client Id\nSetting your own is recommended.\nSee https://rclone.org/drive/#making-your-own-client-id for how to create your own.\nIf you leave this blank, it will use an internal key which is low performance.",
 		}, {
 			Name: config.ConfigClientSecret,
-			Help: "Google Application Client Secret\nLeave blank normally.",
+			Help: "Google Application Client Secret\nSetting your own is recommended.",
 		}, {
 			Name: "scope",
 			Help: "Scope that rclone should use when requesting access from drive.",
@@ -337,6 +359,16 @@ will download it anyway.`,
 			Default:  fs.SizeSuffix(-1),
 			Help:     "If Object's are greater, use drive v2 API to download.",
 			Advanced: true,
+		}, {
+			Name:     "pacer_min_sleep",
+			Default:  defaultMinSleep,
+			Help:     "Minimum time to sleep between API calls.",
+			Advanced: true,
+		}, {
+			Name:     "pacer_burst",
+			Default:  defaultBurst,
+			Help:     "Number of API calls to allow without sleeping.",
+			Advanced: true,
 		}},
 	})
 
@@ -379,6 +411,8 @@ type Options struct {
 	AcknowledgeAbuse          bool          `config:"acknowledge_abuse"`
 	KeepRevisionForever       bool          `config:"keep_revision_forever"`
 	V2DownloadMinSize         fs.SizeSuffix `config:"v2_download_min_size"`
+	PacerMinSleep             fs.Duration   `config:"pacer_min_sleep"`
+	PacerBurst                int           `config:"pacer_burst"`
 }
 
 // Fs represents a remote drive server
@@ -392,7 +426,7 @@ type Fs struct {
 	client           *http.Client       // authorized client
 	rootFolderID     string             // the id of the root folder
 	dirCache         *dircache.DirCache // Map of directory path to directory id
-	pacer            *pacer.Pacer       // To pace the API calls
+	pacer            *fs.Pacer          // To pace the API calls
 	exportExtensions []string           // preferred extensions to download docs
 	importMimeTypes  []string           // MIME types to convert to docs
 	isTeamDrive      bool               // true if this is a team drive
@@ -448,7 +482,7 @@ func (f *Fs) Features() *fs.Features {
 	return f.features
 }
 
-// shouldRetry determines whehter a given err rates being retried
+// shouldRetry determines whether a given err rates being retried
 func shouldRetry(err error) (bool, error) {
 	if err == nil {
 		return false, nil
@@ -699,12 +733,16 @@ func parseExtensions(extensionsIn ...string) (extensions, mimeTypes []string, er
 
 // Figure out if the user wants to use a team drive
 func configTeamDrive(opt *Options, m configmap.Mapper, name string) error {
+	// Stop if we are running non-interactive config
+	if fs.Config.AutoConfirm {
+		return nil
+	}
 	if opt.TeamDriveID == "" {
 		fmt.Printf("Configure this as a team drive?\n")
 	} else {
 		fmt.Printf("Change current team drive ID %q?\n", opt.TeamDriveID)
 	}
-	if !config.ConfirmWithDefault(false) {
+	if !config.Confirm() {
 		return nil
 	}
 	client, err := createOAuthClient(opt, name, m)
@@ -721,7 +759,7 @@ func configTeamDrive(opt *Options, m configmap.Mapper, name string) error {
 	listFailed := false
 	for {
 		var teamDrives *drive.TeamDriveList
-		err = newPacer().Call(func() (bool, error) {
+		err = newPacer(opt).Call(func() (bool, error) {
 			teamDrives, err = listTeamDrives.Do()
 			return shouldRetry(err)
 		})
@@ -751,12 +789,13 @@ func configTeamDrive(opt *Options, m configmap.Mapper, name string) error {
 }
 
 // newPacer makes a pacer configured for drive
-func newPacer() *pacer.Pacer {
-	return pacer.New().SetMinSleep(minSleep).SetPacer(pacer.GoogleDrivePacer)
+func newPacer(opt *Options) *fs.Pacer {
+	return fs.NewPacer(pacer.NewGoogleDrive(pacer.MinSleep(opt.PacerMinSleep), pacer.Burst(opt.PacerBurst)))
 }
 
 func getServiceAccountClient(opt *Options, credentialsData []byte) (*http.Client, error) {
-	conf, err := google.JWTConfigFromJSON(credentialsData, driveConfig.Scopes...)
+	scopes := driveScopes(opt.Scope)
+	conf, err := google.JWTConfigFromJSON(credentialsData, scopes...)
 	if err != nil {
 		return nil, errors.Wrap(err, "error processing credentials")
 	}
@@ -824,7 +863,7 @@ func (f *Fs) setUploadCutoff(cs fs.SizeSuffix) (old fs.SizeSuffix, err error) {
 	return
 }
 
-// NewFs contstructs an Fs from the path, container:path
+// NewFs constructs an Fs from the path, container:path
 func NewFs(name, path string, m configmap.Mapper) (fs.Fs, error) {
 	// Parse config into Options struct
 	opt := new(Options)
@@ -855,7 +894,7 @@ func NewFs(name, path string, m configmap.Mapper) (fs.Fs, error) {
 		name:  name,
 		root:  root,
 		opt:   *opt,
-		pacer: newPacer(),
+		pacer: newPacer(opt),
 	}
 	f.isTeamDrive = opt.TeamDriveID != ""
 	f.features = (&fs.Features{
@@ -1301,17 +1340,46 @@ func (f *Fs) List(dir string) (entries fs.DirEntries, err error) {
 	return entries, nil
 }
 
+// listREntry is a task to be executed by a litRRunner
+type listREntry struct {
+	id, path string
+}
+
+// listRSlices is a helper struct to sort two slices at once
+type listRSlices struct {
+	dirs  []string
+	paths []string
+}
+
+func (s listRSlices) Sort() {
+	sort.Sort(s)
+}
+
+func (s listRSlices) Len() int {
+	return len(s.dirs)
+}
+
+func (s listRSlices) Swap(i, j int) {
+	s.dirs[i], s.dirs[j] = s.dirs[j], s.dirs[i]
+	s.paths[i], s.paths[j] = s.paths[j], s.paths[i]
+}
+
+func (s listRSlices) Less(i, j int) bool {
+	return s.dirs[i] < s.dirs[j]
+}
+
 // listRRunner will read dirIDs from the in channel, perform the file listing an call cb with each DirEntry.
 //
-// In each cycle, will wait up to 10ms to read up to grouping entries from the in channel.
+// In each cycle it will read up to grouping entries from the in channel without blocking.
 // If an error occurs it will be send to the out channel and then return. Once the in channel is closed,
 // nil is send to the out channel and the function returns.
-func (f *Fs) listRRunner(wg *sync.WaitGroup, in <-chan string, out chan<- error, cb func(fs.DirEntry) error, grouping int) {
+func (f *Fs) listRRunner(wg *sync.WaitGroup, in <-chan listREntry, out chan<- error, cb func(fs.DirEntry) error, grouping int) {
 	var dirs []string
+	var paths []string
 
 	for dir := range in {
-		dirs = append(dirs[:0], dir)
-		wait := time.After(10 * time.Millisecond)
+		dirs = append(dirs[:0], dir.id)
+		paths = append(paths[:0], dir.path)
 	waitloop:
 		for i := 1; i < grouping; i++ {
 			select {
@@ -1319,31 +1387,32 @@ func (f *Fs) listRRunner(wg *sync.WaitGroup, in <-chan string, out chan<- error,
 				if !ok {
 					break waitloop
 				}
-				dirs = append(dirs, d)
-			case <-wait:
-				break waitloop
+				dirs = append(dirs, d.id)
+				paths = append(paths, d.path)
+			default:
 			}
 		}
+		listRSlices{dirs, paths}.Sort()
 		var iErr error
 		_, err := f.list(dirs, "", false, false, false, func(item *drive.File) bool {
-			parentPath := ""
-			if len(item.Parents) > 0 {
-				p, ok := f.dirCache.GetInv(item.Parents[0])
-				if ok {
-					parentPath = p
+			for _, parent := range item.Parents {
+				// only handle parents that are in the requested dirs list
+				i := sort.SearchStrings(dirs, parent)
+				if i == len(dirs) || dirs[i] != parent {
+					continue
 				}
-			}
-			remote := path.Join(parentPath, item.Name)
-			entry, err := f.itemToDirEntry(remote, item)
-			if err != nil {
-				iErr = err
-				return true
-			}
+				remote := path.Join(paths[i], item.Name)
+				entry, err := f.itemToDirEntry(remote, item)
+				if err != nil {
+					iErr = err
+					return true
+				}
 
-			err = cb(entry)
-			if err != nil {
-				iErr = err
-				return true
+				err = cb(entry)
+				if err != nil {
+					iErr = err
+					return true
+				}
 			}
 			return false
 		})
@@ -1394,30 +1463,44 @@ func (f *Fs) ListR(dir string, callback fs.ListRCallback) (err error) {
 	if err != nil {
 		return err
 	}
+	if directoryID == "root" {
+		var info *drive.File
+		err = f.pacer.CallNoRetry(func() (bool, error) {
+			info, err = f.svc.Files.Get("root").
+				Fields("id").
+				SupportsTeamDrives(f.isTeamDrive).
+				Do()
+			return shouldRetry(err)
+		})
+		if err != nil {
+			return err
+		}
+		directoryID = info.Id
+	}
 
 	mu := sync.Mutex{} // protects in and overflow
 	wg := sync.WaitGroup{}
-	in := make(chan string, inputBuffer)
+	in := make(chan listREntry, inputBuffer)
 	out := make(chan error, fs.Config.Checkers)
 	list := walk.NewListRHelper(callback)
-	overfflow := []string{}
+	overflow := []listREntry{}
 
 	cb := func(entry fs.DirEntry) error {
 		mu.Lock()
 		defer mu.Unlock()
 		if d, isDir := entry.(*fs.Dir); isDir && in != nil {
 			select {
-			case in <- d.ID():
+			case in <- listREntry{d.ID(), d.Remote()}:
 				wg.Add(1)
 			default:
-				overfflow = append(overfflow, d.ID())
+				overflow = append(overflow, listREntry{d.ID(), d.Remote()})
 			}
 		}
 		return list.Add(entry)
 	}
 
 	wg.Add(1)
-	in <- directoryID
+	in <- listREntry{directoryID, dir}
 
 	for i := 0; i < fs.Config.Checkers; i++ {
 		go f.listRRunner(&wg, in, out, cb, grouping)
@@ -1426,18 +1509,18 @@ func (f *Fs) ListR(dir string, callback fs.ListRCallback) (err error) {
 		// wait until the all directories are processed
 		wg.Wait()
 		// if the input channel overflowed add the collected entries to the channel now
-		for len(overfflow) > 0 {
+		for len(overflow) > 0 {
 			mu.Lock()
-			l := len(overfflow)
-			// only fill half of the channel to prevent entries beeing put into overfflow again
+			l := len(overflow)
+			// only fill half of the channel to prevent entries beeing put into overflow again
 			if l > inputBuffer/2 {
 				l = inputBuffer / 2
 			}
 			wg.Add(l)
-			for _, d := range overfflow[:l] {
+			for _, d := range overflow[:l] {
 				in <- d
 			}
-			overfflow = overfflow[l:]
+			overflow = overflow[l:]
 			mu.Unlock()
 
 			// wait again for the completion of all directories
@@ -1628,14 +1711,14 @@ func (f *Fs) MergeDirs(dirs []fs.Directory) error {
 				return shouldRetry(err)
 			})
 			if err != nil {
-				return errors.Wrapf(err, "MergDirs move failed on %q in %v", info.Name, srcDir)
+				return errors.Wrapf(err, "MergeDirs move failed on %q in %v", info.Name, srcDir)
 			}
 		}
 		// rmdir (into trash) the now empty source directory
 		fs.Infof(srcDir, "removing empty directory")
 		err = f.rmdir(srcDir.ID(), true)
 		if err != nil {
-			return errors.Wrapf(err, "MergDirs move failed to rmdir %q", srcDir)
+			return errors.Wrapf(err, "MergeDirs move failed to rmdir %q", srcDir)
 		}
 	}
 	return nil
@@ -2054,7 +2137,7 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 // ChangeNotify calls the passed function with a path that has had changes.
 // If the implementation uses polling, it should adhere to the given interval.
 //
-// Automatically restarts itself in case of unexpected behaviour of the remote.
+// Automatically restarts itself in case of unexpected behavior of the remote.
 //
 // Close the returned channel to stop being notified.
 func (f *Fs) ChangeNotify(notifyFunc func(string, fs.EntryType), pollIntervalChan <-chan time.Duration) {
@@ -2161,11 +2244,13 @@ func (f *Fs) changeNotifyRunner(notifyFunc func(string, fs.EntryType), startPage
 
 				// translate the parent dir of this object
 				if len(change.File.Parents) > 0 {
-					if parentPath, ok := f.dirCache.GetInv(change.File.Parents[0]); ok {
-						// and append the drive file name to compute the full file name
-						newPath := path.Join(parentPath, change.File.Name)
-						// this will now clear the actual file too
-						pathsToClear = append(pathsToClear, entryType{path: newPath, entryType: changeType})
+					for _, parent := range change.File.Parents {
+						if parentPath, ok := f.dirCache.GetInv(parent); ok {
+							// and append the drive file name to compute the full file name
+							newPath := path.Join(parentPath, change.File.Name)
+							// this will now clear the actual file too
+							pathsToClear = append(pathsToClear, entryType{path: newPath, entryType: changeType})
+						}
 					}
 				} else { // a true root object that is changed
 					pathsToClear = append(pathsToClear, entryType{path: change.File.Name, entryType: changeType})
@@ -2457,15 +2542,31 @@ func (o *documentObject) Open(options ...fs.OpenOption) (in io.ReadCloser, err e
 	// Update the size with what we are reading as it can change from
 	// the HEAD in the listing to this GET. This stops rclone marking
 	// the transfer as corrupted.
+	var offset, end int64 = 0, -1
+	var newOptions = options[:0]
 	for _, o := range options {
+		// Note that Range requests don't work on Google docs:
 		// https://developers.google.com/drive/v3/web/manage-downloads#partial_download
-		if _, ok := o.(*fs.RangeOption); ok {
-			return nil, errors.New("partial downloads are not supported while exporting Google Documents")
+		// So do a subset of them manually
+		switch x := o.(type) {
+		case *fs.RangeOption:
+			offset, end = x.Start, x.End
+		case *fs.SeekOption:
+			offset, end = x.Offset, -1
+		default:
+			newOptions = append(newOptions, o)
 		}
+	}
+	options = newOptions
+	if offset != 0 {
+		return nil, errors.New("partial downloads are not supported while exporting Google Documents")
 	}
 	in, err = o.baseObject.open(o.url, options...)
 	if in != nil {
 		in = &openDocumentFile{o: o, in: in}
+	}
+	if end >= 0 {
+		in = readers.NewLimitedReadCloser(in, end-offset+1)
 	}
 	return
 }
@@ -2532,6 +2633,9 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		return err
 	}
 	newO, err := o.fs.newObjectWithInfo(src.Remote(), info)
+	if err != nil {
+		return err
+	}
 	switch newO := newO.(type) {
 	case *Object:
 		*o = *newO
@@ -2570,6 +2674,9 @@ func (o *documentObject) Update(in io.Reader, src fs.ObjectInfo, options ...fs.O
 	remote = remote[:len(remote)-o.extLen]
 
 	newO, err := o.fs.newObjectWithInfo(remote, info)
+	if err != nil {
+		return err
+	}
 	switch newO := newO.(type) {
 	case *documentObject:
 		*o = *newO

@@ -1,3 +1,4 @@
+---
 version: 2
 
 jobs:
@@ -13,10 +14,10 @@ jobs:
     - run:
         name: Cross-compile rclone
         command: |
-            docker pull billziss/xgo-cgofuse
+            docker pull rclone/xgo-cgofuse
             go get -v github.com/karalabe/xgo
             xgo \
-                --image=billziss/xgo-cgofuse \
+                --image=rclone/xgo-cgofuse \
                 --targets=darwin/386,darwin/amd64,linux/386,linux/amd64,windows/386,windows/amd64 \
                 -tags cmount \
                 .
@@ -29,6 +30,21 @@ jobs:
         command: |
             mkdir -p /tmp/rclone.dist
             cp -R rclone-* /tmp/rclone.dist
+            mkdir build
+            cp -R rclone-* build/
+
+    - run:
+        name: Build rclone
+        command: |
+            go version
+            go build
+
+    - run:
+        name: Upload artifacts
+        command: |
+          if [[ $CIRCLE_PULL_REQUEST != "" ]]; then
+              make circleci_upload
+          fi
 
     - store_artifacts:
         path: /tmp/rclone.dist

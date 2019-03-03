@@ -108,7 +108,7 @@ in the [b2 integrations checklist](https://www.backblaze.com/b2/docs/integration
 Files above this size will be uploaded in chunks of "--b2-chunk-size".
 
 This value should be set no larger than 4.657GiB (== 5GB).`,
-			Default:  fs.SizeSuffix(defaultUploadCutoff),
+			Default:  defaultUploadCutoff,
 			Advanced: true,
 		}, {
 			Name: "chunk_size",
@@ -117,8 +117,21 @@ This value should be set no larger than 4.657GiB (== 5GB).`,
 When uploading large files, chunk the file into this size.  Note that
 these chunks are buffered in memory and there might a maximum of
 "--transfers" chunks in progress at once.  5,000,000 Bytes is the
-minimim size.`,
-			Default:  fs.SizeSuffix(defaultChunkSize),
+minimum size.`,
+			Default:  defaultChunkSize,
+			Advanced: true,
+		}, {
+			Name:     "disable_checksum",
+			Help:     `Disable checksums for large (> upload cutoff) files`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "download_url",
+			Help: `Custom endpoint for downloads.
+
+This is usually set to a Cloudflare CDN URL as Backblaze offers
+free egress for data downloaded through the Cloudflare network.
+Leave blank if you want to use the endpoint provided by Backblaze.`,
 			Advanced: true,
 		}},
 	})
@@ -126,14 +139,16 @@ minimim size.`,
 
 // Options defines the configuration for this backend
 type Options struct {
-	Account      string        `config:"account"`
-	Key          string        `config:"key"`
-	Endpoint     string        `config:"endpoint"`
-	TestMode     string        `config:"test_mode"`
-	Versions     bool          `config:"versions"`
-	HardDelete   bool          `config:"hard_delete"`
-	UploadCutoff fs.SizeSuffix `config:"upload_cutoff"`
-	ChunkSize    fs.SizeSuffix `config:"chunk_size"`
+	Account         string        `config:"account"`
+	Key             string        `config:"key"`
+	Endpoint        string        `config:"endpoint"`
+	TestMode        string        `config:"test_mode"`
+	Versions        bool          `config:"versions"`
+	HardDelete      bool          `config:"hard_delete"`
+	UploadCutoff    fs.SizeSuffix `config:"upload_cutoff"`
+	ChunkSize       fs.SizeSuffix `config:"chunk_size"`
+	DisableCheckSum bool          `config:"disable_checksum"`
+	DownloadURL     string        `config:"download_url"`
 }
 
 // Fs represents a remote b2 server
@@ -152,7 +167,7 @@ type Fs struct {
 	uploadMu      sync.Mutex                   // lock for upload variable
 	uploads       []*api.GetUploadURLResponse  // result of get upload URL calls
 	authMu        sync.Mutex                   // lock for authorizing the account
-	pacer         *pacer.Pacer                 // To pace and retry the API calls
+	pacer         *fs.Pacer                    // To pace and retry the API calls
 	bufferTokens  chan []byte                  // control concurrency of multipart uploads
 }
 
@@ -236,13 +251,7 @@ func (f *Fs) shouldRetryNoReauth(resp *http.Response, err error) (bool, error) {
 				fs.Errorf(f, "Malformed %s header %q: %v", retryAfterHeader, retryAfterString, err)
 			}
 		}
-		retryAfterDuration := time.Duration(retryAfter) * time.Second
-		if f.pacer.GetSleep() < retryAfterDuration {
-			fs.Debugf(f, "Setting sleep to %v after error: %v", retryAfterDuration, err)
-			// We set 1/2 the value here because the pacer will double it immediately
-			f.pacer.SetSleep(retryAfterDuration / 2)
-		}
-		return true, err
+		return true, pacer.RetryAfterError(err, time.Duration(retryAfter)*time.Second)
 	}
 	return fserrors.ShouldRetry(err) || fserrors.ShouldRetryHTTP(resp, retryErrorCodes), err
 }
@@ -313,7 +322,7 @@ func (f *Fs) setUploadCutoff(cs fs.SizeSuffix) (old fs.SizeSuffix, err error) {
 	return
 }
 
-// NewFs contstructs an Fs from the path, bucket:path
+// NewFs constructs an Fs from the path, bucket:path
 func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	// Parse config into Options struct
 	opt := new(Options)
@@ -348,7 +357,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		bucket: bucket,
 		root:   directory,
 		srv:    rest.NewClient(fshttp.NewClient(fs.Config)).SetErrorHandler(errorHandler),
-		pacer:  pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
+		pacer:  fs.NewPacer(pacer.NewDefault(pacer.MinSleep(minSleep), pacer.MaxSleep(maxSleep), pacer.DecayConstant(decayConstant))),
 	}
 	f.features = (&fs.Features{
 		ReadMimeType:  true,
@@ -1290,9 +1299,17 @@ var _ io.ReadCloser = &openFile{}
 func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
 	opts := rest.Opts{
 		Method:  "GET",
-		RootURL: o.fs.info.DownloadURL,
 		Options: options,
 	}
+
+	// Use downloadUrl from backblaze if downloadUrl is not set
+	// otherwise use the custom downloadUrl
+	if o.fs.opt.DownloadURL == "" {
+		opts.RootURL = o.fs.info.DownloadURL
+	} else {
+		opts.RootURL = o.fs.opt.DownloadURL
+	}
+
 	// Download by id if set otherwise by name
 	if o.id != "" {
 		opts.Path += "/b2api/v1/b2_download_file_by_id?fileId=" + urlEncode(o.id)
@@ -1453,7 +1470,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 	// Content-Type b2/x-auto to automatically set the stored Content-Type
 	// post upload. In the case where a file extension is absent or the
 	// lookup fails, the Content-Type is set to application/octet-stream. The
-	// Content-Type mappings can be purused here.
+	// Content-Type mappings can be pursued here.
 	//
 	// X-Bz-Content-Sha1
 	// required
@@ -1499,11 +1516,6 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 			timeHeader:       timeString(modTime),
 		},
 		ContentLength: &size,
-	}
-	// for go1.8 (see release notes) we must nil the Body if we want a
-	// "Content-Length: 0" header which b2 requires for all files.
-	if size == 0 {
-		opts.Body = nil
 	}
 	var response api.FileInfo
 	// Don't retry, return a retry error instead

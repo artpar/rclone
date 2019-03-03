@@ -77,7 +77,7 @@ func init() {
 		}, {
 			Name:     "upload_cutoff",
 			Help:     "Cutoff for switching to chunked upload (<= 256MB).",
-			Default:  fs.SizeSuffix(defaultUploadCutoff),
+			Default:  defaultUploadCutoff,
 			Advanced: true,
 		}, {
 			Name: "chunk_size",
@@ -85,7 +85,7 @@ func init() {
 
 Note that this is stored in memory and there may be up to
 "--transfers" chunks stored at once in memory.`,
-			Default:  fs.SizeSuffix(defaultChunkSize),
+			Default:  defaultChunkSize,
 			Advanced: true,
 		}, {
 			Name: "list_chunk",
@@ -144,7 +144,7 @@ type Fs struct {
 	containerOKMu    sync.Mutex            // mutex to protect container OK
 	containerOK      bool                  // true if we have created the container
 	containerDeleted bool                  // true if we have deleted the container
-	pacer            *pacer.Pacer          // To pace and retry the API calls
+	pacer            *fs.Pacer             // To pace and retry the API calls
 	uploadToken      *pacer.TokenDispenser // control concurrency
 }
 
@@ -307,7 +307,7 @@ func (f *Fs) newPipeline(c azblob.Credential, o azblob.PipelineOptions) pipeline
 	return pipeline.NewPipeline(factories, pipeline.Options{HTTPSender: httpClientFactory(f.client), Log: o.Log})
 }
 
-// NewFs contstructs an Fs from the path, container:path
+// NewFs constructs an Fs from the path, container:path
 func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	// Parse config into Options struct
 	opt := new(Options)
@@ -347,7 +347,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		opt:         *opt,
 		container:   container,
 		root:        directory,
-		pacer:       pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant).SetPacer(pacer.S3Pacer),
+		pacer:       fs.NewPacer(pacer.NewS3(pacer.MinSleep(minSleep), pacer.MaxSleep(maxSleep), pacer.DecayConstant(decayConstant))),
 		uploadToken: pacer.NewTokenDispenser(fs.Config.Transfers),
 		client:      fshttp.NewClient(fs.Config),
 	}
@@ -392,7 +392,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 				return nil, errors.New("Container name in SAS URL and container provided in command do not match")
 			}
 
-			container = parts.ContainerName
+			f.container = parts.ContainerName
 			containerURL = azblob.NewContainerURL(*u, pipeline)
 		} else {
 			serviceURL = azblob.NewServiceURL(*u, pipeline)
@@ -417,8 +417,8 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		}
 		_, err := f.NewObject(remote)
 		if err != nil {
-			if err == fs.ErrorObjectNotFound {
-				// File doesn't exist so return old f
+			if err == fs.ErrorObjectNotFound || err == fs.ErrorNotAFile {
+				// File doesn't exist or is a directory so return old f
 				f.root = oldRoot
 				return f, nil
 			}
@@ -472,6 +472,21 @@ func (o *Object) updateMetadataWithModTime(modTime time.Time) {
 
 	// Set modTimeKey in it
 	o.meta[modTimeKey] = modTime.Format(timeFormatOut)
+}
+
+// Returns whether file is a directory marker or not
+func isDirectoryMarker(size int64, metadata azblob.Metadata, remote string) bool {
+	// Directory markers are 0 length
+	if size == 0 {
+		// Note that metadata with hdi_isfolder = true seems to be a
+		// defacto standard for marking blobs as directories.
+		endsWithSlash := strings.HasSuffix(remote, "/")
+		if endsWithSlash || remote == "" || metadata["hdi_isfolder"] == "true" {
+			return true
+		}
+
+	}
+	return false
 }
 
 // listFn is called from list to handle an object
@@ -539,26 +554,20 @@ func (f *Fs) list(dir string, recurse bool, maxResults uint, fn listFn) error {
 				continue
 			}
 			remote := file.Name[len(f.root):]
-			// is this a directory marker?
-			if *file.Properties.ContentLength == 0 {
-				// Note that metadata with hdi_isfolder = true seems to be a
-				// defacto standard for marking blobs as directories.
-				endsWithSlash := strings.HasSuffix(remote, "/")
-				if endsWithSlash || remote == "" || file.Metadata["hdi_isfolder"] == "true" {
-					if endsWithSlash {
-						remote = remote[:len(remote)-1]
-					}
-					err = fn(remote, file, true)
-					if err != nil {
-						return err
-					}
-					// Keep track of directory markers. If recursing then
-					// there will be no Prefixes so no need to keep track
-					if !recurse {
-						directoryMarkers[remote] = struct{}{}
-					}
-					continue // skip directory marker
+			if isDirectoryMarker(*file.Properties.ContentLength, file.Metadata, remote) {
+				if strings.HasSuffix(remote, "/") {
+					remote = remote[:len(remote)-1]
 				}
+				err = fn(remote, file, true)
+				if err != nil {
+					return err
+				}
+				// Keep track of directory markers. If recursing then
+				// there will be no Prefixes so no need to keep track
+				if !recurse {
+					directoryMarkers[remote] = struct{}{}
+				}
+				continue // skip directory marker
 			}
 			// Send object
 			err = fn(remote, file, false)
@@ -745,12 +754,50 @@ func (f *Fs) Put(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.
 	return fs, fs.Update(in, src, options...)
 }
 
+// Check if the container exists
+//
+// NB this can return incorrect results if called immediately after container deletion
+func (f *Fs) dirExists() (bool, error) {
+	options := azblob.ListBlobsSegmentOptions{
+		Details: azblob.BlobListingDetails{
+			Copy:             false,
+			Metadata:         false,
+			Snapshots:        false,
+			UncommittedBlobs: false,
+			Deleted:          false,
+		},
+		MaxResults: 1,
+	}
+	err := f.pacer.Call(func() (bool, error) {
+		ctx := context.Background()
+		_, err := f.cntURL.ListBlobsHierarchySegment(ctx, azblob.Marker{}, "", options)
+		return f.shouldRetry(err)
+	})
+	if err == nil {
+		return true, nil
+	}
+	// Check http error code along with service code, current SDK doesn't populate service code correctly sometimes
+	if storageErr, ok := err.(azblob.StorageError); ok && (storageErr.ServiceCode() == azblob.ServiceCodeContainerNotFound || storageErr.Response().StatusCode == http.StatusNotFound) {
+		return false, nil
+	}
+	return false, err
+}
+
 // Mkdir creates the container if it doesn't exist
 func (f *Fs) Mkdir(dir string) error {
 	f.containerOKMu.Lock()
 	defer f.containerOKMu.Unlock()
 	if f.containerOK {
 		return nil
+	}
+	if !f.containerDeleted {
+		exists, err := f.dirExists()
+		if err == nil {
+			f.containerOK = exists
+		}
+		if err != nil || exists {
+			return err
+		}
 	}
 
 	// now try to create the container
@@ -981,27 +1028,37 @@ func (o *Object) setMetadata(metadata azblob.Metadata) {
 //  o.md5
 //  o.meta
 func (o *Object) decodeMetaDataFromPropertiesResponse(info *azblob.BlobGetPropertiesResponse) (err error) {
+	metadata := info.NewMetadata()
+	size := info.ContentLength()
+	if isDirectoryMarker(size, metadata, o.remote) {
+		return fs.ErrorNotAFile
+	}
 	// NOTE - Client library always returns MD5 as base64 decoded string, Object needs to maintain
 	// this as base64 encoded string.
 	o.md5 = base64.StdEncoding.EncodeToString(info.ContentMD5())
 	o.mimeType = info.ContentType()
-	o.size = info.ContentLength()
-	o.modTime = time.Time(info.LastModified())
+	o.size = size
+	o.modTime = info.LastModified()
 	o.accessTier = azblob.AccessTierType(info.AccessTier())
-	o.setMetadata(info.NewMetadata())
+	o.setMetadata(metadata)
 
 	return nil
 }
 
 func (o *Object) decodeMetaDataFromBlob(info *azblob.BlobItem) (err error) {
+	metadata := info.Metadata
+	size := *info.Properties.ContentLength
+	if isDirectoryMarker(size, metadata, o.remote) {
+		return fs.ErrorNotAFile
+	}
 	// NOTE - Client library always returns MD5 as base64 decoded string, Object needs to maintain
 	// this as base64 encoded string.
 	o.md5 = base64.StdEncoding.EncodeToString(info.Properties.ContentMD5)
 	o.mimeType = *info.Properties.ContentType
-	o.size = *info.Properties.ContentLength
+	o.size = size
 	o.modTime = info.Properties.LastModified
 	o.accessTier = info.Properties.AccessTier
-	o.setMetadata(info.Metadata)
+	o.setMetadata(metadata)
 	return nil
 }
 
@@ -1045,12 +1102,6 @@ func (o *Object) readMetaData() (err error) {
 	}
 
 	return o.decodeMetaDataFromPropertiesResponse(blobProperties)
-}
-
-// timeString returns modTime as the number of milliseconds
-// elapsed since January 1, 1970 UTC as a decimal string.
-func timeString(modTime time.Time) string {
-	return strconv.FormatInt(modTime.UnixNano()/1E6, 10)
 }
 
 // parseTimeString converts a decimal string number of milliseconds
@@ -1335,16 +1386,16 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 	blob := o.getBlobReference()
 	httpHeaders := azblob.BlobHTTPHeaders{}
 	httpHeaders.ContentType = fs.MimeType(o)
-	// Multipart upload doesn't support MD5 checksums at put block calls, hence calculate
-	// MD5 only for PutBlob requests
-	if size < int64(o.fs.opt.UploadCutoff) {
-		if sourceMD5, _ := src.Hash(hash.MD5); sourceMD5 != "" {
-			sourceMD5bytes, err := hex.DecodeString(sourceMD5)
-			if err == nil {
-				httpHeaders.ContentMD5 = sourceMD5bytes
-			} else {
-				fs.Debugf(o, "Failed to decode %q as MD5: %v", sourceMD5, err)
-			}
+	// Compute the Content-MD5 of the file, for multiparts uploads it
+	// will be set in PutBlockList API call using the 'x-ms-blob-content-md5' header
+	// Note: If multipart, a MD5 checksum will also be computed for each uploaded block
+	// 		 in order to validate its integrity during transport
+	if sourceMD5, _ := src.Hash(hash.MD5); sourceMD5 != "" {
+		sourceMD5bytes, err := hex.DecodeString(sourceMD5)
+		if err == nil {
+			httpHeaders.ContentMD5 = sourceMD5bytes
+		} else {
+			fs.Debugf(o, "Failed to decode %q as MD5: %v", sourceMD5, err)
 		}
 	}
 

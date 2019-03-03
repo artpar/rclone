@@ -25,21 +25,22 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
-	_ "github.com/artpar/rclone/backend/all" // import all backends
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/filter"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/list"
-	"github.com/artpar/rclone/fs/operations"
-	"github.com/artpar/rclone/fstest"
+	_ "github.com/ncw/rclone/backend/all" // import all backends
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/accounting"
+	"github.com/ncw/rclone/fs/filter"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/fs/operations"
+	"github.com/ncw/rclone/fstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -271,11 +272,17 @@ func testCheck(t *testing.T, checkFunction func(fdst, fsrc fs.Fs, oneway bool) e
 	r := fstest.NewRun(t)
 	defer r.Finalise()
 
-	check := func(i int, wantErrors int64, oneway bool) {
+	check := func(i int, wantErrors int64, wantChecks int64, oneway bool) {
 		fs.Debugf(r.Fremote, "%d: Starting check test", i)
-		oldErrors := accounting.Stats.GetErrors()
+		accounting.Stats.ResetCounters()
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+		defer func() {
+			log.SetOutput(os.Stderr)
+		}()
 		err := checkFunction(r.Fremote, r.Flocal, oneway)
-		gotErrors := accounting.Stats.GetErrors() - oldErrors
+		gotErrors := accounting.Stats.GetErrors()
+		gotChecks := accounting.Stats.GetChecks()
 		if wantErrors == 0 && err != nil {
 			t.Errorf("%d: Got error when not expecting one: %v", i, err)
 		}
@@ -285,21 +292,27 @@ func testCheck(t *testing.T, checkFunction func(fdst, fsrc fs.Fs, oneway bool) e
 		if wantErrors != gotErrors {
 			t.Errorf("%d: Expecting %d errors but got %d", i, wantErrors, gotErrors)
 		}
+		if gotChecks > 0 && !strings.Contains(buf.String(), "matching files") {
+			t.Errorf("%d: Total files matching line missing", i)
+		}
+		if wantChecks != gotChecks {
+			t.Errorf("%d: Expecting %d total matching files but got %d", i, wantChecks, gotChecks)
+		}
 		fs.Debugf(r.Fremote, "%d: Ending check test", i)
 	}
 
 	file1 := r.WriteBoth("rutabaga", "is tasty", t3)
 	fstest.CheckItems(t, r.Fremote, file1)
 	fstest.CheckItems(t, r.Flocal, file1)
-	check(1, 0, false)
+	check(1, 0, 1, false)
 
 	file2 := r.WriteFile("potato2", "------------------------------------------------------------", t1)
 	fstest.CheckItems(t, r.Flocal, file1, file2)
-	check(2, 1, false)
+	check(2, 1, 1, false)
 
 	file3 := r.WriteObject("empty space", "", t2)
 	fstest.CheckItems(t, r.Fremote, file1, file3)
-	check(3, 2, false)
+	check(3, 2, 1, false)
 
 	file2r := file2
 	if fs.Config.SizeOnly {
@@ -308,16 +321,16 @@ func testCheck(t *testing.T, checkFunction func(fdst, fsrc fs.Fs, oneway bool) e
 		r.WriteObject("potato2", "------------------------------------------------------------", t1)
 	}
 	fstest.CheckItems(t, r.Fremote, file1, file2r, file3)
-	check(4, 1, false)
+	check(4, 1, 2, false)
 
 	r.WriteFile("empty space", "", t2)
 	fstest.CheckItems(t, r.Flocal, file1, file2, file3)
-	check(5, 0, false)
+	check(5, 0, 3, false)
 
 	file4 := r.WriteObject("remotepotato", "------------------------------------------------------------", t1)
 	fstest.CheckItems(t, r.Fremote, file1, file2r, file3, file4)
-	check(6, 1, false)
-	check(7, 0, true)
+	check(6, 1, 3, false)
+	check(7, 0, 3, true)
 }
 
 func TestCheck(t *testing.T) {
@@ -764,6 +777,7 @@ func TestSame(t *testing.T) {
 
 func TestOverlapping(t *testing.T) {
 	a := &testFsInfo{name: "name", root: "root"}
+	slash := string(os.PathSeparator) // native path separator
 	for _, test := range []struct {
 		name     string
 		root     string
@@ -776,6 +790,8 @@ func TestOverlapping(t *testing.T) {
 		{"name", "roo", false},
 		{"name", "root/toot", true},
 		{"name", "root/toot/", true},
+		{"name", "root" + slash + "toot", true},
+		{"name", "root" + slash + "toot" + slash, true},
 		{"name", "", true},
 		{"name", "/", true},
 	} {
@@ -859,61 +875,90 @@ func TestCheckEqualReaders(t *testing.T) {
 }
 
 func TestListFormat(t *testing.T) {
-	r := fstest.NewRun(t)
-	defer r.Finalise()
-	file1 := r.WriteObject("a", "a", t1)
-	file2 := r.WriteObject("subdir/b", "b", t1)
+	item0 := &operations.ListJSONItem{
+		Path:      "a",
+		Name:      "a",
+		Encrypted: "encryptedFileName",
+		Size:      1,
+		MimeType:  "application/octet-stream",
+		ModTime: operations.Timestamp{
+			When:   t1,
+			Format: "2006-01-02T15:04:05.000000000Z07:00"},
+		IsDir: false,
+		Hashes: map[string]string{
+			"MD5":          "0cc175b9c0f1b6a831c399e269772661",
+			"SHA-1":        "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8",
+			"DropboxHash":  "bf5d3affb73efd2ec6c36ad3112dd933efed63c4e1cbffcfa88e2759c144f2d8",
+			"QuickXorHash": "6100000000000000000000000100000000000000"},
+		ID:     "fileID",
+		OrigID: "fileOrigID",
+	}
 
-	fstest.CheckItems(t, r.Fremote, file1, file2)
+	item1 := &operations.ListJSONItem{
+		Path:      "subdir",
+		Name:      "subdir",
+		Encrypted: "encryptedDirName",
+		Size:      -1,
+		MimeType:  "inode/directory",
+		ModTime: operations.Timestamp{
+			When:   t2,
+			Format: "2006-01-02T15:04:05.000000000Z07:00"},
+		IsDir:  true,
+		Hashes: map[string]string(nil),
+		ID:     "dirID",
+		OrigID: "dirOrigID",
+	}
 
-	items, _ := list.DirSorted(r.Fremote, true, "")
 	var list operations.ListFormat
 	list.AddPath()
 	list.SetDirSlash(false)
-	assert.Equal(t, "subdir", list.Format(items[1]))
+	assert.Equal(t, "subdir", list.Format(item1))
 
 	list.SetDirSlash(true)
-	assert.Equal(t, "subdir/", list.Format(items[1]))
+	assert.Equal(t, "subdir/", list.Format(item1))
 
 	list.SetOutput(nil)
-	assert.Equal(t, "", list.Format(items[1]))
+	assert.Equal(t, "", list.Format(item1))
 
-	list.AppendOutput(func() string { return "a" })
-	list.AppendOutput(func() string { return "b" })
-	assert.Equal(t, "ab", list.Format(items[1]))
+	list.AppendOutput(func(item *operations.ListJSONItem) string { return "a" })
+	list.AppendOutput(func(item *operations.ListJSONItem) string { return "b" })
+	assert.Equal(t, "ab", list.Format(item1))
 	list.SetSeparator(":::")
-	assert.Equal(t, "a:::b", list.Format(items[1]))
+	assert.Equal(t, "a:::b", list.Format(item1))
 
 	list.SetOutput(nil)
 	list.AddModTime()
-	assert.Equal(t, items[0].ModTime().Local().Format("2006-01-02 15:04:05"), list.Format(items[0]))
+	assert.Equal(t, t1.Local().Format("2006-01-02 15:04:05"), list.Format(item0))
 
 	list.SetOutput(nil)
+	list.SetSeparator("|")
 	list.AddID()
-	_ = list.Format(items[0]) // Can't really check anything - at least it didn't panic!
+	list.AddOrigID()
+	assert.Equal(t, "fileID|fileOrigID", list.Format(item0))
+	assert.Equal(t, "dirID|dirOrigID", list.Format(item1))
 
 	list.SetOutput(nil)
 	list.AddMimeType()
-	assert.Contains(t, list.Format(items[0]), "/")
-	assert.Equal(t, "inode/directory", list.Format(items[1]))
+	assert.Contains(t, list.Format(item0), "/")
+	assert.Equal(t, "inode/directory", list.Format(item1))
 
 	list.SetOutput(nil)
 	list.AddPath()
 	list.SetAbsolute(true)
-	assert.Equal(t, "/a", list.Format(items[0]))
+	assert.Equal(t, "/a", list.Format(item0))
 	list.SetAbsolute(false)
-	assert.Equal(t, "a", list.Format(items[0]))
+	assert.Equal(t, "a", list.Format(item0))
 
 	list.SetOutput(nil)
 	list.AddSize()
-	assert.Equal(t, "1", list.Format(items[0]))
+	assert.Equal(t, "1", list.Format(item0))
 
 	list.AddPath()
 	list.AddModTime()
 	list.SetDirSlash(true)
 	list.SetSeparator("__SEP__")
-	assert.Equal(t, "1__SEP__a__SEP__"+items[0].ModTime().Local().Format("2006-01-02 15:04:05"), list.Format(items[0]))
-	assert.Equal(t, fmt.Sprintf("%d", items[1].Size())+"__SEP__subdir/__SEP__"+items[1].ModTime().Local().Format("2006-01-02 15:04:05"), list.Format(items[1]))
+	assert.Equal(t, "1__SEP__a__SEP__"+t1.Local().Format("2006-01-02 15:04:05"), list.Format(item0))
+	assert.Equal(t, "-1__SEP__subdir/__SEP__"+t2.Local().Format("2006-01-02 15:04:05"), list.Format(item1))
 
 	for _, test := range []struct {
 		ht   hash.Type
@@ -925,10 +970,7 @@ func TestListFormat(t *testing.T) {
 	} {
 		list.SetOutput(nil)
 		list.AddHash(test.ht)
-		got := list.Format(items[0])
-		if got != "UNSUPPORTED" && got != "" {
-			assert.Equal(t, test.want, got)
-		}
+		assert.Equal(t, test.want, list.Format(item0))
 	}
 
 	list.SetOutput(nil)
@@ -938,7 +980,101 @@ func TestListFormat(t *testing.T) {
 	list.AddPath()
 	list.AddModTime()
 	list.SetDirSlash(true)
-	assert.Equal(t, "1|a|"+items[0].ModTime().Local().Format("2006-01-02 15:04:05"), list.Format(items[0]))
-	assert.Equal(t, fmt.Sprintf("%d", items[1].Size())+"|subdir/|"+items[1].ModTime().Local().Format("2006-01-02 15:04:05"), list.Format(items[1]))
+	assert.Equal(t, "1|a|"+t1.Local().Format("2006-01-02 15:04:05"), list.Format(item0))
+	assert.Equal(t, "-1|subdir/|"+t2.Local().Format("2006-01-02 15:04:05"), list.Format(item1))
+
+	list.SetOutput(nil)
+	list.SetSeparator("|")
+	list.AddPath()
+	list.AddEncrypted()
+	assert.Equal(t, "a|encryptedFileName", list.Format(item0))
+	assert.Equal(t, "subdir/|encryptedDirName/", list.Format(item1))
+
+}
+
+func TestDirMove(t *testing.T) {
+	r := fstest.NewRun(t)
+	defer r.Finalise()
+
+	r.Mkdir(r.Fremote)
+
+	// Make some files and dirs
+	r.ForceMkdir(r.Fremote)
+	files := []fstest.Item{
+		r.WriteObject("A1/one", "one", t1),
+		r.WriteObject("A1/two", "two", t2),
+		r.WriteObject("A1/B1/three", "three", t3),
+		r.WriteObject("A1/B1/C1/four", "four", t1),
+		r.WriteObject("A1/B1/C2/five", "five", t2),
+	}
+	require.NoError(t, operations.Mkdir(r.Fremote, "A1/B2"))
+	require.NoError(t, operations.Mkdir(r.Fremote, "A1/B1/C3"))
+
+	fstest.CheckListingWithPrecision(
+		t,
+		r.Fremote,
+		files,
+		[]string{
+			"A1",
+			"A1/B1",
+			"A1/B2",
+			"A1/B1/C1",
+			"A1/B1/C2",
+			"A1/B1/C3",
+		},
+		fs.GetModifyWindow(r.Fremote),
+	)
+
+	require.NoError(t, operations.DirMove(r.Fremote, "A1", "A2"))
+
+	for i := range files {
+		files[i].Path = strings.Replace(files[i].Path, "A1/", "A2/", -1)
+		files[i].WinPath = ""
+	}
+
+	fstest.CheckListingWithPrecision(
+		t,
+		r.Fremote,
+		files,
+		[]string{
+			"A2",
+			"A2/B1",
+			"A2/B2",
+			"A2/B1/C1",
+			"A2/B1/C2",
+			"A2/B1/C3",
+		},
+		fs.GetModifyWindow(r.Fremote),
+	)
+
+	// Disable DirMove
+	features := r.Fremote.Features()
+	oldDirMove := features.DirMove
+	features.DirMove = nil
+	defer func() {
+		features.DirMove = oldDirMove
+	}()
+
+	require.NoError(t, operations.DirMove(r.Fremote, "A2", "A3"))
+
+	for i := range files {
+		files[i].Path = strings.Replace(files[i].Path, "A2/", "A3/", -1)
+		files[i].WinPath = ""
+	}
+
+	fstest.CheckListingWithPrecision(
+		t,
+		r.Fremote,
+		files,
+		[]string{
+			"A3",
+			"A3/B1",
+			"A3/B2",
+			"A3/B1/C1",
+			"A3/B1/C2",
+			"A3/B1/C3",
+		},
+		fs.GetModifyWindow(r.Fremote),
+	)
 
 }

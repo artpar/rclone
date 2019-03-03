@@ -75,9 +75,8 @@ func init() {
 				return
 			}
 
-			// Are we running headless?
-			if automatic, _ := m.Get(config.ConfigAutomatic); automatic != "" {
-				// Yes, okay we are done
+			// Stop if we are running non-interactive config
+			if fs.Config.AutoConfirm {
 				return
 			}
 
@@ -199,7 +198,7 @@ func init() {
 
 			fmt.Printf("Found drive '%s' of type '%s', URL: %s\nIs that okay?\n", rootItem.Name, rootItem.ParentReference.DriveType, rootItem.WebURL)
 			// This does not work, YET :)
-			if !config.Confirm() {
+			if !config.ConfirmWithConfig(m, "config_drive_ok", true) {
 				log.Fatalf("Cancelled by user")
 			}
 
@@ -228,7 +227,7 @@ that the chunks will be buffered into memory.`,
 			Advanced: true,
 		}, {
 			Name:     "drive_type",
-			Help:     "The type of the drive ( personal | business | documentLibrary )",
+			Help:     "The type of the drive ( " + driveTypePersonal + " | " + driveTypeBusiness + " | " + driveTypeSharepoint + " )",
 			Default:  "",
 			Advanced: true,
 		}, {
@@ -262,7 +261,7 @@ type Fs struct {
 	features     *fs.Features       // optional features
 	srv          *rest.Client       // the connection to the one drive server
 	dirCache     *dircache.DirCache // Map of directory path to directory id
-	pacer        *pacer.Pacer       // pacer for API calls
+	pacer        *fs.Pacer          // pacer for API calls
 	tokenRenewer *oauthutil.Renew   // renew the token on expiry
 	driveID      string             // ID to use for querying Microsoft Graph
 	driveType    string             // https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/drive
@@ -325,35 +324,91 @@ var retryErrorCodes = []int{
 // shouldRetry returns a boolean as to whether this resp and err
 // deserve to be retried.  It returns the err as a convenience
 func shouldRetry(resp *http.Response, err error) (bool, error) {
-	authRety := false
+	authRetry := false
 
 	if resp != nil && resp.StatusCode == 401 && len(resp.Header["Www-Authenticate"]) == 1 && strings.Index(resp.Header["Www-Authenticate"][0], "expired_token") >= 0 {
-		authRety = true
+		authRetry = true
 		fs.Debugf(nil, "Should retry: %v", err)
 	}
-	return authRety || fserrors.ShouldRetry(err) || fserrors.ShouldRetryHTTP(resp, retryErrorCodes), err
+	return authRetry || fserrors.ShouldRetry(err) || fserrors.ShouldRetryHTTP(resp, retryErrorCodes), err
 }
 
-// readMetaDataForPath reads the metadata from the path
-func (f *Fs) readMetaDataForPath(path string) (info *api.Item, resp *http.Response, err error) {
-	var opts rest.Opts
-	if len(path) == 0 {
-		opts = rest.Opts{
-			Method: "GET",
-			Path:   "/root",
-		}
-	} else {
-		opts = rest.Opts{
-			Method: "GET",
-			Path:   "/root:/" + rest.URLPathEscape(replaceReservedChars(path)),
-		}
-	}
+// readMetaDataForPathRelativeToID reads the metadata for a path relative to an item that is addressed by its normalized ID.
+// if `relPath` == "", it reads the metadata for the item with that ID.
+func (f *Fs) readMetaDataForPathRelativeToID(normalizedID string, relPath string) (info *api.Item, resp *http.Response, err error) {
+	opts := newOptsCall(normalizedID, "GET", ":/"+rest.URLPathEscape(replaceReservedChars(relPath)))
 	err = f.pacer.Call(func() (bool, error) {
 		resp, err = f.srv.CallJSON(&opts, nil, &info)
 		return shouldRetry(resp, err)
 	})
 
 	return info, resp, err
+}
+
+// readMetaDataForPath reads the metadata from the path (relative to the absolute root)
+func (f *Fs) readMetaDataForPath(path string) (info *api.Item, resp *http.Response, err error) {
+	firstSlashIndex := strings.IndexRune(path, '/')
+
+	if f.driveType != driveTypePersonal || firstSlashIndex == -1 {
+		var opts rest.Opts
+		if len(path) == 0 {
+			opts = rest.Opts{
+				Method: "GET",
+				Path:   "/root",
+			}
+		} else {
+			opts = rest.Opts{
+				Method: "GET",
+				Path:   "/root:/" + rest.URLPathEscape(replaceReservedChars(path)),
+			}
+		}
+		err = f.pacer.Call(func() (bool, error) {
+			resp, err = f.srv.CallJSON(&opts, nil, &info)
+			return shouldRetry(resp, err)
+		})
+		return info, resp, err
+	}
+
+	// The following branch handles the case when we're using OneDrive Personal and the path is in a folder.
+	// For OneDrive Personal, we need to consider the "shared with me" folders.
+	// An item in such a folder can only be addressed by its ID relative to the sharer's driveID or
+	// by its path relative to the folder's ID relative to the sharer's driveID.
+	// Note: A "shared with me" folder can only be placed in the sharee's absolute root.
+	// So we read metadata relative to a suitable folder's normalized ID.
+	var dirCacheFoundRoot bool
+	var rootNormalizedID string
+	if f.dirCache != nil {
+		var ok bool
+		if rootNormalizedID, ok = f.dirCache.Get(""); ok {
+			dirCacheFoundRoot = true
+		}
+	}
+
+	relPath, insideRoot := getRelativePathInsideBase(f.root, path)
+	var firstDir, baseNormalizedID string
+	if !insideRoot || !dirCacheFoundRoot {
+		// We do not have the normalized ID in dirCache for our query to base on. Query it manually.
+		firstDir, relPath = path[:firstSlashIndex], path[firstSlashIndex+1:]
+		info, resp, err := f.readMetaDataForPath(firstDir)
+		if err != nil {
+			return info, resp, err
+		}
+		baseNormalizedID = info.GetID()
+	} else {
+		if f.root != "" {
+			// Read metadata based on root
+			baseNormalizedID = rootNormalizedID
+		} else {
+			// Read metadata based on firstDir
+			firstDir, relPath = path[:firstSlashIndex], path[firstSlashIndex+1:]
+			baseNormalizedID, err = f.dirCache.FindDir(firstDir, false)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+	}
+
+	return f.readMetaDataForPathRelativeToID(baseNormalizedID, relPath)
 }
 
 // errorHandler parses a non 2xx error response into an error
@@ -420,7 +475,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		driveID:   opt.DriveID,
 		driveType: opt.DriveType,
 		srv:       rest.NewClient(oAuthClient).SetRoot(graphURL + "/drives/" + opt.DriveID),
-		pacer:     pacer.New().SetMinSleep(minSleep).SetMaxSleep(maxSleep).SetDecayConstant(decayConstant),
+		pacer:     fs.NewPacer(pacer.NewDefault(pacer.MinSleep(minSleep), pacer.MaxSleep(maxSleep), pacer.DecayConstant(decayConstant))),
 	}
 	f.features = (&fs.Features{
 		CaseInsensitive:         true,
@@ -437,11 +492,11 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 
 	// Get rootID
 	rootInfo, _, err := f.readMetaDataForPath("")
-	if err != nil || rootInfo.ID == "" {
+	if err != nil || rootInfo.GetID() == "" {
 		return nil, errors.Wrap(err, "failed to get root")
 	}
 
-	f.dirCache = dircache.New(root, rootInfo.ID, f)
+	f.dirCache = dircache.New(root, rootInfo.GetID(), f)
 
 	// Find the current root
 	err = f.dirCache.FindRoot(false)
@@ -514,18 +569,11 @@ func (f *Fs) NewObject(remote string) (fs.Object, error) {
 // FindLeaf finds a directory of name leaf in the folder with ID pathID
 func (f *Fs) FindLeaf(pathID, leaf string) (pathIDOut string, found bool, err error) {
 	// fs.Debugf(f, "FindLeaf(%q, %q)", pathID, leaf)
-	parent, ok := f.dirCache.GetInv(pathID)
+	_, ok := f.dirCache.GetInv(pathID)
 	if !ok {
 		return "", false, errors.New("couldn't find parent ID")
 	}
-	path := leaf
-	if parent != "" {
-		path = parent + "/" + path
-	}
-	if f.dirCache.FoundRoot() {
-		path = f.rootSlash() + path
-	}
-	info, resp, err := f.readMetaDataForPath(path)
+	info, resp, err := f.readMetaDataForPathRelativeToID(pathID, leaf)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return "", false, nil
@@ -867,13 +915,13 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	opts.ExtraHeaders = map[string]string{"Prefer": "respond-async"}
 	opts.NoResponse = true
 
-	id, _, _ := parseDirID(directoryID)
+	id, dstDriveID, _ := parseNormalizedID(directoryID)
 
 	replacedLeaf := replaceReservedChars(leaf)
 	copyReq := api.CopyItemRequest{
 		Name: &replacedLeaf,
 		ParentReference: api.ItemReference{
-			DriveID: f.driveID,
+			DriveID: dstDriveID,
 			ID:      id,
 		},
 	}
@@ -940,15 +988,23 @@ func (f *Fs) Move(src fs.Object, remote string) (fs.Object, error) {
 		return nil, err
 	}
 
+	id, dstDriveID, _ := parseNormalizedID(directoryID)
+	_, srcObjDriveID, _ := parseNormalizedID(srcObj.id)
+
+	if dstDriveID != srcObjDriveID {
+		// https://docs.microsoft.com/en-us/graph/api/driveitem-move?view=graph-rest-1.0
+		// "Items cannot be moved between Drives using this request."
+		return nil, fs.ErrorCantMove
+	}
+
 	// Move the object
 	opts := newOptsCall(srcObj.id, "PATCH", "")
-
-	id, _, _ := parseDirID(directoryID)
 
 	move := api.MoveItemRequest{
 		Name: replaceReservedChars(leaf),
 		ParentReference: &api.ItemReference{
-			ID: id,
+			DriveID: dstDriveID,
+			ID:      id,
 		},
 		// We set the mod time too as it gets reset otherwise
 		FileSystemInfo: &api.FileSystemInfoFacet{
@@ -1024,7 +1080,20 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 	if err != nil {
 		return err
 	}
-	parsedDstDirID, _, _ := parseDirID(dstDirectoryID)
+	parsedDstDirID, dstDriveID, _ := parseNormalizedID(dstDirectoryID)
+
+	// Find ID of src
+	srcID, err := srcFs.dirCache.FindDir(srcRemote, false)
+	if err != nil {
+		return err
+	}
+	_, srcDriveID, _ := parseNormalizedID(srcID)
+
+	if dstDriveID != srcDriveID {
+		// https://docs.microsoft.com/en-us/graph/api/driveitem-move?view=graph-rest-1.0
+		// "Items cannot be moved between Drives using this request."
+		return fs.ErrorCantDirMove
+	}
 
 	// Check destination does not exist
 	if dstRemote != "" {
@@ -1038,14 +1107,8 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 		}
 	}
 
-	// Find ID of src
-	srcID, err := srcFs.dirCache.FindDir(srcRemote, false)
-	if err != nil {
-		return err
-	}
-
 	// Get timestamps of src so they can be preserved
-	srcInfo, _, err := srcFs.readMetaDataForPath(srcPath)
+	srcInfo, _, err := srcFs.readMetaDataForPathRelativeToID(srcID, "")
 	if err != nil {
 		return err
 	}
@@ -1055,7 +1118,8 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 	move := api.MoveItemRequest{
 		Name: replaceReservedChars(leaf),
 		ParentReference: &api.ItemReference{
-			ID: parsedDstDirID,
+			DriveID: dstDriveID,
+			ID:      parsedDstDirID,
 		},
 		// We set the mod time too as it gets reset otherwise
 		FileSystemInfo: &api.FileSystemInfoFacet{
@@ -1122,7 +1186,7 @@ func (f *Fs) PublicLink(remote string) (link string, err error) {
 	if err != nil {
 		return "", err
 	}
-	opts := newOptsCall(info.ID, "POST", "/createLink")
+	opts := newOptsCall(info.GetID(), "POST", "/createLink")
 
 	share := api.CreateShareLinkRequest{
 		Type:  "view",
@@ -1270,13 +1334,13 @@ func (o *Object) ModTime() time.Time {
 // setModTime sets the modification time of the local fs object
 func (o *Object) setModTime(modTime time.Time) (*api.Item, error) {
 	var opts rest.Opts
-	_, directoryID, _ := o.fs.dirCache.FindPath(o.remote, false)
-	_, drive, rootURL := parseDirID(directoryID)
+	leaf, directoryID, _ := o.fs.dirCache.FindPath(o.remote, false)
+	trueDirID, drive, rootURL := parseNormalizedID(directoryID)
 	if drive != "" {
 		opts = rest.Opts{
 			Method:  "PATCH",
 			RootURL: rootURL,
-			Path:    "/" + drive + "/root:/" + rest.URLPathEscape(o.srvPath()),
+			Path:    "/" + drive + "/items/" + trueDirID + ":/" + rest.URLPathEscape(leaf),
 		}
 	} else {
 		opts = rest.Opts{
@@ -1344,7 +1408,7 @@ func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
 // createUploadSession creates an upload session for the object
 func (o *Object) createUploadSession(modTime time.Time) (response *api.CreateUploadResponse, err error) {
 	leaf, directoryID, _ := o.fs.dirCache.FindPath(o.remote, false)
-	id, drive, rootURL := parseDirID(directoryID)
+	id, drive, rootURL := parseNormalizedID(directoryID)
 	var opts rest.Opts
 	if drive != "" {
 		opts = rest.Opts{
@@ -1424,7 +1488,7 @@ func (o *Object) cancelUploadSession(url string) (err error) {
 // uploadMultipart uploads a file using multipart upload
 func (o *Object) uploadMultipart(in io.Reader, size int64, modTime time.Time) (info *api.Item, err error) {
 	if size <= 0 {
-		panic("size passed into uploadMultipart must be > 0")
+		return nil, errors.New("unknown-sized upload not supported")
 	}
 
 	// Create upload session
@@ -1471,19 +1535,19 @@ func (o *Object) uploadMultipart(in io.Reader, size int64, modTime time.Time) (i
 // This function will set modtime after uploading, which will create a new version for the remote file
 func (o *Object) uploadSinglepart(in io.Reader, size int64, modTime time.Time) (info *api.Item, err error) {
 	if size < 0 || size > int64(fs.SizeSuffix(4*1024*1024)) {
-		panic("size passed into uploadSinglepart must be >= 0 and <= 4MiB")
+		return nil, errors.New("size passed into uploadSinglepart must be >= 0 and <= 4MiB")
 	}
 
 	fs.Debugf(o, "Starting singlepart upload")
 	var resp *http.Response
 	var opts rest.Opts
-	_, directoryID, _ := o.fs.dirCache.FindPath(o.remote, false)
-	_, drive, rootURL := parseDirID(directoryID)
+	leaf, directoryID, _ := o.fs.dirCache.FindPath(o.remote, false)
+	trueDirID, drive, rootURL := parseNormalizedID(directoryID)
 	if drive != "" {
 		opts = rest.Opts{
 			Method:        "PUT",
 			RootURL:       rootURL,
-			Path:          "/" + drive + "/root:/" + rest.URLPathEscape(o.srvPath()) + ":/content",
+			Path:          "/" + drive + "/items/" + trueDirID + ":/" + rest.URLPathEscape(leaf) + ":/content",
 			ContentLength: &size,
 			Body:          in,
 		}
@@ -1494,10 +1558,6 @@ func (o *Object) uploadSinglepart(in io.Reader, size int64, modTime time.Time) (
 			ContentLength: &size,
 			Body:          in,
 		}
-	}
-
-	if size == 0 {
-		opts.Body = nil
 	}
 
 	err = o.fs.pacer.Call(func() (bool, error) {
@@ -1542,7 +1602,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 	} else if size == 0 {
 		info, err = o.uploadSinglepart(in, size, modTime)
 	} else {
-		panic("src file size must be >= 0")
+		return errors.New("unknown-sized upload not supported")
 	}
 	if err != nil {
 		return err
@@ -1566,8 +1626,8 @@ func (o *Object) ID() string {
 	return o.id
 }
 
-func newOptsCall(id string, method string, route string) (opts rest.Opts) {
-	id, drive, rootURL := parseDirID(id)
+func newOptsCall(normalizedID string, method string, route string) (opts rest.Opts) {
+	id, drive, rootURL := parseNormalizedID(normalizedID)
 
 	if drive != "" {
 		return rest.Opts{
@@ -1582,12 +1642,30 @@ func newOptsCall(id string, method string, route string) (opts rest.Opts) {
 	}
 }
 
-func parseDirID(ID string) (string, string, string) {
+// parseNormalizedID parses a normalized ID (may be in the form `driveID#itemID` or just `itemID`)
+// and returns itemID, driveID, rootURL.
+// Such a normalized ID can come from (*Item).GetID()
+func parseNormalizedID(ID string) (string, string, string) {
 	if strings.Index(ID, "#") >= 0 {
 		s := strings.Split(ID, "#")
 		return s[1], s[0], graphURL + "/drives"
 	}
 	return ID, "", ""
+}
+
+// getRelativePathInsideBase checks if `target` is inside `base`. If so, it
+// returns a relative path for `target` based on `base` and a boolean `true`.
+// Otherwise returns "", false.
+func getRelativePathInsideBase(base, target string) (string, bool) {
+	if base == "" {
+		return target, true
+	}
+
+	baseSlash := base + "/"
+	if strings.HasPrefix(target+"/", baseSlash) {
+		return target[len(baseSlash):], true
+	}
+	return "", false
 }
 
 // Check the interfaces are satisfied

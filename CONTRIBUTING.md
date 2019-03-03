@@ -351,6 +351,12 @@ Unit tests
 Integration tests
 
   * Add your backend to `fstest/test_all/config.yaml`
+      * Once you've done that then you can use the integration test framework from the project root:
+      * go install ./...
+      * test_all -backend remote
+
+Or if you want to run the integration tests manually:
+
   * Make sure integration tests pass with
       * `cd fs/operations`
       * `go test -v -remote TestRemote:`
@@ -372,4 +378,3 @@ Add your fs to the docs - you'll need to pick an icon for it from [fontawesome](
   * `docs/content/about.md` - front page of rclone.org
   * `docs/layouts/chrome/navbar.html` - add it to the website navigation
   * `bin/make_manual.py` - add the page to the `docs` constant
-  * `cmd/cmd.go` - the main help for rclone

@@ -224,3 +224,22 @@ Contributors
   * François Leurent <131.js@cloudyks.org>
   * Arkadius Stefanski <arkste@gmail.com>
   * Jay <dev@jaygoel.com>
+  * andrea rota <a@xelera.eu>
+  * nicolov <nicolov@users.noreply.github.com>
+  * Dario Guzik <dario@guzik.com.ar>
+  * qip <qip@users.noreply.github.com>
+  * yair@unicorn <yair@unicorn>
+  * Matt Robinson <brimstone@the.narro.ws>
+  * kayrus <kay.diam@gmail.com>
+  * Rémy Léone <remy.leone@gmail.com>
+  * Wojciech Smigielski <wojciech.hieronim.smigielski@gmail.com>
+  * weetmuts <oehrstroem@gmail.com>
+  * Jonathan <vanillajonathan@users.noreply.github.com>
+  * James Carpenter <orbsmiv@users.noreply.github.com>
+  * Vince <vince0villamora@gmail.com>
+  * Nestar47 <47841759+Nestar47@users.noreply.github.com>
+  * Six <brbsix@gmail.com>
+  * Alexandru Bumbacea <alexandru.bumbacea@booking.com>
+  * calisro <robert.calistri@gmail.com>
+  * Dr.Rx <david.rey@nventive.com>
+  * marcintustin <marcintustin@users.noreply.github.com>

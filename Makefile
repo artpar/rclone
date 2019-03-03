@@ -11,14 +11,14 @@ ifeq ($(subst HEAD,,$(subst master,,$(BRANCH))),)
 	BRANCH_PATH :=
 endif
 TAG := $(shell echo $$(git describe --abbrev=8 --tags | sed 's/-\([0-9]\)-/-00\1-/; s/-\([0-9][0-9]\)-/-0\1-/'))$(TAG_BRANCH)
-NEW_TAG := $(shell echo $(LAST_TAG) | perl -lpe 's/v//; $$_ += 0.01; $$_ = sprintf("v%.2f", $$_)')
+NEW_TAG := $(shell echo $(LAST_TAG) | perl -lpe 's/v//; $$_ += 0.01; $$_ = sprintf("v%.2f.0", $$_)')
 ifneq ($(TAG),$(LAST_TAG))
 	TAG := $(TAG)-beta
 endif
 GO_VERSION := $(shell go version)
 GO_FILES := $(shell go list ./... | grep -v /vendor/ )
-# Run full tests if go >= go1.11
-FULL_TESTS := $(shell go version | perl -lne 'print "go$$1.$$2" if /go(\d+)\.(\d+)/ && ($$1 > 1 || $$2 >= 11)')
+# Run full tests if go >= go1.12
+FULL_TESTS := $(shell go version | perl -lne 'print "go$$1.$$2" if /go(\d+)\.(\d+)/ && ($$1 > 1 || $$2 >= 12)')
 BETA_PATH := $(BRANCH_PATH)$(TAG)
 BETA_URL := https://beta.rclone.org/$(BETA_PATH)/
 BETA_UPLOAD_ROOT := memstore:beta-rclone-org
@@ -64,30 +64,20 @@ endif
 # Do source code quality checks
 check:	rclone
 ifdef FULL_TESTS
-	go vet $(BUILDTAGS) -printfuncs Debugf,Infof,Logf,Errorf ./...
-	errcheck $(BUILDTAGS) ./...
-	find . -name \*.go | grep -v /vendor/ | xargs goimports -d | grep . ; test $$? -eq 1
-	go list ./... | xargs -n1 golint | grep -E -v '(StorageUrl|CdnUrl)' ; test $$? -eq 1
+	@# we still run go vet for -printfuncs which golangci-lint doesn't do yet
+	@# see: https://github.com/golangci/golangci-lint/issues/204
+	@echo "-- START CODE QUALITY REPORT -------------------------------"
+	@go vet $(BUILDTAGS) -printfuncs Debugf,Infof,Logf,Errorf ./...
+	@golangci-lint run ./...
+	@echo "-- END CODE QUALITY REPORT ---------------------------------"
 else
 	@echo Skipping source quality tests as version of go too old
 endif
 
-gometalinter_install:
-	go get -u github.com/alecthomas/gometalinter
-	gometalinter --install --update
-
-# We aren't using gometalinter as the default linter yet because
-# 1. it doesn't support build tags: https://github.com/alecthomas/gometalinter/issues/275
-# 2. can't get -printfuncs working with the vet linter
-gometalinter:
-	gometalinter ./...
-
 # Get the build dependencies
 build_dep:
 ifdef FULL_TESTS
-	go get -u github.com/kisielk/errcheck
-	go get -u golang.org/x/tools/cmd/goimports
-	go get -u golang.org/x/lint/golint
+	go run bin/get-github-release.go -extract golangci-lint golangci/golangci-lint 'golangci-lint-.*\.tar\.gz'
 endif
 
 # Get the release dependencies
@@ -185,6 +175,13 @@ ifndef BRANCH_PATH
 endif
 	@echo Beta release ready at $(BETA_URL)
 
+circleci_upload:
+	./rclone --config bin/travis.rclone.conf -v copy build/ $(BETA_UPLOAD)/testbuilds
+ifndef BRANCH_PATH
+	./rclone --config bin/travis.rclone.conf -v copy build/ $(BETA_UPLOAD_ROOT)/test/testbuilds-latest
+endif
+	@echo Beta release ready at $(BETA_URL)/testbuilds
+
 BUILD_FLAGS := -exclude "^(windows|darwin)/"
 ifeq ($(TRAVIS_OS_NAME),osx)
 	BUILD_FLAGS := -include "^darwin/" -cgo
@@ -192,7 +189,7 @@ endif
 
 travis_beta:
 ifeq ($(TRAVIS_OS_NAME),linux)
-	go run bin/get-github-release.go -extract nfpm goreleaser/nfpm 'nfpm_.*_Linux_x86_64.tar.gz'
+	go run bin/get-github-release.go -extract nfpm goreleaser/nfpm 'nfpm_.*\.tar.gz'
 endif
 	git log $(LAST_TAG).. > /tmp/git-log.txt
 	go run bin/cross-compile.go -release beta-latest -git-log /tmp/git-log.txt $(BUILD_FLAGS) -parallel 8 $(BUILDTAGS) $(TAG)

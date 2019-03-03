@@ -387,10 +387,10 @@ func TestInternalWrappedWrittenContentMatches(t *testing.T) {
 
 	// write the object
 	o := runInstance.writeObjectBytes(t, cfs.UnWrap(), "data.bin", testData)
-	require.Equal(t, o.Size(), int64(testSize))
+	require.Equal(t, o.Size(), testSize)
 	time.Sleep(time.Second * 3)
 
-	checkSample, err := runInstance.readDataFromRemote(t, rootFs, "data.bin", 0, int64(testSize), false)
+	checkSample, err := runInstance.readDataFromRemote(t, rootFs, "data.bin", 0, testSize, false)
 	require.NoError(t, err)
 	require.Equal(t, int64(len(checkSample)), o.Size())
 
@@ -726,6 +726,7 @@ func TestInternalChangeSeenAfterRc(t *testing.T) {
 
 	// Call the rc function
 	m, err := cacheExpire.Fn(rc.Params{"remote": "data.bin"})
+	require.NoError(t, err)
 	require.Contains(t, m, "status")
 	require.Contains(t, m, "message")
 	require.Equal(t, "ok", m["status"])
@@ -735,18 +736,21 @@ func TestInternalChangeSeenAfterRc(t *testing.T) {
 	co, err = rootFs.NewObject("data.bin")
 	require.NoError(t, err)
 	require.Equal(t, wrappedTime.Unix(), co.ModTime().Unix())
-	li1, err := runInstance.list(t, rootFs, "")
+	_, err = runInstance.list(t, rootFs, "")
+	require.NoError(t, err)
 
 	// create some rand test data
 	testData2 := randStringBytes(int(chunkSize))
 	runInstance.writeObjectBytes(t, cfs.UnWrap(), runInstance.encryptRemoteIfNeeded(t, "test2"), testData2)
 
 	// list should have 1 item only
-	li1, err = runInstance.list(t, rootFs, "")
+	li1, err := runInstance.list(t, rootFs, "")
+	require.NoError(t, err)
 	require.Len(t, li1, 1)
 
 	// Call the rc function
 	m, err = cacheExpire.Fn(rc.Params{"remote": "/"})
+	require.NoError(t, err)
 	require.Contains(t, m, "status")
 	require.Contains(t, m, "message")
 	require.Equal(t, "ok", m["status"])
@@ -754,6 +758,7 @@ func TestInternalChangeSeenAfterRc(t *testing.T) {
 
 	// list should have 2 items now
 	li2, err := runInstance.list(t, rootFs, "")
+	require.NoError(t, err)
 	require.Len(t, li2, 2)
 }
 
@@ -1490,7 +1495,8 @@ func (r *run) updateData(t *testing.T, rootFs fs.Fs, src, data, append string) e
 	var err error
 
 	if r.useMount {
-		f, err := os.OpenFile(path.Join(runInstance.mntDir, src), os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+		var f *os.File
+		f, err = os.OpenFile(path.Join(runInstance.mntDir, src), os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}
@@ -1500,7 +1506,8 @@ func (r *run) updateData(t *testing.T, rootFs fs.Fs, src, data, append string) e
 		}()
 		_, err = f.WriteString(data + append)
 	} else {
-		obj1, err := rootFs.NewObject(src)
+		var obj1 fs.Object
+		obj1, err = rootFs.NewObject(src)
 		if err != nil {
 			return err
 		}
@@ -1632,15 +1639,13 @@ func (r *run) getCacheFs(f fs.Fs) (*cache.Fs, error) {
 	cfs, ok := f.(*cache.Fs)
 	if ok {
 		return cfs, nil
-	} else {
-		if f.Features().UnWrap != nil {
-			cfs, ok := f.Features().UnWrap().(*cache.Fs)
-			if ok {
-				return cfs, nil
-			}
+	}
+	if f.Features().UnWrap != nil {
+		cfs, ok := f.Features().UnWrap().(*cache.Fs)
+		if ok {
+			return cfs, nil
 		}
 	}
-
 	return nil, errors.New("didn't found a cache fs")
 }
 

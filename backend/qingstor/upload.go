@@ -143,7 +143,7 @@ func (u *uploader) init() {
 
 		// Try to adjust partSize if it is too small and account for
 		// integer division truncation.
-		if u.totalSize/u.cfg.partSize >= int64(u.cfg.partSize) {
+		if u.totalSize/u.cfg.partSize >= u.cfg.partSize {
 			// Add one to the part size to account for remainders
 			// during the size calculation. e.g odd number of bytes.
 			u.cfg.partSize = (u.totalSize / int64(u.cfg.maxUploadParts)) + 1
@@ -152,18 +152,18 @@ func (u *uploader) init() {
 }
 
 // singlePartUpload upload a single object that contentLength less than "defaultUploadPartSize"
-func (u *uploader) singlePartUpload(buf io.ReadSeeker) error {
+func (u *uploader) singlePartUpload(buf io.Reader, size int64) error {
 	bucketInit, _ := u.bucketInit()
 
 	req := qs.PutObjectInput{
-		ContentLength: &u.readerPos,
+		ContentLength: &size,
 		ContentType:   &u.cfg.mimeType,
 		Body:          buf,
 	}
 
 	_, err := bucketInit.PutObject(u.cfg.key, &req)
 	if err == nil {
-		fs.Debugf(u, "Upload single objcet finished")
+		fs.Debugf(u, "Upload single object finished")
 	}
 	return err
 }
@@ -180,7 +180,7 @@ func (u *uploader) upload() error {
 	reader, _, err := u.nextReader()
 	if err == io.EOF { // single part
 		fs.Debugf(u, "Uploading as single part object to QingStor")
-		return u.singlePartUpload(reader)
+		return u.singlePartUpload(reader, u.readerPos)
 	} else if err != nil {
 		return errors.Errorf("read upload data failed: %s", err)
 	}
@@ -392,6 +392,14 @@ func (mu *multiUploader) multiPartUpload(firstBuf io.ReadSeeker) error {
 		var nextChunkLen int
 		reader, nextChunkLen, err = mu.nextReader()
 		if err != nil && err != io.EOF {
+			// empty ch
+			go func() {
+				for range ch {
+				}
+			}()
+			// Wait for all goroutines finish
+			close(ch)
+			mu.wg.Wait()
 			return err
 		}
 		if nextChunkLen == 0 && partNumber > 0 {

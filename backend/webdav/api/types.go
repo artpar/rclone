@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/hash"
 )
 
 const (
@@ -65,11 +66,13 @@ type Response struct {
 // Note that status collects all the status values for which we just
 // check the first is OK.
 type Prop struct {
-	Status   []string  `xml:"DAV: status"`
-	Name     string    `xml:"DAV: prop>displayname,omitempty"`
-	Type     *xml.Name `xml:"DAV: prop>resourcetype>collection,omitempty"`
-	Size     int64     `xml:"DAV: prop>getcontentlength,omitempty"`
-	Modified Time      `xml:"DAV: prop>getlastmodified,omitempty"`
+	Status       []string  `xml:"DAV: status"`
+	Name         string    `xml:"DAV: prop>displayname,omitempty"`
+	Type         *xml.Name `xml:"DAV: prop>resourcetype>collection,omitempty"`
+	IsCollection *string   `xml:"DAV: prop>iscollection,omitempty"` // this is a Microsoft extension see #2716
+	Size         int64     `xml:"DAV: prop>getcontentlength,omitempty"`
+	Modified     Time      `xml:"DAV: prop>getlastmodified,omitempty"`
+	Checksums    []string  `xml:"prop>checksums>checksum,omitempty"`
 }
 
 // Parse a status of the form "HTTP/1.1 200 OK" or "HTTP/1.1 200"
@@ -95,13 +98,33 @@ func (p *Prop) StatusOK() bool {
 	return false
 }
 
+// Hashes returns a map of all checksums - may be nil
+func (p *Prop) Hashes() (hashes map[hash.Type]string) {
+	if len(p.Checksums) == 0 {
+		return nil
+	}
+	hashes = make(map[hash.Type]string)
+	for _, checksums := range p.Checksums {
+		checksums = strings.ToLower(checksums)
+		for _, checksum := range strings.Split(checksums, " ") {
+			switch {
+			case strings.HasPrefix(checksum, "sha1:"):
+				hashes[hash.SHA1] = checksum[5:]
+			case strings.HasPrefix(checksum, "md5:"):
+				hashes[hash.MD5] = checksum[4:]
+			}
+		}
+	}
+	return hashes
+}
+
 // PropValue is a tagged name and value
 type PropValue struct {
 	XMLName xml.Name `xml:""`
 	Value   string   `xml:",chardata"`
 }
 
-// Error is used to desribe webdav errors
+// Error is used to describe webdav errors
 //
 // <d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
 //   <s:exception>Sabre\DAV\Exception\NotFound</s:exception>
@@ -114,7 +137,7 @@ type Error struct {
 	StatusCode int
 }
 
-// Error returns a string for the error and statistifes the error interface
+// Error returns a string for the error and satisfies the error interface
 func (e *Error) Error() string {
 	var out []string
 	if e.Message != "" {
@@ -186,4 +209,23 @@ func (t *Time) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 		err = nil
 	}
 	return err
+}
+
+// Quota is used to read the bytes used and available
+//
+// <d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+//  <d:response>
+//   <d:href>/remote.php/webdav/</d:href>
+//   <d:propstat>
+//    <d:prop>
+//     <d:quota-available-bytes>-3</d:quota-available-bytes>
+//     <d:quota-used-bytes>376461895</d:quota-used-bytes>
+//    </d:prop>
+//    <d:status>HTTP/1.1 200 OK</d:status>
+//   </d:propstat>
+//  </d:response>
+// </d:multistatus>
+type Quota struct {
+	Available int64 `xml:"DAV: response>propstat>prop>quota-available-bytes"`
+	Used      int64 `xml:"DAV: response>propstat>prop>quota-used-bytes"`
 }

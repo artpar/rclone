@@ -92,8 +92,8 @@ type StatsInfo struct {
 // NewStats cretates an initialised StatsInfo
 func NewStats() *StatsInfo {
 	return &StatsInfo{
-		checking:     newStringSet(fs.Config.Checkers),
-		transferring: newStringSet(fs.Config.Transfers),
+		checking:     newStringSet(fs.Config.Checkers, "checking"),
+		transferring: newStringSet(fs.Config.Transfers, "transferring"),
 		start:        time.Now(),
 		inProgress:   newInProgress(),
 	}
@@ -201,8 +201,9 @@ func (s *StatsInfo) String() string {
 	}
 	dtRounded := dt - (dt % (time.Second / 10))
 
+	displaySpeed := speed
 	if fs.Config.DataRateUnit == "bits" {
-		speed = speed * 8
+		displaySpeed *= 8
 	}
 
 	var (
@@ -235,7 +236,7 @@ func (s *StatsInfo) String() string {
 		fs.SizeSuffix(s.bytes),
 		fs.SizeSuffix(totalSize).Unit("Bytes"),
 		percent(s.bytes, totalSize),
-		fs.SizeSuffix(speed).Unit(strings.Title(fs.Config.DataRateUnit)+"/s"),
+		fs.SizeSuffix(displaySpeed).Unit(strings.Title(fs.Config.DataRateUnit)+"/s"),
 		etaString(currentSize, totalSize, speed),
 		xfrchkString,
 	)
@@ -318,6 +319,13 @@ func (s *StatsInfo) GetLastError() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.lastError
+}
+
+// GetChecks returns the number of checks
+func (s *StatsInfo) GetChecks() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.checks
 }
 
 // FatalError sets the fatalError flag

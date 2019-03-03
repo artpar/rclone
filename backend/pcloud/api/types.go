@@ -41,7 +41,7 @@ type Error struct {
 	ErrorString string `json:"error"`
 }
 
-// Error returns a string for the error and statistifes the error interface
+// Error returns a string for the error and satisfies the error interface
 func (e *Error) Error() string {
 	return fmt.Sprintf("pcloud error: %s (%d)", e.ErrorString, e.Result)
 }
@@ -58,7 +58,7 @@ func (e *Error) Update(err error) error {
 	return e
 }
 
-// Check Error statisfies the error interface
+// Check Error satisfies the error interface
 var _ error = (*Error)(nil)
 
 // Item describes a folder or a file as returned by Get Folder Items and others
@@ -161,7 +161,6 @@ type UserInfo struct {
 	PublicLinkQuota       int64  `json:"publiclinkquota"`
 	Email                 string `json:"email"`
 	UserID                int    `json:"userid"`
-	Result                int    `json:"result"`
 	Quota                 int64  `json:"quota"`
 	TrashRevretentionDays int    `json:"trashrevretentiondays"`
 	Premium               bool   `json:"premium"`

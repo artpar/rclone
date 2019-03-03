@@ -66,7 +66,22 @@ func init() {
 			IsPassword: true,
 		}, {
 			Name: "key_file",
-			Help: "Path to unencrypted PEM-encoded private key file, leave blank to use ssh-agent.",
+			Help: "Path to PEM-encoded private key file, leave blank or set key-use-agent to use ssh-agent.",
+		}, {
+			Name: "key_file_pass",
+			Help: `The passphrase to decrypt the PEM-encoded private key file.
+
+Only PEM encrypted key files (old OpenSSH format) are supported. Encrypted keys
+in the new OpenSSH format can't be used.`,
+			IsPassword: true,
+		}, {
+			Name: "key_use_agent",
+			Help: `When set forces the usage of the ssh-agent.
+
+When key-file is also set, the ".pub" file of the specified key-file is read and only the associated key is
+requested from the ssh-agent. This allows to avoid ` + "`Too many authentication failures for *username*`" + ` errors
+when the ssh-agent contains many keys.`,
+			Default: false,
 		}, {
 			Name:    "use_insecure_cipher",
 			Help:    "Enable the use of the aes128-cbc cipher. This cipher is insecure and may allow plaintext data to be recovered by an attacker.",
@@ -122,6 +137,8 @@ type Options struct {
 	Port              string `config:"port"`
 	Pass              string `config:"pass"`
 	KeyFile           string `config:"key_file"`
+	KeyFilePass       string `config:"key_file_pass"`
+	KeyUseAgent       bool   `config:"key_use_agent"`
 	UseInsecureCipher bool   `config:"use_insecure_cipher"`
 	DisableHashCheck  bool   `config:"disable_hashcheck"`
 	AskPassword       bool   `config:"ask_password"`
@@ -298,6 +315,18 @@ func (f *Fs) putSftpConnection(pc **conn, err error) {
 	f.poolMu.Unlock()
 }
 
+// shellExpand replaces a leading "~" with "${HOME}" and expands all environment
+// variables afterwards.
+func shellExpand(s string) string {
+	if s != "" {
+		if s[0] == '~' {
+			s = "${HOME}" + s[1:]
+		}
+		s = os.ExpandEnv(s)
+	}
+	return s
+}
+
 // NewFs creates a new Fs object from the name and root. It connects to
 // the host specified in the config file.
 func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
@@ -325,8 +354,9 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		sshConfig.Config.Ciphers = append(sshConfig.Config.Ciphers, "aes128-cbc")
 	}
 
+	keyFile := shellExpand(opt.KeyFile)
 	// Add ssh agent-auth if no password or file specified
-	if opt.Pass == "" && opt.KeyFile == "" {
+	if (opt.Pass == "" && keyFile == "") || opt.KeyUseAgent {
 		sshAgentClient, _, err := sshagent.New()
 		if err != nil {
 			return nil, errors.Wrap(err, "couldn't connect to ssh-agent")
@@ -335,16 +365,46 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "couldn't read ssh agent signers")
 		}
-		sshConfig.Auth = append(sshConfig.Auth, ssh.PublicKeys(signers...))
+		if keyFile != "" {
+			pubBytes, err := ioutil.ReadFile(keyFile + ".pub")
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to read public key file")
+			}
+			pub, _, _, _, err := ssh.ParseAuthorizedKey(pubBytes)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to parse public key file")
+			}
+			pubM := pub.Marshal()
+			found := false
+			for _, s := range signers {
+				if bytes.Equal(pubM, s.PublicKey().Marshal()) {
+					sshConfig.Auth = append(sshConfig.Auth, ssh.PublicKeys(s))
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, errors.New("private key not found in the ssh-agent")
+			}
+		} else {
+			sshConfig.Auth = append(sshConfig.Auth, ssh.PublicKeys(signers...))
+		}
 	}
 
 	// Load key file if specified
-	if opt.KeyFile != "" {
-		key, err := ioutil.ReadFile(opt.KeyFile)
+	if keyFile != "" {
+		key, err := ioutil.ReadFile(keyFile)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to read private key file")
 		}
-		signer, err := ssh.ParsePrivateKey(key)
+		clearpass := ""
+		if opt.KeyFilePass != "" {
+			clearpass, err = obscure.Reveal(opt.KeyFilePass)
+			if err != nil {
+				return nil, err
+			}
+		}
+		signer, err := ssh.ParsePrivateKeyWithPassphrase(key, []byte(clearpass))
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to parse private key file")
 		}
@@ -367,6 +427,12 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		sshConfig.Auth = append(sshConfig.Auth, ssh.Password(clearpass))
 	}
 
+	return NewFsWithConnection(name, root, opt, sshConfig)
+}
+
+// NewFsWithConnection creates a new Fs object from the name and root and a ssh.ClientConfig. It connects to
+// the host specified in the ssh.ClientConfig
+func NewFsWithConnection(name string, root string, opt *Options, sshConfig *ssh.ClientConfig) (fs.Fs, error) {
 	f := &Fs{
 		name:      name,
 		root:      root,
@@ -505,9 +571,13 @@ func (f *Fs) List(dir string) (entries fs.DirEntries, err error) {
 		// If file is a symlink (not a regular file is the best cross platform test we can do), do a stat to
 		// pick up the size and type of the destination, instead of the size and type of the symlink.
 		if !info.Mode().IsRegular() {
+			oldInfo := info
 			info, err = f.stat(remote)
 			if err != nil {
-				return nil, errors.Wrap(err, "stat of non-regular file/dir failed")
+				if !os.IsNotExist(err) {
+					fs.Errorf(remote, "stat of non-regular file/dir failed: %v", err)
+				}
+				info = oldInfo
 			}
 		}
 		if info.IsDir() {

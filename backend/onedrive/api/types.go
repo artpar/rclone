@@ -25,7 +25,7 @@ type Error struct {
 	} `json:"error"`
 }
 
-// Error returns a string for the error and statistifes the error interface
+// Error returns a string for the error and satisfies the error interface
 func (e *Error) Error() string {
 	out := e.ErrorInfo.Code
 	if e.ErrorInfo.InnerError.Code != "" {
@@ -35,7 +35,7 @@ func (e *Error) Error() string {
 	return out
 }
 
-// Check Error statisfies the error interface
+// Check Error satisfies the error interface
 var _ error = (*Error)(nil)
 
 // Identity represents an identity of an actor. For example, and actor
@@ -285,6 +285,7 @@ type AsyncOperationStatus struct {
 
 // GetID returns a normalized ID of the item
 // If DriveID is known it will be prefixed to the ID with # seperator
+// Can be parsed using onedrive.parseNormalizedID(normalizedID)
 func (i *Item) GetID() string {
 	if i.IsRemote() && i.RemoteItem.ID != "" {
 		return i.RemoteItem.ParentReference.DriveID + "#" + i.RemoteItem.ID
@@ -294,9 +295,9 @@ func (i *Item) GetID() string {
 	return i.ID
 }
 
-// GetDriveID returns a normalized ParentReferance of the item
+// GetDriveID returns a normalized ParentReference of the item
 func (i *Item) GetDriveID() string {
-	return i.GetParentReferance().DriveID
+	return i.GetParentReference().DriveID
 }
 
 // GetName returns a normalized Name of the item
@@ -397,8 +398,8 @@ func (i *Item) GetLastModifiedDateTime() Timestamp {
 	return i.LastModifiedDateTime
 }
 
-// GetParentReferance returns a normalized ParentReferance of the item
-func (i *Item) GetParentReferance() *ItemReference {
+// GetParentReference returns a normalized ParentReference of the item
+func (i *Item) GetParentReference() *ItemReference {
 	if i.IsRemote() && i.ParentReference == nil {
 		return i.RemoteItem.ParentReference
 	}

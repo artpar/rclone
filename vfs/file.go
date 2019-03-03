@@ -123,6 +123,12 @@ func (f *File) rename(destDir *Dir, newName string) error {
 			fs.Errorf(f.Path(), "File.Rename error: %v", err)
 			return err
 		}
+		// newObject can be nil here for example if --dry-run
+		if newObject == nil {
+			err = errors.New("rename failed: nil object returned")
+			fs.Errorf(f.Path(), "File.Rename %v", err)
+			return err
+		}
 		// Update the node with the new details
 		fs.Debugf(f.o, "Updating file with %v %p", newObject, f)
 		// f.rename(destDir, newObject)
@@ -595,6 +601,12 @@ func (f *File) Truncate(size int64) (err error) {
 		}
 		return err
 	}
+
+	// If no writers, and size is already correct then all done
+	if f.o.Size() == size {
+		return nil
+	}
+
 	fs.Debugf(f.o, "Truncating file")
 
 	// Otherwise if no writers then truncate the file by opening

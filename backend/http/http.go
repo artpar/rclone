@@ -40,6 +40,9 @@ func init() {
 			Examples: []fs.OptionExample{{
 				Value: "https://example.com",
 				Help:  "Connect to example.com",
+			}, {
+				Value: "https://user:pass@example.com",
+				Help:  "Connect to example.com using a username and password",
 			}},
 		}},
 	}
@@ -248,7 +251,7 @@ func parseName(base *url.URL, name string) (string, error) {
 	}
 	// calculate the name relative to the base
 	name = u.Path[len(base.Path):]
-	// musn't be empty
+	// mustn't be empty
 	if name == "" {
 		return "", errNameIsEmpty
 	}

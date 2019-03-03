@@ -16,6 +16,7 @@ FIXME Patch/Delete/Get isn't working with files with spaces in - giving 404 erro
 */
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -45,7 +46,9 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/googleapi"
-	"google.golang.org/api/storage/v1"
+
+	// NOTE: This API is deprecated
+	storage "google.golang.org/api/storage/v1"
 )
 
 const (
@@ -163,8 +166,14 @@ func init() {
 				Value: "asia-east1",
 				Help:  "Taiwan.",
 			}, {
+				Value: "asia-east2",
+				Help:  "Hong Kong.",
+			}, {
 				Value: "asia-northeast1",
 				Help:  "Tokyo.",
+			}, {
+				Value: "asia-south1",
+				Help:  "Mumbai.",
 			}, {
 				Value: "asia-southeast1",
 				Help:  "Singapore.",
@@ -172,11 +181,20 @@ func init() {
 				Value: "australia-southeast1",
 				Help:  "Sydney.",
 			}, {
+				Value: "europe-north1",
+				Help:  "Finland.",
+			}, {
 				Value: "europe-west1",
 				Help:  "Belgium.",
 			}, {
 				Value: "europe-west2",
 				Help:  "London.",
+			}, {
+				Value: "europe-west3",
+				Help:  "Frankfurt.",
+			}, {
+				Value: "europe-west4",
+				Help:  "Netherlands.",
 			}, {
 				Value: "us-central1",
 				Help:  "Iowa.",
@@ -189,6 +207,9 @@ func init() {
 			}, {
 				Value: "us-west1",
 				Help:  "Oregon.",
+			}, {
+				Value: "us-west2",
+				Help:  "California.",
 			}},
 		}, {
 			Name: "storage_class",
@@ -238,7 +259,7 @@ type Fs struct {
 	bucket     string           // the bucket we are working on
 	bucketOKMu sync.Mutex       // mutex to protect bucket OK
 	bucketOK   bool             // true if we have created the bucket
-	pacer      *pacer.Pacer     // To pace the API calls
+	pacer      *fs.Pacer        // To pace the API calls
 }
 
 // Object describes a storage object
@@ -282,7 +303,7 @@ func (f *Fs) Features() *fs.Features {
 	return f.features
 }
 
-// shouldRetry determines whehter a given err rates being retried
+// shouldRetry determines whether a given err rates being retried
 func shouldRetry(err error) (again bool, errOut error) {
 	again = false
 	if err != nil {
@@ -330,7 +351,7 @@ func getServiceAccountClient(credentialsData []byte) (*http.Client, error) {
 	return oauth2.NewClient(ctxWithSpecialClient, conf.TokenSource(ctxWithSpecialClient)), nil
 }
 
-// NewFs contstructs an Fs from the path, bucket:path
+// NewFs constructs an Fs from the path, bucket:path
 func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	var oAuthClient *http.Client
 
@@ -383,7 +404,11 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 
 		oAuthClient, _, err = oauthutil.NewClient(name, m, &oauthConf1)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to configure Google Cloud Storage")
+			ctx := context.Background()
+			oAuthClient, err = google.DefaultClient(ctx, storage.DevstorageFullControlScope)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to configure Google Cloud Storage")
+			}
 		}
 	}
 
@@ -397,7 +422,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		bucket: bucket,
 		root:   directory,
 		opt:    *opt,
-		pacer:  pacer.New().SetMinSleep(minSleep).SetPacer(pacer.GoogleDrivePacer),
+		pacer:  fs.NewPacer(pacer.NewGoogleDrive(pacer.MinSleep(minSleep))),
 	}
 	f.features = (&fs.Features{
 		ReadMimeType:  true,
