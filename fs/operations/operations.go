@@ -273,10 +273,15 @@ func Copy(f fs.Fs, dst fs.Object, remote string, src fs.Object) (newDst fs.Objec
 		// Try server side copy first - if has optional interface and
 		// is same underlying remote
 		actionTaken = "Copied (server side copy)"
-		if doCopy := f.Features().Copy; doCopy != nil && SameConfig(src.Fs(), f) {
+		if doCopy := f.Features().Copy; doCopy != nil && (SameConfig(src.Fs(), f) || (SameRemoteType(src.Fs(), f) && f.Features().ServerSideAcrossConfigs)) {
+			// Check transfer limit for server side copies
+			if fs.Config.MaxTransfer >= 0 && accounting.Stats.GetBytes() >= int64(fs.Config.MaxTransfer) {
+				return nil, accounting.ErrorMaxTransferLimitReached
+			}
 			newDst, err = doCopy(src, remote)
 			if err == nil {
 				dst = newDst
+				accounting.Stats.Bytes(dst.Size()) // account the bytes for the server side transfer
 			}
 		} else {
 			err = fs.ErrorCantCopy
@@ -392,7 +397,7 @@ func Move(fdst fs.Fs, dst fs.Object, remote string, src fs.Object) (newDst fs.Ob
 		return newDst, nil
 	}
 	// See if we have Move available
-	if doMove := fdst.Features().Move; doMove != nil && SameConfig(src.Fs(), fdst) {
+	if doMove := fdst.Features().Move; doMove != nil && (SameConfig(src.Fs(), fdst) || (SameRemoteType(src.Fs(), fdst) && fdst.Features().ServerSideAcrossConfigs)) {
 		// Delete destination if it exists
 		if dst != nil {
 			err = DeleteFile(dst)
@@ -435,6 +440,20 @@ func CanServerSideMove(fdst fs.Fs) bool {
 	return canMove || canCopy
 }
 
+// SuffixName adds the current --suffix to the remote, obeying
+// --suffix-keep-extension if set
+func SuffixName(remote string) string {
+	if fs.Config.Suffix == "" {
+		return remote
+	}
+	if fs.Config.SuffixKeepExtension {
+		ext := path.Ext(remote)
+		base := remote[:len(remote)-len(ext)]
+		return base + fs.Config.Suffix + ext
+	}
+	return remote + fs.Config.Suffix
+}
+
 // DeleteFileWithBackupDir deletes a single file respecting --dry-run
 // and accumulating stats and errors.
 //
@@ -456,7 +475,7 @@ func DeleteFileWithBackupDir(dst fs.Object, backupDir fs.Fs) (err error) {
 		if !SameConfig(dst.Fs(), backupDir) {
 			err = errors.New("parameter to --backup-dir has to be on the same remote as destination")
 		} else {
-			remoteWithSuffix := dst.Remote() + fs.Config.Suffix
+			remoteWithSuffix := SuffixName(dst.Remote())
 			overwritten, _ := backupDir.NewObject(remoteWithSuffix)
 			_, err = Move(backupDir, overwritten, remoteWithSuffix, dst)
 		}
@@ -523,6 +542,11 @@ func DeleteFilesWithBackupDir(toBeDeleted fs.ObjectsChan, backupDir fs.Fs) error
 // DeleteFiles removes all the files passed in the channel
 func DeleteFiles(toBeDeleted fs.ObjectsChan) error {
 	return DeleteFilesWithBackupDir(toBeDeleted, nil)
+}
+
+// SameRemoteType returns true if fdst and fsrc are the same type
+func SameRemoteType(fdst, fsrc fs.Info) bool {
+	return fmt.Sprintf("%T", fdst) == fmt.Sprintf("%T", fsrc)
 }
 
 // SameConfig returns true if fdst and fsrc are using the same config
@@ -811,11 +835,7 @@ func CheckDownload(fdst, fsrc fs.Fs, oneway bool) error {
 //
 // Lists in parallel which may get them out of order
 func ListFn(f fs.Fs, fn func(fs.Object)) error {
-	return walk.Walk(f, "", false, fs.Config.MaxDepth, func(dirPath string, entries fs.DirEntries, err error) error {
-		if err != nil {
-			// FIXME count errors and carry on for listing
-			return err
-		}
+	return walk.ListR(f, "", false, fs.Config.MaxDepth, walk.ListObjects, func(entries fs.DirEntries) error {
 		entries.ForObject(fn)
 		return nil
 	})
@@ -931,11 +951,7 @@ func ConfigMaxDepth(recursive bool) int {
 
 // ListDir lists the directories/buckets/containers in the Fs to the supplied writer
 func ListDir(f fs.Fs, w io.Writer) error {
-	return walk.Walk(f, "", false, ConfigMaxDepth(false), func(dirPath string, entries fs.DirEntries, err error) error {
-		if err != nil {
-			// FIXME count errors and carry on for listing
-			return err
-		}
+	return walk.ListR(f, "", false, ConfigMaxDepth(false), walk.ListDirs, func(entries fs.DirEntries) error {
 		entries.ForDir(func(dir fs.Directory) {
 			if dir != nil {
 				syncFprintf(w, "%12d %13s %9d %s\n", dir.Size(), dir.ModTime().Local().Format("2006-01-02 15:04:05"), dir.Items(), dir.Remote())
@@ -1043,21 +1059,17 @@ func listToChan(f fs.Fs, dir string) fs.ObjectsChan {
 	o := make(fs.ObjectsChan, fs.Config.Checkers)
 	go func() {
 		defer close(o)
-		_ = walk.Walk(f, dir, true, fs.Config.MaxDepth, func(dirPath string, entries fs.DirEntries, err error) error {
-			if err != nil {
-				if err == fs.ErrorDirNotFound {
-					return nil
-				}
-				err = errors.Errorf("Failed to list: %v", err)
-				fs.CountError(err)
-				fs.Errorf(nil, "%v", err)
-				return nil
-			}
+		err := walk.ListR(f, dir, true, fs.Config.MaxDepth, walk.ListObjects, func(entries fs.DirEntries) error {
 			entries.ForObject(func(obj fs.Object) {
 				o <- obj
 			})
 			return nil
 		})
+		if err != nil && err != fs.ErrorDirNotFound {
+			err = errors.Wrap(err, "failed to list")
+			fs.CountError(err)
+			fs.Errorf(nil, "%v", err)
+		}
 	}()
 	return o
 }
@@ -1581,6 +1593,13 @@ func (l *ListFormat) AddID() {
 func (l *ListFormat) AddOrigID() {
 	l.AppendOutput(func(entry *ListJSONItem) string {
 		return entry.OrigID
+	})
+}
+
+// AddTier adds file's Tier to the output if known
+func (l *ListFormat) AddTier() {
+	l.AppendOutput(func(entry *ListJSONItem) string {
+		return entry.Tier
 	})
 }
 

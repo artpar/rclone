@@ -243,3 +243,12 @@ Contributors
   * calisro <robert.calistri@gmail.com>
   * Dr.Rx <david.rey@nventive.com>
   * marcintustin <marcintustin@users.noreply.github.com>
+  * jaKa Močnik <jaka@koofr.net>
+  * Fionera <fionera@fionera.de>
+  * Dan Walters <dan@walters.io>
+  * Danil Semelenov <sgtpep@users.noreply.github.com>
+  * xopez <28950736+xopez@users.noreply.github.com>
+  * Ben Boeckel <mathstuf@gmail.com>
+  * Manu <manu@snapdragon.cc>
+  * Kyle E. Mitchell <kyle@kemitchell.com>
+  * Gary Kim <gary@garykim.dev>

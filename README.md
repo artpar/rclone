@@ -6,13 +6,13 @@
 [Contributing](CONTRIBUTING.md) |
 [Changelog](https://rclone.org/changelog/) |
 [Installation](https://rclone.org/install/) |
-[Forum](https://forum.rclone.org/) | 
-[G+](https://google.com/+RcloneOrg)
+[Forum](https://forum.rclone.org/) |
 
-[![Build Status](https://travis-ci.org/artpar/rclone.svg?branch=master)](https://travis-ci.org/artpar/rclone)
-[![Windows Build Status](https://ci.appveyor.com/api/projects/status/github/artpar/rclone?branch=master&passingText=windows%20-%20ok&svg=true)](https://ci.appveyor.com/project/artpar/rclone)
-[![CircleCI](https://circleci.com/gh/artpar/rclone/tree/master.svg?style=svg)](https://circleci.com/gh/artpar/rclone/tree/master)
-[![GoDoc](https://godoc.org/github.com/artpar/rclone?status.svg)](https://godoc.org/github.com/artpar/rclone) 
+[![Build Status](https://travis-ci.org/ncw/rclone.svg?branch=master)](https://travis-ci.org/ncw/rclone)
+[![Windows Build Status](https://ci.appveyor.com/api/projects/status/github/ncw/rclone?branch=master&passingText=windows%20-%20ok&svg=true)](https://ci.appveyor.com/project/ncw/rclone)
+[![CircleCI](https://circleci.com/gh/ncw/rclone/tree/master.svg?style=svg)](https://circleci.com/gh/ncw/rclone/tree/master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ncw/rclone)](https://goreportcard.com/report/github.com/ncw/rclone)
+[![GoDoc](https://godoc.org/github.com/ncw/rclone?status.svg)](https://godoc.org/github.com/ncw/rclone)
 
 # Rclone
 
@@ -36,6 +36,7 @@ Rclone *("rsync for cloud storage")* is a command line program to sync files and
   * Hubic [:page_facing_up:](https://rclone.org/hubic/)
   * Jottacloud [:page_facing_up:](https://rclone.org/jottacloud/)
   * IBM COS S3 [:page_facing_up:](https://rclone.org/s3/#ibm-cos-s3)
+  * Koofr [:page_facing_up:](https://rclone.org/koofr/)
   * Memset Memstore [:page_facing_up:](https://rclone.org/swift/)
   * Mega [:page_facing_up:](https://rclone.org/mega/)
   * Microsoft Azure Blob Storage [:page_facing_up:](https://rclone.org/azureblob/)

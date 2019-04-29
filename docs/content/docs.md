@@ -1,7 +1,7 @@
 ---
 title: "Documentation"
 description: "Rclone Usage"
-date: "2015-06-06"
+date: "2019-02-25"
 ---
 
 Configure
@@ -34,6 +34,7 @@ See the following for detailed instructions for
   * [HTTP](/http/)
   * [Hubic](/hubic/)
   * [Jottacloud](/jottacloud/)
+  * [Koofr](/koofr/)
   * [Mega](/mega/)
   * [Microsoft Azure Blob Storage](/azureblob/)
   * [Microsoft OneDrive](/onedrive/)
@@ -67,7 +68,7 @@ Subcommands
 
 rclone uses a system of subcommands.  For example
 
-    rclone ls remote:path # lists a re
+    rclone ls remote:path # lists a remote
     rclone copy /local/path remote:path # copies /local/path to the remote
     rclone sync /local/path remote:path # syncs /local/path to the remote
 
@@ -347,7 +348,7 @@ It is also possible to specify a "timetable" of limits, which will cause
 certain limits to be applied at certain times. To specify a timetable, format your
 entries as "WEEKDAY-HH:MM,BANDWIDTH WEEKDAY-HH:MM,BANDWIDTH..." where:
 WEEKDAY is optional element.
-It could be writen as whole world or only using 3 first characters.
+It could be written as whole world or only using 3 first characters.
 HH:MM is an hour from 00:00 to 23:59.
 
 An example of a typical timetable to avoid link saturation during daytime
@@ -365,7 +366,7 @@ An example of timetable with WEEKDAY could be:
 
 `--bwlimit "Mon-00:00,512 Fri-23:59,10M Sat-10:00,1M Sun-20:00,off"`
 
-It mean that, the transfer bandwidh will be set to 512kBytes/sec on Monday.
+It mean that, the transfer bandwidth will be set to 512kBytes/sec on Monday.
 It will raise to 10Mbytes/s before the end of Friday. 
 At 10:00 on Sunday it will be set to 1Mbyte/s.
 From 20:00 at Sunday will be unlimited.
@@ -819,6 +820,16 @@ This is for use with `--backup-dir` only.  If this isn't set then
 then the files will have SUFFIX added on to them.
 
 See `--backup-dir` for more info.
+
+### --suffix-keep-extension ###
+
+When using `--suffix`, setting this causes rclone put the SUFFIX
+before the extension of the files that it backs up rather than after.
+
+So let's say we had `--suffix -2019-01-01`, without the flag `file.txt`
+would be backed up to `file.txt-2019-01-01` and with the flag it would
+be backed up to `file-2019-01-01.txt`.  This can be helpful to make
+sure the suffixed files can still be opened.
 
 ### --syslog ###
 

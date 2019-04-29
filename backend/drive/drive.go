@@ -1,7 +1,4 @@
 // Package drive interfaces with the Google Drive object storage system
-
-// +build go1.9
-
 package drive
 
 // FIXME need to deal with some corner cases
@@ -241,6 +238,22 @@ func init() {
 			Help:     "Skip google documents in all listings.\nIf given, gdocs practically become invisible to rclone.",
 			Advanced: true,
 		}, {
+			Name:    "skip_checksum_gphotos",
+			Default: false,
+			Help: `Skip MD5 checksum on Google photos and videos only.
+
+Use this if you get checksum errors when transferring Google photos or
+videos.
+
+Setting this flag will cause Google photos and videos to return a
+blank MD5 checksum.
+
+Google photos are identifed by being in the "photos" space.
+
+Corrupted checksums are caused by Google modifying the image/video but
+not updating the checksum.`,
+			Advanced: true,
+		}, {
 			Name:    "shared_with_me",
 			Default: false,
 			Help: `Only show files that are shared with me.
@@ -396,6 +409,7 @@ type Options struct {
 	AuthOwnerOnly             bool          `config:"auth_owner_only"`
 	UseTrash                  bool          `config:"use_trash"`
 	SkipGdocs                 bool          `config:"skip_gdocs"`
+	SkipChecksumGphotos       bool          `config:"skip_checksum_gphotos"`
 	SharedWithMe              bool          `config:"shared_with_me"`
 	TrashedOnly               bool          `config:"trashed_only"`
 	Extensions                string        `config:"formats"`
@@ -615,6 +629,9 @@ func (f *Fs) list(dirIDs []string, title string, directoriesOnly, filesOnly, inc
 	if f.opt.AuthOwnerOnly {
 		fields += ",owners"
 	}
+	if f.opt.SkipChecksumGphotos {
+		fields += ",spaces"
+	}
 
 	fields = fmt.Sprintf("files(%s),nextPageToken", fields)
 
@@ -676,28 +693,33 @@ func isPowerOfTwo(x int64) bool {
 }
 
 // add a charset parameter to all text/* MIME types
-func fixMimeType(mimeType string) string {
-	mediaType, param, err := mime.ParseMediaType(mimeType)
+func fixMimeType(mimeTypeIn string) string {
+	if mimeTypeIn == "" {
+		return ""
+	}
+	mediaType, param, err := mime.ParseMediaType(mimeTypeIn)
 	if err != nil {
-		return mimeType
+		return mimeTypeIn
 	}
-	if strings.HasPrefix(mimeType, "text/") && param["charset"] == "" {
+	mimeTypeOut := mimeTypeIn
+	if strings.HasPrefix(mediaType, "text/") && param["charset"] == "" {
 		param["charset"] = "utf-8"
-		mimeType = mime.FormatMediaType(mediaType, param)
+		mimeTypeOut = mime.FormatMediaType(mediaType, param)
 	}
-	return mimeType
+	if mimeTypeOut == "" {
+		panic(errors.Errorf("unable to fix MIME type %q", mimeTypeIn))
+	}
+	return mimeTypeOut
 }
-func fixMimeTypeMap(m map[string][]string) map[string][]string {
-	for _, v := range m {
+func fixMimeTypeMap(in map[string][]string) (out map[string][]string) {
+	out = make(map[string][]string, len(in))
+	for k, v := range in {
 		for i, mt := range v {
-			fixed := fixMimeType(mt)
-			if fixed == "" {
-				panic(errors.Errorf("unable to fix MIME type %q", mt))
-			}
-			v[i] = fixed
+			v[i] = fixMimeType(mt)
 		}
+		out[fixMimeType(k)] = v
 	}
-	return m
+	return out
 }
 func isInternalMimeType(mimeType string) bool {
 	return strings.HasPrefix(mimeType, "application/vnd.google-apps.")
@@ -902,6 +924,7 @@ func NewFs(name, path string, m configmap.Mapper) (fs.Fs, error) {
 		ReadMimeType:            true,
 		WriteMimeType:           true,
 		CanHaveEmptyDirectories: true,
+		ServerSideAcrossConfigs: true,
 	}).Fill(f)
 
 	// Create a new authorized Drive client.
@@ -996,6 +1019,15 @@ func (f *Fs) newBaseObject(remote string, info *drive.File) baseObject {
 
 // newRegularObject creates a fs.Object for a normal drive.File
 func (f *Fs) newRegularObject(remote string, info *drive.File) fs.Object {
+	// wipe checksum if SkipChecksumGphotos and file is type Photo or Video
+	if f.opt.SkipChecksumGphotos {
+		for _, space := range info.Spaces {
+			if space == "photos" {
+				info.Md5Checksum = ""
+				break
+			}
+		}
+	}
 	return &Object{
 		baseObject: f.newBaseObject(remote, info),
 		url:        fmt.Sprintf("%sfiles/%s?alt=media", f.svc.BasePath, info.Id),
@@ -1837,7 +1869,15 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 		remote = remote[:len(remote)-len(ext)]
 	}
 
+	// Look to see if there is an existing object
+	existingObject, _ := f.NewObject(remote)
+
 	createInfo, err := f.createFileInfo(remote, src.ModTime())
+	if err != nil {
+		return nil, err
+	}
+
+	supportTeamDrives, err := f.ShouldSupportTeamDrives(src)
 	if err != nil {
 		return nil, err
 	}
@@ -1846,7 +1886,7 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	err = f.pacer.Call(func() (bool, error) {
 		info, err = f.svc.Files.Copy(srcObj.id, createInfo).
 			Fields(partialFields).
-			SupportsTeamDrives(f.isTeamDrive).
+			SupportsTeamDrives(supportTeamDrives).
 			KeepRevisionForever(f.opt.KeepRevisionForever).
 			Do()
 		return shouldRetry(err)
@@ -1854,7 +1894,17 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	if err != nil {
 		return nil, err
 	}
-	return f.newObjectWithInfo(remote, info)
+	newObject, err := f.newObjectWithInfo(remote, info)
+	if err != nil {
+		return nil, err
+	}
+	if existingObject != nil {
+		err = existingObject.Remove()
+		if err != nil {
+			fs.Errorf(existingObject, "Failed to remove existing object after copy: %v", err)
+		}
+	}
+	return newObject, nil
 }
 
 // Purge deletes all the files and the container
@@ -1980,6 +2030,11 @@ func (f *Fs) Move(src fs.Object, remote string) (fs.Object, error) {
 	dstParents := strings.Join(dstInfo.Parents, ",")
 	dstInfo.Parents = nil
 
+	supportTeamDrives, err := f.ShouldSupportTeamDrives(src)
+	if err != nil {
+		return nil, err
+	}
+
 	// Do the move
 	var info *drive.File
 	err = f.pacer.Call(func() (bool, error) {
@@ -1987,7 +2042,7 @@ func (f *Fs) Move(src fs.Object, remote string) (fs.Object, error) {
 			RemoveParents(srcParentID).
 			AddParents(dstParents).
 			Fields(partialFields).
-			SupportsTeamDrives(f.isTeamDrive).
+			SupportsTeamDrives(supportTeamDrives).
 			Do()
 		return shouldRetry(err)
 	})
@@ -1996,6 +2051,20 @@ func (f *Fs) Move(src fs.Object, remote string) (fs.Object, error) {
 	}
 
 	return f.newObjectWithInfo(remote, info)
+}
+
+// ShouldSupportTeamDrives returns the request should support TeamDrives
+func (f *Fs) ShouldSupportTeamDrives(src fs.Object) (bool, error) {
+	srcIsTeamDrive := false
+	if srcFs, ok := src.Fs().(*Fs); ok {
+		srcIsTeamDrive = srcFs.isTeamDrive
+	}
+
+	if f.isTeamDrive {
+		return true, nil
+	}
+
+	return srcIsTeamDrive, nil
 }
 
 // PublicLink adds a "readable by anyone with link" permission on the given file or folder.
@@ -2430,6 +2499,10 @@ func (o *baseObject) httpResponse(url, method string, options []fs.OpenOption) (
 		return req, nil, err
 	}
 	fs.OpenOptionAddHTTPHeaders(req.Header, options)
+	if o.bytes == 0 {
+		// Don't supply range requests for 0 length objects as they always fail
+		delete(req.Header, "Range")
+	}
 	err = o.fs.pacer.Call(func() (bool, error) {
 		res, err = o.fs.client.Do(req)
 		if err == nil {

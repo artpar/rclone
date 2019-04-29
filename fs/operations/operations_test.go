@@ -124,6 +124,18 @@ func TestLsWithFilesFrom(t *testing.T) {
 	err = operations.List(r.Fremote, &buf)
 	require.NoError(t, err)
 	assert.Equal(t, "       60 potato2\n", buf.String())
+
+	// Now try with --no-traverse
+	oldNoTraverse := fs.Config.NoTraverse
+	fs.Config.NoTraverse = true
+	defer func() {
+		fs.Config.NoTraverse = oldNoTraverse
+	}()
+
+	buf.Reset()
+	err = operations.List(r.Fremote, &buf)
+	require.NoError(t, err)
+	assert.Equal(t, "       60 potato2\n", buf.String())
 }
 
 func TestLsLong(t *testing.T) {
@@ -228,6 +240,33 @@ func TestHashSums(t *testing.T) {
 		!strings.Contains(res, "                                                     UNSUPPORTED  potato2\n") &&
 		!strings.Contains(res, "                                                                  potato2\n") {
 		t.Errorf("potato2 missing: %q", res)
+	}
+}
+
+func TestSuffixName(t *testing.T) {
+	origSuffix, origKeepExt := fs.Config.Suffix, fs.Config.SuffixKeepExtension
+	defer func() {
+		fs.Config.Suffix, fs.Config.SuffixKeepExtension = origSuffix, origKeepExt
+	}()
+	for _, test := range []struct {
+		remote  string
+		suffix  string
+		keepExt bool
+		want    string
+	}{
+		{"test.txt", "", false, "test.txt"},
+		{"test.txt", "", true, "test.txt"},
+		{"test.txt", "-suffix", false, "test.txt-suffix"},
+		{"test.txt", "-suffix", true, "test-suffix.txt"},
+		{"test.txt.csv", "-suffix", false, "test.txt.csv-suffix"},
+		{"test.txt.csv", "-suffix", true, "test.txt-suffix.csv"},
+		{"test", "-suffix", false, "test-suffix"},
+		{"test", "-suffix", true, "test-suffix"},
+	} {
+		fs.Config.Suffix = test.suffix
+		fs.Config.SuffixKeepExtension = test.keepExt
+		got := operations.SuffixName(test.remote)
+		assert.Equal(t, test.want, got, fmt.Sprintf("%+v", test))
 	}
 }
 

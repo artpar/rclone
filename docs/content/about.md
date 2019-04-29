@@ -29,6 +29,7 @@ Rclone is a command line program to sync files and directories to and from:
 * {{< provider name="Hubic" home="https://hubic.com/" config="/hubic/" >}}
 * {{< provider name="Jottacloud" home="https://www.jottacloud.com/en/" config="/jottacloud/" >}}
 * {{< provider name="IBM COS S3" home="http://www.ibm.com/cloud/object-storage" config="/s3/#ibm-cos-s3" >}}
+* {{< provider name="Koofr" home="https://koofr.eu/" config="/koofr/" >}}
 * {{< provider name="Memset Memstore" home="https://www.memset.com/cloud/storage/" config="/swift/" >}}
 * {{< provider name="Mega" home="https://mega.nz/" config="/mega/" >}}
 * {{< provider name="Microsoft Azure Blob Storage" home="https://azure.microsoft.com/en-us/services/storage/blobs/" config="/azureblob/" >}}
@@ -70,5 +71,4 @@ Links
   * <i class="fa fa-home"></i> [Home page](https://rclone.org/)
   * <i class="fa fa-github"></i> [GitHub project page for source and bug tracker](https://github.com/artpar/rclone)
   * <i class="fa fa-comments"></i> [Rclone Forum](https://forum.rclone.org)
-  * <i class="fa fa-google-plus"></i> <a href="https://google.com/+RcloneOrg" rel="publisher">Google+ page</a>
   * <i class="fa fa-cloud-download"></i>[Downloads](/downloads/)

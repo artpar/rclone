@@ -8,6 +8,7 @@ tests:
  - path: fs/sync
    subdir:   true
    fastlist: true
+ - path: vfs
 backends:
  # - backend:  "amazonclouddrive"
  #   remote:   "TestAmazonCloudDrive:"
@@ -136,5 +137,9 @@ backends:
    fastlist: false
  - backend:  "union"
    remote:   "TestUnion:"
+   subdir:   false
+   fastlist: false
+ - backend:  "koofr"
+   remote:   "TestKoofr:"
    subdir:   false
    fastlist: false

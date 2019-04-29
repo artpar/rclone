@@ -14,19 +14,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/backend/onedrive/api"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/readers"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/ncw/rclone/lib/atexit"
+
+	"github.com/ncw/rclone/backend/onedrive/api"
+	"github.com/ncw/rclone/fs"
+	"github.com/ncw/rclone/fs/config"
+	"github.com/ncw/rclone/fs/config/configmap"
+	"github.com/ncw/rclone/fs/config/configstruct"
+	"github.com/ncw/rclone/fs/config/obscure"
+	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/ncw/rclone/fs/hash"
+	"github.com/ncw/rclone/lib/dircache"
+	"github.com/ncw/rclone/lib/oauthutil"
+	"github.com/ncw/rclone/lib/pacer"
+	"github.com/ncw/rclone/lib/readers"
+	"github.com/ncw/rclone/lib/rest"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 )
@@ -335,8 +337,13 @@ func shouldRetry(resp *http.Response, err error) (bool, error) {
 
 // readMetaDataForPathRelativeToID reads the metadata for a path relative to an item that is addressed by its normalized ID.
 // if `relPath` == "", it reads the metadata for the item with that ID.
+//
+// We address items using the pattern `drives/driveID/items/itemID:/relativePath`
+// instead of simply using `drives/driveID/root:/itemPath` because it works for
+// "shared with me" folders in OneDrive Personal (See #2536, #2778)
+// This path pattern comes from https://github.com/OneDrive/onedrive-api-docs/issues/908#issuecomment-417488480
 func (f *Fs) readMetaDataForPathRelativeToID(normalizedID string, relPath string) (info *api.Item, resp *http.Response, err error) {
-	opts := newOptsCall(normalizedID, "GET", ":/"+rest.URLPathEscape(replaceReservedChars(relPath)))
+	opts := newOptsCall(normalizedID, "GET", ":/"+withTrailingColon(rest.URLPathEscape(replaceReservedChars(relPath))))
 	err = f.pacer.Call(func() (bool, error) {
 		resp, err = f.srv.CallJSON(&opts, nil, &info)
 		return shouldRetry(resp, err)
@@ -703,9 +710,7 @@ func (f *Fs) List(dir string) (entries fs.DirEntries, err error) {
 			id := info.GetID()
 			f.dirCache.Put(remote, id)
 			d := fs.NewDir(remote, time.Time(info.GetLastModifiedDateTime())).SetID(id)
-			if folder != nil {
-				d.SetItems(folder.ChildCount)
-			}
+			d.SetItems(folder.ChildCount)
 			entries = append(entries, d)
 		} else {
 			o, err := f.newObjectWithInfo(remote, info)
@@ -819,9 +824,6 @@ func (f *Fs) purgeCheck(dir string, check bool) error {
 		return err
 	}
 	f.dirCache.FlushDir(dir)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -1340,12 +1342,12 @@ func (o *Object) setModTime(modTime time.Time) (*api.Item, error) {
 		opts = rest.Opts{
 			Method:  "PATCH",
 			RootURL: rootURL,
-			Path:    "/" + drive + "/items/" + trueDirID + ":/" + rest.URLPathEscape(leaf),
+			Path:    "/" + drive + "/items/" + trueDirID + ":/" + withTrailingColon(rest.URLPathEscape(leaf)),
 		}
 	} else {
 		opts = rest.Opts{
 			Method: "PATCH",
-			Path:   "/root:/" + rest.URLPathEscape(o.srvPath()),
+			Path:   "/root:/" + withTrailingColon(rest.URLPathEscape(o.srvPath())),
 		}
 	}
 	update := api.SetFileSystemInfo{
@@ -1491,23 +1493,40 @@ func (o *Object) uploadMultipart(in io.Reader, size int64, modTime time.Time) (i
 		return nil, errors.New("unknown-sized upload not supported")
 	}
 
+	uploadURLChan := make(chan string, 1)
+	gracefulCancel := func() {
+		uploadURL, ok := <-uploadURLChan
+		// Reading from uploadURLChan blocks the atexit process until
+		// we are able to use uploadURL to cancel the upload
+		if !ok { // createUploadSession failed - no need to cancel upload
+			return
+		}
+
+		fs.Debugf(o, "Cancelling multipart upload")
+		cancelErr := o.cancelUploadSession(uploadURL)
+		if cancelErr != nil {
+			fs.Logf(o, "Failed to cancel multipart upload: %v", cancelErr)
+		}
+	}
+	cancelFuncHandle := atexit.Register(gracefulCancel)
+
 	// Create upload session
 	fs.Debugf(o, "Starting multipart upload")
 	session, err := o.createUploadSession(modTime)
 	if err != nil {
+		close(uploadURLChan)
+		atexit.Unregister(cancelFuncHandle)
 		return nil, err
 	}
 	uploadURL := session.UploadURL
+	uploadURLChan <- uploadURL
 
-	// Cancel the session if something went wrong
 	defer func() {
 		if err != nil {
-			fs.Debugf(o, "Cancelling multipart upload: %v", err)
-			cancelErr := o.cancelUploadSession(uploadURL)
-			if cancelErr != nil {
-				fs.Logf(o, "Failed to cancel multipart upload: %v", err)
-			}
+			fs.Debugf(o, "Error encountered during upload: %v", err)
+			gracefulCancel()
 		}
+		atexit.Unregister(cancelFuncHandle)
 	}()
 
 	// Upload the chunks
@@ -1666,6 +1685,21 @@ func getRelativePathInsideBase(base, target string) (string, bool) {
 		return target[len(baseSlash):], true
 	}
 	return "", false
+}
+
+// Adds a ":" at the end of `remotePath` in a proper manner.
+// If `remotePath` already ends with "/", change it to ":/"
+// If `remotePath` is "", return "".
+// A workaround for #2720 and #3039
+func withTrailingColon(remotePath string) string {
+	if remotePath == "" {
+		return ""
+	}
+
+	if strings.HasSuffix(remotePath, "/") {
+		return remotePath[:len(remotePath)-1] + ":/"
+	}
+	return remotePath + ":"
 }
 
 // Check the interfaces are satisfied

@@ -45,7 +45,7 @@ __rclone_custom_func() {
         else
             __rclone_init_completion -n : || return
         fi
-        if [[ $cur =~ ^[[:alnum:]_]*$ ]]; then
+        if [[ $cur != *:* ]]; then
             local remote
             while IFS= read -r remote; do
                 [[ $remote != $cur* ]] || COMPREPLY+=("$remote")
@@ -54,10 +54,10 @@ __rclone_custom_func() {
                 local paths=("$cur"*)
                 [[ ! -f ${paths[0]} ]] || COMPREPLY+=("${paths[@]}")
             fi
-        elif [[ $cur =~ ^[[:alnum:]_]+: ]]; then
+        else
             local path=${cur#*:}
             if [[ $path == */* ]]; then
-                local prefix=${path%/*}
+                local prefix=$(eval printf '%s' "${path%/*}")
             else
                 local prefix=
             fi
@@ -66,6 +66,7 @@ __rclone_custom_func() {
                 local reply=${prefix:+$prefix/}$line
                 [[ $reply != $path* ]] || COMPREPLY+=("$reply")
             done < <(rclone lsf "${cur%%:*}:$prefix" 2>/dev/null)
+	    [[ ! ${COMPREPLY[@]} ]] || compopt -o filenames
         fi
         [[ ! ${COMPREPLY[@]} ]] || compopt -o nospace
     fi
