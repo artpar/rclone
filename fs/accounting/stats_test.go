@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )

@@ -84,7 +84,7 @@ func init() {
 
 			srv := rest.NewClient(fshttp.NewClient(fs.Config))
 
-			// ask if we should create a device specifc token: https://github.com/ncw/rclone/issues/2995
+			// ask if we should create a device specifc token: https://github.com/artpar/rclone/issues/2995
 			fmt.Printf("\nDo you want to create a machine specific API key?\n\nRclone has it's own Jottacloud API KEY which works fine as long as one only uses rclone on a single machine. When you want to use rclone with this account on more than one machine it's recommended to create a machine specific API key. These keys can NOT be shared between machines.\n\n")
 			if config.Confirm() {
 				// random generator to generate random device names

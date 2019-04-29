@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ncw/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/ncw/swift"
 	"github.com/stretchr/testify/assert"
 )
