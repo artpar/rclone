@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/artpar/rclone/backend/cache"
+	"github.com/artpar/rclone/cmd"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/backend/cache"
-	"github.com/rclone/rclone/cmd"
 	"github.com/spf13/cobra"
 )
 

@@ -4,9 +4,9 @@ import (
 	"context"
 	"io"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
 	"golang.org/x/sync/errgroup"
 )
 

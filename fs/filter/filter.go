@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
 	"golang.org/x/sync/errgroup"
 )
 

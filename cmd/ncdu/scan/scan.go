@@ -6,9 +6,9 @@ import (
 	"path"
 	"sync"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/walk"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/walk"
 )
 
 // Dir represents a directory found in the remote

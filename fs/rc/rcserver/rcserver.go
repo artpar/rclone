@@ -14,16 +14,16 @@ import (
 
 	"github.com/skratchdot/open-golang/open"
 
-	"github.com/rclone/rclone/fs/rc/jobs"
+	"github.com/artpar/rclone/fs/rc/jobs"
 
+	"github.com/artpar/rclone/cmd/serve/httplib"
+	"github.com/artpar/rclone/cmd/serve/httplib/serve"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/cache"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/list"
+	"github.com/artpar/rclone/fs/rc"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/cmd/serve/httplib"
-	"github.com/rclone/rclone/cmd/serve/httplib/serve"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/cache"
-	"github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/fs/list"
-	"github.com/rclone/rclone/fs/rc"
 )
 
 // Start the remote control server if configured

@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/rclone/rclone/lib/errors"
+	"github.com/artpar/rclone/lib/errors"
 )
 
 func TestWalk(t *testing.T) {

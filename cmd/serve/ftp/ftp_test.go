@@ -14,10 +14,10 @@ import (
 	"os/exec"
 	"testing"
 
+	_ "github.com/artpar/rclone/backend/local"
+	"github.com/artpar/rclone/cmd/serve/ftp/ftpopt"
+	"github.com/artpar/rclone/fstest"
 	ftp "github.com/goftp/server"
-	_ "github.com/rclone/rclone/backend/local"
-	"github.com/rclone/rclone/cmd/serve/ftp/ftpopt"
-	"github.com/rclone/rclone/fstest"
 	"github.com/stretchr/testify/assert"
 )
 

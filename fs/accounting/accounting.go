@@ -8,12 +8,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/rclone/rclone/fs/rc"
+	"github.com/artpar/rclone/fs/rc"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/asyncreader"
+	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/asyncreader"
-	"github.com/rclone/rclone/fs/fserrors"
 )
 
 // ErrorMaxTransferLimitReached is returned from Read when the max

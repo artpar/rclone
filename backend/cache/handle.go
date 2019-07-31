@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/operations"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/operations"
 )
 
 var uploaderMap = make(map[string]*backgroundWriter)

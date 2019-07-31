@@ -10,10 +10,10 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/log"
-	"github.com/rclone/rclone/fs/operations"
-	"github.com/rclone/rclone/lib/file"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/lib/file"
 )
 
 // RWFileHandle is a handle that can be open for read and write.

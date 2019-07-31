@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/rclone/rclone/backend/all" // import all fs
-	"github.com/rclone/rclone/lib/pacer"
+	_ "github.com/artpar/rclone/backend/all" // import all fs
+	"github.com/artpar/rclone/lib/pacer"
 )
 
 var (

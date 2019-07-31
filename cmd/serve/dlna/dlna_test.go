@@ -9,12 +9,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rclone/rclone/vfs"
+	"github.com/artpar/rclone/vfs"
 
-	_ "github.com/rclone/rclone/backend/local"
-	"github.com/rclone/rclone/cmd/serve/dlna/dlnaflags"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config"
+	_ "github.com/artpar/rclone/backend/local"
+	"github.com/artpar/rclone/cmd/serve/dlna/dlnaflags"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

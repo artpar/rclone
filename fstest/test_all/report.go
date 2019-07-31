@@ -13,7 +13,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/rclone/rclone/fs"
+	"github.com/artpar/rclone/fs"
 	"github.com/skratchdot/open-golang/open"
 )
 

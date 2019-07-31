@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/rc"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/rc"
 	"golang.org/x/time/rate"
 )
 

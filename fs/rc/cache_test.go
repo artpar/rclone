@@ -3,8 +3,8 @@ package rc
 import (
 	"testing"
 
-	"github.com/rclone/rclone/fs/cache"
-	"github.com/rclone/rclone/fstest/mockfs"
+	"github.com/artpar/rclone/fs/cache"
+	"github.com/artpar/rclone/fstest/mockfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

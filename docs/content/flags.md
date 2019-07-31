@@ -25,7 +25,7 @@ These flags are available for every command.
   -c, --checksum                             Skip based on checksum (if available) & size, not mod-time & size
       --client-cert string                   Client SSL certificate (PEM) for mutual TLS auth
       --client-key string                    Client SSL private key (PEM) for mutual TLS auth
-      --config string                        Config file. (default "$HOME/.config/rclone/rclone.conf")
+      --config string                        Config file. (default "$HOME/.config/artpar/rclone.conf")
       --contimeout duration                  Connect timeout (default 1m0s)
       --cpuprofile string                    Write cpu profile to file
       --delete-after                         When synchronizing, delete files on destination after transferring (default)

@@ -7,8 +7,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
 )
 
 var getFreeDiskSpace = syscall.NewLazyDLL("kernel32.dll").NewProc("GetDiskFreeSpaceExW")

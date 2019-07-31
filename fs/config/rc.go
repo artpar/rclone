@@ -3,8 +3,8 @@ package config
 import (
 	"context"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/rc"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/rc"
 )
 
 func init() {

@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/a8m/tree"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/dirtree"
+	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/fs/walk"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/dirtree"
-	"github.com/rclone/rclone/fs/log"
-	"github.com/rclone/rclone/fs/walk"
 	"github.com/spf13/cobra"
 )
 

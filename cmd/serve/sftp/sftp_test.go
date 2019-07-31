@@ -14,10 +14,10 @@ import (
 	"strings"
 	"testing"
 
+	_ "github.com/artpar/rclone/backend/local"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fstest"
 	"github.com/pkg/sftp"
-	_ "github.com/rclone/rclone/backend/local"
-	"github.com/rclone/rclone/fs/config/obscure"
-	"github.com/rclone/rclone/fstest"
 	"github.com/stretchr/testify/assert"
 )
 

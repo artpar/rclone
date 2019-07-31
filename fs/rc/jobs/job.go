@@ -9,12 +9,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rclone/rclone/fs/rc"
+	"github.com/artpar/rclone/fs/rc"
 
-	"github.com/rclone/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/accounting"
 
+	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
 )
 
 // Job describes a asynchronous task started via the rc package

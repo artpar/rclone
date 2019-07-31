@@ -87,7 +87,7 @@ Make sure you have at least [Go](https://golang.org/) 1.7
 installed.  [Download go](https://golang.org/dl/) if necessary.  The
 latest release is recommended. Then
 
-    git clone https://github.com/rclone/rclone.git
+    git clone https://github.com/artpar/rclone.git
     cd rclone
     go build
     ./rclone version
@@ -96,11 +96,11 @@ You can also build and install rclone in the
 [GOPATH](https://github.com/golang/go/wiki/GOPATH) (which defaults to
 `~/go`) with:
 
-    go get -u -v github.com/rclone/rclone
+    go get -u -v github.com/artpar/rclone
 
 and this will build the binary in `$GOPATH/bin` (`~/go/bin/rclone` by
 default) after downloading the source to
-`$GOPATH/src/github.com/rclone/rclone` (`~/go/src/github.com/rclone/rclone`
+`$GOPATH/src/github.com/artpar/rclone` (`~/go/src/github.com/artpar/rclone`
 by default).
 
 ## Installation with Ansible ##

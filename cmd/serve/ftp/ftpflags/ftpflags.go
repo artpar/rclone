@@ -1,9 +1,9 @@
 package ftpflags
 
 import (
-	"github.com/rclone/rclone/cmd/serve/ftp/ftpopt"
-	"github.com/rclone/rclone/fs/config/flags"
-	"github.com/rclone/rclone/fs/rc"
+	"github.com/artpar/rclone/cmd/serve/ftp/ftpopt"
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs/rc"
 	"github.com/spf13/pflag"
 )
 

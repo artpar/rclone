@@ -9,8 +9,8 @@ import (
 	"log"
 	"path"
 
+	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
 	yaml "gopkg.in/yaml.v2"
 )
 

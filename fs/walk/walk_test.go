@@ -8,12 +8,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/filter"
+	"github.com/artpar/rclone/fstest/mockdir"
+	"github.com/artpar/rclone/fstest/mockfs"
+	"github.com/artpar/rclone/fstest/mockobject"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/filter"
-	"github.com/rclone/rclone/fstest/mockdir"
-	"github.com/rclone/rclone/fstest/mockfs"
-	"github.com/rclone/rclone/fstest/mockobject"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -14,15 +14,15 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/cmd/serve/ftp/ftpflags"
+	"github.com/artpar/rclone/cmd/serve/ftp/ftpopt"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfsflags"
 	ftp "github.com/goftp/server"
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/cmd/serve/ftp/ftpflags"
-	"github.com/rclone/rclone/cmd/serve/ftp/ftpopt"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/log"
-	"github.com/rclone/rclone/vfs"
-	"github.com/rclone/rclone/vfs/vfsflags"
 	"github.com/spf13/cobra"
 )
 
