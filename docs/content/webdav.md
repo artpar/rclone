@@ -308,7 +308,7 @@ Rclone can be used with Sharepoint provided by OneDrive for Business
 or Office365 Education Accounts.
 This feature is only needed for a few of these Accounts,
 mostly Office365 Education ones. These accounts are sometimes not
-verified by the domain owner [github#1975](https://github.com/rclone/rclone/issues/1975)
+verified by the domain owner [github#1975](https://github.com/artpar/rclone/issues/1975)
 
 This means that these accounts can't be added using the official
 API (other Accounts should work with the "onedrive" option). However,

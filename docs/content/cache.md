@@ -242,9 +242,9 @@ on Linux flavors and Windows as cache is heavily dependent on them.
 
 Any reports or feedback on how cache behaves on this OS is greatly appreciated.
  
-- https://github.com/rclone/rclone/issues/1935
-- https://github.com/rclone/rclone/issues/1907
-- https://github.com/rclone/rclone/issues/1834 
+- https://github.com/artpar/rclone/issues/1935
+- https://github.com/artpar/rclone/issues/1907
+- https://github.com/artpar/rclone/issues/1834
 
 #### Risk of throttling ####
 
@@ -263,8 +263,8 @@ of adding the file in the cache at the same time if configured to do so.
 
 Future enhancements:
 
-- https://github.com/rclone/rclone/issues/1937
-- https://github.com/rclone/rclone/issues/1936 
+- https://github.com/artpar/rclone/issues/1937
+- https://github.com/artpar/rclone/issues/1936
 
 #### cache and crypt ####
 

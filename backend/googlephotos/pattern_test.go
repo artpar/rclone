@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rclone/rclone/backend/googlephotos/api"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/dirtree"
-	"github.com/rclone/rclone/fstest"
-	"github.com/rclone/rclone/fstest/mockobject"
+	"github.com/artpar/rclone/backend/googlephotos/api"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/dirtree"
+	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/fstest/mockobject"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

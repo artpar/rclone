@@ -1,10 +1,10 @@
 #!/usr/bin/env zsh
 #
 # example usage: 
-# $GOPATH/src/github.com/rclone/rclone/cmd/info/test.sh --list | \
-#   parallel -P20 $GOPATH/src/github.com/rclone/rclone/cmd/info/test.sh
+# $GOPATH/src/github.com/artpar/rclone/cmd/info/test.sh --list | \
+#   parallel -P20 $GOPATH/src/github.com/artpar/rclone/cmd/info/test.sh
 
-export PATH=$GOPATH/src/github.com/rclone/rclone:$PATH
+export PATH=$GOPATH/src/github.com/artpar/rclone:$PATH
 
 typeset -A allRemotes
 allRemotes=(
