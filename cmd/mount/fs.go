@@ -5,17 +5,17 @@
 package mount
 
 import (
+	"context"
 	"syscall"
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
-	"github.com/artpar/rclone/cmd/mountlib"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/log"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
 	"github.com/pkg/errors"
-	"golang.org/x/net/context" // switch to "context" when we stop supporting go1.8
+	"github.com/rclone/rclone/cmd/mountlib"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/log"
+	"github.com/rclone/rclone/vfs"
+	"github.com/rclone/rclone/vfs/vfsflags"
 )
 
 // FS represents the top level filing system
@@ -24,7 +24,7 @@ type FS struct {
 	f fs.Fs
 }
 
-// Check interface satistfied
+// Check interface satisfied
 var _ fusefs.FS = (*FS)(nil)
 
 // NewFS makes a new FS
@@ -46,7 +46,7 @@ func (f *FS) Root() (node fusefs.Node, err error) {
 	return &Dir{root}, nil
 }
 
-// Check interface satsified
+// Check interface satisfied
 var _ fusefs.FSStatfser = (*FS)(nil)
 
 // Statfs is called to obtain file system metadata.

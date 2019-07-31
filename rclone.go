@@ -4,9 +4,9 @@
 package main
 
 import (
-	_ "github.com/artpar/rclone/backend/all" // import all backends
-	"github.com/artpar/rclone/cmd"
-	_ "github.com/artpar/rclone/cmd/all" // import all commands
+	_ "github.com/rclone/rclone/backend/all" // import all backends
+	"github.com/rclone/rclone/cmd"
+	_ "github.com/rclone/rclone/cmd/all" // import all commands
 )
 
 func main() {

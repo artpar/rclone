@@ -20,8 +20,10 @@ docs = [
     "filtering.md",
     "rc.md",
     "overview.md",
+    "flags.md",
 
     # Keep these alphabetical by full name
+    "fichier.md",
     "alias.md",
     "amazonclouddrive.md",
     "s3.md",
@@ -33,6 +35,7 @@ docs = [
     "ftp.md",
     "googlecloudstorage.md",
     "drive.md",
+    "googlephotos.md",
     "http.md",
     "hubic.md",
     "jottacloud.md",

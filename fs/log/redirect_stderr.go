@@ -7,7 +7,7 @@ package log
 import (
 	"os"
 
-	"github.com/artpar/rclone/fs"
+	"github.com/rclone/rclone/fs"
 )
 
 // redirectStderr to the file passed in

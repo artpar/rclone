@@ -24,16 +24,16 @@ import (
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/walk"
-	"github.com/artpar/rclone/lib/pacer"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/walk"
+	"github.com/rclone/rclone/lib/pacer"
 )
 
 const (
@@ -53,6 +53,11 @@ const (
 	maxUploadCutoff     = 256 * fs.MebiByte
 	defaultAccessTier   = azblob.AccessTierNone
 	maxTryTimeout       = time.Hour * 24 * 365 //max time of an azure web request response window (whether or not data is flowing)
+	// Default storage account, key and blob endpoint for emulator support,
+	// though it is a base64 key checked in here, it is publicly available secret.
+	emulatorAccount      = "devstoreaccount1"
+	emulatorAccountKey   = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+	emulatorBlobEndpoint = "http://127.0.0.1:10000/devstoreaccount1"
 )
 
 // Register with Fs
@@ -63,13 +68,17 @@ func init() {
 		NewFs:       NewFs,
 		Options: []fs.Option{{
 			Name: "account",
-			Help: "Storage Account Name (leave blank to use connection string or SAS URL)",
+			Help: "Storage Account Name (leave blank to use SAS URL or Emulator)",
 		}, {
 			Name: "key",
-			Help: "Storage Account Key (leave blank to use connection string or SAS URL)",
+			Help: "Storage Account Key (leave blank to use SAS URL or Emulator)",
 		}, {
 			Name: "sas_url",
-			Help: "SAS URL for container level access only\n(leave blank if using account/key or connection string)",
+			Help: "SAS URL for container level access only\n(leave blank if using account/key or Emulator)",
+		}, {
+			Name:    "use_emulator",
+			Help:    "Uses local storage emulator if provided as 'true' (leave blank if using real azure storage endpoint)",
+			Default: false,
 		}, {
 			Name:     "endpoint",
 			Help:     "Endpoint for the service\nLeave blank normally.",
@@ -129,6 +138,7 @@ type Options struct {
 	ChunkSize     fs.SizeSuffix `config:"chunk_size"`
 	ListChunkSize uint          `config:"list_chunk"`
 	AccessTier    string        `config:"access_tier"`
+	UseEmulator   bool          `config:"use_emulator"`
 }
 
 // Fs represents a remote azure server
@@ -309,6 +319,7 @@ func (f *Fs) newPipeline(c azblob.Credential, o azblob.PipelineOptions) pipeline
 
 // NewFs constructs an Fs from the path, container:path
 func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
+	ctx := context.Background()
 	// Parse config into Options struct
 	opt := new(Options)
 	err := configstruct.Set(m, opt)
@@ -365,6 +376,18 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		containerURL azblob.ContainerURL
 	)
 	switch {
+	case opt.UseEmulator:
+		credential, err := azblob.NewSharedKeyCredential(emulatorAccount, emulatorAccountKey)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Failed to parse credentials")
+		}
+		u, err = url.Parse(emulatorBlobEndpoint)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to make azure storage url from account and endpoint")
+		}
+		pipeline := f.newPipeline(credential, azblob.PipelineOptions{Retry: azblob.RetryOptions{TryTimeout: maxTryTimeout}})
+		serviceURL = azblob.NewServiceURL(*u, pipeline)
+		containerURL = serviceURL.NewContainerURL(container)
 	case opt.Account != "" && opt.Key != "":
 		credential, err := azblob.NewSharedKeyCredential(opt.Account, opt.Key)
 		if err != nil {
@@ -415,7 +438,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		} else {
 			f.root += "/"
 		}
-		_, err := f.NewObject(remote)
+		_, err := f.NewObject(ctx, remote)
 		if err != nil {
 			if err == fs.ErrorObjectNotFound || err == fs.ErrorNotAFile {
 				// File doesn't exist or is a directory so return old f
@@ -454,7 +477,7 @@ func (f *Fs) newObjectWithInfo(remote string, info *azblob.BlobItem) (fs.Object,
 
 // NewObject finds the Object at remote.  If it can't be found
 // it returns the error fs.ErrorObjectNotFound.
-func (f *Fs) NewObject(remote string) (fs.Object, error) {
+func (f *Fs) NewObject(ctx context.Context, remote string) (fs.Object, error) {
 	return f.newObjectWithInfo(remote, nil)
 }
 
@@ -496,7 +519,7 @@ type listFn func(remote string, object *azblob.BlobItem, isDirectory bool) error
 // the container and root supplied
 //
 // dir is the starting directory, "" for root
-func (f *Fs) list(dir string, recurse bool, maxResults uint, fn listFn) error {
+func (f *Fs) list(ctx context.Context, dir string, recurse bool, maxResults uint, fn listFn) error {
 	f.containerOKMu.Lock()
 	deleted := f.containerDeleted
 	f.containerOKMu.Unlock()
@@ -523,7 +546,6 @@ func (f *Fs) list(dir string, recurse bool, maxResults uint, fn listFn) error {
 		Prefix:     root,
 		MaxResults: int32(maxResults),
 	}
-	ctx := context.Background()
 	directoryMarkers := map[string]struct{}{}
 	for marker := (azblob.Marker{}); marker.NotDone(); {
 		var response *azblob.ListBlobsHierarchySegmentResponse
@@ -621,8 +643,8 @@ func (f *Fs) markContainerOK() {
 }
 
 // listDir lists a single directory
-func (f *Fs) listDir(dir string) (entries fs.DirEntries, err error) {
-	err = f.list(dir, false, f.opt.ListChunkSize, func(remote string, object *azblob.BlobItem, isDirectory bool) error {
+func (f *Fs) listDir(ctx context.Context, dir string) (entries fs.DirEntries, err error) {
+	err = f.list(ctx, dir, false, f.opt.ListChunkSize, func(remote string, object *azblob.BlobItem, isDirectory bool) error {
 		entry, err := f.itemToDirEntry(remote, object, isDirectory)
 		if err != nil {
 			return err
@@ -665,11 +687,11 @@ func (f *Fs) listContainers(dir string) (entries fs.DirEntries, err error) {
 //
 // This should return ErrDirNotFound if the directory isn't
 // found.
-func (f *Fs) List(dir string) (entries fs.DirEntries, err error) {
+func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err error) {
 	if f.container == "" {
 		return f.listContainers(dir)
 	}
-	return f.listDir(dir)
+	return f.listDir(ctx, dir)
 }
 
 // ListR lists the objects and directories of the Fs starting
@@ -688,12 +710,12 @@ func (f *Fs) List(dir string) (entries fs.DirEntries, err error) {
 //
 // Don't implement this unless you have a more efficient way
 // of listing recursively that doing a directory traversal.
-func (f *Fs) ListR(dir string, callback fs.ListRCallback) (err error) {
+func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (err error) {
 	if f.container == "" {
 		return fs.ErrorListBucketRequired
 	}
 	list := walk.NewListRHelper(callback)
-	err = f.list(dir, true, f.opt.ListChunkSize, func(remote string, object *azblob.BlobItem, isDirectory bool) error {
+	err = f.list(ctx, dir, true, f.opt.ListChunkSize, func(remote string, object *azblob.BlobItem, isDirectory bool) error {
 		entry, err := f.itemToDirEntry(remote, object, isDirectory)
 		if err != nil {
 			return err
@@ -745,13 +767,13 @@ func (f *Fs) listContainersToFn(fn listContainerFn) error {
 // Copy the reader in to the new object which is returned
 //
 // The new object may have been created if an error is returned
-func (f *Fs) Put(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
+func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
 	// Temporary Object under construction
 	fs := &Object{
 		fs:     f,
 		remote: src.Remote(),
 	}
-	return fs, fs.Update(in, src, options...)
+	return fs, fs.Update(ctx, in, src, options...)
 }
 
 // Check if the container exists
@@ -784,7 +806,7 @@ func (f *Fs) dirExists() (bool, error) {
 }
 
 // Mkdir creates the container if it doesn't exist
-func (f *Fs) Mkdir(dir string) error {
+func (f *Fs) Mkdir(ctx context.Context, dir string) error {
 	f.containerOKMu.Lock()
 	defer f.containerOKMu.Unlock()
 	if f.containerOK {
@@ -831,9 +853,9 @@ func (f *Fs) Mkdir(dir string) error {
 }
 
 // isEmpty checks to see if a given directory is empty and returns an error if not
-func (f *Fs) isEmpty(dir string) (err error) {
+func (f *Fs) isEmpty(ctx context.Context, dir string) (err error) {
 	empty := true
-	err = f.list(dir, true, 1, func(remote string, object *azblob.BlobItem, isDirectory bool) error {
+	err = f.list(ctx, dir, true, 1, func(remote string, object *azblob.BlobItem, isDirectory bool) error {
 		empty = false
 		return nil
 	})
@@ -880,8 +902,8 @@ func (f *Fs) deleteContainer() error {
 // Rmdir deletes the container if the fs is at the root
 //
 // Returns an error if it isn't empty
-func (f *Fs) Rmdir(dir string) error {
-	err := f.isEmpty(dir)
+func (f *Fs) Rmdir(ctx context.Context, dir string) error {
+	err := f.isEmpty(ctx, dir)
 	if err != nil {
 		return err
 	}
@@ -902,7 +924,7 @@ func (f *Fs) Hashes() hash.Set {
 }
 
 // Purge deletes all the files and directories including the old versions.
-func (f *Fs) Purge() error {
+func (f *Fs) Purge(ctx context.Context) error {
 	dir := "" // forward compat!
 	if f.root != "" || dir != "" {
 		// Delegate to caller if not root container
@@ -920,8 +942,8 @@ func (f *Fs) Purge() error {
 // Will only be called if src.Fs().Name() == f.Name()
 //
 // If it isn't possible then return fs.ErrorCantCopy
-func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
-	err := f.Mkdir("")
+func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object, error) {
+	err := f.Mkdir(ctx, "")
 	if err != nil {
 		return nil, err
 	}
@@ -939,7 +961,6 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 	}
 
 	options := azblob.BlobAccessConditions{}
-	ctx := context.Background()
 	var startCopy *azblob.BlobStartCopyFromURLResponse
 
 	err = f.pacer.Call(func() (bool, error) {
@@ -960,7 +981,7 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 		copyStatus = getMetadata.CopyStatus()
 	}
 
-	return f.NewObject(remote)
+	return f.NewObject(ctx, remote)
 }
 
 // ------------------------------------------------------------
@@ -984,7 +1005,7 @@ func (o *Object) Remote() string {
 }
 
 // Hash returns the MD5 of an object returning a lowercase hex string
-func (o *Object) Hash(t hash.Type) (string, error) {
+func (o *Object) Hash(ctx context.Context, t hash.Type) (string, error) {
 	if t != hash.MD5 {
 		return "", hash.ErrUnsupported
 	}
@@ -1124,14 +1145,14 @@ func (o *Object) parseTimeString(timeString string) (err error) {
 //
 // It attempts to read the objects mtime and if that isn't present the
 // LastModified returned in the http headers
-func (o *Object) ModTime() (result time.Time) {
+func (o *Object) ModTime(ctx context.Context) (result time.Time) {
 	// The error is logged in readMetaData
 	_ = o.readMetaData()
 	return o.modTime
 }
 
 // SetModTime sets the modification time of the local fs object
-func (o *Object) SetModTime(modTime time.Time) error {
+func (o *Object) SetModTime(ctx context.Context, modTime time.Time) error {
 	// Make sure o.meta is not nil
 	if o.meta == nil {
 		o.meta = make(map[string]string, 1)
@@ -1140,7 +1161,6 @@ func (o *Object) SetModTime(modTime time.Time) error {
 	o.meta[modTimeKey] = modTime.Format(timeFormatOut)
 
 	blob := o.getBlobReference()
-	ctx := context.Background()
 	err := o.fs.pacer.Call(func() (bool, error) {
 		_, err := blob.SetMetadata(ctx, o.meta, azblob.BlobAccessConditions{})
 		return o.fs.shouldRetry(err)
@@ -1158,7 +1178,7 @@ func (o *Object) Storable() bool {
 }
 
 // Open an object for read
-func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
+func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.ReadCloser, err error) {
 	// Offset and Count for range download
 	var offset int64
 	var count int64
@@ -1182,7 +1202,6 @@ func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
 		}
 	}
 	blob := o.getBlobReference()
-	ctx := context.Background()
 	ac := azblob.BlobAccessConditions{}
 	var dowloadResponse *azblob.DownloadResponse
 	err = o.fs.pacer.Call(func() (bool, error) {
@@ -1371,26 +1390,26 @@ outer:
 // Update the object with the contents of the io.Reader, modTime and size
 //
 // The new object may have been created if an error is returned
-func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (err error) {
-	err = o.fs.Mkdir("")
+func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (err error) {
+	err = o.fs.Mkdir(ctx, "")
 	if err != nil {
 		return err
 	}
 	size := src.Size()
 	// Update Mod time
-	o.updateMetadataWithModTime(src.ModTime())
+	o.updateMetadataWithModTime(src.ModTime(ctx))
 	if err != nil {
 		return err
 	}
 
 	blob := o.getBlobReference()
 	httpHeaders := azblob.BlobHTTPHeaders{}
-	httpHeaders.ContentType = fs.MimeType(o)
+	httpHeaders.ContentType = fs.MimeType(ctx, o)
 	// Compute the Content-MD5 of the file, for multiparts uploads it
 	// will be set in PutBlockList API call using the 'x-ms-blob-content-md5' header
 	// Note: If multipart, a MD5 checksum will also be computed for each uploaded block
 	// 		 in order to validate its integrity during transport
-	if sourceMD5, _ := src.Hash(hash.MD5); sourceMD5 != "" {
+	if sourceMD5, _ := src.Hash(ctx, hash.MD5); sourceMD5 != "" {
 		sourceMD5bytes, err := hex.DecodeString(sourceMD5)
 		if err == nil {
 			httpHeaders.ContentMD5 = sourceMD5bytes
@@ -1408,14 +1427,13 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 	// FIXME Until https://github.com/Azure/azure-storage-blob-go/pull/75
 	// is merged the SDK can't upload a single blob of exactly the chunk
 	// size, so upload with a multpart upload to work around.
-	// See: https://github.com/artpar/rclone/issues/2653
+	// See: https://github.com/rclone/rclone/issues/2653
 	multipartUpload := size >= int64(o.fs.opt.UploadCutoff)
 	if size == int64(o.fs.opt.ChunkSize) {
 		multipartUpload = true
 		fs.Debugf(o, "Setting multipart upload for file of chunk size (%d) to work around SDK bug", size)
 	}
 
-	ctx := context.Background()
 	// Don't retry, return a retry error instead
 	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
 		if multipartUpload {
@@ -1448,11 +1466,10 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 }
 
 // Remove an object
-func (o *Object) Remove() error {
+func (o *Object) Remove(ctx context.Context) error {
 	blob := o.getBlobReference()
 	snapShotOptions := azblob.DeleteSnapshotsOptionNone
 	ac := azblob.BlobAccessConditions{}
-	ctx := context.Background()
 	return o.fs.pacer.Call(func() (bool, error) {
 		_, err := blob.Delete(ctx, snapShotOptions, ac)
 		return o.fs.shouldRetry(err)
@@ -1460,7 +1477,7 @@ func (o *Object) Remove() error {
 }
 
 // MimeType of an Object if known, "" otherwise
-func (o *Object) MimeType() string {
+func (o *Object) MimeType(ctx context.Context) string {
 	return o.mimeType
 }
 

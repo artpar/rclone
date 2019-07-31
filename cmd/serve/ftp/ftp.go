@@ -15,14 +15,14 @@ import (
 	"sync"
 
 	ftp "github.com/goftp/server"
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/cmd/serve/ftp/ftpflags"
-	"github.com/artpar/rclone/cmd/serve/ftp/ftpopt"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/log"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/cmd/serve/ftp/ftpflags"
+	"github.com/rclone/rclone/cmd/serve/ftp/ftpopt"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/log"
+	"github.com/rclone/rclone/vfs"
+	"github.com/rclone/rclone/vfs/vfsflags"
 	"github.com/spf13/cobra"
 )
 
@@ -78,6 +78,7 @@ func newServer(f fs.Fs, opt *ftpopt.Options) (*server, error) {
 		},
 		Hostname:     host,
 		Port:         portNum,
+		PublicIp:     opt.PublicIP,
 		PassivePorts: opt.PassivePorts,
 		Auth: &Auth{
 			BasicUser: opt.BasicUser,
@@ -155,7 +156,7 @@ func (f *DriverFactory) NewDriver() (ftp.Driver, error) {
 	}, nil
 }
 
-//Driver impletation of ftp server
+//Driver implementation of ftp server
 type Driver struct {
 	vfs  *vfs.VFS
 	lock sync.Mutex
@@ -213,8 +214,10 @@ func (d *Driver) ListDir(path string, callback func(ftp.FileInfo) error) (err er
 	}
 
 	// Account the transfer
-	accounting.Stats.Transferring(path)
-	defer accounting.Stats.DoneTransferring(path, true)
+	tr := accounting.GlobalStats().NewTransferRemoteSize(path, node.Size())
+	defer func() {
+		tr.Done(err)
+	}()
 
 	for _, file := range dirEntries {
 		err = callback(&FileInfo{file, file.Mode(), d.vfs.Opt.UID, d.vfs.Opt.GID})
@@ -310,8 +313,8 @@ func (d *Driver) GetFile(path string, offset int64) (size int64, fr io.ReadClose
 	}
 
 	// Account the transfer
-	accounting.Stats.Transferring(path)
-	defer accounting.Stats.DoneTransferring(path, true)
+	tr := accounting.GlobalStats().NewTransferRemoteSize(path, node.Size())
+	defer tr.Done(nil)
 
 	return node.Size(), handle, nil
 }
@@ -378,7 +381,7 @@ func (d *Driver) PutFile(path string, data io.Reader, appendData bool) (n int64,
 	return bytes, nil
 }
 
-//FileInfo  struct ot hold file infor for ftp server
+//FileInfo struct to hold file info for ftp server
 type FileInfo struct {
 	os.FileInfo
 
@@ -387,7 +390,7 @@ type FileInfo struct {
 	group uint32
 }
 
-//Mode return êrm mode of file.
+//Mode return mode of file.
 func (f *FileInfo) Mode() os.FileMode {
 	return f.mode
 }
@@ -407,7 +410,7 @@ func (f *FileInfo) Group() string {
 	str := fmt.Sprint(f.group)
 	g, err := user.LookupGroupId(str)
 	if err != nil {
-		return str //Group not found default to numrical value
+		return str //Group not found default to numerical value
 	}
 	return g.Name
 }

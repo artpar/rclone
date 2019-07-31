@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/artpar/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config"
 	"golang.org/x/sys/unix"
 )
 

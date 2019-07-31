@@ -1,10 +1,11 @@
 package dedupe
 
 import (
+	"context"
 	"log"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs/operations"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/fs/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -106,13 +107,13 @@ Or
 		if len(args) > 1 {
 			err := dedupeMode.Set(args[0])
 			if err != nil {
-				log.Print(err)
+				log.Fatal(err)
 			}
 			args = args[1:]
 		}
 		fdst := cmd.NewFsSrc(args)
 		cmd.Run(false, false, command, func() error {
-			return operations.Deduplicate(fdst, dedupeMode)
+			return operations.Deduplicate(context.Background(), fdst, dedupeMode)
 		})
 	},
 }

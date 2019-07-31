@@ -2,6 +2,7 @@
 package httplib
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -15,9 +16,9 @@ import (
 	"time"
 
 	auth "github.com/abbot/go-http-auth"
-	"github.com/artpar/rclone/cmd/serve/httplib/serve/data"
-	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/cmd/serve/httplib/serve/data"
+	"github.com/rclone/rclone/fs"
 )
 
 // Globals
@@ -114,6 +115,11 @@ type Server struct {
 	HTMLTemplate    *template.Template // HTML template for web interface
 }
 
+type contextUserType struct{}
+
+// ContextUserKey is a simple context key
+var ContextUserKey = &contextUserType{}
+
 // singleUserProvider provides the encrypted password for a single user
 func (s *Server) singleUserProvider(user, realm string) string {
 	if user == s.Opt.BasicUser {
@@ -150,6 +156,11 @@ func NewServer(handler http.Handler, opt *Options) *Server {
 		authenticator := auth.NewBasicAuthenticator(s.Opt.Realm, secretProvider)
 		oldHandler := handler
 		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// No auth wanted for OPTIONS method
+			if r.Method == "OPTIONS" {
+				oldHandler.ServeHTTP(w, r)
+				return
+			}
 			if username := authenticator.CheckAuth(r); username == "" {
 				authHeader := r.Header.Get(authenticator.Headers.V().Authorization)
 				if authHeader != "" {
@@ -167,6 +178,7 @@ func NewServer(handler http.Handler, opt *Options) *Server {
 				}
 				authenticator.RequireAuth(w, r)
 			} else {
+				r = r.WithContext(context.WithValue(r.Context(), ContextUserKey, username))
 				oldHandler.ServeHTTP(w, r)
 			}
 		})

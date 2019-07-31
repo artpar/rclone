@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/fshttp"
 	"golang.org/x/net/publicsuffix"
 )
 

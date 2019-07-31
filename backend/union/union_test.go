@@ -4,8 +4,8 @@ package union_test
 import (
 	"testing"
 
-	_ "github.com/artpar/rclone/backend/local"
-	"github.com/artpar/rclone/fstest/fstests"
+	_ "github.com/rclone/rclone/backend/local"
+	"github.com/rclone/rclone/fstest/fstests"
 )
 
 // TestIntegration runs integration tests against the remote

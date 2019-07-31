@@ -20,19 +20,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/config/configflags"
-	"github.com/artpar/rclone/fs/config/flags"
-	"github.com/artpar/rclone/fs/filter"
-	"github.com/artpar/rclone/fs/filter/filterflags"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fspath"
-	fslog "github.com/artpar/rclone/fs/log"
-	"github.com/artpar/rclone/fs/rc/rcflags"
-	"github.com/artpar/rclone/fs/rc/rcserver"
-	"github.com/artpar/rclone/lib/atexit"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/cache"
+	"github.com/rclone/rclone/fs/config/configflags"
+	"github.com/rclone/rclone/fs/config/flags"
+	"github.com/rclone/rclone/fs/filter"
+	"github.com/rclone/rclone/fs/filter/filterflags"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fspath"
+	fslog "github.com/rclone/rclone/fs/log"
+	"github.com/rclone/rclone/fs/rc/rcflags"
+	"github.com/rclone/rclone/fs/rc/rcserver"
+	"github.com/rclone/rclone/lib/atexit"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -55,7 +56,7 @@ var (
 )
 
 const (
-	exitCodeSuccess            = iota
+	exitCodeSuccess = iota
 	exitCodeUsageError
 	exitCodeUncategorizedError
 	exitCodeDirNotFound
@@ -81,9 +82,9 @@ func NewFsFile(remote string) (fs.Fs, string) {
 	_, _, fsPath, err := fs.ParseRemote(remote)
 	if err != nil {
 		fs.CountError(err)
-		log.Printf("Failed to create file system for %q: %v", remote, err)
+		log.Fatalf("Failed to create file system for %q: %v", remote, err)
 	}
-	f, err := fs.NewFs(remote)
+	f, err := cache.Get(remote)
 	switch err {
 	case fs.ErrorIsFile:
 		return f, path.Base(fsPath)
@@ -91,7 +92,7 @@ func NewFsFile(remote string) (fs.Fs, string) {
 		return f, ""
 	default:
 		fs.CountError(err)
-		log.Printf("Failed to create file system for %q: %v", remote, err)
+		log.Fatalf("Failed to create file system for %q: %v", remote, err)
 	}
 	return nil, ""
 }
@@ -106,13 +107,13 @@ func newFsFileAddFilter(remote string) (fs.Fs, string) {
 		if !filter.Active.InActive() {
 			err := errors.Errorf("Can't limit to single files when using filters: %v", remote)
 			fs.CountError(err)
-			log.Printf(err.Error())
+			log.Fatalf(err.Error())
 		}
 		// Limit transfers to this file
 		err := filter.Active.AddFile(fileName)
 		if err != nil {
 			fs.CountError(err)
-			log.Printf("Failed to limit to single file %q: %v", remote, err)
+			log.Fatalf("Failed to limit to single file %q: %v", remote, err)
 		}
 	}
 	return f, fileName
@@ -131,10 +132,10 @@ func NewFsSrc(args []string) fs.Fs {
 //
 // This must point to a directory
 func newFsDir(remote string) fs.Fs {
-	f, err := fs.NewFs(remote)
+	f, err := cache.Get(remote)
 	if err != nil {
 		fs.CountError(err)
-		log.Printf("Failed to create file system for %q: %v", remote, err)
+		log.Fatalf("Failed to create file system for %q: %v", remote, err)
 	}
 	return f
 }
@@ -177,10 +178,10 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 			dstRemote = "."
 		}
 		if dstFileName == "" {
-			log.Printf("%q is a directory", args[1])
+			log.Fatalf("%q is a directory", args[1])
 		}
 	}
-	fdst, err := fs.NewFs(dstRemote)
+	fdst, err := cache.Get(dstRemote)
 	switch err {
 	case fs.ErrorIsFile:
 		fs.CountError(err)
@@ -231,35 +232,38 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 	for try := 1; try <= *retries; try++ {
 		err = f()
 		fs.CountError(err)
-		if !Retry || !accounting.Stats.Errored() {
+		lastErr := accounting.GlobalStats().GetLastError()
+		if err == nil {
+			err = lastErr
+		}
+		if !Retry || !accounting.GlobalStats().Errored() {
 			if try > 1 {
 				fs.Errorf(nil, "Attempt %d/%d succeeded", try, *retries)
 			}
 			break
 		}
-		if accounting.Stats.HadFatalError() {
+		if accounting.GlobalStats().HadFatalError() {
 			fs.Errorf(nil, "Fatal error received - not attempting retries")
 			break
 		}
-		if accounting.Stats.Errored() && !accounting.Stats.HadRetryError() {
+		if accounting.GlobalStats().Errored() && !accounting.GlobalStats().HadRetryError() {
 			fs.Errorf(nil, "Can't retry this error - not attempting retries")
 			break
 		}
-		if retryAfter := accounting.Stats.RetryAfter(); !retryAfter.IsZero() {
+		if retryAfter := accounting.GlobalStats().RetryAfter(); !retryAfter.IsZero() {
 			d := retryAfter.Sub(time.Now())
 			if d > 0 {
 				fs.Logf(nil, "Received retry after error - sleeping until %s (%v)", retryAfter.Format(time.RFC3339Nano), d)
 				time.Sleep(d)
 			}
 		}
-		lastErr := accounting.Stats.GetLastError()
 		if lastErr != nil {
-			fs.Errorf(nil, "Attempt %d/%d failed with %d errors and: %v", try, *retries, accounting.Stats.GetErrors(), lastErr)
+			fs.Errorf(nil, "Attempt %d/%d failed with %d errors and: %v", try, *retries, accounting.GlobalStats().GetErrors(), lastErr)
 		} else {
-			fs.Errorf(nil, "Attempt %d/%d failed with %d errors", try, *retries, accounting.Stats.GetErrors())
+			fs.Errorf(nil, "Attempt %d/%d failed with %d errors", try, *retries, accounting.GlobalStats().GetErrors())
 		}
 		if try < *retries {
-			accounting.Stats.ResetErrors()
+			accounting.GlobalStats().ResetErrors()
 		}
 		if *retriesInterval > 0 {
 			time.Sleep(*retriesInterval)
@@ -267,11 +271,16 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 	}
 	stopStats()
 	if err != nil {
-		log.Printf("Failed to %s: %v", err)
-		//resolveExitCode(err)
+		nerrs := accounting.GlobalStats().GetErrors()
+		if nerrs <= 1 {
+			log.Printf("Failed to %s: %v", cmd.Name(), err)
+		} else {
+			log.Printf("Failed to %s with %d errors: last error was: %v", cmd.Name(), nerrs, err)
+		}
+		resolveExitCode(err)
 	}
-	if showStats && (accounting.Stats.Errored() || *statsInterval > 0) {
-		accounting.Stats.Log()
+	if showStats && (accounting.GlobalStats().Errored() || *statsInterval > 0) {
+		accounting.GlobalStats().Log()
 	}
 	fs.Debugf(nil, "%d go routines active\n", runtime.NumGoroutine())
 
@@ -294,8 +303,8 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 		}
 	}
 
-	if accounting.Stats.Errored() {
-		//resolveExitCode(accounting.Stats.GetLastError())
+	if accounting.GlobalStats().Errored() {
+		resolveExitCode(accounting.GlobalStats().GetLastError())
 	}
 }
 
@@ -304,11 +313,11 @@ func CheckArgs(MinArgs, MaxArgs int, cmd *cobra.Command, args []string) {
 	if len(args) < MinArgs {
 		_ = cmd.Usage()
 		_, _ = fmt.Fprintf(os.Stderr, "Command %s needs %d arguments minimum: you provided %d non flag arguments: %q\n", cmd.Name(), MinArgs, len(args), args)
-		//resolveExitCode(errorNotEnoughArguments)
+		resolveExitCode(errorNotEnoughArguments)
 	} else if len(args) > MaxArgs {
 		_ = cmd.Usage()
 		_, _ = fmt.Fprintf(os.Stderr, "Command %s needs %d arguments maximum: you provided %d non flag arguments: %q\n", cmd.Name(), MaxArgs, len(args), args)
-		//resolveExitCode(errorTooManyArguments)
+		resolveExitCode(errorTooManyArguments)
 	}
 }
 
@@ -328,7 +337,7 @@ func StartStats() func() {
 		for {
 			select {
 			case <-ticker.C:
-				accounting.Stats.Log()
+				accounting.GlobalStats().Log()
 			case <-stopStats:
 				ticker.Stop()
 				return
@@ -370,12 +379,12 @@ func initConfig() {
 		f, err := os.Create(*cpuProfile)
 		if err != nil {
 			fs.CountError(err)
-			log.Printf("%v", err)
+			log.Fatal(err)
 		}
 		err = pprof.StartCPUProfile(f)
 		if err != nil {
 			fs.CountError(err)
-			log.Printf("%v", err)
+			log.Fatal(err)
 		}
 		atexit.Register(func() {
 			pprof.StopCPUProfile()
@@ -389,17 +398,17 @@ func initConfig() {
 			f, err := os.Create(*memProfile)
 			if err != nil {
 				fs.CountError(err)
-				log.Printf("%v", err)
+				log.Fatal(err)
 			}
 			err = pprof.WriteHeapProfile(f)
 			if err != nil {
 				fs.CountError(err)
-				log.Printf("%v", err)
+				log.Fatal(err)
 			}
 			err = f.Close()
 			if err != nil {
 				fs.CountError(err)
-				log.Printf("%v", err)
+				log.Fatal(err)
 			}
 		})
 	}

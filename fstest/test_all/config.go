@@ -9,8 +9,8 @@ import (
 	"log"
 	"path"
 
-	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -22,6 +22,7 @@ type Test struct {
 	AddBackend bool   // set if Path needs the current backend appending
 	NoRetries  bool   // set if no retries should be performed
 	NoBinary   bool   // set to not build a binary in advance
+	LocalOnly  bool   // if set only run with the local backend
 }
 
 // Backend describes a backend test
@@ -34,6 +35,21 @@ type Backend struct {
 	FastList bool     // set to test with -fast-list
 	OneOnly  bool     // set to run only one backend test at once
 	Ignore   []string // test names to ignore the failure of
+	Tests    []string // paths of tests to run, blank for all
+}
+
+// includeTest returns true if this backend should be included in this
+// test
+func (b *Backend) includeTest(t *Test) bool {
+	if len(b.Tests) == 0 {
+		return true
+	}
+	for _, testPath := range b.Tests {
+		if testPath == t.Path {
+			return true
+		}
+	}
+	return false
 }
 
 // MakeRuns creates Run objects the Backend and Test
@@ -41,6 +57,9 @@ type Backend struct {
 // There can be several created, one for each combination of SubDir
 // and FastList
 func (b *Backend) MakeRuns(t *Test) (runs []*Run) {
+	if !b.includeTest(t) {
+		return runs
+	}
 	subdirs := []bool{false}
 	if b.SubDir && t.SubDir {
 		subdirs = append(subdirs, true)
@@ -55,6 +74,9 @@ func (b *Backend) MakeRuns(t *Test) (runs []*Run) {
 	}
 	for _, subdir := range subdirs {
 		for _, fastlist := range fastlists {
+			if t.LocalOnly && b.Backend != "local" {
+				continue
+			}
 			run := &Run{
 				Remote:    b.Remote,
 				Backend:   b.Backend,

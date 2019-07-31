@@ -5,6 +5,7 @@ package fstest
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -21,11 +22,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/walk"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/walk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/unicode/norm"
@@ -127,7 +128,7 @@ func (i *Item) CheckHashes(t *testing.T, obj fs.Object) {
 	types := obj.Fs().Hashes().Array()
 	for _, Hash := range types {
 		// Check attributes
-		sum, err := obj.Hash(Hash)
+		sum, err := obj.Hash(context.Background(), Hash)
 		require.NoError(t, err)
 		assert.True(t, hash.Equals(i.Hashes[Hash], sum), fmt.Sprintf("%s/%s: %v hash incorrect - expecting %q got %q", obj.Fs().String(), obj.Remote(), Hash, i.Hashes[Hash], sum))
 	}
@@ -137,7 +138,7 @@ func (i *Item) CheckHashes(t *testing.T, obj fs.Object) {
 func (i *Item) Check(t *testing.T, obj fs.Object, precision time.Duration) {
 	i.CheckHashes(t, obj)
 	assert.Equal(t, i.Size, obj.Size(), fmt.Sprintf("%s: size incorrect file=%d vs obj=%d", i.Path, i.Size, obj.Size()))
-	i.CheckModTime(t, obj, obj.ModTime(), precision)
+	i.CheckModTime(t, obj, obj.ModTime(context.Background()), precision)
 }
 
 // WinPath converts a path into a windows safe path
@@ -273,7 +274,8 @@ func CheckListingWithPrecision(t *testing.T, f fs.Fs, items []Item, expectedDirs
 		expectedDirs = filterEmptyDirs(t, items, expectedDirs)
 	}
 	is := NewItems(items)
-	oldErrors := accounting.Stats.GetErrors()
+	ctx := context.Background()
+	oldErrors := accounting.Stats(ctx).GetErrors()
 	var objs []fs.Object
 	var dirs []fs.Directory
 	var err error
@@ -283,7 +285,7 @@ func CheckListingWithPrecision(t *testing.T, f fs.Fs, items []Item, expectedDirs
 	gotListing := "<unset>"
 	listingOK := false
 	for i := 1; i <= retries; i++ {
-		objs, dirs, err = walk.GetAll(f, "", true, -1)
+		objs, dirs, err = walk.GetAll(ctx, f, "", true, -1)
 		if err != nil && err != fs.ErrorDirNotFound {
 			t.Fatalf("Error listing: %v", err)
 		}
@@ -315,8 +317,8 @@ func CheckListingWithPrecision(t *testing.T, f fs.Fs, items []Item, expectedDirs
 	}
 	is.Done(t)
 	// Don't notice an error when listing an empty directory
-	if len(items) == 0 && oldErrors == 0 && accounting.Stats.GetErrors() == 1 {
-		accounting.Stats.ResetErrors()
+	if len(items) == 0 && oldErrors == 0 && accounting.Stats(ctx).GetErrors() == 1 {
+		accounting.Stats(ctx).ResetErrors()
 	}
 	// Check the directories
 	if expectedDirs != nil {
@@ -456,23 +458,24 @@ func RandomRemote(remoteName string, subdir bool) (fs.Fs, string, func(), error)
 //
 // It logs errors rather than returning them
 func Purge(f fs.Fs) {
+	ctx := context.Background()
 	var err error
 	doFallbackPurge := true
 	if doPurge := f.Features().Purge; doPurge != nil {
 		doFallbackPurge = false
 		fs.Debugf(f, "Purge remote")
-		err = doPurge()
+		err = doPurge(ctx)
 		if err == fs.ErrorCantPurge {
 			doFallbackPurge = true
 		}
 	}
 	if doFallbackPurge {
 		dirs := []string{""}
-		err = walk.ListR(f, "", true, -1, walk.ListAll, func(entries fs.DirEntries) error {
+		err = walk.ListR(ctx, f, "", true, -1, walk.ListAll, func(entries fs.DirEntries) error {
 			var err error
 			entries.ForObject(func(obj fs.Object) {
 				fs.Debugf(f, "Purge object %q", obj.Remote())
-				err = obj.Remove()
+				err = obj.Remove(ctx)
 				if err != nil {
 					log.Printf("purge failed to remove %q: %v", obj.Remote(), err)
 				}
@@ -486,7 +489,7 @@ func Purge(f fs.Fs) {
 		for i := len(dirs) - 1; i >= 0; i-- {
 			dir := dirs[i]
 			fs.Debugf(f, "Purge dir %q", dir)
-			err := f.Rmdir(dir)
+			err := f.Rmdir(ctx, dir)
 			if err != nil {
 				log.Printf("purge failed to rmdir %q: %v", dir, err)
 			}

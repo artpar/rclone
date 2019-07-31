@@ -6,13 +6,13 @@
 [Contributing](CONTRIBUTING.md) |
 [Changelog](https://rclone.org/changelog/) |
 [Installation](https://rclone.org/install/) |
-[Forum](https://forum.rclone.org/) |
+[Forum](https://forum.rclone.org/) | 
 
-[![Build Status](https://travis-ci.org/artpar/rclone.svg?branch=master)](https://travis-ci.org/artpar/rclone)
-[![Windows Build Status](https://ci.appveyor.com/api/projects/status/github/artpar/rclone?branch=master&passingText=windows%20-%20ok&svg=true)](https://ci.appveyor.com/project/artpar/rclone)
-[![CircleCI](https://circleci.com/gh/artpar/rclone/tree/master.svg?style=svg)](https://circleci.com/gh/artpar/rclone/tree/master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/artpar/rclone)](https://goreportcard.com/report/github.com/artpar/rclone)
-[![GoDoc](https://godoc.org/github.com/artpar/rclone?status.svg)](https://godoc.org/github.com/artpar/rclone)
+[![Build Status](https://travis-ci.org/rclone/rclone.svg?branch=master)](https://travis-ci.org/rclone/rclone)
+[![Windows Build Status](https://ci.appveyor.com/api/projects/status/github/rclone/rclone?branch=master&passingText=windows%20-%20ok&svg=true)](https://ci.appveyor.com/project/rclone/rclone)
+[![CircleCI](https://circleci.com/gh/rclone/rclone/tree/master.svg?style=svg)](https://circleci.com/gh/rclone/rclone/tree/master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/rclone/rclone)](https://goreportcard.com/report/github.com/rclone/rclone)
+[![GoDoc](https://godoc.org/github.com/rclone/rclone?status.svg)](https://godoc.org/github.com/rclone/rclone) 
 
 # Rclone
 
@@ -20,6 +20,7 @@ Rclone *("rsync for cloud storage")* is a command line program to sync files and
 
 ## Storage providers
 
+  * 1Fichier [:page_facing_up:](https://rclone.org/ficher/)
   * Alibaba Cloud (Aliyun) Object Storage System (OSS) [:page_facing_up:](https://rclone.org/s3/#alibaba-oss)
   * Amazon Drive [:page_facing_up:](https://rclone.org/amazonclouddrive/) ([See note](https://rclone.org/amazonclouddrive/#status))
   * Amazon S3 [:page_facing_up:](https://rclone.org/s3/)
@@ -32,6 +33,7 @@ Rclone *("rsync for cloud storage")* is a command line program to sync files and
   * FTP [:page_facing_up:](https://rclone.org/ftp/)
   * Google Cloud Storage [:page_facing_up:](https://rclone.org/googlecloudstorage/)
   * Google Drive [:page_facing_up:](https://rclone.org/drive/)
+  * Google Photos [:page_facing_up:](https://rclone.org/googlephotos/)
   * HTTP [:page_facing_up:](https://rclone.org/http/)
   * Hubic [:page_facing_up:](https://rclone.org/hubic/)
   * Jottacloud [:page_facing_up:](https://rclone.org/jottacloud/)
@@ -73,6 +75,8 @@ Please see [the full list of all storage providers and their features](https://r
   * Optional encryption ([Crypt](https://rclone.org/crypt/))
   * Optional cache ([Cache](https://rclone.org/cache/))
   * Optional FUSE mount ([rclone mount](https://rclone.org/commands/rclone_mount/))
+  * Multi-threaded downloads to local disk
+  * Can [serve](https://rclone.org/commands/rclone_serve/) local or remote files over HTTP/WebDav/FTP/SFTP/dlna
 
 ## Installation & documentation
 

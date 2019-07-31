@@ -1,13 +1,15 @@
 package vfs
 
 import (
+	"context"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fstest"
+	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -113,8 +115,11 @@ func TestWriteFileHandleMethods(t *testing.T) {
 	// it even if we don't write to it
 	h, err = vfs.OpenFile("file1", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
 	require.NoError(t, err)
-	assert.NoError(t, h.Close())
-	checkListing(t, root, []string{"file1,0,false"})
+	err = h.Close()
+	if errors.Cause(err) != fs.ErrorCantUploadEmptyFiles {
+		assert.NoError(t, err)
+		checkListing(t, root, []string{"file1,0,false"})
+	}
 
 	// Check opening the file with O_TRUNC and writing does work
 	h, err = vfs.OpenFile("file1", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0777)
@@ -212,6 +217,10 @@ func TestWriteFileHandleRelease(t *testing.T) {
 
 	// Check Release closes file
 	err := fh.Release()
+	if errors.Cause(err) == fs.ErrorCantUploadEmptyFiles {
+		t.Logf("skipping test: %v", err)
+		return
+	}
 	assert.NoError(t, err)
 	assert.True(t, fh.closed)
 
@@ -230,11 +239,11 @@ var (
 func canSetModTime(t *testing.T, r *fstest.Run) bool {
 	canSetModTimeOnce.Do(func() {
 		mtime1 := time.Date(2008, time.November, 18, 17, 32, 31, 0, time.UTC)
-		_ = r.WriteObject("time_test", "stuff", mtime1)
-		obj, err := r.Fremote.NewObject("time_test")
+		_ = r.WriteObject(context.Background(), "time_test", "stuff", mtime1)
+		obj, err := r.Fremote.NewObject(context.Background(), "time_test")
 		require.NoError(t, err)
 		mtime2 := time.Date(2009, time.November, 18, 17, 32, 31, 0, time.UTC)
-		err = obj.SetModTime(mtime2)
+		err = obj.SetModTime(context.Background(), mtime2)
 		switch err {
 		case nil:
 			canSetModTimeValue = true
@@ -243,7 +252,7 @@ func canSetModTime(t *testing.T, r *fstest.Run) bool {
 		default:
 			require.NoError(t, err)
 		}
-		require.NoError(t, obj.Remove())
+		require.NoError(t, obj.Remove(context.Background()))
 		fs.Debugf(nil, "Can set mod time: %v", canSetModTimeValue)
 	})
 	return canSetModTimeValue

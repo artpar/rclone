@@ -1,8 +1,10 @@
 package copyurl
 
 import (
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs/operations"
+	"context"
+
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/fs/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -22,7 +24,7 @@ without saving it in tmp storage.
 		fsdst, dstFileName := cmd.NewFsDstFile(args[1:])
 
 		cmd.Run(true, true, command, func() error {
-			_, err := operations.CopyURL(fsdst, dstFileName, args[0])
+			_, err := operations.CopyURL(context.Background(), fsdst, dstFileName, args[0])
 			return err
 		})
 	},

@@ -17,6 +17,7 @@ Here is an overview of the major features of each cloud storage system.
 
 | Name                         | Hash        | ModTime | Case Insensitive | Duplicate Files | MIME Type |
 | ---------------------------- |:-----------:|:-------:|:----------------:|:---------------:|:---------:|
+| 1Fichier                     | Whirlpool   | No      | No               | Yes             | R         |
 | Amazon Drive                 | MD5         | No      | Yes              | No              | R         |
 | Amazon S3                    | MD5         | Yes     | No               | No              | R/W       |
 | Backblaze B2                 | SHA1        | Yes     | No               | No              | R/W       |
@@ -25,6 +26,7 @@ Here is an overview of the major features of each cloud storage system.
 | FTP                          | -           | No      | No               | No              | -         |
 | Google Cloud Storage         | MD5         | Yes     | No               | No              | R/W       |
 | Google Drive                 | MD5         | Yes     | No               | Yes             | R/W       |
+| Google Photos                | -           | No      | No               | Yes             | R         |
 | HTTP                         | -           | No      | No               | No              | R         |
 | Hubic                        | MD5         | Yes     | No               | No              | R/W       |
 | Jottacloud                   | MD5         | Yes     | Yes              | No              | R/W       |
@@ -131,26 +133,28 @@ operations more efficient.
 
 | Name                         | Purge | Copy | Move | DirMove | CleanUp | ListR | StreamUpload | LinkSharing | About |
 | ---------------------------- |:-----:|:----:|:----:|:-------:|:-------:|:-----:|:------------:|:------------:|:-----:|
-| Amazon Drive                 | Yes   | No   | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | No  | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
-| Amazon S3                    | No    | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
-| Backblaze B2                 | No    | No   | No   | No      | Yes     | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
-| Box                          | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | Yes | Yes | No  |
-| Dropbox                      | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | Yes | Yes | Yes |
-| FTP                          | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
-| Google Cloud Storage         | Yes   | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
+| 1Fichier                     | No    | No   | No   | No      | No      | No    | No           | No           |   No  |
+| Amazon Drive                 | Yes   | No   | Yes  | Yes     | No [#575](https://github.com/rclone/rclone/issues/575) | No  | No  | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  |
+| Amazon S3                    | No    | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  |
+| Backblaze B2                 | No    | Yes  | No   | No      | Yes     | Yes   | Yes          | Yes | No  |
+| Box                          | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/rclone/rclone/issues/575) | No  | Yes | Yes | No  |
+| Dropbox                      | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/rclone/rclone/issues/575) | No  | Yes | Yes | Yes |
+| FTP                          | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  |
+| Google Cloud Storage         | Yes   | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  |
 | Google Drive                 | Yes   | Yes  | Yes  | Yes     | Yes     | Yes   | Yes          | Yes         | Yes |
-| HTTP                         | No    | No   | No   | No      | No      | No    | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
-| Hubic                        | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes |
+| Google Photos                | No    | No   | No   | No      | No      | No    | No           | No          | No |
+| HTTP                         | No    | No   | No   | No      | No      | No    | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  |
+| Hubic                        | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes |
 | Jottacloud                   | Yes   | Yes  | Yes  | Yes     | No      | Yes   | No           | Yes                                                   | Yes |
-| Mega                         | Yes   | No   | Yes  | Yes     | No      | No    | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes |
-| Microsoft Azure Blob Storage | Yes   | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
-| Microsoft OneDrive           | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No | No | Yes | Yes |
+| Mega                         | Yes   | No   | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes |
+| Microsoft Azure Blob Storage | Yes   | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  |
+| Microsoft OneDrive           | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/rclone/rclone/issues/575) | No | No | Yes | Yes |
 | OpenDrive                    | Yes   | Yes  | Yes  | Yes     | No      | No    | No           | No                                                    | No  |
-| Openstack Swift              | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes |
-| pCloud                       | Yes   | Yes  | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes |
-| QingStor                     | No    | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  |
-| SFTP                         | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes  |
-| WebDAV                       | Yes   | Yes  | Yes  | Yes     | No      | No    | Yes ‡        | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes  |
+| Openstack Swift              | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes |
+| pCloud                       | Yes   | Yes  | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes |
+| QingStor                     | No    | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  |
+| SFTP                         | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes  |
+| WebDAV                       | Yes   | Yes  | Yes  | Yes     | No      | No    | Yes ‡        | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes  |
 | Yandex Disk                  | Yes   | Yes  | Yes  | Yes     | Yes     | No    | Yes          | Yes         | Yes |
 | The local filesystem         | Yes   | No   | Yes  | Yes     | No      | No    | Yes          | No          | Yes |
 

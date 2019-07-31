@@ -12,20 +12,20 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/artpar/rclone/backend/swift"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/lib/oauthutil"
 	swiftLib "github.com/ncw/swift"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/backend/swift"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/lib/oauthutil"
 	"golang.org/x/oauth2"
-	"strings"
 )
 
 const (
@@ -59,7 +59,7 @@ func init() {
 		Config: func(name string, m configmap.Mapper) {
 			err := oauthutil.Config("hubic", name, m, oauthConfig)
 			if err != nil {
-				log.Printf("Failed to configure token: %v", err)
+				log.Fatalf("Failed to configure token: %v", err)
 			}
 		},
 		Options: append([]fs.Option{{
@@ -152,30 +152,7 @@ func (f *Fs) getCredentials() (err error) {
 
 // NewFs constructs an Fs from the path, container:path
 func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
-
-	client_id, ok := fs.ConfigFileGet(name, "client_id")
-	if !ok {
-		return nil, errors.Wrap(nil, "failed to configure google cloud storage")
-	}
-	client_secret, ok := fs.ConfigFileGet(name, "client_secret")
-	if !ok {
-		return nil, errors.Wrap(nil, "failed to configure google cloud storage")
-	}
-	scopes, ok := fs.ConfigFileGet(name, "client_scopes")
-	redirect_url, ok := fs.ConfigFileGet(name, "redirect_url")
-
-	oauthConf1 := oauth2.Config{
-		ClientID:     client_id,
-		ClientSecret: client_secret,
-		Scopes:       strings.Split(scopes, ","),
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://api.hubic.com/oauth/auth/",
-			TokenURL: "https://api.hubic.com/oauth/token/",
-		},
-		RedirectURL: redirect_url,
-	}
-
-	client, _, err := oauthutil.NewClient(name, m, &oauthConf1)
+	client, _, err := oauthutil.NewClient(name, m, oauthConfig)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to configure Hubic")
 	}

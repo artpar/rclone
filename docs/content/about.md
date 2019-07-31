@@ -13,6 +13,7 @@ Rclone
 
 Rclone is a command line program to sync files and directories to and from:
 
+* {{< provider name="1Fichier" home="https://1fichier.com/" config="/fichier/" >}}
 * {{< provider name="Alibaba Cloud (Aliyun) Object Storage System (OSS)" home="https://www.alibabacloud.com/product/oss/" config="/s3/#alibaba-oss" >}}
 * {{< provider name="Amazon Drive" home="https://www.amazon.com/clouddrive" config="/amazonclouddrive/" >}} ([See note](/amazonclouddrive/#status))
 * {{< provider name="Amazon S3" home="https://aws.amazon.com/s3/" config="/s3/" >}}
@@ -25,6 +26,7 @@ Rclone is a command line program to sync files and directories to and from:
 * {{< provider name="FTP" home="https://en.wikipedia.org/wiki/File_Transfer_Protocol" config="/ftp/" >}}
 * {{< provider name="Google Cloud Storage" home="https://cloud.google.com/storage/" config="/googlecloudstorage/" >}}
 * {{< provider name="Google Drive" home="https://www.google.com/drive/" config="/drive/" >}}
+* {{< provider name="Google Photos" home="https://www.google.com/photos/about/" config="/googlephotos/" >}}
 * {{< provider name="HTTP" home="https://en.wikipedia.org/wiki/Hypertext_Transfer_Protocol" config="/http/" >}}
 * {{< provider name="Hubic" home="https://hubic.com/" config="/hubic/" >}}
 * {{< provider name="Jottacloud" home="https://www.jottacloud.com/en/" config="/jottacloud/" >}}
@@ -45,6 +47,7 @@ Rclone is a command line program to sync files and directories to and from:
 * {{< provider name="put.io" home="https://put.io/" config="/webdav/#put-io" >}}
 * {{< provider name="QingStor" home="https://www.qingcloud.com/products/storage" config="/qingstor/" >}}
 * {{< provider name="Rackspace Cloud Files" home="https://www.rackspace.com/cloud/files" config="/swift/" >}}
+* {{< provider name="rsync.net" home="https://rsync.net/products/rclone.html" config="/sftp/" >}}
 * {{< provider name="Scaleway" home="https://www.scaleway.com/object-storage/" config="/s3/#scaleway" >}}
 * {{< provider name="SFTP" home="https://en.wikipedia.org/wiki/SFTP" config="/sftp/" >}}
 * {{< provider name="Wasabi" home="https://wasabi.com/" config="/s3/#wasabi" >}}
@@ -61,14 +64,16 @@ Features
   * [Sync](/commands/rclone_sync/) (one way) mode to make a directory identical
   * [Check](/commands/rclone_check/) mode to check for file hash equality
   * Can sync to and from network, eg two different cloud accounts
-  * ([Encryption](/crypt/)) backend
-  * ([Cache](/cache/)) backend
-  * ([Union](/union/)) backend
+  * [Encryption](/crypt/) backend
+  * [Cache](/cache/) backend
+  * [Union](/union/) backend
   * Optional FUSE mount ([rclone mount](/commands/rclone_mount/))
+  * Multi-threaded downloads to local disk
+  * Can [serve](/commands/rclone_serve/) local or remote files over [HTTP](/commands/rclone_serve_http/)/[WebDav](/commands/rclone_serve_webdav/)/[FTP](/commands/rclone_serve_ftp/)/[SFTP](/commands/rclone_serve_sftp/)/[dlna](/commands/rclone_serve_dlna/)
 
 Links
 
   * <i class="fa fa-home"></i> [Home page](https://rclone.org/)
-  * <i class="fa fa-github"></i> [GitHub project page for source and bug tracker](https://github.com/artpar/rclone)
+  * <i class="fa fa-github"></i> [GitHub project page for source and bug tracker](https://github.com/rclone/rclone)
   * <i class="fa fa-comments"></i> [Rclone Forum](https://forum.rclone.org)
   * <i class="fa fa-cloud-download"></i>[Downloads](/downloads/)

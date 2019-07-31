@@ -3,15 +3,15 @@
 package mount
 
 import (
+	"context"
 	"io"
 	"time"
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
-	"github.com/artpar/rclone/cmd/mountlib"
-	"github.com/artpar/rclone/fs/log"
-	"github.com/artpar/rclone/vfs"
-	"golang.org/x/net/context" // switch to "context" when we stop supporting go1.8
+	"github.com/rclone/rclone/cmd/mountlib"
+	"github.com/rclone/rclone/fs/log"
+	"github.com/rclone/rclone/vfs"
 )
 
 // File represents a file

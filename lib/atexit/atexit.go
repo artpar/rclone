@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"sync"
 
-	"github.com/artpar/rclone/fs"
+	"github.com/rclone/rclone/fs"
 )
 
 var (

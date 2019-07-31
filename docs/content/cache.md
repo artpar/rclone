@@ -1,4 +1,4 @@
------
+---
 title: "Cache"
 description: "Rclone docs for cache remote"
 date: "2017-09-03"
@@ -226,9 +226,9 @@ on Linux flavors and Windows as cache is heavily dependant on them.
 
 Any reports or feedback on how cache behaves on this OS is greatly appreciated.
  
-- https://github.com/artpar/rclone/issues/1935
-- https://github.com/artpar/rclone/issues/1907
-- https://github.com/artpar/rclone/issues/1834 
+- https://github.com/rclone/rclone/issues/1935
+- https://github.com/rclone/rclone/issues/1907
+- https://github.com/rclone/rclone/issues/1834 
 
 #### Risk of throttling ####
 
@@ -247,8 +247,8 @@ of adding the file in the cache at the same time if configured to do so.
 
 Future enhancements:
 
-- https://github.com/artpar/rclone/issues/1937
-- https://github.com/artpar/rclone/issues/1936 
+- https://github.com/rclone/rclone/issues/1937
+- https://github.com/rclone/rclone/issues/1936 
 
 #### cache and crypt ####
 
@@ -420,7 +420,7 @@ The remote name is used as the DB file name.
 - Config:      db_path
 - Env Var:     RCLONE_CACHE_DB_PATH
 - Type:        string
-- Default:     "/home/ncw/.cache/rclone/cache-backend"
+- Default:     "$HOME/.cache/rclone/cache-backend"
 
 #### --cache-chunk-path
 
@@ -436,7 +436,7 @@ then "--cache-chunk-path" will use the same path as "--cache-db-path".
 - Config:      chunk_path
 - Env Var:     RCLONE_CACHE_CHUNK_PATH
 - Type:        string
-- Default:     "/home/ncw/.cache/rclone/cache-backend"
+- Default:     "$HOME/.cache/rclone/cache-backend"
 
 #### --cache-db-purge
 

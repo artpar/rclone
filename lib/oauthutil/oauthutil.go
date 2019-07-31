@@ -13,11 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/fshttp"
 	"github.com/skratchdot/open-golang/open"
 	"golang.org/x/oauth2"
 )
@@ -154,7 +154,7 @@ type TokenSource struct {
 }
 
 // If token has expired then first try re-reading it from the config
-// file in case a concurrently runnng rclone has updated it already
+// file in case a concurrently running rclone has updated it already
 func (ts *TokenSource) reReadToken() bool {
 	tokenString, err := config.FileGetFresh(ts.name, config.ConfigToken)
 	if err != nil {
@@ -585,7 +585,7 @@ func (s *authServer) Start() {
 	var err error
 	s.listener, err = net.Listen("tcp", s.bindAddress)
 	if err != nil {
-		log.Printf("Failed to start auth webserver: %v", err)
+		log.Fatalf("Failed to start auth webserver: %v", err)
 	}
 	err = s.server.Serve(s.listener)
 	fs.Debugf(nil, "Closed auth server with error: %v", err)

@@ -31,7 +31,7 @@ endif
 
 rclone:
 	touch fs/version.go
-	go install -v --ldflags "-s -X github.com/artpar/rclone/fs.Version=$(TAG)" $(BUILDTAGS)
+	go install -v --ldflags "-s -X github.com/rclone/rclone/fs.Version=$(TAG)" $(BUILDTAGS)
 	cp -av `go env GOPATH`/bin/rclone .
 
 vars:
@@ -48,7 +48,7 @@ version:
 
 # Full suite of integration tests
 test:	rclone
-	go install --ldflags "-s -X github.com/artpar/rclone/fs.Version=$(TAG)" $(BUILDTAGS) github.com/artpar/rclone/fstest/test_all
+	go install --ldflags "-s -X github.com/rclone/rclone/fs.Version=$(TAG)" $(BUILDTAGS) github.com/rclone/rclone/fstest/test_all
 	-test_all 2>&1 | tee test_all.log
 	@echo "Written logs in test_all.log"
 
@@ -95,10 +95,10 @@ MANUAL.txt:	MANUAL.md
 	pandoc -s --from markdown --to plain MANUAL.md -o MANUAL.txt
 
 commanddocs: rclone
-	XDG_CACHE_HOME="" XDG_CONFIG_HOME="" HOME="\$$HOME" USER="\$$USER" rclone gendocs docs/content/commands/
+	XDG_CACHE_HOME="" XDG_CONFIG_HOME="" HOME="\$$HOME" USER="\$$USER" rclone gendocs docs/content/
 
 backenddocs: rclone bin/make_backend_docs.py
-	./bin/make_backend_docs.py
+	XDG_CACHE_HOME="" XDG_CONFIG_HOME="" HOME="\$$HOME" USER="\$$USER" ./bin/make_backend_docs.py
 
 rcdocs: rclone
 	bin/make_rc_docs.sh
@@ -151,7 +151,7 @@ log_since_last_release:
 	git log $(LAST_TAG)..
 
 compile_all:
-	go run bin/cross-compile.go -parallel 8 -compile-only $(BUILDTAGS) $(TAG)
+	go run bin/cross-compile.go -compile-only $(BUILDTAGS) $(TAG)
 
 appveyor_upload:
 	rclone --config bin/travis.rclone.conf -v copy --exclude '*beta-latest*' build/ $(BETA_UPLOAD)
@@ -167,22 +167,12 @@ ifndef BRANCH_PATH
 endif
 	@echo Beta release ready at $(BETA_URL)/testbuilds
 
-BUILD_FLAGS := -exclude "^(windows|darwin)/"
-ifeq ($(TRAVIS_OS_NAME),osx)
-	BUILD_FLAGS := -include "^darwin/" -cgo
-endif
-ifeq ($(TRAVIS_OS_NAME),windows)
-# BUILD_FLAGS := -include "^windows/" -cgo
-# 386 doesn't build yet
-	BUILD_FLAGS := -include "^windows/amd64" -cgo
-endif
-
 travis_beta:
 ifeq ($(TRAVIS_OS_NAME),linux)
 	go run bin/get-github-release.go -extract nfpm goreleaser/nfpm 'nfpm_.*\.tar.gz'
 endif
 	git log $(LAST_TAG).. > /tmp/git-log.txt
-	go run bin/cross-compile.go -release beta-latest -git-log /tmp/git-log.txt $(BUILD_FLAGS) -parallel 8 $(BUILDTAGS) $(TAG)
+	go run bin/cross-compile.go -release beta-latest -git-log /tmp/git-log.txt $(BUILD_FLAGS) $(BUILDTAGS) $(TAG)
 	rclone --config bin/travis.rclone.conf -v copy --exclude '*beta-latest*' build/ $(BETA_UPLOAD)
 ifndef BRANCH_PATH
 	rclone --config bin/travis.rclone.conf -v copy --include '*beta-latest*' --include version.txt build/ $(BETA_UPLOAD_ROOT)

@@ -3,31 +3,35 @@
 package webdav
 
 import (
+	"context"
 	"net/http"
 	"os"
+	"strings"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/cmd/serve/httplib"
-	"github.com/artpar/rclone/cmd/serve/httplib/httpflags"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/log"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/cmd/serve/httplib"
+	"github.com/rclone/rclone/cmd/serve/httplib/httpflags"
+	"github.com/rclone/rclone/cmd/serve/httplib/serve"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/log"
+	"github.com/rclone/rclone/vfs"
+	"github.com/rclone/rclone/vfs/vfsflags"
 	"github.com/spf13/cobra"
-	"golang.org/x/net/context" // switch to "context" when we stop supporting go1.8
 	"golang.org/x/net/webdav"
 )
 
 var (
-	hashName string
-	hashType = hash.None
+	hashName      string
+	hashType      = hash.None
+	disableGETDir = false
 )
 
 func init() {
 	httpflags.AddFlags(Command.Flags())
 	vfsflags.AddFlags(Command.Flags())
 	Command.Flags().StringVar(&hashName, "etag-hash", "", "Which hash to use for the ETag, or auto or blank for off")
+	Command.Flags().BoolVar(&disableGETDir, "disable-dir-list", false, "Disable HTML directory list on GET request for a directory")
 }
 
 // Command definition for cobra
@@ -37,8 +41,8 @@ var Command = &cobra.Command{
 	Long: `
 rclone serve webdav implements a basic webdav server to serve the
 remote over HTTP via the webdav protocol. This can be viewed with a
-webdav client or you can make a remote of type webdav to read and
-write it.
+webdav client, through a web browser, or you can make a remote of
+type webdav to read and write it.
 
 ### Webdav options
 
@@ -96,8 +100,9 @@ Use "rclone hashsum" to see the full list.
 // overwriting another existing file or directory is an error is OS-dependent.
 type WebDAV struct {
 	*httplib.Server
-	f   fs.Fs
-	vfs *vfs.VFS
+	f             fs.Fs
+	vfs           *vfs.VFS
+	webdavhandler *webdav.Handler
 }
 
 // check interface
@@ -109,15 +114,57 @@ func newWebDAV(f fs.Fs, opt *httplib.Options) *WebDAV {
 		f:   f,
 		vfs: vfs.New(f, &vfsflags.Opt),
 	}
-
-	handler := &webdav.Handler{
+	webdavHandler := &webdav.Handler{
 		FileSystem: w,
 		LockSystem: webdav.NewMemLS(),
 		Logger:     w.logRequest, // FIXME
 	}
-
-	w.Server = httplib.NewServer(handler, opt)
+	w.webdavhandler = webdavHandler
+	w.Server = httplib.NewServer(http.HandlerFunc(w.handler), opt)
 	return w
+}
+
+func (w *WebDAV) handler(rw http.ResponseWriter, r *http.Request) {
+	urlPath := r.URL.Path
+	isDir := strings.HasSuffix(urlPath, "/")
+	remote := strings.Trim(urlPath, "/")
+	if !disableGETDir && (r.Method == "GET" || r.Method == "HEAD") && isDir {
+		w.serveDir(rw, r, remote)
+		return
+	}
+	w.webdavhandler.ServeHTTP(rw, r)
+}
+
+// serveDir serves a directory index at dirRemote
+// This is similar to serveDir in serve http.
+func (w *WebDAV) serveDir(rw http.ResponseWriter, r *http.Request, dirRemote string) {
+	// List the directory
+	node, err := w.vfs.Stat(dirRemote)
+	if err == vfs.ENOENT {
+		http.Error(rw, "Directory not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		serve.Error(dirRemote, rw, "Failed to list directory", err)
+		return
+	}
+	if !node.IsDir() {
+		http.Error(rw, "Not a directory", http.StatusNotFound)
+		return
+	}
+	dir := node.(*vfs.Dir)
+	dirEntries, err := dir.ReadDirAll()
+	if err != nil {
+		serve.Error(dirRemote, rw, "Failed to list directory", err)
+		return
+	}
+
+	// Make the entries for display
+	directory := serve.NewDirectory(dirRemote, w.HTMLTemplate)
+	for _, node := range dirEntries {
+		directory.AddEntry(node.Path(), node.IsDir())
+	}
+
+	directory.Serve(rw, r)
 }
 
 // serve runs the http server in the background.
@@ -237,7 +284,7 @@ func (fi FileInfo) ETag(ctx context.Context) (etag string, err error) {
 	if !ok {
 		return "", webdav.ErrNotImplemented
 	}
-	hash, err := o.Hash(hashType)
+	hash, err := o.Hash(ctx, hashType)
 	if err != nil || hash == "" {
 		return "", webdav.ErrNotImplemented
 	}
@@ -255,7 +302,7 @@ func (fi FileInfo) ContentType(ctx context.Context) (contentType string, err err
 	entry := node.DirEntry()
 	switch x := entry.(type) {
 	case fs.Object:
-		return fs.MimeType(x), nil
+		return fs.MimeType(ctx, x), nil
 	case fs.Directory:
 		return "inode/directory", nil
 	}

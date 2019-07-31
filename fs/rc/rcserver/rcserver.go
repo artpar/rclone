@@ -3,6 +3,8 @@ package rcserver
 
 import (
 	"encoding/json"
+	"flag"
+	"fmt"
 	"mime"
 	"net/http"
 	"net/url"
@@ -10,14 +12,18 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/artpar/rclone/cmd/serve/httplib"
-	"github.com/artpar/rclone/cmd/serve/httplib/serve"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/list"
-	"github.com/artpar/rclone/fs/rc"
-	"github.com/pkg/errors"
 	"github.com/skratchdot/open-golang/open"
+
+	"github.com/rclone/rclone/fs/rc/jobs"
+
+	"github.com/pkg/errors"
+	"github.com/rclone/rclone/cmd/serve/httplib"
+	"github.com/rclone/rclone/cmd/serve/httplib/serve"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/cache"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/list"
+	"github.com/rclone/rclone/fs/rc"
 )
 
 // Start the remote control server if configured
@@ -78,7 +84,10 @@ func (s *Server) Serve() error {
 		if user != "" || pass != "" {
 			openURL.User = url.UserPassword(user, pass)
 		}
-		_ = open.Start(openURL.String())
+		// Don't open browser if serving in testing environment.
+		if flag.Lookup("test.v") == nil {
+			_ = open.Start(openURL.String())
+		}
 	}
 	return nil
 }
@@ -180,13 +189,16 @@ func (s *Server) handlePost(w http.ResponseWriter, r *http.Request, path string)
 		writeError(path, in, w, err, http.StatusBadRequest)
 		return
 	}
+	delete(in, "_async") // remove the async parameter after parsing so vfs operations don't get confused
 
 	fs.Debugf(nil, "rc: %q: with parameters %+v", path, in)
 	var out rc.Params
 	if isAsync {
-		out, err = rc.StartJob(call.Fn, in)
+		out, err = jobs.StartAsyncJob(call.Fn, in)
 	} else {
-		out, err = call.Fn(in)
+		var jobID int64
+		out, jobID, err = jobs.ExecuteJob(r.Context(), call.Fn, in)
+		w.Header().Add("x-rclone-jobid", fmt.Sprintf("%d", jobID))
 	}
 	if err != nil {
 		writeError(path, in, w, err, http.StatusInternalServerError)
@@ -222,14 +234,14 @@ func (s *Server) serveRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveRemote(w http.ResponseWriter, r *http.Request, path string, fsName string) {
-	f, err := rc.GetCachedFs(fsName)
+	f, err := cache.Get(fsName)
 	if err != nil {
 		writeError(path, nil, w, errors.Wrap(err, "failed to make Fs"), http.StatusInternalServerError)
 		return
 	}
 	if path == "" || strings.HasSuffix(path, "/") {
 		path = strings.Trim(path, "/")
-		entries, err := list.DirSorted(f, false, path)
+		entries, err := list.DirSorted(r.Context(), f, false, path)
 		if err != nil {
 			writeError(path, nil, w, errors.Wrap(err, "failed to list directory"), http.StatusInternalServerError)
 			return
@@ -242,7 +254,8 @@ func (s *Server) serveRemote(w http.ResponseWriter, r *http.Request, path string
 		}
 		directory.Serve(w, r)
 	} else {
-		o, err := f.NewObject(path)
+		path = strings.Trim(path, "/")
+		o, err := f.NewObject(r.Context(), path)
 		if err != nil {
 			writeError(path, nil, w, errors.Wrap(err, "failed to find object"), http.StatusInternalServerError)
 			return

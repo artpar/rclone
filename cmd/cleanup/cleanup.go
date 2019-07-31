@@ -1,8 +1,10 @@
 package cleanup
 
 import (
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs/operations"
+	"context"
+
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/fs/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +23,7 @@ versions. Not supported by all remotes.
 		cmd.CheckArgs(1, 1, command, args)
 		fsrc := cmd.NewFsSrc(args)
 		cmd.Run(true, false, command, func() error {
-			return operations.CleanUp(fsrc)
+			return operations.CleanUp(context.Background(), fsrc)
 		})
 	},
 }

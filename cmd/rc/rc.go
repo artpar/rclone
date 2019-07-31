@@ -2,6 +2,7 @@ package rc
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -9,11 +10,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/rc"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/rc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -24,6 +25,7 @@ var (
 	jsonInput = ""
 	authUser  = ""
 	authPass  = ""
+	loopback  = false
 )
 
 func init() {
@@ -33,6 +35,7 @@ func init() {
 	commandDefintion.Flags().StringVarP(&jsonInput, "json", "", jsonInput, "Input JSON - use instead of key=value args.")
 	commandDefintion.Flags().StringVarP(&authUser, "user", "", "", "Username to use to rclone remote control.")
 	commandDefintion.Flags().StringVarP(&authPass, "pass", "", "", "Password to use to connect to rclone remote control.")
+	commandDefintion.Flags().BoolVarP(&loopback, "loopback", "", false, "If set connect to this rclone instance not via HTTP.")
 }
 
 var commandDefintion = &cobra.Command{
@@ -57,6 +60,12 @@ The result will be returned as a JSON object by default.
 The --json parameter can be used to pass in a JSON blob as an input
 instead of key=value arguments.  This is the only way of passing in
 more complicated values.
+
+Use --loopback to connect to the rclone instance running "rclone rc".
+This is very useful for testing commands without having to run an
+rclone rc server, eg:
+
+    rclone rc --loopback operations/about fs=/
 
 Use "rclone rc" to see a list of all possible commands.`,
 	Run: func(command *cobra.Command, args []string) {
@@ -102,6 +111,15 @@ func setAlternateFlag(flagName string, output *string) {
 //
 // if err is set, out may be a valid error return or it may be nil
 func doCall(path string, in rc.Params) (out rc.Params, err error) {
+	// If loopback set, short circuit HTTP request
+	if loopback {
+		call := rc.Calls.Get(path)
+		if call == nil {
+			return nil, errors.Errorf("method %q not found", path)
+		}
+		return call.Fn(context.Background(), in)
+	}
+
 	// Do HTTP request
 	client := fshttp.NewClient(fs.Config)
 	url += path

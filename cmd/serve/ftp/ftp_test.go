@@ -8,15 +8,16 @@
 package ftp
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"testing"
 
 	ftp "github.com/goftp/server"
-	_ "github.com/artpar/rclone/backend/local"
-	"github.com/artpar/rclone/cmd/serve/ftp/ftpopt"
-	"github.com/artpar/rclone/fstest"
+	_ "github.com/rclone/rclone/backend/local"
+	"github.com/rclone/rclone/cmd/serve/ftp/ftpopt"
+	"github.com/rclone/rclone/fstest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -41,7 +42,7 @@ func TestFTP(t *testing.T) {
 	assert.NoError(t, err)
 	defer clean()
 
-	err = fremote.Mkdir("")
+	err = fremote.Mkdir(context.Background(), "")
 	assert.NoError(t, err)
 
 	// Start the server

@@ -177,11 +177,11 @@ func compileArch(version, goos, goarch, dir string) bool {
 	}
 	err := os.MkdirAll(dir, 0777)
 	if err != nil {
-		log.Printf("Failed to mkdir: %v", err)
+		log.Fatalf("Failed to mkdir: %v", err)
 	}
 	args := []string{
 		"go", "build",
-		"--ldflags", "-s -X github.com/artpar/rclone/fs.Version=" + version,
+		"--ldflags", "-s -X github.com/rclone/rclone/fs.Version=" + version,
 		"-i",
 		"-o", output,
 		"-tags", *tags,
@@ -237,11 +237,11 @@ func compile(version string) {
 	}
 	includeRe, err := regexp.Compile(*include)
 	if err != nil {
-		log.Printf("Bad -include regexp: %v", err)
+		log.Fatalf("Bad -include regexp: %v", err)
 	}
 	excludeRe, err := regexp.Compile(*exclude)
 	if err != nil {
-		log.Printf("Bad -exclude regexp: %v", err)
+		log.Fatalf("Bad -exclude regexp: %v", err)
 	}
 	compiled := 0
 	var failuresMu sync.Mutex
@@ -252,7 +252,7 @@ func compile(version string) {
 		}
 		parts := strings.Split(osarch, "/")
 		if len(parts) != 2 {
-			log.Printf("Bad osarch %q", osarch)
+			log.Fatalf("Bad osarch %q", osarch)
 		}
 		goos, goarch := parts[0], parts[1]
 		userGoos := goos
@@ -283,7 +283,7 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 	if len(args) != 1 {
-		log.Printf("Syntax: %s <version>", os.Args[0])
+		log.Fatalf("Syntax: %s <version>", os.Args[0])
 	}
 	version := args[0]
 	if !*noClean {
@@ -293,7 +293,7 @@ func main() {
 	chdir("build")
 	err := ioutil.WriteFile("version.txt", []byte(fmt.Sprintf("rclone %s\n", version)), 0666)
 	if err != nil {
-		log.Printf("Couldn't write version.txt: %v", err)
+		log.Fatalf("Couldn't write version.txt: %v", err)
 	}
 	compile(version)
 }

@@ -7,14 +7,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/cmd/serve/httplib"
-	"github.com/artpar/rclone/cmd/serve/httplib/httpflags"
-	"github.com/artpar/rclone/cmd/serve/httplib/serve"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/cmd/serve/httplib"
+	"github.com/rclone/rclone/cmd/serve/httplib/httpflags"
+	"github.com/rclone/rclone/cmd/serve/httplib/serve"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/vfs"
+	"github.com/rclone/rclone/vfs/vfsflags"
 	"github.com/spf13/cobra"
 )
 
@@ -161,7 +161,7 @@ func (s *server) serveFile(w http.ResponseWriter, r *http.Request, remote string
 	w.Header().Set("Content-Length", strconv.FormatInt(node.Size(), 10))
 
 	// Set content type
-	mimeType := fs.MimeType(obj)
+	mimeType := fs.MimeType(r.Context(), obj)
 	if mimeType == "application/octet-stream" && path.Ext(remote) == "" {
 		// Leave header blank so http server guesses
 	} else {
@@ -187,8 +187,8 @@ func (s *server) serveFile(w http.ResponseWriter, r *http.Request, remote string
 	}()
 
 	// Account the transfer
-	accounting.Stats.Transferring(remote)
-	defer accounting.Stats.DoneTransferring(remote, true)
+	tr := accounting.Stats(r.Context()).NewTransfer(obj)
+	defer tr.Done(nil)
 	// FIXME in = fs.NewAccount(in, obj).WithBuffer() // account the transfer
 
 	// Serve the file

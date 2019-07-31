@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
 )
 
 // Version represents a parsed rclone version number

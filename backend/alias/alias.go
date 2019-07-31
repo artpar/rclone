@@ -4,17 +4,17 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/fspath"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/fspath"
 )
 
 // Register with Fs
 func init() {
 	fsi := &fs.RegInfo{
 		Name:        "alias",
-		Description: "Alias for a existing remote",
+		Description: "Alias for an existing remote",
 		NewFs:       NewFs,
 		Options: []fs.Option{{
 			Name:     "remote",

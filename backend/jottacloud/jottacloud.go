@@ -2,6 +2,7 @@ package jottacloud
 
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
@@ -17,21 +18,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/backend/jottacloud/api"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/walk"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/backend/jottacloud/api"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/walk"
+	"github.com/rclone/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/rest"
 	"golang.org/x/oauth2"
 )
 
@@ -41,7 +42,7 @@ const (
 	maxSleep                    = 2 * time.Second
 	decayConstant               = 2 // bigger for slower decay, exponential
 	defaultDevice               = "Jotta"
-	defaultMountpoint           = "Sync" // nolint
+	defaultMountpoint           = "Archive"
 	rootURL                     = "https://www.jottacloud.com/jfs/"
 	apiURL                      = "https://api.jottacloud.com/files/v1/"
 	baseURL                     = "https://www.jottacloud.com/"
@@ -53,6 +54,8 @@ const (
 	configUsername              = "user"
 	configClientID              = "client_id"
 	configClientSecret          = "client_secret"
+	configDevice                = "device"
+	configMountpoint            = "mountpoint"
 	charset                     = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 )
 
@@ -69,6 +72,7 @@ var (
 
 // Register with Fs
 func init() {
+	// needs to be done early so we can use oauth during config
 	fs.Register(&fs.RegInfo{
 		Name:        "jottacloud",
 		Description: "JottaCloud",
@@ -84,7 +88,7 @@ func init() {
 
 			srv := rest.NewClient(fshttp.NewClient(fs.Config))
 
-			// ask if we should create a device specifc token: https://github.com/artpar/rclone/issues/2995
+			// ask if we should create a device specifc token: https://github.com/rclone/rclone/issues/2995
 			fmt.Printf("\nDo you want to create a machine specific API key?\n\nRclone has it's own Jottacloud API KEY which works fine as long as one only uses rclone on a single machine. When you want to use rclone with this account on more than one machine it's recommended to create a machine specific API key. These keys can NOT be shared between machines.\n\n")
 			if config.Confirm() {
 				// random generator to generate random device names
@@ -135,7 +139,7 @@ func init() {
 			if !ok {
 				log.Fatalf("No username defined")
 			}
-			password := config.GetPassword("Your Jottacloud password is only required during config and will not be stored.")
+			password := config.GetPassword("Your Jottacloud password is only required during setup and will not be stored.")
 
 			// prepare out token request with username and password
 			values := url.Values{}
@@ -157,7 +161,7 @@ func init() {
 				// if 2fa is enabled the first request is expected to fail. We will do another request with the 2fa code as an additional http header
 				if resp != nil {
 					if resp.Header.Get("X-JottaCloud-OTP") == "required; SMS" {
-						fmt.Printf("This account has 2 factor authentication enabled you will receive a verification code via SMS.\n")
+						fmt.Printf("This account uses 2 factor authentication you will receive a verification code via SMS.\n")
 						fmt.Printf("Enter verification code> ")
 						authCode := config.ReadLine()
 						authCode = strings.Replace(authCode, "-", "", -1) // the sms received contains a pair of 3 digit numbers seperated by '-' but wants a single 6 digit number
@@ -180,23 +184,49 @@ func init() {
 			// finally save them in the config
 			err = oauthutil.PutToken(name, m, &token, true)
 			if err != nil {
-				log.Fatalf("Error while setting token: %s", err)
+				log.Fatalf("Error while saving token: %s", err)
+			}
+
+			fmt.Printf("\nDo you want to use a non standard device/mountpoint e.g. for accessing files uploaded using the official Jottacloud client?\n\n")
+			if config.Confirm() {
+				oAuthClient, _, err := oauthutil.NewClient(name, m, oauthConfig)
+				if err != nil {
+					log.Fatalf("Failed to load oAuthClient: %s", err)
+				}
+
+				srv = rest.NewClient(oAuthClient).SetRoot(rootURL)
+
+				acc, err := getAccountInfo(srv, username)
+				if err != nil {
+					log.Fatalf("Error getting devices: %s", err)
+				}
+				fmt.Printf("Please select the device to use. Normally this will be Jotta\n")
+				var deviceNames []string
+				for i := range acc.Devices {
+					deviceNames = append(deviceNames, acc.Devices[i].Name)
+				}
+				result := config.Choose("Devices", deviceNames, nil, false)
+				m.Set(configDevice, result)
+
+				dev, err := getDeviceInfo(srv, path.Join(username, result))
+				if err != nil {
+					log.Fatalf("Error getting Mountpoint: %s", err)
+				}
+				if len(dev.MountPoints) == 0 {
+					log.Fatalf("No Mountpoints found for this device.")
+				}
+				fmt.Printf("Please select the mountpoint to user. Normally this will be Archive\n")
+				var mountpointNames []string
+				for i := range dev.MountPoints {
+					mountpointNames = append(mountpointNames, dev.MountPoints[i].Name)
+				}
+				result = config.Choose("Mountpoints", mountpointNames, nil, false)
+				m.Set(configMountpoint, result)
 			}
 		},
 		Options: []fs.Option{{
 			Name: configUsername,
 			Help: "User Name:",
-		}, {
-			Name:     "mountpoint",
-			Help:     "The mountpoint to use.",
-			Required: true,
-			Examples: []fs.OptionExample{{
-				Value: "Sync",
-				Help:  "Will be synced by the official client.",
-			}, {
-				Value: "Archive",
-				Help:  "Archive",
-			}},
 		}, {
 			Name:     "md5_memory_limit",
 			Help:     "Files bigger than this will be cached on disk to calculate the MD5 if required.",
@@ -224,6 +254,7 @@ func init() {
 // Options defines the configuration for this backend
 type Options struct {
 	User               string        `config:"user"`
+	Device             string        `config:"device"`
 	Mountpoint         string        `config:"mountpoint"`
 	MD5MemoryThreshold fs.SizeSuffix `config:"md5_memory_limit"`
 	HardDelete         bool          `config:"hard_delete"`
@@ -331,18 +362,31 @@ func (f *Fs) readMetaDataForPath(path string) (info *api.JottaFile, err error) {
 	return &result, nil
 }
 
-// getAccountInfo retrieves account information
-func (f *Fs) getAccountInfo() (info *api.AccountInfo, err error) {
+// getAccountInfo queries general information about the account.
+// Takes rest.Client and username as parameter to be easily usable
+// during config
+func getAccountInfo(srv *rest.Client, username string) (info *api.AccountInfo, err error) {
 	opts := rest.Opts{
 		Method: "GET",
-		Path:   urlPathEscape(f.user),
+		Path:   urlPathEscape(username),
 	}
 
-	var resp *http.Response
-	err = f.pacer.Call(func() (bool, error) {
-		resp, err = f.srv.CallXML(&opts, nil, &info)
-		return shouldRetry(resp, err)
-	})
+	_, err = srv.CallXML(&opts, nil, &info)
+	if err != nil {
+		return nil, err
+	}
+
+	return info, nil
+}
+
+// getDeviceInfo queries Information about a jottacloud device
+func getDeviceInfo(srv *rest.Client, path string) (info *api.JottaDevice, err error) {
+	opts := rest.Opts{
+		Method: "GET",
+		Path:   urlPathEscape(path),
+	}
+
+	_, err = srv.CallXML(&opts, nil, &info)
 	if err != nil {
 		return nil, err
 	}
@@ -351,12 +395,18 @@ func (f *Fs) getAccountInfo() (info *api.AccountInfo, err error) {
 }
 
 // setEndpointUrl reads the account id and generates the API endpoint URL
-func (f *Fs) setEndpointURL(mountpoint string) (err error) {
-	info, err := f.getAccountInfo()
+func (f *Fs) setEndpointURL() (err error) {
+	info, err := getAccountInfo(f.srv, f.user)
 	if err != nil {
 		return errors.Wrap(err, "failed to get endpoint url")
 	}
-	f.endpointURL = urlPathEscape(path.Join(info.Username, defaultDevice, mountpoint))
+	if f.opt.Device == "" {
+		f.opt.Device = defaultDevice
+	}
+	if f.opt.Mountpoint == "" {
+		f.opt.Mountpoint = defaultMountpoint
+	}
+	f.endpointURL = urlPathEscape(path.Join(info.Username, f.opt.Device, f.opt.Mountpoint))
 	return nil
 }
 
@@ -443,9 +493,6 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	oauthConfig.ClientID = clientID
 	oauthConfig.ClientSecret = obscure.MustReveal(clientSecret)
 
-	// add jottacloud to the long list of sites that don't follow the oauth spec correctly
-	oauth2.RegisterBrokenAuthHeaderProvider("https://www.jottacloud.com/")
-
 	// the oauth client for the api servers needs
 	// a filter to fix the grant_type issues (see above)
 	baseClient := fshttp.NewClient(fs.Config)
@@ -484,7 +531,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		return err
 	})
 
-	err = f.setEndpointURL(opt.Mountpoint)
+	err = f.setEndpointURL()
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't get account info")
 	}
@@ -496,7 +543,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		if f.root == "." {
 			f.root = ""
 		}
-		_, err := f.NewObject(remote)
+		_, err := f.NewObject(context.TODO(), remote)
 		if err != nil {
 			if errors.Cause(err) == fs.ErrorObjectNotFound || errors.Cause(err) == fs.ErrorNotAFile {
 				// File doesn't exist so return old f
@@ -534,7 +581,7 @@ func (f *Fs) newObjectWithInfo(remote string, info *api.JottaFile) (fs.Object, e
 
 // NewObject finds the Object at remote.  If it can't be found
 // it returns the error fs.ErrorObjectNotFound.
-func (f *Fs) NewObject(remote string) (fs.Object, error) {
+func (f *Fs) NewObject(ctx context.Context, remote string) (fs.Object, error) {
 	return f.newObjectWithInfo(remote, nil)
 }
 
@@ -571,7 +618,7 @@ func (f *Fs) CreateDir(path string) (jf *api.JottaFolder, err error) {
 //
 // This should return ErrDirNotFound if the directory isn't
 // found.
-func (f *Fs) List(dir string) (entries fs.DirEntries, err error) {
+func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err error) {
 	//fmt.Printf("List: %s\n", f.filePath(dir))
 	opts := rest.Opts{
 		Method: "GET",
@@ -688,7 +735,7 @@ func (f *Fs) listFileDir(remoteStartPath string, startFolder *api.JottaFolder, f
 //
 // Don't implement this unless you have a more efficient way
 // of listing recursively that doing a directory traversal.
-func (f *Fs) ListR(dir string, callback fs.ListRCallback) (err error) {
+func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (err error) {
 	opts := rest.Opts{
 		Method:     "GET",
 		Path:       f.filePath(dir),
@@ -741,14 +788,17 @@ func (f *Fs) createObject(remote string, modTime time.Time, size int64) (o *Obje
 // Copy the reader in to the new object which is returned
 //
 // The new object may have been created if an error is returned
-func (f *Fs) Put(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
-	o := f.createObject(src.Remote(), src.ModTime(), src.Size())
-	return o, o.Update(in, src, options...)
+func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
+	if f.opt.Device != "Jotta" {
+		return nil, errors.New("upload not supported for devices other than Jotta")
+	}
+	o := f.createObject(src.Remote(), src.ModTime(ctx), src.Size())
+	return o, o.Update(ctx, in, src, options...)
 }
 
 // mkParentDir makes the parent of the native path dirPath if
 // necessary and any directories above that
-func (f *Fs) mkParentDir(dirPath string) error {
+func (f *Fs) mkParentDir(ctx context.Context, dirPath string) error {
 	// defer log.Trace(dirPath, "")("")
 	// chop off trailing / if it exists
 	if strings.HasSuffix(dirPath, "/") {
@@ -758,25 +808,25 @@ func (f *Fs) mkParentDir(dirPath string) error {
 	if parent == "." {
 		parent = ""
 	}
-	return f.Mkdir(parent)
+	return f.Mkdir(ctx, parent)
 }
 
 // Mkdir creates the container if it doesn't exist
-func (f *Fs) Mkdir(dir string) error {
+func (f *Fs) Mkdir(ctx context.Context, dir string) error {
 	_, err := f.CreateDir(dir)
 	return err
 }
 
 // purgeCheck removes the root directory, if check is set then it
 // refuses to do so if it has anything in
-func (f *Fs) purgeCheck(dir string, check bool) (err error) {
+func (f *Fs) purgeCheck(ctx context.Context, dir string, check bool) (err error) {
 	root := path.Join(f.root, dir)
 	if root == "" {
 		return errors.New("can't purge root directory")
 	}
 
 	// check that the directory exists
-	entries, err := f.List(dir)
+	entries, err := f.List(ctx, dir)
 	if err != nil {
 		return err
 	}
@@ -816,8 +866,8 @@ func (f *Fs) purgeCheck(dir string, check bool) (err error) {
 // Rmdir deletes the root folder
 //
 // Returns an error if it isn't empty
-func (f *Fs) Rmdir(dir string) error {
-	return f.purgeCheck(dir, true)
+func (f *Fs) Rmdir(ctx context.Context, dir string) error {
+	return f.purgeCheck(ctx, dir, true)
 }
 
 // Precision return the precision of this Fs
@@ -830,8 +880,8 @@ func (f *Fs) Precision() time.Duration {
 // Optional interface: Only implement this if you have a way of
 // deleting all the files quicker than just running Remove() on the
 // result of List()
-func (f *Fs) Purge() error {
-	return f.purgeCheck("", false)
+func (f *Fs) Purge(ctx context.Context) error {
+	return f.purgeCheck(ctx, "", false)
 }
 
 // copyOrMoves copies or moves directories or files depending on the method parameter
@@ -864,14 +914,14 @@ func (f *Fs) copyOrMove(method, src, dest string) (info *api.JottaFile, err erro
 // Will only be called if src.Fs().Name() == f.Name()
 //
 // If it isn't possible then return fs.ErrorCantCopy
-func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
+func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object, error) {
 	srcObj, ok := src.(*Object)
 	if !ok {
 		fs.Debugf(src, "Can't copy - not same remote type")
 		return nil, fs.ErrorCantMove
 	}
 
-	err := f.mkParentDir(remote)
+	err := f.mkParentDir(ctx, remote)
 	if err != nil {
 		return nil, err
 	}
@@ -894,14 +944,14 @@ func (f *Fs) Copy(src fs.Object, remote string) (fs.Object, error) {
 // Will only be called if src.Fs().Name() == f.Name()
 //
 // If it isn't possible then return fs.ErrorCantMove
-func (f *Fs) Move(src fs.Object, remote string) (fs.Object, error) {
+func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object, error) {
 	srcObj, ok := src.(*Object)
 	if !ok {
 		fs.Debugf(src, "Can't move - not same remote type")
 		return nil, fs.ErrorCantMove
 	}
 
-	err := f.mkParentDir(remote)
+	err := f.mkParentDir(ctx, remote)
 	if err != nil {
 		return nil, err
 	}
@@ -923,7 +973,7 @@ func (f *Fs) Move(src fs.Object, remote string) (fs.Object, error) {
 // If it isn't possible then return fs.ErrorCantDirMove
 //
 // If destination exists then return fs.ErrorDirExists
-func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
+func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string) error {
 	srcFs, ok := src.(*Fs)
 	if !ok {
 		fs.Debugf(srcFs, "Can't move directory - not same remote type")
@@ -940,7 +990,7 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 	//fmt.Printf("Move src: %s (FullPath %s), dst: %s (FullPath: %s)\n", srcRemote, srcPath, dstRemote, dstPath)
 
 	var err error
-	_, err = f.List(dstRemote)
+	_, err = f.List(ctx, dstRemote)
 	if err == fs.ErrorDirNotFound {
 		// OK
 	} else if err != nil {
@@ -958,7 +1008,7 @@ func (f *Fs) DirMove(src fs.Fs, srcRemote, dstRemote string) error {
 }
 
 // PublicLink generates a public link to the remote path (usually readable by anyone)
-func (f *Fs) PublicLink(remote string) (link string, err error) {
+func (f *Fs) PublicLink(ctx context.Context, remote string) (link string, err error) {
 	opts := rest.Opts{
 		Method:     "GET",
 		Path:       f.filePath(remote),
@@ -1004,8 +1054,8 @@ func (f *Fs) PublicLink(remote string) (link string, err error) {
 }
 
 // About gets quota information
-func (f *Fs) About() (*fs.Usage, error) {
-	info, err := f.getAccountInfo()
+func (f *Fs) About(ctx context.Context) (*fs.Usage, error) {
+	info, err := getAccountInfo(f.srv, f.user)
 	if err != nil {
 		return nil, err
 	}
@@ -1046,7 +1096,7 @@ func (o *Object) Remote() string {
 }
 
 // Hash returns the MD5 of an object returning a lowercase hex string
-func (o *Object) Hash(t hash.Type) (string, error) {
+func (o *Object) Hash(ctx context.Context, t hash.Type) (string, error) {
 	if t != hash.MD5 {
 		return "", hash.ErrUnsupported
 	}
@@ -1064,7 +1114,7 @@ func (o *Object) Size() int64 {
 }
 
 // MimeType of an Object if known, "" otherwise
-func (o *Object) MimeType() string {
+func (o *Object) MimeType(ctx context.Context) string {
 	return o.mimeType
 }
 
@@ -1096,7 +1146,7 @@ func (o *Object) readMetaData(force bool) (err error) {
 //
 // It attempts to read the objects mtime and if that isn't present the
 // LastModified returned in the http headers
-func (o *Object) ModTime() time.Time {
+func (o *Object) ModTime(ctx context.Context) time.Time {
 	err := o.readMetaData(false)
 	if err != nil {
 		fs.Logf(o, "Failed to read metadata: %v", err)
@@ -1106,7 +1156,7 @@ func (o *Object) ModTime() time.Time {
 }
 
 // SetModTime sets the modification time of the local fs object
-func (o *Object) SetModTime(modTime time.Time) error {
+func (o *Object) SetModTime(ctx context.Context, modTime time.Time) error {
 	return fs.ErrorCantSetModTime
 }
 
@@ -1116,7 +1166,7 @@ func (o *Object) Storable() bool {
 }
 
 // Open an object for read
-func (o *Object) Open(options ...fs.OpenOption) (in io.ReadCloser, err error) {
+func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.ReadCloser, err error) {
 	fs.FixRangeOption(options, o.size)
 	var resp *http.Response
 	opts := rest.Opts{
@@ -1200,9 +1250,9 @@ func readMD5(in io.Reader, size, threshold int64) (md5sum string, out io.Reader,
 // If existing is set then it updates the object rather than creating a new one
 //
 // The new object may have been created if an error is returned
-func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (err error) {
+func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (err error) {
 	size := src.Size()
-	md5String, err := src.Hash(hash.MD5)
+	md5String, err := src.Hash(ctx, hash.MD5)
 	if err != nil || md5String == "" {
 		// unwrap the accounting from the input, we use wrap to put it
 		// back on after the buffering
@@ -1225,7 +1275,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 		Path:         "allocate",
 		ExtraHeaders: make(map[string]string),
 	}
-	fileDate := api.Time(src.ModTime()).APIString()
+	fileDate := api.Time(src.ModTime(ctx)).APIString()
 
 	// the allocate request
 	var request = api.AllocateFileRequest{
@@ -1289,7 +1339,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 }
 
 // Remove an object
-func (o *Object) Remove() error {
+func (o *Object) Remove(ctx context.Context) error {
 	opts := rest.Opts{
 		Method:     "POST",
 		Path:       o.filePath(),
