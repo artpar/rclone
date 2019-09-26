@@ -17,15 +17,12 @@ require (
 	github.com/coreos/bbolt v1.3.3
 	github.com/djherbis/times v1.2.0
 	github.com/dropbox/dropbox-sdk-go-unofficial v5.4.0+incompatible
-	github.com/goftp/file-driver v0.0.0-20180502053751-5d604a0fc0c9 // indirect
 	github.com/goftp/server v0.0.0-20190712054601-1149070ae46b
 	github.com/google/go-cmp v0.3.1 // indirect
-	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20190812055157-5d271430af9f // indirect
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/jlaffaye/ftp v0.0.0-20190721194432-7cd8b0bcf3fc
 	github.com/jzelinskie/whirlpool v0.0.0-20170603002051-c19460b8caa6
-	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/koofr/go-httpclient v0.0.0-20190818202018-e0dc8fd921dc
 	github.com/koofr/go-koofrclient v0.0.0-20190724113126-8e5366da203a
@@ -42,6 +39,7 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/pkg/sftp v1.10.1
 	github.com/putdotio/go-putio v0.0.0-20190822121956-19b9c636c877
+	github.com/rclone/rclone v1.49.3
 	github.com/rfjakob/eme v0.0.0-20171028163933-2222dbd4ba46
 	github.com/sevlyar/go-daemon v0.1.5
 	github.com/sirupsen/logrus v1.4.2
@@ -55,7 +53,6 @@ require (
 	github.com/xanzy/ssh-agent v0.2.1
 	github.com/youmark/pkcs8 v0.0.0-20181201043747-70daafe5d78a
 	github.com/yunify/qingstor-sdk-go/v3 v3.0.2
-	go.etcd.io/bbolt v1.3.3 // indirect
 	golang.org/x/crypto v0.0.0-20190820162420-60c769a6c586
 	golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45

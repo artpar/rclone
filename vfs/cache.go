@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/djherbis/times"
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	fscache "github.com/artpar/rclone/fs/cache"
 	"github.com/artpar/rclone/fs/config"
+	"github.com/djherbis/times"
+	"github.com/pkg/errors"
 )
 
 // CacheMode controls the functionality of the cache

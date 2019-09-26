@@ -6,11 +6,11 @@ import (
 	"os"
 	"sync"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/accounting"
 	"github.com/artpar/rclone/fs/chunkedreader"
 	"github.com/artpar/rclone/fs/hash"
+	"github.com/pkg/errors"
 )
 
 // ReadFileHandle is an open for read file handle on a File

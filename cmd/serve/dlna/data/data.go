@@ -7,8 +7,8 @@ import (
 	"io/ioutil"
 	"text/template"
 
+	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
 )
 
 // GetTemplate returns the rootDesc XML template

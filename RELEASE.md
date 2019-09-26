@@ -102,9 +102,9 @@ The rclone docker image should autobuild on docker hub.  If it doesn't
 or needs to be updated then rebuild like this.
 
 ```
-docker build -t rclone/rclone:1.49.1 -t rclone/rclone:1.49 -t rclone/rclone:1 -t rclone/rclone:latest .
-docker push rclone/rclone:1.49.1
-docker push rclone/rclone:1.49
-docker push rclone/rclone:1
-docker push rclone/rclone:latest
+docker build -t artpar/rclone:1.49.1 -t artpar/rclone:1.49 -t artpar/rclone:1 -t artpar/rclone:latest .
+docker push artpar/rclone:1.49.1
+docker push artpar/rclone:1.49
+docker push artpar/rclone:1
+docker push artpar/rclone:latest
 ```

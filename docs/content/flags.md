@@ -27,7 +27,7 @@ These flags are available for every command.
       --client-cert string                   Client SSL certificate (PEM) for mutual TLS auth
       --client-key string                    Client SSL private key (PEM) for mutual TLS auth
       --compare-dest string                  use DIR to server side copy flies from.
-      --config string                        Config file. (default "$HOME/.config/rclone/rclone.conf")
+      --config string                        Config file. (default "$HOME/.config/artpar/rclone.conf")
       --contimeout duration                  Connect timeout (default 1m0s)
       --copy-dest string                     Compare dest to DIR also.
       --cpuprofile string                    Write cpu profile to file
@@ -99,7 +99,7 @@ These flags are available for every command.
       --rc-server-read-timeout duration      Timeout for server reading data (default 1h0m0s)
       --rc-server-write-timeout duration     Timeout for server writing data (default 1h0m0s)
       --rc-user string                       User name for authentication.
-      --rc-web-fetch-url string              URL to fetch the releases for webgui. (default "https://api.github.com/repos/rclone/rclone-webui-react/releases/latest")
+      --rc-web-fetch-url string              URL to fetch the releases for webgui. (default "https://api.github.com/repos/artpar/rclone-webui-react/releases/latest")
       --rc-web-gui                           Launch WebGUI on localhost
       --rc-web-gui-update                    Update / Force update to latest version of web gui
       --retries int                          Retry operations this many times if they fail (default 3)

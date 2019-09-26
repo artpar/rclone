@@ -8,10 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/log"
 	"github.com/artpar/rclone/fs/operations"
+	"github.com/pkg/errors"
 )
 
 // File represents a file

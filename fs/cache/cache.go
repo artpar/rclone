@@ -2,8 +2,8 @@
 package cache
 
 import (
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/lib/cache"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/lib/cache"
 )
 
 var (

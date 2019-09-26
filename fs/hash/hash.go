@@ -10,11 +10,11 @@ import (
 	"io"
 	"strings"
 
+	"github.com/artpar/rclone/backend/dropbox/dbhash"
+	"github.com/artpar/rclone/backend/mailru/mrhash"
+	"github.com/artpar/rclone/backend/onedrive/quickxorhash"
 	"github.com/jzelinskie/whirlpool"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/backend/dropbox/dbhash"
-	"github.com/rclone/rclone/backend/mailru/mrhash"
-	"github.com/rclone/rclone/backend/onedrive/quickxorhash"
 )
 
 // Type indicates a standard hashing algorithm

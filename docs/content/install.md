@@ -83,7 +83,7 @@ Run `rclone config` to setup. See [rclone config docs](/docs/) for more details.
 
 ## Install with docker ##
 
-The rclone maintains a [docker image for rclone](https://hub.docker.com/r/rclone/rclone).
+The rclone maintains a [docker image for rclone](https://hub.docker.com/r/artpar/rclone).
 These images are autobuilt by docker hub from the rclone source based
 on a minimal Alpine linux image.
 
@@ -92,11 +92,11 @@ can use the `:beta` tag to get the latest build from master.  You can
 also use version tags, eg `:1.49.1`, `:1.49` or `:1`.
 
 ```
-$ docker pull rclone/rclone:latest
-latest: Pulling from rclone/rclone
+$ docker pull artpar/rclone:latest
+latest: Pulling from artpar/rclone
 Digest: sha256:0e0ced72671989bb837fea8e88578b3fc48371aa45d209663683e24cfdaa0e11
 ...
-$ docker run --rm rclone/rclone:latest version
+$ docker run --rm artpar/rclone:latest version
 rclone v1.49.1
 - os/arch: linux/amd64
 - go version: go1.12.9
@@ -128,7 +128,7 @@ from the rclone image.
 Here are some commands tested on an Ubuntu 18.04.3 host:
 
 ```
-# config on host at ~/.config/rclone/rclone.conf
+# config on host at ~/.config/artpar/rclone.conf
 # data on host at ~/data
 
 # make sure the config is ok by listing the remotes
@@ -136,7 +136,7 @@ docker run --rm \
     --volume ~/.config/rclone:/config/rclone \
     --volume ~/data:/data:shared \
     --user $(id -u):$(id -g) \
-    rclone/rclone \
+    artpar/rclone \
     listremotes
 
 # perform mount inside Docker container, expose result to host
@@ -147,7 +147,7 @@ docker run --rm \
     --user $(id -u):$(id -g) \
     --volume /etc/passwd:/etc/passwd:ro --volume /etc/group:/etc/group:ro \
     --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined \
-    rclone/rclone \
+    artpar/rclone \
     mount dropbox:Photos /data/mount &
 ls ~/data/mount
 kill %1

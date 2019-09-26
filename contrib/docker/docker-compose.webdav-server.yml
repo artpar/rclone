@@ -1,7 +1,7 @@
 rclone-webdav-server:
   container_name: rclone-webdav-server
 
-  image: rclone/rclone
+  image: artpar/rclone
   command:
 # Tweak here rclone's command line switches:
 #    - "--config"

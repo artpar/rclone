@@ -230,7 +230,7 @@ then are used to authenticate incoming requests.  This uses a simple
 JSON based protocl with input on STDIN and output on STDOUT.
 
 There is an example program
-[bin/test_proxy.py](https://github.com/rclone/rclone/blob/master/test_proxy.py)
+[bin/test_proxy.py](https://github.com/artpar/rclone/blob/master/test_proxy.py)
 in the rclone source code.
 
 The program's job is to take a `user` and `pass` on the input and turn

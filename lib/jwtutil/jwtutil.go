@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/lib/oauthutil"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/lib/oauthutil"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jws"

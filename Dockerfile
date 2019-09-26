@@ -1,7 +1,7 @@
 FROM golang AS builder
 
-COPY . /go/src/github.com/rclone/rclone/
-WORKDIR /go/src/github.com/rclone/rclone/
+COPY . /go/src/github.com/artpar/rclone/
+WORKDIR /go/src/github.com/artpar/rclone/
 
 RUN make quicktest
 RUN \
@@ -14,7 +14,7 @@ FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates fuse
 
-COPY --from=builder /go/src/github.com/rclone/rclone/rclone /usr/local/bin/
+COPY --from=builder /go/src/github.com/artpar/rclone/rclone /usr/local/bin/
 
 ENTRYPOINT [ "rclone" ]
 

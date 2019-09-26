@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fstest/mockfs"
-	"github.com/rclone/rclone/fstest/mockobject"
-	"github.com/rclone/rclone/lib/random"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fstest/mockfs"
+	"github.com/artpar/rclone/fstest/mockobject"
+	"github.com/artpar/rclone/lib/random"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fstest"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

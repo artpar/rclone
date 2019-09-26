@@ -31,7 +31,7 @@ func NewKoofrClientWithHTTPClient(baseUrl string, httpClient *httpclient.HTTPCli
 
 	httpClient.BaseURL = apiBaseUrl
 
-	client:= &KoofrClient{
+	client := &KoofrClient{
 		HTTPClient: httpClient,
 		token:      "",
 		userID:     "",

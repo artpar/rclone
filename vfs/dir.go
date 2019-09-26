@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/dirtree"
 	"github.com/artpar/rclone/fs/list"
 	"github.com/artpar/rclone/fs/operations"
 	"github.com/artpar/rclone/fs/walk"
+	"github.com/pkg/errors"
 )
 
 // Dir represents a directory entry
