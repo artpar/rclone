@@ -69,6 +69,7 @@ var (
 	ErrorImmutableModified           = errors.New("immutable file modified")
 	ErrorPermissionDenied            = errors.New("permission denied")
 	ErrorCantShareDirectories        = errors.New("this backend can't share directories with link")
+	ErrorNotImplemented              = errors.New("optional feature not implemented")
 )
 
 // RegInfo provides information about a filesystem
@@ -105,6 +106,17 @@ func (os Options) setValues() {
 			o.Default = ""
 		}
 	}
+}
+
+// Get the Option corresponding to name or return nil if not found
+func (os Options) Get(name string) *Option {
+	for i := range os {
+		opt := &os[i]
+		if opt.Name == name {
+			return opt
+		}
+	}
+	return nil
 }
 
 // OptionVisibility controls whether the options are visible in the
@@ -164,6 +176,9 @@ func (o *Option) GetValue() interface{} {
 	val := o.Value
 	if val == nil {
 		val = o.Default
+		if val == nil {
+			val = ""
+		}
 	}
 	return val
 }
@@ -469,9 +484,11 @@ type Features struct {
 	WriteMimeType           bool // can set the mime type of objects
 	CanHaveEmptyDirectories bool // can have empty directories
 	BucketBased             bool // is bucket based (like s3, swift etc)
+	BucketBasedRootOK       bool // is bucket based and can use from root
 	SetTier                 bool // allows set tier functionality on objects
 	GetTier                 bool // allows to retrieve storage tier of objects
 	ServerSideAcrossConfigs bool // can server side copy between different remotes of the same type
+	IsLocal                 bool // is the local backend
 
 	// Purge all files in the root and the root directory
 	//
@@ -588,6 +605,12 @@ type Features struct {
 	//
 	// It truncates any existing object
 	OpenWriterAt func(ctx context.Context, remote string, size int64) (WriterAtCloser, error)
+
+	// UserInfo returns info about the connected user
+	UserInfo func(ctx context.Context) (map[string]string, error)
+
+	// Disconnect the current user
+	Disconnect func(ctx context.Context) error
 }
 
 // Disable nil's out the named feature.  If it isn't found then it
@@ -703,6 +726,12 @@ func (ft *Features) Fill(f Fs) *Features {
 	if do, ok := f.(OpenWriterAter); ok {
 		ft.OpenWriterAt = do.OpenWriterAt
 	}
+	if do, ok := f.(UserInfoer); ok {
+		ft.UserInfo = do.UserInfo
+	}
+	if do, ok := f.(Disconnecter); ok {
+		ft.Disconnect = do.Disconnect
+	}
 	return ft.DisableList(Config.DisableFeatures)
 }
 
@@ -720,6 +749,7 @@ func (ft *Features) Mask(f Fs) *Features {
 	ft.WriteMimeType = ft.WriteMimeType && mask.WriteMimeType
 	ft.CanHaveEmptyDirectories = ft.CanHaveEmptyDirectories && mask.CanHaveEmptyDirectories
 	ft.BucketBased = ft.BucketBased && mask.BucketBased
+	ft.BucketBasedRootOK = ft.BucketBasedRootOK && mask.BucketBasedRootOK
 	ft.SetTier = ft.SetTier && mask.SetTier
 	ft.GetTier = ft.GetTier && mask.GetTier
 
@@ -770,6 +800,12 @@ func (ft *Features) Mask(f Fs) *Features {
 	}
 	if mask.OpenWriterAt == nil {
 		ft.OpenWriterAt = nil
+	}
+	if mask.UserInfo == nil {
+		ft.UserInfo = nil
+	}
+	if mask.Disconnect == nil {
+		ft.Disconnect = nil
 	}
 	return ft.DisableList(Config.DisableFeatures)
 }
@@ -980,6 +1016,18 @@ type OpenWriterAter interface {
 	OpenWriterAt(ctx context.Context, remote string, size int64) (WriterAtCloser, error)
 }
 
+// UserInfoer is an optional interface for Fs
+type UserInfoer interface {
+	// UserInfo returns info about the connected user
+	UserInfo(ctx context.Context) (map[string]string, error)
+}
+
+// Disconnecter is an optional interface for Fs
+type Disconnecter interface {
+	// Disconnect the current user
+	Disconnect(ctx context.Context) error
+}
+
 // ObjectsChan is a channel of Objects
 type ObjectsChan chan Object
 
@@ -990,6 +1038,38 @@ type Objects []Object
 // operation.
 type ObjectPair struct {
 	Src, Dst Object
+}
+
+// UnWrapFs unwraps f as much as possible and returns the base Fs
+func UnWrapFs(f Fs) Fs {
+	for {
+		unwrap := f.Features().UnWrap
+		if unwrap == nil {
+			break // not a wrapped Fs, use current
+		}
+		next := unwrap()
+		if next == nil {
+			break // no base Fs found, use current
+		}
+		f = next
+	}
+	return f
+}
+
+// UnWrapObject unwraps o as much as possible and returns the base object
+func UnWrapObject(o Object) Object {
+	for {
+		u, ok := o.(ObjectUnWrapper)
+		if !ok {
+			break // not a wrapped object, use current
+		}
+		next := u.UnWrap()
+		if next == nil {
+			break // no base object found, use current
+		}
+		o = next
+	}
+	return o
 }
 
 // Find looks for an RegInfo object for the name passed in.  The name
@@ -1021,7 +1101,10 @@ func MustFind(name string) *RegInfo {
 // ParseRemote deconstructs a path into configName, fsPath, looking up
 // the fsName in the config file (returning NotFoundInConfigFile if not found)
 func ParseRemote(path string) (fsInfo *RegInfo, configName, fsPath string, err error) {
-	configName, fsPath = fspath.Parse(path)
+	configName, fsPath, err = fspath.Parse(path)
+	if err != nil {
+		return nil, "", "", err
+	}
 	var fsName string
 	var ok bool
 	if configName != "" {
@@ -1051,11 +1134,24 @@ func (configName configEnvVars) Get(key string) (value string, ok bool) {
 }
 
 // A configmap.Getter to read from the environment RCLONE_option_name
-type optionEnvVars string
+type optionEnvVars struct {
+	fsInfo *RegInfo
+}
 
 // Get a config item from the option environment variables if possible
-func (prefix optionEnvVars) Get(key string) (value string, ok bool) {
-	return os.LookupEnv(OptionToEnv(string(prefix) + "-" + key))
+func (oev optionEnvVars) Get(key string) (value string, ok bool) {
+	opt := oev.fsInfo.Options.Get(key)
+	if opt == nil {
+		return "", false
+	}
+	// For options with NoPrefix set, check without prefix too
+	if opt.NoPrefix {
+		value, ok = os.LookupEnv(OptionToEnv(key))
+		if ok {
+			return value, ok
+		}
+	}
+	return os.LookupEnv(OptionToEnv(oev.fsInfo.Prefix + "-" + key))
 }
 
 // A configmap.Getter to read either the default value or the set
@@ -1068,14 +1164,9 @@ type regInfoValues struct {
 // override the values in configMap with the either the flag values or
 // the default values
 func (r *regInfoValues) Get(key string) (value string, ok bool) {
-	for i := range r.fsInfo.Options {
-		o := &r.fsInfo.Options[i]
-		if o.Name == key {
-			if r.useDefault || o.Value != nil {
-				return o.String(), true
-			}
-			break
-		}
+	opt := r.fsInfo.Options.Get(key)
+	if opt != nil && (r.useDefault || opt.Value != nil) {
+		return opt.String(), true
 	}
 	return "", false
 }
@@ -1086,7 +1177,10 @@ type setConfigFile string
 // Set a config item into the config file
 func (section setConfigFile) Set(key, value string) {
 	Debugf(nil, "Saving config %q = %q in section %q of the config file", key, value, section)
-	ConfigFileSet(string(section), key, value)
+	err := ConfigFileSet(string(section), key, value)
+	if err != nil {
+		Errorf(nil, "Failed saving config %q = %q in section %q of the config file: %v", key, value, section, err)
+	}
 }
 
 // A configmap.Getter to read from the config file
@@ -1123,7 +1217,7 @@ func ConfigMap(fsInfo *RegInfo, configName string) (config *configmap.Map) {
 
 	// backend specific environment vars
 	if fsInfo != nil {
-		config.AddGetter(optionEnvVars(fsInfo.Prefix))
+		config.AddGetter(optionEnvVars{fsInfo: fsInfo})
 	}
 
 	// config file

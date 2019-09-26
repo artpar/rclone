@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"path"
 	"path/filepath"
 	"sort"
@@ -18,17 +17,18 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/cache"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/march"
-	"github.com/artpar/rclone/fs/object"
-	"github.com/artpar/rclone/fs/walk"
-	"github.com/artpar/rclone/lib/readers"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/cache"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/march"
+	"github.com/rclone/rclone/fs/object"
+	"github.com/rclone/rclone/fs/walk"
+	"github.com/rclone/rclone/lib/random"
+	"github.com/rclone/rclone/lib/readers"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -51,30 +51,48 @@ func CheckHashes(ctx context.Context, src fs.ObjectInfo, dst fs.Object) (equal b
 	if common.Count() == 0 {
 		return true, hash.None, nil
 	}
-	ht = common.GetOne()
-	srcHash, err := src.Hash(ctx, ht)
+	equal, ht, _, _, err = checkHashes(ctx, src, dst, common.GetOne())
+	return equal, ht, err
+}
+
+// checkHashes does the work of CheckHashes but takes a hash.Type and
+// returns the effective hash type used.
+func checkHashes(ctx context.Context, src fs.ObjectInfo, dst fs.Object, ht hash.Type) (equal bool, htOut hash.Type, srcHash, dstHash string, err error) {
+	// Calculate hashes in parallel
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) {
+		srcHash, err = src.Hash(ctx, ht)
+		if err != nil {
+			fs.CountError(err)
+			fs.Errorf(src, "Failed to calculate src hash: %v", err)
+		}
+		return err
+	})
+	g.Go(func() (err error) {
+		dstHash, err = dst.Hash(ctx, ht)
+		if err != nil {
+			fs.CountError(err)
+			fs.Errorf(dst, "Failed to calculate dst hash: %v", err)
+		}
+		return err
+	})
+	err = g.Wait()
 	if err != nil {
-		fs.CountError(err)
-		fs.Errorf(src, "Failed to calculate src hash: %v", err)
-		return false, ht, err
+		return false, ht, srcHash, dstHash, err
 	}
 	if srcHash == "" {
-		return true, hash.None, nil
-	}
-	dstHash, err := dst.Hash(ctx, ht)
-	if err != nil {
-		fs.CountError(err)
-		fs.Errorf(dst, "Failed to calculate dst hash: %v", err)
-		return false, ht, err
+		return true, hash.None, srcHash, dstHash, nil
 	}
 	if dstHash == "" {
-		return true, hash.None, nil
+		return true, hash.None, srcHash, dstHash, nil
 	}
 	if srcHash != dstHash {
 		fs.Debugf(src, "%v = %s (%v)", ht, srcHash, src.Fs())
 		fs.Debugf(dst, "%v = %s (%v)", ht, dstHash, dst.Fs())
+	} else {
+		fs.Debugf(src, "%v = %s OK", ht, srcHash)
 	}
-	return srcHash == dstHash, ht, nil
+	return srcHash == dstHash, ht, srcHash, dstHash, nil
 }
 
 // Equal checks to see if the src and dst objects are equal by looking at
@@ -266,7 +284,7 @@ func Copy(ctx context.Context, f fs.Fs, dst fs.Object, remote string, src fs.Obj
 	// work out which hash to use - limit to 1 hash in common
 	var common hash.Set
 	hashType := hash.None
-	if !fs.Config.SizeOnly {
+	if !fs.Config.IgnoreChecksum {
 		common = src.Fs().Hashes().Overlap(f.Hashes())
 		if common.Count() > 0 {
 			hashType = common.GetOne()
@@ -284,17 +302,25 @@ func Copy(ctx context.Context, f fs.Fs, dst fs.Object, remote string, src fs.Obj
 			if fs.Config.MaxTransfer >= 0 && accounting.Stats(ctx).GetBytes() >= int64(fs.Config.MaxTransfer) {
 				return nil, accounting.ErrorMaxTransferLimitReached
 			}
+			in := tr.Account(nil) // account the transfer
+			in.ServerSideCopyStart()
 			newDst, err = doCopy(ctx, src, remote)
 			if err == nil {
 				dst = newDst
-				accounting.Stats(ctx).Bytes(dst.Size()) // account the bytes for the server side transfer
+				in.ServerSideCopyEnd(dst.Size()) // account the bytes for the server side transfer
+				err = in.Close()
+			} else {
+				_ = in.Close()
+			}
+			if err == fs.ErrorCantCopy {
+				tr.Reset() // skip incomplete accounting - will be overwritten by the manual copy below
 			}
 		} else {
 			err = fs.ErrorCantCopy
 		}
 		// If can't server side copy, do it manually
 		if err == fs.ErrorCantCopy {
-			if doOpenWriterAt := f.Features().OpenWriterAt; doOpenWriterAt != nil && src.Size() >= int64(fs.Config.MultiThreadCutoff) && fs.Config.MultiThreadStreams > 1 {
+			if doMultiThreadCopy(f, src) {
 				// Number of streams proportional to size
 				streams := src.Size() / int64(fs.Config.MultiThreadCutoff)
 				// With maximum
@@ -323,6 +349,7 @@ func Copy(ctx context.Context, f fs.Fs, dst fs.Object, remote string, src fs.Obj
 						} else {
 							actionTaken = "Copied (Rcat, new)"
 						}
+						// NB Rcat closes in0
 						dst, err = Rcat(ctx, f, remote, in0, src.ModTime(ctx))
 						newDst = dst
 					} else {
@@ -376,25 +403,15 @@ func Copy(ctx context.Context, f fs.Fs, dst fs.Object, remote string, src fs.Obj
 	}
 
 	// Verify hashes are the same after transfer - ignoring blank hashes
-	if !fs.Config.IgnoreChecksum && hashType != hash.None {
-		var srcSum string
-		srcSum, err = src.Hash(ctx, hashType)
-		if err != nil {
+	if hashType != hash.None {
+		// checkHashes has logged and counted errors
+		equal, _, srcSum, dstSum, _ := checkHashes(ctx, src, dst, hashType)
+		if !equal {
+			err = errors.Errorf("corrupted on transfer: %v hash differ %q vs %q", hashType, srcSum, dstSum)
+			fs.Errorf(dst, "%v", err)
 			fs.CountError(err)
-			fs.Errorf(src, "Failed to read src hash: %v", err)
-		} else if srcSum != "" {
-			var dstSum string
-			dstSum, err = dst.Hash(ctx, hashType)
-			if err != nil {
-				fs.CountError(err)
-				fs.Errorf(dst, "Failed to read hash: %v", err)
-			} else if !hash.Equals(srcSum, dstSum) {
-				err = errors.Errorf("corrupted on transfer: %v hash differ %q vs %q", hashType, srcSum, dstSum)
-				fs.Errorf(dst, "%v", err)
-				fs.CountError(err)
-				removeFailedCopy(ctx, dst)
-				return newDst, err
-			}
+			removeFailedCopy(ctx, dst)
+			return newDst, err
 		}
 	}
 
@@ -1222,8 +1239,9 @@ func Rcat(ctx context.Context, fdst fs.Fs, dstFileName string, in io.ReadCloser,
 	}()
 	in = tr.Account(in).WithBuffer()
 
-	hashOption := &fs.HashesOption{Hashes: fdst.Hashes()}
-	hash, err := hash.NewMultiHasherTypes(fdst.Hashes())
+	hashes := hash.NewHashSet(fdst.Hashes().GetOne()) // just pick one hash
+	hashOption := &fs.HashesOption{Hashes: hashes}
+	hash, err := hash.NewMultiHasherTypes(hashes)
 	if err != nil {
 		return nil, err
 	}
@@ -1513,7 +1531,7 @@ func NeedTransfer(ctx context.Context, dst, src fs.Object) bool {
 		case dt <= -modifyWindow:
 			fs.Debugf(src, "Destination is older than source, transferring")
 		default:
-			if src.Size() == dst.Size() {
+			if !sizeDiffers(src, dst) {
 				fs.Debugf(src, "Destination mod time is within %v of source and sizes identical, skipping", modifyWindow)
 				return false
 			}
@@ -1572,14 +1590,24 @@ func RcatSize(ctx context.Context, fdst fs.Fs, dstFileName string, in io.ReadClo
 }
 
 // CopyURL copies the data from the url to (fdst, dstFileName)
-func CopyURL(ctx context.Context, fdst fs.Fs, dstFileName string, url string) (dst fs.Object, err error) {
+func CopyURL(ctx context.Context, fdst fs.Fs, dstFileName string, url string, dstFileNameFromURL bool) (dst fs.Object, err error) {
 	client := fshttp.NewClient(fs.Config)
 	resp, err := client.Get(url)
-
 	if err != nil {
 		return nil, err
 	}
 	defer fs.CheckClose(resp.Body, &err)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, errors.Errorf("CopyURL failed: %s", resp.Status)
+	}
+
+	if dstFileNameFromURL {
+		dstFileName = path.Base(resp.Request.URL.Path)
+		if dstFileName == "." || dstFileName == "/" {
+			return nil, errors.Errorf("CopyURL failed: file name wasn't found in url")
+		}
+	}
+
 	return RcatSize(ctx, fdst, dstFileName, resp.Body, resp.ContentLength, time.Now())
 }
 
@@ -1666,7 +1694,7 @@ func moveOrCopyFile(ctx context.Context, fdst fs.Fs, fsrc fs.Fs, dstFileName str
 	// to avoid issues with certain remotes and avoid file deletion.
 	if !cp && fdst.Name() == fsrc.Name() && fdst.Features().CaseInsensitive && dstFileName != srcFileName && strings.ToLower(dstFilePath) == strings.ToLower(srcFilePath) {
 		// Create random name to temporarily move file to
-		tmpObjName := dstFileName + "-rclone-move-" + random(8)
+		tmpObjName := dstFileName + "-rclone-move-" + random.String(8)
 		_, err := fdst.NewObject(ctx, tmpObjName)
 		if err != fs.ErrorObjectNotFound {
 			if err == nil {
@@ -1728,17 +1756,6 @@ func moveOrCopyFile(ctx context.Context, fdst fs.Fs, fsrc fs.Fs, dstFileName str
 		tr.Done(err)
 	}
 	return err
-}
-
-// random generates a pseudorandom alphanumeric string
-func random(length int) string {
-	randomOutput := make([]byte, length)
-	possibleCharacters := "123567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	rand.Seed(time.Now().Unix())
-	for i := range randomOutput {
-		randomOutput[i] = possibleCharacters[rand.Intn(len(possibleCharacters))]
-	}
-	return string(randomOutput)
 }
 
 // MoveFile moves a single file possibly to a new name

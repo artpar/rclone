@@ -93,37 +93,59 @@ const (
 // SeekModes contains all valid SeekMode's
 var SeekModes = []SeekMode{SeekModeNone, SeekModeRegular, SeekModeRange}
 
-type contentMockObject struct {
+// ContentMockObject mocks an fs.Object and has content
+type ContentMockObject struct {
 	Object
-	content  []byte
-	seekMode SeekMode
+	content     []byte
+	seekMode    SeekMode
+	f           fs.Fs
+	unknownSize bool
 }
 
 // WithContent returns a fs.Object with the given content.
-func (o Object) WithContent(content []byte, mode SeekMode) fs.Object {
-	return &contentMockObject{
+func (o Object) WithContent(content []byte, mode SeekMode) *ContentMockObject {
+	return &ContentMockObject{
 		Object:   o,
 		content:  content,
 		seekMode: mode,
 	}
 }
 
-func (o *contentMockObject) Open(ctx context.Context, options ...fs.OpenOption) (io.ReadCloser, error) {
+// SetFs sets the return value of the Fs() call
+func (o *ContentMockObject) SetFs(f fs.Fs) {
+	o.f = f
+}
+
+// SetUnknownSize makes the mock object return -1 for size if true
+func (o *ContentMockObject) SetUnknownSize(unknownSize bool) {
+	o.unknownSize = true
+}
+
+// Fs returns read only access to the Fs that this object is part of
+//
+// This is nil unless SetFs has been called
+func (o *ContentMockObject) Fs() fs.Info {
+	return o.f
+}
+
+// Open opens the file for read.  Call Close() on the returned io.ReadCloser
+func (o *ContentMockObject) Open(ctx context.Context, options ...fs.OpenOption) (io.ReadCloser, error) {
+	size := int64(len(o.content))
 	var offset, limit int64 = 0, -1
 	for _, option := range options {
 		switch x := option.(type) {
 		case *fs.SeekOption:
 			offset = x.Offset
 		case *fs.RangeOption:
-			offset, limit = x.Decode(o.Size())
+			offset, limit = x.Decode(size)
 		default:
 			if option.Mandatory() {
 				return nil, fmt.Errorf("Unsupported mandatory option: %v", option)
 			}
 		}
 	}
-	if limit == -1 || offset+limit > o.Size() {
-		limit = o.Size() - offset
+	if limit == -1 || offset+limit > size {
+		limit = size - offset
 	}
 
 	var r *bytes.Reader
@@ -147,7 +169,12 @@ func (o *contentMockObject) Open(ctx context.Context, options ...fs.OpenOption) 
 		return nil, errors.New(o.seekMode.String())
 	}
 }
-func (o *contentMockObject) Size() int64 {
+
+// Size returns the size of the file
+func (o *ContentMockObject) Size() int64 {
+	if o.unknownSize {
+		return -1
+	}
 	return int64(len(o.content))
 }
 

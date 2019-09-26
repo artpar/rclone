@@ -17,8 +17,8 @@ import (
 // Test describes an integration test to run with `go test`
 type Test struct {
 	Path       string // path to the source directory
-	SubDir     bool   // if it is possible to add -sub-dir to tests
 	FastList   bool   // if it is possible to add -fast-list to tests
+	Short      bool   // if it is possible to run the test with -short
 	AddBackend bool   // set if Path needs the current backend appending
 	NoRetries  bool   // set if no retries should be performed
 	NoBinary   bool   // set to not build a binary in advance
@@ -31,9 +31,10 @@ type Test struct {
 type Backend struct {
 	Backend  string   // name of the backend directory
 	Remote   string   // name of the test remote
-	SubDir   bool     // set to test with -sub-dir
 	FastList bool     // set to test with -fast-list
+	Short    bool     // set to test with -short
 	OneOnly  bool     // set to run only one backend test at once
+	MaxFile  string   // file size limit
 	Ignore   []string // test names to ignore the failure of
 	Tests    []string // paths of tests to run, blank for all
 }
@@ -54,15 +55,17 @@ func (b *Backend) includeTest(t *Test) bool {
 
 // MakeRuns creates Run objects the Backend and Test
 //
-// There can be several created, one for each combination of SubDir
-// and FastList
+// There can be several created, one for each combination of optionl
+// flags (eg FastList)
 func (b *Backend) MakeRuns(t *Test) (runs []*Run) {
 	if !b.includeTest(t) {
 		return runs
 	}
-	subdirs := []bool{false}
-	if b.SubDir && t.SubDir {
-		subdirs = append(subdirs, true)
+	maxSize := fs.SizeSuffix(0)
+	if b.MaxFile != "" {
+		if err := maxSize.Set(b.MaxFile); err != nil {
+			log.Printf("Invalid maxfile value %q: %v", b.MaxFile, err)
+		}
 	}
 	fastlists := []bool{false}
 	if b.FastList && t.FastList {
@@ -72,27 +75,26 @@ func (b *Backend) MakeRuns(t *Test) (runs []*Run) {
 	for _, item := range b.Ignore {
 		ignore[item] = struct{}{}
 	}
-	for _, subdir := range subdirs {
-		for _, fastlist := range fastlists {
-			if t.LocalOnly && b.Backend != "local" {
-				continue
-			}
-			run := &Run{
-				Remote:    b.Remote,
-				Backend:   b.Backend,
-				Path:      t.Path,
-				SubDir:    subdir,
-				FastList:  fastlist,
-				NoRetries: t.NoRetries,
-				OneOnly:   b.OneOnly,
-				NoBinary:  t.NoBinary,
-				Ignore:    ignore,
-			}
-			if t.AddBackend {
-				run.Path = path.Join(run.Path, b.Backend)
-			}
-			runs = append(runs, run)
+	for _, fastlist := range fastlists {
+		if t.LocalOnly && b.Backend != "local" {
+			continue
 		}
+		run := &Run{
+			Remote:    b.Remote,
+			Backend:   b.Backend,
+			Path:      t.Path,
+			FastList:  fastlist,
+			Short:     (b.Short && t.Short),
+			NoRetries: t.NoRetries,
+			OneOnly:   b.OneOnly,
+			NoBinary:  t.NoBinary,
+			SizeLimit: int64(maxSize),
+			Ignore:    ignore,
+		}
+		if t.AddBackend {
+			run.Path = path.Join(run.Path, b.Backend)
+		}
+		runs = append(runs, run)
 	}
 	return runs
 }

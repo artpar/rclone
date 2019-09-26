@@ -267,8 +267,8 @@ func (fsys *FS) Statfs(path string, stat *fuse.Statfs_t) (errc int) {
 	stat.Blocks = fsBlocks  // Total data blocks in file system.
 	stat.Bfree = fsBlocks   // Free blocks in file system.
 	stat.Bavail = fsBlocks  // Free blocks in file system if you're not root.
-	stat.Files = 1E9        // Total files in file system.
-	stat.Ffree = 1E9        // Free files in file system.
+	stat.Files = 1e9        // Total files in file system.
+	stat.Ffree = 1e9        // Free files in file system.
 	stat.Bsize = blockSize  // Block size
 	stat.Namemax = 255      // Maximum file name length?
 	stat.Frsize = blockSize // Fragment size, smallest addressable data size in the file system.
@@ -298,6 +298,9 @@ func (fsys *FS) Open(path string, flags int) (errc int, fh uint64) {
 	if err != nil {
 		return translateError(err), fhUnset
 	}
+
+	// FIXME add support for unknown length files setting direct_io
+	// See: https://github.com/billziss-gh/cgofuse/issues/38
 
 	return 0, fsys.openHandle(handle)
 }

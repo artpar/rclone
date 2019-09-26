@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -51,6 +52,7 @@ var DefaultOpt = Options{
 	ChunkSize:         128 * fs.MebiByte,
 	ChunkSizeLimit:    -1,
 	CacheMaxSize:      -1,
+	CaseInsensitive:   runtime.GOOS == "windows" || runtime.GOOS == "darwin", // default to true on Windows and Mac, false otherwise
 }
 
 // Node represents either a directory (*Dir) or a file (*File)
@@ -199,6 +201,7 @@ type Options struct {
 	CacheMaxAge       time.Duration
 	CacheMaxSize      fs.SizeSuffix
 	CachePollInterval time.Duration
+	CaseInsensitive   bool
 }
 
 // New creates a new VFS and root directory.  If opt is nil, then
@@ -240,6 +243,11 @@ func New(f fs.Fs, opt *Options) *VFS {
 	// add the remote control
 	vfs.addRC()
 	return vfs
+}
+
+// Fs returns the Fs passed into the New call
+func (vfs *VFS) Fs() fs.Fs {
+	return vfs.f
 }
 
 // SetCacheMode change the cache mode

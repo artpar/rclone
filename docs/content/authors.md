@@ -266,7 +266,7 @@ Contributors
   * Aleksandar Jankovic <office@ajankovic.com>
   * Maran <maran@protonmail.com>
   * nguyenhuuluan434 <nguyenhuuluan434@gmail.com>
-  * Laura Hausmann <zotan@zotan.pw>
+  * Laura Hausmann <zotan@zotan.pw> <laura@hausmann.dev>
   * yparitcher <y@paritcher.com>
   * AbelThar <abela.tharen@gmail.com>
   * Matti Niemenmaa <matti.niemenmaa+git@iki.fi>
@@ -275,3 +275,19 @@ Contributors
   * Paul Millar <paul.millar@desy.de>
   * justinalin <justinalin@qnap.com>
   * EliEron <subanimehd@gmail.com>
+  * justina777 <chiahuei.lin@gmail.com>
+  * Chaitanya Bankanhal <bchaitanya15@gmail.com>
+  * Michał Matczuk <michal@scylladb.com>
+  * Macavirus <macavirus@zoho.com>
+  * Abhinav Sharma <abhi18av@users.noreply.github.com>
+  * ginvine <34869051+ginvine@users.noreply.github.com>
+  * Patrick Wang <mail6543210@yahoo.com.tw>
+  * Cenk Alti <cenkalti@gmail.com>
+  * Andreas Chlupka <andy@chlupka.com>
+  * Alfonso Montero <amontero@tinet.org>
+  * Ivan Andreev <ivandeex@gmail.com>
+  * David Baumgold <david@davidbaumgold.com>
+  * Lars Lehtonen <lars.lehtonen@gmail.com>
+  * Matei David <matei.david@gmail.com>
+  * David <david.bramwell@endemolshine.com>
+  * Anthony Rusdi <33247310+antrusd@users.noreply.github.com>

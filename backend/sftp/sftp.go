@@ -36,7 +36,8 @@ import (
 )
 
 const (
-	connectionsPerSecond = 10 // don't make more than this many ssh connections/s
+	connectionsPerSecond    = 10 // don't make more than this many ssh connections/s
+	hashCommandNotSupported = "none"
 )
 
 var (
@@ -102,9 +103,14 @@ when the ssh-agent contains many keys.`,
 			Default: false,
 			Help:    "Disable the execution of SSH commands to determine if remote file hashing is available.\nLeave blank or set to false to enable hashing (recommended), set to true to disable hashing.",
 		}, {
-			Name:     "ask_password",
-			Default:  false,
-			Help:     "Allow asking for SFTP password when needed.",
+			Name:    "ask_password",
+			Default: false,
+			Help: `Allow asking for SFTP password when needed.
+
+If this is set and no password is supplied then rclone will:
+- ask for a password
+- not contact the ssh agent
+`,
 			Advanced: true,
 		}, {
 			Name:    "path_override",
@@ -127,6 +133,16 @@ Home directory can be found in a shared folder called "home"
 			Default:  true,
 			Help:     "Set the modified time on the remote if set.",
 			Advanced: true,
+		}, {
+			Name:     "md5sum_command",
+			Default:  "",
+			Help:     "The command used to read md5 hashes. Leave blank for autodetect.",
+			Advanced: true,
+		}, {
+			Name:     "sha1sum_command",
+			Default:  "",
+			Help:     "The command used to read sha1 hashes. Leave blank for autodetect.",
+			Advanced: true,
 		}},
 	}
 	fs.Register(fsi)
@@ -146,14 +162,17 @@ type Options struct {
 	AskPassword       bool   `config:"ask_password"`
 	PathOverride      string `config:"path_override"`
 	SetModTime        bool   `config:"set_modtime"`
+	Md5sumCommand     string `config:"md5sum_command"`
+	Sha1sumCommand    string `config:"sha1sum_command"`
 }
 
 // Fs stores the interface to the remote SFTP files
 type Fs struct {
 	name         string
 	root         string
-	opt          Options      // parsed options
-	features     *fs.Features // optional features
+	opt          Options          // parsed options
+	m            configmap.Mapper // config
+	features     *fs.Features     // optional features
 	config       *ssh.ClientConfig
 	url          string
 	mkdirLock    *stringLock
@@ -350,7 +369,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 
 	keyFile := env.ShellExpand(opt.KeyFile)
 	// Add ssh agent-auth if no password or file specified
-	if (opt.Pass == "" && keyFile == "") || opt.KeyUseAgent {
+	if (opt.Pass == "" && keyFile == "" && !opt.AskPassword) || opt.KeyUseAgent {
 		sshAgentClient, _, err := sshagent.New()
 		if err != nil {
 			return nil, errors.Wrap(err, "couldn't connect to ssh-agent")
@@ -421,16 +440,17 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		sshConfig.Auth = append(sshConfig.Auth, ssh.Password(clearpass))
 	}
 
-	return NewFsWithConnection(ctx, name, root, opt, sshConfig)
+	return NewFsWithConnection(ctx, name, root, m, opt, sshConfig)
 }
 
 // NewFsWithConnection creates a new Fs object from the name and root and a ssh.ClientConfig. It connects to
 // the host specified in the ssh.ClientConfig
-func NewFsWithConnection(ctx context.Context, name string, root string, opt *Options, sshConfig *ssh.ClientConfig) (fs.Fs, error) {
+func NewFsWithConnection(ctx context.Context, name string, root string, m configmap.Mapper, opt *Options, sshConfig *ssh.ClientConfig) (fs.Fs, error) {
 	f := &Fs{
 		name:      name,
 		root:      root,
 		opt:       *opt,
+		m:         m,
 		config:    sshConfig,
 		url:       "sftp://" + opt.User + "@" + opt.Host + ":" + opt.Port + "/" + root,
 		mkdirLock: newStringLock(),
@@ -756,45 +776,79 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 	return nil
 }
 
-// Hashes returns the supported hash types of the filesystem
-func (f *Fs) Hashes() hash.Set {
-	if f.cachedHashes != nil {
-		return *f.cachedHashes
+// run runds cmd on the remote end returning standard output
+func (f *Fs) run(cmd string) ([]byte, error) {
+	c, err := f.getSftpConnection()
+	if err != nil {
+		return nil, errors.Wrap(err, "run: get SFTP connection")
+	}
+	defer f.putSftpConnection(&c, err)
+
+	session, err := c.sshClient.NewSession()
+	if err != nil {
+		return nil, errors.Wrap(err, "run: get SFTP sessiion")
+	}
+	defer func() {
+		_ = session.Close()
+	}()
+
+	var stdout, stderr bytes.Buffer
+	session.Stdout = &stdout
+	session.Stderr = &stderr
+
+	err = session.Run(cmd)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to run %q: %s", cmd, stderr.Bytes())
 	}
 
+	return stdout.Bytes(), nil
+}
+
+// Hashes returns the supported hash types of the filesystem
+func (f *Fs) Hashes() hash.Set {
 	if f.opt.DisableHashCheck {
 		return hash.Set(hash.None)
 	}
 
-	c, err := f.getSftpConnection()
-	if err != nil {
-		fs.Errorf(f, "Couldn't get SSH connection to figure out Hashes: %v", err)
-		return hash.Set(hash.None)
+	if f.cachedHashes != nil {
+		return *f.cachedHashes
 	}
-	defer f.putSftpConnection(&c, err)
-	session, err := c.sshClient.NewSession()
-	if err != nil {
-		return hash.Set(hash.None)
-	}
-	sha1Output, _ := session.Output("echo 'abc' | sha1sum")
-	expectedSha1 := "03cfd743661f07975fa2f1220c5194cbaff48451"
-	_ = session.Close()
 
-	session, err = c.sshClient.NewSession()
-	if err != nil {
-		return hash.Set(hash.None)
+	// look for a hash command which works
+	checkHash := func(commands []string, expected string, hashCommand *string, changed *bool) bool {
+		if *hashCommand == hashCommandNotSupported {
+			return false
+		}
+		if *hashCommand != "" {
+			return true
+		}
+		*changed = true
+		for _, command := range commands {
+			output, err := f.run(command)
+			if err != nil {
+				continue
+			}
+			output = bytes.TrimSpace(output)
+			fs.Debugf(f, "checking %q command: %q", command, output)
+			if parseHash(output) == expected {
+				*hashCommand = command
+				return true
+			}
+		}
+		*hashCommand = hashCommandNotSupported
+		return false
 	}
-	md5Output, _ := session.Output("echo 'abc' | md5sum")
-	expectedMd5 := "0bee89b07a248e27c83fc3d5951213c1"
-	_ = session.Close()
 
-	sha1Works := parseHash(sha1Output) == expectedSha1
-	md5Works := parseHash(md5Output) == expectedMd5
+	changed := false
+	md5Works := checkHash([]string{"md5sum", "md5 -r"}, "d41d8cd98f00b204e9800998ecf8427e", &f.opt.Md5sumCommand, &changed)
+	sha1Works := checkHash([]string{"sha1sum", "sha1 -r"}, "da39a3ee5e6b4b0d3255bfef95601890afd80709", &f.opt.Sha1sumCommand, &changed)
+
+	if changed {
+		f.m.Set("md5sum_command", f.opt.Md5sumCommand)
+		f.m.Set("sha1sum_command", f.opt.Sha1sumCommand)
+	}
 
 	set := hash.NewHashSet()
-	if !sha1Works && !md5Works {
-		set.Add(hash.None)
-	}
 	if sha1Works {
 		set.Add(hash.SHA1)
 	}
@@ -802,26 +856,12 @@ func (f *Fs) Hashes() hash.Set {
 		set.Add(hash.MD5)
 	}
 
-	_ = session.Close()
 	f.cachedHashes = &set
 	return set
 }
 
 // About gets usage stats
 func (f *Fs) About(ctx context.Context) (*fs.Usage, error) {
-	c, err := f.getSftpConnection()
-	if err != nil {
-		return nil, errors.Wrap(err, "About get SFTP connection")
-	}
-	session, err := c.sshClient.NewSession()
-	f.putSftpConnection(&c, err)
-	if err != nil {
-		return nil, errors.Wrap(err, "About put SFTP connection")
-	}
-
-	var stdout, stderr bytes.Buffer
-	session.Stdout = &stdout
-	session.Stderr = &stderr
 	escapedPath := shellEscape(f.root)
 	if f.opt.PathOverride != "" {
 		escapedPath = shellEscape(path.Join(f.opt.PathOverride, f.root))
@@ -829,14 +869,12 @@ func (f *Fs) About(ctx context.Context) (*fs.Usage, error) {
 	if len(escapedPath) == 0 {
 		escapedPath = "/"
 	}
-	err = session.Run("df -k " + escapedPath)
+	stdout, err := f.run("df -k " + escapedPath)
 	if err != nil {
-		_ = session.Close()
-		return nil, errors.Wrap(err, "About invocation of df failed. Your remote may not support about.")
+		return nil, errors.Wrap(err, "your remote may not support About")
 	}
-	_ = session.Close()
 
-	usageTotal, usageUsed, usageAvail := parseUsage(stdout.Bytes())
+	usageTotal, usageUsed, usageAvail := parseUsage(stdout)
 	usage := &fs.Usage{}
 	if usageTotal >= 0 {
 		usage.Total = fs.NewUsageValue(usageTotal)
@@ -871,23 +909,27 @@ func (o *Object) Remote() string {
 // Hash returns the selected checksum of the file
 // If no checksum is available it returns ""
 func (o *Object) Hash(ctx context.Context, r hash.Type) (string, error) {
+	if o.fs.opt.DisableHashCheck {
+		return "", nil
+	}
+	_ = o.fs.Hashes()
+
 	var hashCmd string
 	if r == hash.MD5 {
 		if o.md5sum != nil {
 			return *o.md5sum, nil
 		}
-		hashCmd = "md5sum"
+		hashCmd = o.fs.opt.Md5sumCommand
 	} else if r == hash.SHA1 {
 		if o.sha1sum != nil {
 			return *o.sha1sum, nil
 		}
-		hashCmd = "sha1sum"
+		hashCmd = o.fs.opt.Sha1sumCommand
 	} else {
 		return "", hash.ErrUnsupported
 	}
-
-	if o.fs.opt.DisableHashCheck {
-		return "", nil
+	if hashCmd == "" || hashCmd == hashCommandNotSupported {
+		return "", hash.ErrUnsupported
 	}
 
 	c, err := o.fs.getSftpConnection()

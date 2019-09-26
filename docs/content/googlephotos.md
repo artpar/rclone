@@ -4,7 +4,7 @@ description: "Rclone docs for Google Photos"
 date: "2019-06-25"
 ---
 
-<i class="fa fa-photo"></i> Google Photos
+<i class="fa fa-images"></i> Google Photos
 -------------------------------------------------
 
 The rclone backend for [Google Photos](https://www.google.com/photos/about/) is
@@ -38,7 +38,7 @@ Type of storage to configure.
 Enter a string value. Press Enter for the default ("").
 Choose a number from below, or type in your own value
 [snip]
-13 / Google Photos
+XX / Google Photos
    \ "google photos"
 [snip]
 Storage> google photos
@@ -237,6 +237,8 @@ When Images are downloaded this strips EXIF location (according to the
 docs and my tests).  This is a limitation of the Google Photos API and
 is covered by [bug #112096115](https://issuetracker.google.com/issues/112096115).
 
+**The current google API does not allow photos to be downloaded at original resolution.  This is very important if you are, for example, relying on "Google Photos" as a backup of your photos.  You will not be able to use rclone to redownload original images.  You could use 'google takeout' to recover the original photos as a last resort**
+
 ### Downloading Videos
 
 When videos are downloaded they are downloaded in a really compressed
@@ -275,13 +277,14 @@ that when syncing to Google Photos, rclone can only do a file
 existence check.
 
 It is possible to read the size of the media, but this needs an extra
-HTTP HEAD request per media item so is very slow and uses up a lot of
+HTTP HEAD request per media item so is **very slow** and uses up a lot of
 transactions.  This can be enabled with the `--gphotos-read-size`
 option or the `read_size = true` config parameter.
 
-If you want to use the backend with `rclone mount` you will need to
-enable this flag otherwise you will not be able to read media off the
-mount.
+If you want to use the backend with `rclone mount` you may need to
+enable this flag (depending on your OS and application using the
+photos) otherwise you may not be able to read media off the mount.
+You'll need to experiment to see if it works for you without the flag.
 
 ### Albums
 

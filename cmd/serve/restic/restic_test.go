@@ -1,8 +1,6 @@
 // Serve restic tests set up a server and run the integration tests
 // for restic against it.
 
-// +build go1.9
-
 package restic
 
 import (
@@ -35,7 +33,7 @@ func TestRestic(t *testing.T) {
 
 	fstest.Initialise()
 
-	fremote, _, clean, err := fstest.RandomRemote(*fstest.RemoteName, *fstest.SubDir)
+	fremote, _, clean, err := fstest.RandomRemote()
 	assert.NoError(t, err)
 	defer clean()
 

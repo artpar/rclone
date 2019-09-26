@@ -5,16 +5,15 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/artpar/rclone/fs/rc"
-
-	"github.com/artpar/rclone/fs/accounting"
-
-	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/rc"
 )
 
 // Job describes a asynchronous task started via the rc package
@@ -30,14 +29,19 @@ type Job struct {
 	Duration  float64   `json:"duration"`
 	Output    rc.Params `json:"output"`
 	Stop      func()    `json:"-"`
+
+	// realErr is the Error before printing it as a string, it's used to return
+	// the real error to the upper application layers while still printing the
+	// string error message.
+	realErr error
 }
 
 // Jobs describes a collection of running tasks
 type Jobs struct {
-	mu             sync.RWMutex
-	jobs           map[int64]*Job
-	expireInterval time.Duration
-	expireRunning  bool
+	mu            sync.RWMutex
+	jobs          map[int64]*Job
+	opt           *rc.Options
+	expireRunning bool
 }
 
 var (
@@ -48,8 +52,20 @@ var (
 // newJobs makes a new Jobs structure
 func newJobs() *Jobs {
 	return &Jobs{
-		jobs:           map[int64]*Job{},
-		expireInterval: fs.Config.RcJobExpireInterval,
+		jobs: map[int64]*Job{},
+		opt:  &rc.DefaultOpt,
+	}
+}
+
+// SetOpt sets the options when they are known
+func SetOpt(opt *rc.Options) {
+	running.opt = opt
+}
+
+// SetInitialJobID allows for setting jobID before starting any jobs.
+func SetInitialJobID(id int64) {
+	if !atomic.CompareAndSwapInt64(&jobID, 0, id) {
+		panic("Setting jobID is only possible before starting any jobs")
 	}
 }
 
@@ -58,7 +74,7 @@ func (jobs *Jobs) kickExpire() {
 	jobs.mu.Lock()
 	defer jobs.mu.Unlock()
 	if !jobs.expireRunning {
-		time.AfterFunc(jobs.expireInterval, jobs.Expire)
+		time.AfterFunc(jobs.opt.JobExpireInterval, jobs.Expire)
 		jobs.expireRunning = true
 	}
 }
@@ -70,13 +86,13 @@ func (jobs *Jobs) Expire() {
 	now := time.Now()
 	for ID, job := range jobs.jobs {
 		job.mu.Lock()
-		if job.Finished && now.Sub(job.EndTime) > fs.Config.RcJobExpireDuration {
+		if job.Finished && now.Sub(job.EndTime) > jobs.opt.JobExpireDuration {
 			delete(jobs.jobs, ID)
 		}
 		job.mu.Unlock()
 	}
 	if len(jobs.jobs) != 0 {
-		time.AfterFunc(jobs.expireInterval, jobs.Expire)
+		time.AfterFunc(jobs.opt.JobExpireInterval, jobs.Expire)
 		jobs.expireRunning = true
 	} else {
 		jobs.expireRunning = false
@@ -111,9 +127,11 @@ func (job *Job) finish(out rc.Params, err error) {
 	job.Output = out
 	job.Duration = job.EndTime.Sub(job.StartTime).Seconds()
 	if err != nil {
+		job.realErr = err
 		job.Error = err.Error()
 		job.Success = false
 	} else {
+		job.realErr = nil
 		job.Error = ""
 		job.Success = true
 	}
@@ -126,7 +144,7 @@ func (job *Job) finish(out rc.Params, err error) {
 func (job *Job) run(ctx context.Context, fn rc.Func, in rc.Params) {
 	defer func() {
 		if r := recover(); r != nil {
-			job.finish(nil, errors.Errorf("panic received: %v", r))
+			job.finish(nil, errors.Errorf("panic received: %v \n%s", r, string(debug.Stack())))
 		}
 	}()
 	job.finish(fn(ctx, in))
@@ -210,11 +228,7 @@ func StartAsyncJob(fn rc.Func, in rc.Params) (rc.Params, error) {
 func ExecuteJob(ctx context.Context, fn rc.Func, in rc.Params) (rc.Params, int64, error) {
 	job, ctx := running.NewSyncJob(ctx, in)
 	job.run(ctx, fn, in)
-	var err error
-	if !job.Success {
-		err = errors.New(job.Error)
-	}
-	return job.Output, job.ID, err
+	return job.Output, job.ID, job.realErr
 }
 
 func init() {

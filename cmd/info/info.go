@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/object"
-	"github.com/artpar/rclone/fstest"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/object"
+	"github.com/rclone/rclone/lib/random"
 	"github.com/spf13/cobra"
 )
 
@@ -58,7 +58,7 @@ a bit of go code for each one.
 `,
 	Hidden: true,
 	Run: func(command *cobra.Command, args []string) {
-		cmd.CheckArgs(1, 1E6, command, args)
+		cmd.CheckArgs(1, 1e6, command, args)
 		for i := range args {
 			f := cmd.NewFsDir(args[i : i+1])
 			cmd.Run(false, false, command, func() error {
@@ -118,7 +118,7 @@ func (r *results) Print() {
 
 // writeFile writes a file with some random contents
 func (r *results) writeFile(path string) (fs.Object, error) {
-	contents := fstest.RandomString(50)
+	contents := random.String(50)
 	src := object.NewStaticObjectInfo(path, time.Now(), int64(len(contents)), true, nil, r.f)
 	return r.f.Put(r.ctx, bytes.NewBufferString(contents), src)
 }

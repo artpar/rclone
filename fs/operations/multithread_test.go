@@ -5,13 +5,77 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/artpar/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fstest/mockfs"
+	"github.com/rclone/rclone/fstest/mockobject"
+	"github.com/rclone/rclone/lib/random"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fstest"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDoMultiThreadCopy(t *testing.T) {
+	f := mockfs.NewFs("potato", "")
+	src := mockobject.New("file.txt").WithContent([]byte(random.String(100)), mockobject.SeekModeNone)
+	srcFs := mockfs.NewFs("sausage", "")
+	src.SetFs(srcFs)
+
+	oldStreams := fs.Config.MultiThreadStreams
+	oldCutoff := fs.Config.MultiThreadCutoff
+	oldIsSet := fs.Config.MultiThreadSet
+	defer func() {
+		fs.Config.MultiThreadStreams = oldStreams
+		fs.Config.MultiThreadCutoff = oldCutoff
+		fs.Config.MultiThreadSet = oldIsSet
+	}()
+
+	fs.Config.MultiThreadStreams, fs.Config.MultiThreadCutoff = 4, 50
+	fs.Config.MultiThreadSet = false
+
+	nullWriterAt := func(ctx context.Context, remote string, size int64) (fs.WriterAtCloser, error) {
+		panic("don't call me")
+	}
+	f.Features().OpenWriterAt = nullWriterAt
+
+	assert.True(t, doMultiThreadCopy(f, src))
+
+	fs.Config.MultiThreadStreams = 0
+	assert.False(t, doMultiThreadCopy(f, src))
+	fs.Config.MultiThreadStreams = 1
+	assert.False(t, doMultiThreadCopy(f, src))
+	fs.Config.MultiThreadStreams = 2
+	assert.True(t, doMultiThreadCopy(f, src))
+
+	fs.Config.MultiThreadCutoff = 200
+	assert.False(t, doMultiThreadCopy(f, src))
+	fs.Config.MultiThreadCutoff = 101
+	assert.False(t, doMultiThreadCopy(f, src))
+	fs.Config.MultiThreadCutoff = 100
+	assert.True(t, doMultiThreadCopy(f, src))
+
+	f.Features().OpenWriterAt = nil
+	assert.False(t, doMultiThreadCopy(f, src))
+	f.Features().OpenWriterAt = nullWriterAt
+	assert.True(t, doMultiThreadCopy(f, src))
+
+	f.Features().IsLocal = true
+	srcFs.Features().IsLocal = true
+	assert.False(t, doMultiThreadCopy(f, src))
+	fs.Config.MultiThreadSet = true
+	assert.True(t, doMultiThreadCopy(f, src))
+	fs.Config.MultiThreadSet = false
+	assert.False(t, doMultiThreadCopy(f, src))
+	srcFs.Features().IsLocal = false
+	assert.True(t, doMultiThreadCopy(f, src))
+	srcFs.Features().IsLocal = true
+	assert.False(t, doMultiThreadCopy(f, src))
+	f.Features().IsLocal = false
+	assert.True(t, doMultiThreadCopy(f, src))
+	srcFs.Features().IsLocal = false
+	assert.True(t, doMultiThreadCopy(f, src))
+}
 
 func TestMultithreadCalculateChunks(t *testing.T) {
 	for _, test := range []struct {
@@ -51,8 +115,11 @@ func TestMultithreadCopy(t *testing.T) {
 		{size: multithreadChunkSize*2 + 1, streams: 2},
 	} {
 		t.Run(fmt.Sprintf("%+v", test), func(t *testing.T) {
+			if *fstest.SizeLimit > 0 && int64(test.size) > *fstest.SizeLimit {
+				t.Skipf("exceeded file size limit %d > %d", test.size, *fstest.SizeLimit)
+			}
 			var err error
-			contents := fstest.RandomString(test.size)
+			contents := random.String(test.size)
 			t1 := fstest.Time("2001-02-03T04:05:06.499999999Z")
 			file1 := r.WriteObject(context.Background(), "file1", contents, t1)
 			fstest.CheckItems(t, r.Fremote, file1)

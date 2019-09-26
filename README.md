@@ -1,4 +1,4 @@
-[![Logo](https://rclone.org/img/rclone-120x120.png)](https://rclone.org/)
+[<img src="https://rclone.org/img/logo_on_light__horizontal_color.svg" width="50%" alt="rclone logo">](https://rclone.org/)
 
 [Website](https://rclone.org) |
 [Documentation](https://rclone.org/docs/) |
@@ -6,13 +6,15 @@
 [Contributing](CONTRIBUTING.md) |
 [Changelog](https://rclone.org/changelog/) |
 [Installation](https://rclone.org/install/) |
-[Forum](https://forum.rclone.org/) | 
+[Forum](https://forum.rclone.org/)
 
-[![Build Status](https://travis-ci.org/artpar/rclone.svg?branch=master)](https://travis-ci.org/artpar/rclone)
-[![Windows Build Status](https://ci.appveyor.com/api/projects/status/github/artpar/rclone?branch=master&passingText=windows%20-%20ok&svg=true)](https://ci.appveyor.com/project/artpar/rclone)
-[![CircleCI](https://circleci.com/gh/artpar/rclone/tree/master.svg?style=svg)](https://circleci.com/gh/artpar/rclone/tree/master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/artpar/rclone)](https://goreportcard.com/report/github.com/artpar/rclone)
-[![GoDoc](https://godoc.org/github.com/artpar/rclone?status.svg)](https://godoc.org/github.com/artpar/rclone)
+[![Build Status](https://travis-ci.org/rclone/rclone.svg?branch=master)](https://travis-ci.org/rclone/rclone)
+[![Windows Build Status](https://ci.appveyor.com/api/projects/status/github/rclone/rclone?branch=master&passingText=windows%20-%20ok&svg=true)](https://ci.appveyor.com/project/rclone/rclone)
+[![Build Status](https://dev.azure.com/rclone/rclone/_apis/build/status/rclone.rclone?branchName=master)](https://dev.azure.com/rclone/rclone/_build/latest?definitionId=2&branchName=master)
+[![CircleCI](https://circleci.com/gh/rclone/rclone/tree/master.svg?style=svg)](https://circleci.com/gh/rclone/rclone/tree/master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/rclone/rclone)](https://goreportcard.com/report/github.com/rclone/rclone)
+[![GoDoc](https://godoc.org/github.com/rclone/rclone?status.svg)](https://godoc.org/github.com/rclone/rclone) 
+[![Docker Pulls](https://img.shields.io/docker/pulls/rclone/rclone)](https://hub.docker.com/r/rclone/rclone)
 
 # Rclone
 
@@ -39,6 +41,7 @@ Rclone *("rsync for cloud storage")* is a command line program to sync files and
   * Jottacloud [:page_facing_up:](https://rclone.org/jottacloud/)
   * IBM COS S3 [:page_facing_up:](https://rclone.org/s3/#ibm-cos-s3)
   * Koofr [:page_facing_up:](https://rclone.org/koofr/)
+  * Mail.ru Cloud [:page_facing_up:](https://rclone.org/mailru/)
   * Memset Memstore [:page_facing_up:](https://rclone.org/swift/)
   * Mega [:page_facing_up:](https://rclone.org/mega/)
   * Microsoft Azure Blob Storage [:page_facing_up:](https://rclone.org/azureblob/)
@@ -51,7 +54,8 @@ Rclone *("rsync for cloud storage")* is a command line program to sync files and
   * Oracle Cloud Storage [:page_facing_up:](https://rclone.org/swift/)
   * ownCloud [:page_facing_up:](https://rclone.org/webdav/#owncloud)
   * pCloud [:page_facing_up:](https://rclone.org/pcloud/)
-  * put.io [:page_facing_up:](https://rclone.org/webdav/#put-io)
+  * premiumize.me [:page_facing_up:](https://rclone.org/premiumizeme/)
+  * put.io [:page_facing_up:](https://rclone.org/putio/)
   * QingStor [:page_facing_up:](https://rclone.org/qingstor/)
   * Rackspace Cloud Files [:page_facing_up:](https://rclone.org/swift/)
   * Scaleway [:page_facing_up:](https://rclone.org/s3/#scaleway)
@@ -72,6 +76,7 @@ Please see [the full list of all storage providers and their features](https://r
   * [Sync](https://rclone.org/commands/rclone_sync/) (one way) mode to make a directory identical
   * [Check](https://rclone.org/commands/rclone_check/) mode to check for file hash equality
   * Can sync to and from network, e.g. two different cloud accounts
+  * Optional large file chunking ([Chunker](https://rclone.org/chunker/))
   * Optional encryption ([Crypt](https://rclone.org/crypt/))
   * Optional cache ([Cache](https://rclone.org/cache/))
   * Optional FUSE mount ([rclone mount](https://rclone.org/commands/rclone_mount/))

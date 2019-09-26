@@ -248,7 +248,7 @@ func (ts *TokenSource) timeToExpiry() time.Duration {
 		return 0
 	}
 	if t.Expiry.IsZero() {
-		return 3E9 * time.Second // ~95 years
+		return 3e9 * time.Second // ~95 years
 	}
 	return t.Expiry.Sub(time.Now())
 }
@@ -391,7 +391,7 @@ func doConfig(id, name string, m configmap.Mapper, errorHandler func(*http.Reque
 		}
 		if !isLocal() {
 			fmt.Printf("For this to work, you will need rclone available on a machine that has a web browser available.\n")
-			fmt.Printf("Execute the following on your machine:\n")
+			fmt.Printf("Execute the following on your machine (same rclone version recommended) :\n")
 			if changed {
 				fmt.Printf("\trclone authorize %q %q %q\n", id, oauthConfig.ClientID, oauthConfig.ClientSecret)
 			} else {

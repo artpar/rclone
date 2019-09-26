@@ -47,7 +47,6 @@ func shellUnEscape(str string) string {
 // Info about the current connection
 type conn struct {
 	vfs      *vfs.VFS
-	f        fs.Fs
 	handlers sftp.Handlers
 	what     string
 }
@@ -65,7 +64,7 @@ func (c *conn) execCommand(ctx context.Context, out io.Writer, command string) (
 	fs.Debugf(c.what, "exec command: binary = %q, args = %q", binary, args)
 	switch binary {
 	case "df":
-		about := c.f.Features().About
+		about := c.vfs.Fs().Features().About
 		if about == nil {
 			return errors.New("df not supported")
 		}
@@ -98,22 +97,33 @@ func (c *conn) execCommand(ctx context.Context, out io.Writer, command string) (
 		if binary == "sha1sum" {
 			ht = hash.SHA1
 		}
-		node, err := c.vfs.Stat(args)
-		if err != nil {
-			return errors.Wrapf(err, "hash failed finding file %q", args)
+		var hashSum string
+		if args == "" {
+			// empty hash for no input
+			if ht == hash.MD5 {
+				hashSum = "d41d8cd98f00b204e9800998ecf8427e"
+			} else {
+				hashSum = "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+			}
+			args = "-"
+		} else {
+			node, err := c.vfs.Stat(args)
+			if err != nil {
+				return errors.Wrapf(err, "hash failed finding file %q", args)
+			}
+			if node.IsDir() {
+				return errors.New("can't hash directory")
+			}
+			o, ok := node.DirEntry().(fs.ObjectInfo)
+			if !ok {
+				return errors.New("unexpected non file")
+			}
+			hashSum, err = o.Hash(ctx, ht)
+			if err != nil {
+				return errors.Wrap(err, "hash failed")
+			}
 		}
-		if node.IsDir() {
-			return errors.New("can't hash directory")
-		}
-		o, ok := node.DirEntry().(fs.ObjectInfo)
-		if !ok {
-			return errors.New("unexpected non file")
-		}
-		hash, err := o.Hash(ctx, ht)
-		if err != nil {
-			return errors.Wrap(err, "hash failed")
-		}
-		_, err = fmt.Fprintf(out, "%s  %s\n", hash, args)
+		_, err = fmt.Fprintf(out, "%s  %s\n", hashSum, args)
 		if err != nil {
 			return errors.Wrap(err, "send output failed")
 		}
@@ -121,7 +131,7 @@ func (c *conn) execCommand(ctx context.Context, out io.Writer, command string) (
 		// special cases for rclone command detection
 		switch args {
 		case "'abc' | md5sum":
-			if c.f.Hashes().Contains(hash.MD5) {
+			if c.vfs.Fs().Hashes().Contains(hash.MD5) {
 				_, err = fmt.Fprintf(out, "0bee89b07a248e27c83fc3d5951213c1  -\n")
 				if err != nil {
 					return errors.Wrap(err, "send output failed")
@@ -130,7 +140,7 @@ func (c *conn) execCommand(ctx context.Context, out io.Writer, command string) (
 				return errors.New("md5 hash not supported")
 			}
 		case "'abc' | sha1sum":
-			if c.f.Hashes().Contains(hash.SHA1) {
+			if c.vfs.Fs().Hashes().Contains(hash.SHA1) {
 				_, err = fmt.Fprintf(out, "03cfd743661f07975fa2f1220c5194cbaff48451  -\n")
 				if err != nil {
 					return errors.Wrap(err, "send output failed")
@@ -168,7 +178,7 @@ func (c *conn) handleChannel(newChannel ssh.NewChannel) {
 	}
 	defer func() {
 		err := channel.Close()
-		if err != nil {
+		if err != nil && err != io.EOF {
 			fs.Debugf(c.what, "Failed to close channel: %v", err)
 		}
 	}()
@@ -219,7 +229,7 @@ func (c *conn) handleChannel(newChannel ssh.NewChannel) {
 		server := sftp.NewRequestServer(channel, c.handlers)
 		defer func() {
 			err := server.Close()
-			if err != nil {
+			if err != nil && err != io.EOF {
 				fs.Debugf(c.what, "Failed to close server: %v", err)
 			}
 		}()

@@ -1,7 +1,4 @@
 // Package restic serves a remote suitable for use with restic
-
-// +build go1.9
-
 package restic
 
 import (
@@ -171,7 +168,7 @@ func newServer(f fs.Fs, opt *httplib.Options) *server {
 		Server: httplib.NewServer(mux, opt),
 		f:      f,
 	}
-	mux.HandleFunc("/", s.handler)
+	mux.HandleFunc(s.Opt.BaseURL+"/", s.handler)
 	return s
 }
 
@@ -211,7 +208,10 @@ func (s *server) handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Accept-Ranges", "bytes")
 	w.Header().Set("Server", "rclone/"+fs.Version)
 
-	path := r.URL.Path
+	path, ok := s.Path(w, r)
+	if !ok {
+		return
+	}
 	remote := makeRemote(path)
 	fs.Debugf(s.f, "%s %s", r.Method, path)
 

@@ -4,7 +4,6 @@ package mount
 
 import (
 	"context"
-	"io"
 	"time"
 
 	"bazil.org/fuse"
@@ -74,9 +73,9 @@ func (f *File) Open(ctx context.Context, req *fuse.OpenRequest, resp *fuse.OpenR
 		return nil, translateError(err)
 	}
 
-	// See if seeking is supported and set FUSE hint accordingly
-	if _, err = handle.Seek(0, io.SeekCurrent); err != nil {
-		resp.Flags |= fuse.OpenNonSeekable
+	// If size unknown then use direct io to read
+	if handle.Node().DirEntry().Size() < 0 {
+		resp.Flags |= fuse.OpenDirectIO
 	}
 
 	return &FileHandle{handle}, nil

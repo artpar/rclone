@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/artpar/rclone/backend/local"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fstest"
+	_ "github.com/rclone/rclone/backend/local"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fstest"
+	"github.com/rclone/rclone/lib/random"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +56,7 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("CreateAlbum", func(t *testing.T) {
-		albumName := "album/rclone-test-" + fstest.RandomString(24)
+		albumName := "album/rclone-test-" + random.String(24)
 		err = f.Mkdir(ctx, albumName)
 		require.NoError(t, err)
 		remote := albumName + "/" + fileNameAlbum

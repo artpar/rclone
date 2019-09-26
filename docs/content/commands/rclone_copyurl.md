@@ -1,5 +1,5 @@
 ---
-date: 2019-06-20T16:09:42+01:00
+date: 2019-08-26T15:19:45+01:00
 title: "rclone copyurl"
 slug: rclone_copyurl
 url: /commands/rclone_copyurl/
@@ -22,7 +22,8 @@ rclone copyurl https://example.com dest:path [flags]
 ### Options
 
 ```
-  -h, --help   help for copyurl
+  -a, --auto-filename   Get the file name from the url and use it for destination file path
+  -h, --help            help for copyurl
 ```
 
 See the [global flags page](/flags/) for global options not listed here.

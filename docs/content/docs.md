@@ -26,6 +26,7 @@ See the following for detailed instructions for
   * [Backblaze B2](/b2/)
   * [Box](/box/)
   * [Cache](/cache/)
+  * [Chunker](/chunker/) - transparently splits large files for other remotes
   * [Crypt](/crypt/) - to encrypt other remotes
   * [DigitalOcean Spaces](/s3/#digitalocean-spaces)
   * [Dropbox](/dropbox/)
@@ -37,12 +38,15 @@ See the following for detailed instructions for
   * [Hubic](/hubic/)
   * [Jottacloud](/jottacloud/)
   * [Koofr](/koofr/)
+  * [Mail.ru Cloud](/mailru/)
   * [Mega](/mega/)
   * [Microsoft Azure Blob Storage](/azureblob/)
   * [Microsoft OneDrive](/onedrive/)
   * [Openstack Swift / Rackspace Cloudfiles / Memset Memstore](/swift/)
   * [OpenDrive](/opendrive/)
   * [Pcloud](/pcloud/)
+  * [premiumize.me](/premiumizeme/)
+  * [put.io](/putio/)
   * [QingStor](/qingstor/)
   * [SFTP](/sftp/)
   * [Union](/union/)
@@ -741,6 +745,10 @@ above.
 
 **NB** that this **only** works for a local destination but will work
 with any source.
+
+**NB** that multi thread copies are disabled for local to local copies
+as they are faster without unless `--multi-thread-streams` is set
+explicitly.
 
 ### --multi-thread-streams=N ###
 

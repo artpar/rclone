@@ -118,11 +118,16 @@ func (acc *Account) StopBuffering() {
 // async buffer (if any) and re-adding it
 func (acc *Account) UpdateReader(in io.ReadCloser) {
 	acc.mu.Lock()
-	acc.StopBuffering()
+	if acc.withBuf {
+		acc.StopBuffering()
+	}
 	acc.in = in
 	acc.close = in
 	acc.origIn = in
-	acc.WithBuffer()
+	acc.closed = false
+	if acc.withBuf {
+		acc.WithBuffer()
+	}
 	acc.mu.Unlock()
 }
 
@@ -166,6 +171,28 @@ func (acc *Account) checkRead() (err error) {
 	}
 	acc.statmu.Unlock()
 	return nil
+}
+
+// ServerSideCopyStart should be called at the start of a server side copy
+//
+// This pretends a transfer has started
+func (acc *Account) ServerSideCopyStart() {
+	acc.statmu.Lock()
+	// Set start time.
+	if acc.start.IsZero() {
+		acc.start = time.Now()
+	}
+	acc.statmu.Unlock()
+}
+
+// ServerSideCopyEnd accounts for a read of n bytes in a sever side copy
+func (acc *Account) ServerSideCopyEnd(n int64) {
+	// Update Stats
+	acc.statmu.Lock()
+	acc.bytes += n
+	acc.statmu.Unlock()
+
+	acc.stats.Bytes(n)
 }
 
 // Account the read and limit bandwidth
@@ -217,12 +244,18 @@ func (acc *Account) Close() error {
 		return nil
 	}
 	acc.closed = true
-	close(acc.exit)
-	acc.stats.inProgress.clear(acc.name)
 	if acc.close == nil {
 		return nil
 	}
 	return acc.close.Close()
+}
+
+// Done with accounting - must be called to free accounting goroutine
+func (acc *Account) Done() {
+	acc.mu.Lock()
+	defer acc.mu.Unlock()
+	close(acc.exit)
+	acc.stats.inProgress.clear(acc.name)
 }
 
 // progress returns bytes read as well as the size.

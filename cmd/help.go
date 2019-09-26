@@ -47,10 +47,14 @@ __rclone_custom_func() {
             __rclone_init_completion -n : || return
         fi
         if [[ $cur != *:* ]]; then
+            local ifs=$IFS
+            IFS=$'\n'
+            local remotes=($(command rclone listremotes))
+            IFS=$ifs
             local remote
-            while IFS= read -r remote; do
+            for remote in "${remotes[@]}"; do
                 [[ $remote != $cur* ]] || COMPREPLY+=("$remote")
-            done < <(command rclone listremotes)
+            done
             if [[ ${COMPREPLY[@]} ]]; then
                 local paths=("$cur"*)
                 [[ ! -f ${paths[0]} ]] || COMPREPLY+=("${paths[@]}")
@@ -62,14 +66,18 @@ __rclone_custom_func() {
             else
                 local prefix=
             fi
+            local ifs=$IFS
+            IFS=$'\n'
+            local lines=($(rclone lsf "${cur%%:*}:$prefix" 2>/dev/null))
+            IFS=$ifs
             local line
-            while IFS= read -r line; do
+            for line in "${lines[@]}"; do
                 local reply=${prefix:+$prefix/}$line
                 [[ $reply != $path* ]] || COMPREPLY+=("$reply")
-            done < <(rclone lsf "${cur%%:*}:$prefix" 2>/dev/null)
-	    [[ ! ${COMPREPLY[@]} ]] || compopt -o filenames
+            done
+	    [[ ! ${COMPREPLY[@]} || $(type -t compopt) != builtin ]] || compopt -o filenames
         fi
-        [[ ! ${COMPREPLY[@]} ]] || compopt -o nospace
+        [[ ! ${COMPREPLY[@]} || $(type -t compopt) != builtin ]] || compopt -o nospace
     fi
 }
 `
@@ -300,6 +308,7 @@ func showBackend(name string) {
 	optionsType := "standard"
 	for _, opts := range []fs.Options{standardOptions, advancedOptions} {
 		if len(opts) == 0 {
+			optionsType = "advanced"
 			continue
 		}
 		fmt.Printf("### %s Options\n\n", strings.Title(optionsType))
@@ -307,7 +316,11 @@ func showBackend(name string) {
 		optionsType = "advanced"
 		for _, opt := range opts {
 			done[opt.Name] = struct{}{}
-			fmt.Printf("#### --%s\n\n", opt.FlagName(backend.Prefix))
+			shortOpt := ""
+			if opt.ShortOpt != "" {
+				shortOpt = fmt.Sprintf(" / -%s", opt.ShortOpt)
+			}
+			fmt.Printf("#### --%s%s\n\n", opt.FlagName(backend.Prefix), shortOpt)
 			fmt.Printf("%s\n\n", opt.Help)
 			fmt.Printf("- Config:      %s\n", opt.Name)
 			fmt.Printf("- Env Var:     %s\n", opt.EnvVarName(backend.Prefix))

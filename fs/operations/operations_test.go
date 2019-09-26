@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -431,45 +430,6 @@ func TestCat(t *testing.T) {
 	}
 }
 
-func TestRcat(t *testing.T) {
-	checkSumBefore := fs.Config.CheckSum
-	defer func() { fs.Config.CheckSum = checkSumBefore }()
-
-	check := func(withChecksum bool) {
-		fs.Config.CheckSum = withChecksum
-		prefix := "no_checksum_"
-		if withChecksum {
-			prefix = "with_checksum_"
-		}
-
-		r := fstest.NewRun(t)
-		defer r.Finalise()
-
-		fstest.CheckListing(t, r.Fremote, []fstest.Item{})
-
-		data1 := "this is some really nice test data"
-		path1 := prefix + "small_file_from_pipe"
-
-		data2 := string(make([]byte, fs.Config.StreamingUploadCutoff+1))
-		path2 := prefix + "big_file_from_pipe"
-
-		in := ioutil.NopCloser(strings.NewReader(data1))
-		_, err := operations.Rcat(context.Background(), r.Fremote, path1, in, t1)
-		require.NoError(t, err)
-
-		in = ioutil.NopCloser(strings.NewReader(data2))
-		_, err = operations.Rcat(context.Background(), r.Fremote, path2, in, t2)
-		require.NoError(t, err)
-
-		file1 := fstest.NewItem(path1, data1, t1)
-		file2 := fstest.NewItem(path2, data2, t2)
-		fstest.CheckItems(t, r.Fremote, file1, file2)
-	}
-
-	check(true)
-	check(false)
-}
-
 func TestPurge(t *testing.T) {
 	r := fstest.NewRunIndividual(t) // make new container (azureblob has delayed mkdir after rmdir)
 	defer r.Finalise()
@@ -658,32 +618,6 @@ func TestRmdirsLeaveRoot(t *testing.T) {
 	)
 }
 
-func TestRcatSize(t *testing.T) {
-	r := fstest.NewRun(t)
-	defer r.Finalise()
-
-	const body = "------------------------------------------------------------"
-	file1 := r.WriteFile("potato1", body, t1)
-	file2 := r.WriteFile("potato2", body, t2)
-	// Test with known length
-	bodyReader := ioutil.NopCloser(strings.NewReader(body))
-	obj, err := operations.RcatSize(context.Background(), r.Fremote, file1.Path, bodyReader, int64(len(body)), file1.ModTime)
-	require.NoError(t, err)
-	assert.Equal(t, int64(len(body)), obj.Size())
-	assert.Equal(t, file1.Path, obj.Remote())
-
-	// Test with unknown length
-	bodyReader = ioutil.NopCloser(strings.NewReader(body)) // reset Reader
-	ioutil.NopCloser(strings.NewReader(body))
-	obj, err = operations.RcatSize(context.Background(), r.Fremote, file2.Path, bodyReader, -1, file2.ModTime)
-	require.NoError(t, err)
-	assert.Equal(t, int64(len(body)), obj.Size())
-	assert.Equal(t, file2.Path, obj.Remote())
-
-	// Check files exist
-	fstest.CheckItems(t, r.Fremote, file1, file2)
-}
-
 func TestCopyURL(t *testing.T) {
 	r := fstest.NewRun(t)
 	defer r.Finalise()
@@ -695,18 +629,42 @@ func TestCopyURL(t *testing.T) {
 	fstest.CheckItems(t, r.Fremote)
 
 	// check when reading from regular HTTP server
+	status := 0
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if status != 0 {
+			http.Error(w, "an error ocurred", status)
+		}
 		_, err := w.Write([]byte(contents))
 		assert.NoError(t, err)
 	})
 	ts := httptest.NewServer(handler)
 	defer ts.Close()
 
-	o, err := operations.CopyURL(context.Background(), r.Fremote, "file1", ts.URL)
+	o, err := operations.CopyURL(context.Background(), r.Fremote, "file1", ts.URL, false)
 	require.NoError(t, err)
 	assert.Equal(t, int64(len(contents)), o.Size())
 
 	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{file1}, nil, fs.ModTimeNotSupported)
+
+	// Check auto file naming
+	status = 0
+	urlFileName := "filename.txt"
+	o, err = operations.CopyURL(context.Background(), r.Fremote, "", ts.URL+"/"+urlFileName, true)
+	require.NoError(t, err)
+	assert.Equal(t, int64(len(contents)), o.Size())
+	assert.Equal(t, urlFileName, o.Remote())
+
+	// Check auto file naming when url without file name
+	o, err = operations.CopyURL(context.Background(), r.Fremote, "file1", ts.URL, true)
+	require.Error(t, err)
+
+	// Check an error is returned for a 404
+	status = http.StatusNotFound
+	o, err = operations.CopyURL(context.Background(), r.Fremote, "file1", ts.URL, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Not Found")
+	assert.Nil(t, o)
+	status = 0
 
 	// check when reading from unverified HTTPS server
 	fs.Config.InsecureSkipVerify = true
@@ -718,10 +676,10 @@ func TestCopyURL(t *testing.T) {
 	tss := httptest.NewTLSServer(handler)
 	defer tss.Close()
 
-	o, err = operations.CopyURL(context.Background(), r.Fremote, "file2", tss.URL)
+	o, err = operations.CopyURL(context.Background(), r.Fremote, "file2", tss.URL, false)
 	require.NoError(t, err)
 	assert.Equal(t, int64(len(contents)), o.Size())
-	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{file1, file2}, nil, fs.ModTimeNotSupported)
+	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{file1, file2, fstest.NewItem(urlFileName, contents, t1)}, nil, fs.ModTimeNotSupported)
 }
 
 func TestMoveFile(t *testing.T) {

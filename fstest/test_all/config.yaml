@@ -2,11 +2,10 @@ tests:
  - path: backend
    addbackend: true
    nobinary:   true
+   short:      true
  - path: fs/operations
-   subdir:   true
    fastlist: true
  - path: fs/sync
-   subdir:   true
    fastlist: true
  - path: vfs
  - path: cmd/serve/restic
@@ -14,35 +13,81 @@ tests:
 backends:
  # - backend:  "amazonclouddrive"
  #   remote:   "TestAmazonCloudDrive:"
- #   subdir:   false
  #   fastlist: false
  - backend:  "local"
    remote:   ""
-   subdir:   false
    fastlist: false
  - backend:  "b2"
    remote:   "TestB2:"
-   subdir:   true
    fastlist: true
  - backend:  "crypt"
    remote:   "TestCryptDrive:"
-   subdir:   false
    fastlist: true
  - backend:  "crypt"
    remote:   "TestCryptSwift:"
-   subdir:   false
    fastlist: false
+ ## chunker
+ - backend:  "chunker"
+   remote:   "TestChunkerLocal:"
+   fastlist: true
+ - backend:  "chunker"
+   remote:   "TestChunkerNometaLocal:"
+   fastlist: true
+ - backend:  "chunker"
+   remote:   "TestChunkerChunk3bLocal:"
+   fastlist: true
+   maxfile:  6k
+ - backend:  "chunker"
+   remote:   "TestChunkerChunk3bNometaLocal:"
+   fastlist: true
+   maxfile:  6k
+ - backend:  "chunker"
+   remote:   "TestChunkerMailru:"
+   fastlist: true
+ - backend:  "chunker"
+   remote:   "TestChunkerChunk50bMailru:"
+   fastlist: true
+   maxfile:  10k
+ - backend:  "chunker"
+   remote:   "TestChunkerChunk50bYandex:"
+   fastlist: true
+   maxfile:  1k
+ - backend:  "chunker"
+   remote:   "TestChunkerChunk50bBox:"
+   fastlist: true
+   maxfile:  1k
+ - backend:  "chunker"
+   remote:   "TestChunkerS3:"
+   fastlist: true
+ - backend:  "chunker"
+   remote:   "TestChunkerChunk50bS3:"
+   fastlist: true
+   maxfile:  1k
+ - backend:  "chunker"
+   remote:   "TestChunkerChunk50bMD5HashS3:"
+   fastlist: true
+   maxfile:  1k
+ - backend:  "chunker"
+   remote:   "TestChunkerChunk50bSHA1HashS3:"
+   fastlist: true
+   maxfile:  1k
+ - backend:  "chunker"
+   remote:   "TestChunkerChunk50bMD5QuickS3:"
+   fastlist: true
+   maxfile:  1k
+ - backend:  "chunker"
+   remote:   "TestChunkerChunk50bSHA1QuickS3:"
+   fastlist: true
+   maxfile:  1k
+ ## end chunker
  - backend:  "drive"
    remote:   "TestDrive:"
-   subdir:   false
    fastlist: true
  - backend:  "dropbox"
    remote:   "TestDropbox:"
-   subdir:   false
    fastlist: false
  - backend:  "googlecloudstorage"
    remote:   "TestGoogleCloudStorage:"
-   subdir:   true
    fastlist: true
  - backend:  "googlephotos"
    remote:   "TestGooglePhotos:"
@@ -50,110 +95,101 @@ backends:
      - backend
  - backend:  "hubic"
    remote:   "TestHubic:"
-   subdir:   false
    fastlist: false
  - backend:  "jottacloud"
    remote:   "TestJottacloud:"
-   subdir:   false
    fastlist: true
  - backend:  "onedrive"
    remote:   "TestOneDrive:"
-   subdir:   false
    fastlist: false
  - backend:  "s3"
    remote:   "TestS3:"
-   subdir:   true
    fastlist: true
  - backend:  "s3"
    remote:   "TestS3Minio:"
-   subdir:   true
    fastlist: true
+   ignore:
+     - TestIntegration/FsMkdir/FsPutFiles/SetTier
  - backend:  "s3"
    remote:   "TestS3Wasabi:"
-   subdir:   true
    fastlist: true
  - backend:  "s3"
    remote:   "TestS3DigitalOcean:"
-   subdir:   true
    fastlist: true
    ignore:
      - TestIntegration/FsMkdir/FsPutFiles/FsCopy
+     - TestIntegration/FsMkdir/FsPutFiles/SetTier
  - backend:  "s3"
    remote:   "TestS3Ceph:"
-   subdir:   true
    fastlist: true
    ignore:
      - TestIntegration/FsMkdir/FsPutFiles/FsCopy
+     - TestIntegration/FsMkdir/FsPutFiles/SetTier
  - backend:  "s3"
    remote:   "TestS3Alibaba:"
-   subdir:   true
    fastlist: true
  - backend:  "sftp"
    remote:   "TestSftp:"
-   subdir:   false
    fastlist: false
  - backend:  "swift"
    remote:   "TestSwift:"
-   subdir:   true
    fastlist: true
  - backend:  "swift"
    remote:   "TestSwiftCeph:"
-   subdir:   true
    fastlist: true
    ignore:
      - TestIntegration/FsMkdir/FsPutFiles/FsCopy
  - backend:  "yandex"
    remote:   "TestYandex:"
-   subdir:   false
    fastlist: false
  - backend:  "ftp"
    remote:   "TestFTP:"
-   subdir:   false
    fastlist: false
  - backend:  "box"
    remote:   "TestBox:"
-   subdir:   false
    fastlist: false
  - backend:  "fichier"
    remote:   "TestFichier:"
-   subdir:   false
    fastlist: false
  - backend:  "qingstor"
    remote:   "TestQingStor:"
-   subdir:   false
    fastlist: false
    oneonly:  true
  - backend:  "azureblob"
    remote:   "TestAzureBlob:"
-   subdir:   true
    fastlist: true
  - backend:  "pcloud"
    remote:   "TestPcloud:"
-   subdir:   false
    fastlist: false
  - backend:  "webdav"
    remote:   "TestWebdav:"
-   subdir:   false
    fastlist: false
  - backend:  "cache"
    remote:   "TestCache:"
-   subdir:   false
    fastlist: false
  - backend:  "mega"
    remote:   "TestMega:"
-   subdir:   false
    fastlist: false
    ignore:
      - TestIntegration/FsMkdir/FsPutFiles/PublicLink
+     - TestDirRename
  - backend:  "opendrive"
    remote:   "TestOpenDrive:"
-   subdir:   false
    fastlist: false
  - backend:  "union"
    remote:   "TestUnion:"
-   subdir:   false
    fastlist: false
  - backend:  "koofr"
    remote:   "TestKoofr:"
+   fastlist: false
+ - backend:  "premiumizeme"
+   remote:   "TestPremiumizeMe:"
+   fastlist: false
+ - backend:  "putio"
+   remote:   "TestPutio:"
+   subdir:   false
+   fastlist: false
+ - backend:  "mailru"
+   remote:   "TestMailru:"
    subdir:   false
    fastlist: false

@@ -11,8 +11,12 @@ package box
 
 import (
 	"context"
+	"crypto/rsa"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -21,20 +25,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/backend/box/api"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/rclone/rclone/lib/jwtutil"
+
+	"github.com/youmark/pkcs8"
+
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/backend/box/api"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/dircache"
+	"github.com/rclone/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/rest"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/jws"
 )
 
 const (
@@ -49,6 +59,7 @@ const (
 	listChunks                  = 1000     // chunk size to read directory listings
 	minUploadCutoff             = 50000000 // upload cutoff can be no lower than this
 	defaultUploadCutoff         = 50 * 1024 * 1024
+	tokenURL                    = "https://api.box.com/oauth2/token"
 )
 
 // Globals
@@ -73,9 +84,34 @@ func init() {
 		Description: "Box",
 		NewFs:       NewFs,
 		Config: func(name string, m configmap.Mapper) {
-			err := oauthutil.Config("box", name, m, oauthConfig)
-			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+			jsonFile, ok := m.Get("box_config_file")
+			boxSubType, boxSubTypeOk := m.Get("box_sub_type")
+			var err error
+			if ok && boxSubTypeOk && jsonFile != "" && boxSubType != "" {
+				boxConfig, err := getBoxConfig(jsonFile)
+				if err != nil {
+					log.Fatalf("Failed to configure token: %v", err)
+				}
+				privateKey, err := getDecryptedPrivateKey(boxConfig)
+				if err != nil {
+					log.Fatalf("Failed to configure token: %v", err)
+				}
+				claims, err := getClaims(boxConfig, boxSubType)
+				if err != nil {
+					log.Fatalf("Failed to configure token: %v", err)
+				}
+				signingHeaders := getSigningHeaders(boxConfig)
+				queryParams := getQueryParams(boxConfig)
+				client := fshttp.NewClient(fs.Config)
+				err = jwtutil.Config("box", name, claims, signingHeaders, queryParams, privateKey, m, client)
+				if err != nil {
+					log.Fatalf("Failed to configure token with jwt authentication: %v", err)
+				}
+			} else {
+				err = oauthutil.Config("box", name, m, oauthConfig)
+				if err != nil {
+					log.Fatalf("Failed to configure token with oauth authentication: %v", err)
+				}
 			}
 		},
 		Options: []fs.Option{{
@@ -84,6 +120,19 @@ func init() {
 		}, {
 			Name: config.ConfigClientSecret,
 			Help: "Box App Client Secret\nLeave blank normally.",
+		}, {
+			Name: "box_config_file",
+			Help: "Box App config.json location\nLeave blank normally.",
+		}, {
+			Name:    "box_sub_type",
+			Default: "user",
+			Examples: []fs.OptionExample{{
+				Value: "user",
+				Help:  "Rclone should act on behalf of a user",
+			}, {
+				Value: "enterprise",
+				Help:  "Rclone should act on behalf of a service account",
+			}},
 		}, {
 			Name:     "upload_cutoff",
 			Help:     "Cutoff for switching to multipart upload (>= 50MB).",
@@ -96,6 +145,74 @@ func init() {
 			Advanced: true,
 		}},
 	})
+}
+
+func getBoxConfig(configFile string) (boxConfig *api.ConfigJSON, err error) {
+	file, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return nil, errors.Wrap(err, "box: failed to read Box config")
+	}
+	err = json.Unmarshal(file, &boxConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "box: failed to parse Box config")
+	}
+	return boxConfig, nil
+}
+
+func getClaims(boxConfig *api.ConfigJSON, boxSubType string) (claims *jws.ClaimSet, err error) {
+	val, err := jwtutil.RandomHex(20)
+	if err != nil {
+		return nil, errors.Wrap(err, "box: failed to generate random string for jti")
+	}
+
+	claims = &jws.ClaimSet{
+		Iss: boxConfig.BoxAppSettings.ClientID,
+		Sub: boxConfig.EnterpriseID,
+		Aud: tokenURL,
+		Iat: time.Now().Unix(),
+		Exp: time.Now().Add(time.Second * 45).Unix(),
+		PrivateClaims: map[string]interface{}{
+			"box_sub_type": boxSubType,
+			"aud":          tokenURL,
+			"jti":          val,
+		},
+	}
+
+	return claims, nil
+}
+
+func getSigningHeaders(boxConfig *api.ConfigJSON) *jws.Header {
+	signingHeaders := &jws.Header{
+		Algorithm: "RS256",
+		Typ:       "JWT",
+		KeyID:     boxConfig.BoxAppSettings.AppAuth.PublicKeyID,
+	}
+
+	return signingHeaders
+}
+
+func getQueryParams(boxConfig *api.ConfigJSON) map[string]string {
+	queryParams := map[string]string{
+		"client_id":     boxConfig.BoxAppSettings.ClientID,
+		"client_secret": boxConfig.BoxAppSettings.ClientSecret,
+	}
+
+	return queryParams
+}
+
+func getDecryptedPrivateKey(boxConfig *api.ConfigJSON) (key *rsa.PrivateKey, err error) {
+
+	block, rest := pem.Decode([]byte(boxConfig.BoxAppSettings.AppAuth.PrivateKey))
+	if len(rest) > 0 {
+		return nil, errors.Wrap(err, "box: extra data included in private key")
+	}
+
+	rsaKey, err := pkcs8.ParsePKCS8PrivateKey(block.Bytes, []byte(boxConfig.BoxAppSettings.AppAuth.Passphrase))
+	if err != nil {
+		return nil, errors.Wrap(err, "box: failed to decrypt private key")
+	}
+
+	return rsaKey.(*rsa.PrivateKey), nil
 }
 
 // Options defines the configuration for this backend
@@ -204,7 +321,7 @@ func (f *Fs) readMetaDataForPath(ctx context.Context, path string) (info *api.It
 		return nil, err
 	}
 
-	found, err := f.listAll(directoryID, false, true, func(item *api.Item) bool {
+	found, err := f.listAll(ctx, directoryID, false, true, func(item *api.Item) bool {
 		if item.Name == leaf {
 			info = item
 			return true
@@ -352,7 +469,7 @@ func (f *Fs) NewObject(ctx context.Context, remote string) (fs.Object, error) {
 // FindLeaf finds a directory of name leaf in the folder with ID pathID
 func (f *Fs) FindLeaf(ctx context.Context, pathID, leaf string) (pathIDOut string, found bool, err error) {
 	// Find the leaf in pathID
-	found, err = f.listAll(pathID, true, false, func(item *api.Item) bool {
+	found, err = f.listAll(ctx, pathID, true, false, func(item *api.Item) bool {
 		if item.Name == leaf {
 			pathIDOut = item.ID
 			return true
@@ -386,7 +503,7 @@ func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, 
 		},
 	}
 	err = f.pacer.Call(func() (bool, error) {
-		resp, err = f.srv.CallJSON(&opts, &mkdir, &info)
+		resp, err = f.srv.CallJSON(ctx, &opts, &mkdir, &info)
 		return shouldRetry(resp, err)
 	})
 	if err != nil {
@@ -408,7 +525,7 @@ type listAllFn func(*api.Item) bool
 // Lists the directory required calling the user function on each item found
 //
 // If the user fn ever returns true then it early exits with found = true
-func (f *Fs) listAll(dirID string, directoriesOnly bool, filesOnly bool, fn listAllFn) (found bool, err error) {
+func (f *Fs) listAll(ctx context.Context, dirID string, directoriesOnly bool, filesOnly bool, fn listAllFn) (found bool, err error) {
 	opts := rest.Opts{
 		Method:     "GET",
 		Path:       "/folders/" + dirID + "/items",
@@ -423,7 +540,7 @@ OUTER:
 		var result api.FolderItems
 		var resp *http.Response
 		err = f.pacer.Call(func() (bool, error) {
-			resp, err = f.srv.CallJSON(&opts, nil, &result)
+			resp, err = f.srv.CallJSON(ctx, &opts, nil, &result)
 			return shouldRetry(resp, err)
 		})
 		if err != nil {
@@ -479,7 +596,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 		return nil, err
 	}
 	var iErr error
-	_, err = f.listAll(directoryID, false, false, func(info *api.Item) bool {
+	_, err = f.listAll(ctx, directoryID, false, false, func(info *api.Item) bool {
 		remote := path.Join(dir, info.Name)
 		if info.Type == api.ItemTypeFolder {
 			// cache the directory ID for later lookups
@@ -581,14 +698,14 @@ func (f *Fs) Mkdir(ctx context.Context, dir string) error {
 }
 
 // deleteObject removes an object by ID
-func (f *Fs) deleteObject(id string) error {
+func (f *Fs) deleteObject(ctx context.Context, id string) error {
 	opts := rest.Opts{
 		Method:     "DELETE",
 		Path:       "/files/" + id,
 		NoResponse: true,
 	}
 	return f.pacer.Call(func() (bool, error) {
-		resp, err := f.srv.Call(&opts)
+		resp, err := f.srv.Call(ctx, &opts)
 		return shouldRetry(resp, err)
 	})
 }
@@ -619,7 +736,7 @@ func (f *Fs) purgeCheck(ctx context.Context, dir string, check bool) error {
 	opts.Parameters.Set("recursive", strconv.FormatBool(!check))
 	var resp *http.Response
 	err = f.pacer.Call(func() (bool, error) {
-		resp, err = f.srv.Call(&opts)
+		resp, err = f.srv.Call(ctx, &opts)
 		return shouldRetry(resp, err)
 	})
 	if err != nil {
@@ -692,7 +809,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	var resp *http.Response
 	var info *api.Item
 	err = f.pacer.Call(func() (bool, error) {
-		resp, err = f.srv.CallJSON(&opts, &copyFile, &info)
+		resp, err = f.srv.CallJSON(ctx, &opts, &copyFile, &info)
 		return shouldRetry(resp, err)
 	})
 	if err != nil {
@@ -715,7 +832,7 @@ func (f *Fs) Purge(ctx context.Context) error {
 }
 
 // move a file or folder
-func (f *Fs) move(endpoint, id, leaf, directoryID string) (info *api.Item, err error) {
+func (f *Fs) move(ctx context.Context, endpoint, id, leaf, directoryID string) (info *api.Item, err error) {
 	// Move the object
 	opts := rest.Opts{
 		Method:     "PUT",
@@ -730,7 +847,7 @@ func (f *Fs) move(endpoint, id, leaf, directoryID string) (info *api.Item, err e
 	}
 	var resp *http.Response
 	err = f.pacer.Call(func() (bool, error) {
-		resp, err = f.srv.CallJSON(&opts, &move, &info)
+		resp, err = f.srv.CallJSON(ctx, &opts, &move, &info)
 		return shouldRetry(resp, err)
 	})
 	if err != nil {
@@ -762,7 +879,7 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	}
 
 	// Do the move
-	info, err := f.move("/files/", srcObj.id, leaf, directoryID)
+	info, err := f.move(ctx, "/files/", srcObj.id, leaf, directoryID)
 	if err != nil {
 		return nil, err
 	}
@@ -845,7 +962,7 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 	}
 
 	// Do the move
-	_, err = f.move("/folders/", srcID, leaf, directoryID)
+	_, err = f.move(ctx, "/folders/", srcID, leaf, directoryID)
 	if err != nil {
 		return err
 	}
@@ -887,7 +1004,7 @@ func (f *Fs) PublicLink(ctx context.Context, remote string) (string, error) {
 	var info api.Item
 	var resp *http.Response
 	err = f.pacer.Call(func() (bool, error) {
-		resp, err = f.srv.CallJSON(&opts, &shareLink, &info)
+		resp, err = f.srv.CallJSON(ctx, &opts, &shareLink, &info)
 		return shouldRetry(resp, err)
 	})
 	return info.SharedLink.URL, err
@@ -1006,7 +1123,7 @@ func (o *Object) setModTime(ctx context.Context, modTime time.Time) (*api.Item, 
 	}
 	var info *api.Item
 	err := o.fs.pacer.Call(func() (bool, error) {
-		resp, err := o.fs.srv.CallJSON(&opts, &update, &info)
+		resp, err := o.fs.srv.CallJSON(ctx, &opts, &update, &info)
 		return shouldRetry(resp, err)
 	})
 	return info, err
@@ -1039,7 +1156,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 		Options: options,
 	}
 	err = o.fs.pacer.Call(func() (bool, error) {
-		resp, err = o.fs.srv.Call(&opts)
+		resp, err = o.fs.srv.Call(ctx, &opts)
 		return shouldRetry(resp, err)
 	})
 	if err != nil {
@@ -1051,7 +1168,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 // upload does a single non-multipart upload
 //
 // This is recommended for less than 50 MB of content
-func (o *Object) upload(in io.Reader, leaf, directoryID string, modTime time.Time) (err error) {
+func (o *Object) upload(ctx context.Context, in io.Reader, leaf, directoryID string, modTime time.Time) (err error) {
 	upload := api.UploadFile{
 		Name:              replaceReservedChars(leaf),
 		ContentModifiedAt: api.Time(modTime),
@@ -1078,7 +1195,7 @@ func (o *Object) upload(in io.Reader, leaf, directoryID string, modTime time.Tim
 		opts.Path = "/files/content"
 	}
 	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
-		resp, err = o.fs.srv.CallJSON(&opts, &upload, &result)
+		resp, err = o.fs.srv.CallJSON(ctx, &opts, &upload, &result)
 		return shouldRetry(resp, err)
 	})
 	if err != nil {
@@ -1111,16 +1228,16 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 
 	// Upload with simple or multipart
 	if size <= int64(o.fs.opt.UploadCutoff) {
-		err = o.upload(in, leaf, directoryID, modTime)
+		err = o.upload(ctx, in, leaf, directoryID, modTime)
 	} else {
-		err = o.uploadMultipart(in, leaf, directoryID, size, modTime)
+		err = o.uploadMultipart(ctx, in, leaf, directoryID, size, modTime)
 	}
 	return err
 }
 
 // Remove an object
 func (o *Object) Remove(ctx context.Context) error {
-	return o.fs.deleteObject(o.id)
+	return o.fs.deleteObject(ctx, o.id)
 }
 
 // ID returns the ID of the Object if known, or "" if not

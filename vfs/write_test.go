@@ -2,14 +2,16 @@ package vfs
 
 import (
 	"context"
+	"io"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fstest"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fstest"
+	"github.com/rclone/rclone/lib/random"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -285,4 +287,49 @@ func TestWriteFileModTimeWithOpenWriters(t *testing.T) {
 		// avoid errors because of timezone differences
 		assert.Equal(t, info.ModTime().Unix(), mtime.Unix())
 	}
+}
+
+func testFileReadAt(t *testing.T, n int) {
+	r := fstest.NewRun(t)
+	defer r.Finalise()
+	vfs, fh := writeHandleCreate(t, r)
+
+	contents := []byte(random.String(n))
+	if n != 0 {
+		written, err := fh.Write(contents)
+		require.NoError(t, err)
+		assert.Equal(t, n, written)
+	}
+
+	// Close the file without writing to it if n==0
+	err := fh.Close()
+	if errors.Cause(err) == fs.ErrorCantUploadEmptyFiles {
+		t.Logf("skipping test: %v", err)
+		return
+	}
+	assert.NoError(t, err)
+
+	// read the file back in using ReadAt into a buffer
+	// this simulates what mount does
+	rd, err := vfs.OpenFile("file1", os.O_RDONLY, 0)
+	require.NoError(t, err)
+
+	buf := make([]byte, 1024)
+	read, err := rd.ReadAt(buf, 0)
+	if err != io.EOF {
+		assert.NoError(t, err)
+	}
+	assert.Equal(t, read, n)
+	assert.Equal(t, contents, buf[:read])
+
+	err = rd.Close()
+	assert.NoError(t, err)
+}
+
+func TestFileReadAtZeroLength(t *testing.T) {
+	testFileReadAt(t, 0)
+}
+
+func TestFileReadAtNonZeroLength(t *testing.T) {
+	testFileReadAt(t, 100)
 }

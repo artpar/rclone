@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
-	httpclient "github.com/koofr/go-httpclient"
+	"github.com/koofr/go-httpclient"
 )
 
 type KoofrClient struct {
@@ -23,17 +23,22 @@ func NewKoofrClient(baseUrl string, disableSecurity bool) *KoofrClient {
 		httpClient = httpclient.New()
 	}
 
+	return NewKoofrClientWithHTTPClient(baseUrl, httpClient)
+}
+
+func NewKoofrClientWithHTTPClient(baseUrl string, httpClient *httpclient.HTTPClient) *KoofrClient {
 	apiBaseUrl, _ := url.Parse(baseUrl)
 
 	httpClient.BaseURL = apiBaseUrl
 
-	httpClient.Headers.Set("User-Agent", "go koofrclient")
-
-	return &KoofrClient{
+	client:= &KoofrClient{
 		HTTPClient: httpClient,
 		token:      "",
 		userID:     "",
 	}
+
+	client.SetUserAgent("go koofrclient")
+	return client
 }
 
 func (c *KoofrClient) SetUserAgent(ua string) {

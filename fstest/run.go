@@ -38,10 +38,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/object"
-	"github.com/artpar/rclone/fs/walk"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/cache"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/object"
+	"github.com/rclone/rclone/fs/walk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -90,7 +92,7 @@ func newRun() *Run {
 	Initialise()
 
 	var err error
-	r.Fremote, r.FremoteName, r.cleanRemote, err = RandomRemote(*RemoteName, *SubDir)
+	r.Fremote, r.FremoteName, r.cleanRemote, err = RandomRemote()
 	if err != nil {
 		r.Fatalf("Failed to open remote %q: %v", *RemoteName, err)
 	}
@@ -165,6 +167,8 @@ func newRunIndividual(t *testing.T, individual bool) *Run {
 			}
 			// Check remote is empty
 			CheckListingWithPrecision(t, r.Fremote, []Item{}, []string{}, r.Fremote.Precision())
+			// Clear the remote cache
+			cache.Clear()
 		}
 	}
 	r.Logf = t.Logf
@@ -249,10 +253,22 @@ func (r *Run) WriteObjectTo(ctx context.Context, f fs.Fs, remote, content string
 		}
 	}
 	r.Mkdir(ctx, f)
+
+	// caclulate all hashes f supports for content
+	hash, err := hash.NewMultiHasherTypes(f.Hashes())
+	if err != nil {
+		r.Fatalf("Failed to make new multi hasher: %v", err)
+	}
+	_, err = hash.Write([]byte(content))
+	if err != nil {
+		r.Fatalf("Failed to make write to hash: %v", err)
+	}
+	hashSums := hash.Sums()
+
 	const maxTries = 10
 	for tries := 1; ; tries++ {
 		in := bytes.NewBufferString(content)
-		objinfo := object.NewStaticObjectInfo(remote, modTime, int64(len(content)), true, nil, nil)
+		objinfo := object.NewStaticObjectInfo(remote, modTime, int64(len(content)), true, hashSums, nil)
 		_, err := put(ctx, in, objinfo)
 		if err == nil {
 			break
@@ -323,4 +339,6 @@ func (r *Run) Finalise() {
 	r.cleanRemote()
 	// r.Logf("Cleaning local %q", r.LocalName)
 	r.cleanTempDir()
+	// Clear the remote cache
+	cache.Clear()
 }

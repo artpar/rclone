@@ -1,5 +1,5 @@
 ---
-date: 2019-06-20T16:09:42+01:00
+date: 2019-08-26T15:19:45+01:00
 title: "rclone mount"
 slug: rclone_mount
 url: /commands/rclone_mount/
@@ -74,10 +74,7 @@ applications won't work with their files on an rclone mount without
 Caching](#file-caching) section for more info.
 
 The bucket based remotes (eg Swift, S3, Google Compute Storage, B2,
-Hubic) won't work from the root - you will need to specify a bucket,
-or a path within the bucket.  So `swift:` won't work whereas
-`swift:bucket` will as will `swift:bucket/path`.
-None of these support the concept of directories, so empty
+Hubic) do not support the concept of empty directories, so empty
 directories will have a tendency to disappear once they fall out of
 the directory cache.
 
@@ -290,10 +287,45 @@ This mode should support all normal file system operations.
 If an upload or download fails it will be retried up to
 --low-level-retries times.
 
-
 ```
 rclone mount remote:path /path/to/mountpoint [flags]
 ```
+
+### Case Sensitivity
+
+Linux file systems are case-sensitive: two files can differ only
+by case, and the exact case must be used when opening a file.
+
+Windows is not like most other operating systems supported by rclone.
+File systems in modern Windows are case-insensitive but case-preserving:
+although existing files can be opened using any case, the exact case used
+to create the file is preserved and available for programs to query.
+It is not allowed for two files in the same directory to differ only by case.
+
+Usually file systems on MacOS are case-insensitive. It is possible to make MacOS
+file systems case-sensitive but that is not the default
+
+The `--vfs-case-insensitive` mount flag controls how rclone handles these
+two cases. If its value is `false`, rclone passes file names to the mounted
+file system as is. If the flag is `true` (or appears without a value on
+command line), rclone may perform a "fixup" as explained below.
+
+The user may specify a file name to open/delete/rename/etc with a case
+different than what is stored on mounted file system. If an argument refers
+to an existing file with exactly the same name, then the case of the existing
+file on the disk will be used. However, if a file name with exactly the same
+name is not found but a name differing only by case exists, rclone will
+transparently fixup the name. This fixup happens only when an existing file
+is requested. Case sensitivity of file names created anew by rclone is
+controlled by an underlying mounted file system.
+
+Note that case sensitivity of the operating system running rclone (the target)
+may differ from case sensitivity of a file system mounted by rclone (the source).
+The flag controls whether "fixup" is performed to satisfy the target.
+
+If the flag is not provided on command line, then its default value depends
+on the operating system where rclone runs: `true` on Windows and MacOS, `false`
+otherwise. If the flag is provided without a value, then it is `true`.
 
 ### Options
 
@@ -325,6 +357,7 @@ rclone mount remote:path /path/to/mountpoint [flags]
       --vfs-cache-max-size SizeSuffix          Max total size of objects in the cache. (default off)
       --vfs-cache-mode CacheMode               Cache mode off|minimal|writes|full (default off)
       --vfs-cache-poll-interval duration       Interval to poll the cache for stale objects. (default 1m0s)
+      --vfs-case-insensitive [bool]            Case insensitive mount true|false (default depends on operating system)
       --vfs-read-chunk-size SizeSuffix         Read the source objects in chunks. (default 128M)
       --vfs-read-chunk-size-limit SizeSuffix   If greater than --vfs-read-chunk-size, double the chunk size after each chunk read, until the limit is reached. 'off' is unlimited. (default off)
       --volname string                         Set the volume name (not supported by all OSes).

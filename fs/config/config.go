@@ -24,17 +24,18 @@ import (
 	"unicode/utf8"
 
 	"github.com/Unknwon/goconfig"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/driveletter"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/fspath"
-	"github.com/artpar/rclone/fs/rc"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/driveletter"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/fspath"
+	"github.com/rclone/rclone/fs/rc"
+	"github.com/rclone/rclone/lib/random"
 	"golang.org/x/crypto/nacl/secretbox"
 	"golang.org/x/text/unicode/norm"
 )
@@ -88,12 +89,15 @@ var (
 	// For security reasons, the temp file is deleted once the configKey is successfully loaded.
 	// This can be used to pass the configKey to a child process.
 	PassConfigKeyForDaemonization = false
+
+	// Password can be used to configure the random password generator
+	Password = random.Password
 )
 
 func init() {
 	// Set the function pointers up in fs
 	fs.ConfigFileGet = FileGetFlag
-	fs.ConfigFileSet = FileSet
+	fs.ConfigFileSet = SetValueAndSave
 }
 
 func getConfigData() *goconfig.ConfigFile {
@@ -853,6 +857,7 @@ func ChooseOption(o *fs.Option, name string) string {
 			actions = append(actions, "nNo leave this optional password blank")
 		}
 		var password string
+		var err error
 		switch i := Command(actions); i {
 		case 'y':
 			password = ChangePassword("the")
@@ -860,16 +865,10 @@ func ChooseOption(o *fs.Option, name string) string {
 			for {
 				fmt.Printf("Password strength in bits.\n64 is just about memorable\n128 is secure\n1024 is the maximum\n")
 				bits := ChooseNumber("Bits", 64, 1024)
-				bytes := bits / 8
-				if bits%8 != 0 {
-					bytes++
+				password, err = Password(bits)
+				if err != nil {
+					log.Fatalf("Failed to make password: %v", err)
 				}
-				var pw = make([]byte, bytes)
-				n, _ := rand.Read(pw)
-				if n != bytes {
-					log.Fatalf("password short read: %d", n)
-				}
-				password = base64.RawURLEncoding.EncodeToString(pw)
 				fmt.Printf("Your password is: %s\n", password)
 				fmt.Printf("Use this password? Please note that an obscured version of this \npassword (and not the " +
 					"password itself) will be stored under your \nconfiguration file, so keep this generated password " +
@@ -945,6 +944,10 @@ func suppressConfirm() func() {
 // UpdateRemote adds the keyValues passed in to the remote of name.
 // keyValues should be key, value pairs.
 func UpdateRemote(name string, keyValues rc.Params) error {
+	err := fspath.CheckConfigName(name)
+	if err != nil {
+		return err
+	}
 	defer suppressConfirm()()
 
 	// Work out which options need to be obscured
@@ -988,6 +991,10 @@ func UpdateRemote(name string, keyValues rc.Params) error {
 // parameters which are key, value pairs.  If update is set then it
 // adds the new keys rather than replacing all of them.
 func CreateRemote(name string, provider string, keyValues rc.Params) error {
+	err := fspath.CheckConfigName(name)
+	if err != nil {
+		return err
+	}
 	// Delete the old config if it exists
 	getConfigData().DeleteSection(name)
 	// Set the type
@@ -999,6 +1006,10 @@ func CreateRemote(name string, provider string, keyValues rc.Params) error {
 // PasswordRemote adds the keyValues passed in to the remote of name.
 // keyValues should be key, value pairs.
 func PasswordRemote(name string, keyValues rc.Params) error {
+	err := fspath.CheckConfigName(name)
+	if err != nil {
+		return err
+	}
 	defer suppressConfirm()()
 	for k, v := range keyValues {
 		keyValues[k] = obscure.MustObscure(fmt.Sprint(v))
@@ -1042,14 +1053,14 @@ func NewRemoteName() (name string) {
 	for {
 		fmt.Printf("name> ")
 		name = ReadLine()
-		parts := fspath.Matcher.FindStringSubmatch(name + ":")
+		err := fspath.CheckConfigName(name)
 		switch {
 		case name == "":
 			fmt.Printf("Can't use empty name.\n")
 		case driveletter.IsDriveLetter(name):
 			fmt.Printf("Can't use %q as it can be confused with a drive letter.\n", name)
-		case parts == nil:
-			fmt.Printf("Can't use %q as it has invalid characters in it.\n", name)
+		case err != nil:
+			fmt.Printf("Can't use %q as %v.\n", name, err)
 		default:
 			return name
 		}
@@ -1072,12 +1083,13 @@ func editOptions(ri *fs.RegInfo, name string, isNew bool) {
 			}
 		}
 		for _, option := range ri.Options {
-			hasAdvanced = hasAdvanced || option.Advanced
+			isVisible := option.Hide&fs.OptionHideConfigurator == 0
+			hasAdvanced = hasAdvanced || (option.Advanced && isVisible)
 			if option.Advanced != advanced {
 				continue
 			}
 			subProvider := getConfigData().MustValue(name, fs.ConfigProvider, "")
-			if matchProvider(option.Provider, subProvider) {
+			if matchProvider(option.Provider, subProvider) && isVisible {
 				if !isNew {
 					fmt.Printf("Value %q = %q\n", option.Name, FileGet(name, option.Name))
 					fmt.Printf("Edit? (y/n)>\n")
@@ -1085,9 +1097,7 @@ func editOptions(ri *fs.RegInfo, name string, isNew bool) {
 						continue
 					}
 				}
-				if option.Hide&fs.OptionHideConfigurator == 0 {
-					FileSet(name, option.Name, ChooseOption(&option, name))
-				}
+				FileSet(name, option.Name, ChooseOption(&option, name))
 			}
 		}
 	}

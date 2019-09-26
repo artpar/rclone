@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/rc"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs/rc"
+	"github.com/rclone/rclone/fs/rc/rcflags"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ func TestNewJobs(t *testing.T) {
 
 func TestJobsKickExpire(t *testing.T) {
 	jobs := newJobs()
-	jobs.expireInterval = time.Millisecond
+	jobs.opt.JobExpireInterval = time.Millisecond
 	assert.Equal(t, false, jobs.expireRunning)
 	jobs.kickExpire()
 	jobs.mu.Lock()
@@ -35,7 +35,7 @@ func TestJobsKickExpire(t *testing.T) {
 func TestJobsExpire(t *testing.T) {
 	wait := make(chan struct{})
 	jobs := newJobs()
-	jobs.expireInterval = time.Millisecond
+	jobs.opt.JobExpireInterval = time.Millisecond
 	assert.Equal(t, false, jobs.expireRunning)
 	job := jobs.NewAsyncJob(func(ctx context.Context, in rc.Params) (rc.Params, error) {
 		defer close(wait)
@@ -47,11 +47,11 @@ func TestJobsExpire(t *testing.T) {
 	assert.Equal(t, 1, len(jobs.jobs))
 	jobs.mu.Lock()
 	job.mu.Lock()
-	job.EndTime = time.Now().Add(-fs.Config.RcJobExpireDuration - 60*time.Second)
+	job.EndTime = time.Now().Add(-rcflags.Opt.JobExpireDuration - 60*time.Second)
 	assert.Equal(t, true, jobs.expireRunning)
 	job.mu.Unlock()
 	jobs.mu.Unlock()
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 	jobs.mu.Lock()
 	assert.Equal(t, false, jobs.expireRunning)
 	assert.Equal(t, 0, len(jobs.jobs))
@@ -101,7 +101,7 @@ var ctxFn = func(ctx context.Context, in rc.Params) (rc.Params, error) {
 
 const (
 	sleepTime      = 100 * time.Millisecond
-	floatSleepTime = float64(sleepTime) / 1E9 / 2
+	floatSleepTime = float64(sleepTime) / 1e9 / 2
 )
 
 // sleep for some time so job.Duration is non-0
@@ -184,7 +184,7 @@ func TestJobRunPanic(t *testing.T) {
 	assert.Equal(t, false, job.EndTime.IsZero())
 	assert.Equal(t, rc.Params{}, job.Output)
 	assert.True(t, job.Duration >= floatSleepTime)
-	assert.Equal(t, "panic received: boom", job.Error)
+	assert.Contains(t, job.Error, "panic received: boom")
 	assert.Equal(t, false, job.Success)
 	assert.Equal(t, true, job.Finished)
 	job.mu.Unlock()
@@ -211,6 +211,17 @@ func TestExecuteJob(t *testing.T) {
 	_, id, err := ExecuteJob(context.Background(), shortFn, rc.Params{})
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), id)
+}
+
+func TestExecuteJobErrorPropagation(t *testing.T) {
+	jobID = 0
+
+	testErr := errors.New("test error")
+	errorFn := func(ctx context.Context, in rc.Params) (out rc.Params, err error) {
+		return nil, testErr
+	}
+	_, _, err := ExecuteJob(context.Background(), errorFn, rc.Params{})
+	assert.Equal(t, testErr, err)
 }
 
 func TestRcJobStatus(t *testing.T) {
