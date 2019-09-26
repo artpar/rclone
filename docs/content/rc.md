@@ -115,7 +115,7 @@ Default is IP address on which rc is running.
 
 Set the URL to fetch the rclone-web-gui files from.
 
-Default https://api.github.com/repos/rclone/rclone-webui-react/releases/latest.
+Default https://api.github.com/repos/artpar/rclone-webui-react/releases/latest.
 
 ### --rc-web-gui-update
 

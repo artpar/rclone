@@ -236,8 +236,8 @@ a:focus {
 <table>
 <tr><th>Version</th><td>{{ .Version }}</td></tr>
 <tr><th>Test</th><td><a href="{{ .URL }}">{{ .DateTime}}</a></td></tr>
-<tr><th>Branch</th><td><a href="https://github.com/rclone/rclone/tree/{{ .Branch }}">{{ .Branch }}</a></td></tr>
-{{ if .Commit}}<tr><th>Commit</th><td><a href="https://github.com/rclone/rclone/commit/{{ .Commit }}">{{ .Commit }}</a></td></tr>{{ end }}
+<tr><th>Branch</th><td><a href="https://github.com/artpar/rclone/tree/{{ .Branch }}">{{ .Branch }}</a></td></tr>
+{{ if .Commit}}<tr><th>Commit</th><td><a href="https://github.com/artpar/rclone/commit/{{ .Commit }}">{{ .Commit }}</a></td></tr>{{ end }}
 <tr><th>Go</th><td>{{ .GoVersion }} {{ .GOOS }}/{{ .GOARCH }}</td></tr>
 <tr><th>Duration</th><td>{{ .Duration }}</td></tr>
 {{ if .Previous}}<tr><th>Previous</th><td><a href="../{{ .Previous }}/index.html">{{ .Previous }}</a></td></tr>{{ end }}
