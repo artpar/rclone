@@ -9,15 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/encodings"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/dircache"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/rest"
 )
 
 const (
@@ -27,6 +28,8 @@ const (
 	maxSleep      = 5 * time.Second
 	decayConstant = 2 // bigger for slower decay, exponential
 )
+
+const enc = encodings.Fichier
 
 func init() {
 	fs.Register(&fs.RegInfo{
@@ -141,8 +144,7 @@ func (f *Fs) Features() *fs.Features {
 //
 // On Windows avoid single character remote names as they can be mixed
 // up with drive letters.
-func NewFs(name string, rootleaf string, config configmap.Mapper) (fs.Fs, error) {
-	root := replaceReservedChars(rootleaf)
+func NewFs(name string, root string, config configmap.Mapper) (fs.Fs, error) {
 	opt := new(Options)
 	err := configstruct.Set(config, opt)
 	if err != nil {
@@ -205,7 +207,7 @@ func NewFs(name string, rootleaf string, config configmap.Mapper) (fs.Fs, error)
 		f.features.Fill(&tempF)
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
-		// See https://github.com/artpar/rclone/issues/2182
+		// See https://github.com/rclone/rclone/issues/2182
 		f.dirCache = tempF.dirCache
 		f.root = tempF.root
 		// return an error with an fs which points to the parent
@@ -346,7 +348,7 @@ func (f *Fs) putUnchecked(ctx context.Context, in io.Reader, remote string, size
 			Date:        time.Now().Format("2006-01-02 15:04:05"),
 			Filename:    link.Filename,
 			Pass:        0,
-			Size:        int(fileSize),
+			Size:        fileSize,
 			URL:         link.Download,
 		},
 	}, nil

@@ -135,7 +135,6 @@ jobs:
         shell: bash
         run: |
           brew update
-          brew tap caskroom/cask
           brew cask install osxfuse
         if: matrix.os == 'macOS-latest'
 
@@ -197,7 +196,7 @@ jobs:
       - name: Deploy built binaries
         shell: bash
         run: |
-          make release_dep
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then make release_dep ; fi
           make travis_beta
         env:
           RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
@@ -248,3 +247,4 @@ jobs:
           make circleci_upload
         env:
           RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
+        if: github.head_ref == ''

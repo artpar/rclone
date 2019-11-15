@@ -457,13 +457,18 @@ func TestRWFileHandleFlushWrite(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 5, n)
 
-	// Check Flush closes file if write called
+	// Check Flush does not close file if write called
 	err = fh.Flush()
 	assert.NoError(t, err)
-	assert.True(t, fh.closed)
+	assert.False(t, fh.closed)
 
 	// Check flush does nothing if called again
 	err = fh.Flush()
+	assert.NoError(t, err)
+	assert.False(t, fh.closed)
+
+	// Check that Close closes the file
+	err = fh.Close()
 	assert.NoError(t, err)
 	assert.True(t, fh.closed)
 }
@@ -603,4 +608,31 @@ func TestRWFileModTimeWithOpenWriters(t *testing.T) {
 		// avoid errors because of timezone differences
 		assert.Equal(t, info.ModTime().Unix(), mtime.Unix())
 	}
+}
+
+func TestCacheRename(t *testing.T) {
+	r := fstest.NewRun(t)
+	defer r.Finalise()
+
+	opt := DefaultOpt
+	opt.CacheMode = CacheModeFull
+	vfs := New(r.Fremote, &opt)
+
+	h, err := vfs.OpenFile("rename_me", os.O_WRONLY|os.O_CREATE, 0777)
+	require.NoError(t, err)
+	fh, ok := h.(*RWFileHandle)
+	require.True(t, ok)
+
+	err = fh.Sync()
+	require.NoError(t, err)
+	err = fh.Close()
+	require.NoError(t, err)
+
+	assert.True(t, vfs.cache.exists("rename_me"))
+
+	err = vfs.Rename("rename_me", "i_was_renamed")
+	require.NoError(t, err)
+
+	assert.False(t, vfs.cache.exists("rename_me"))
+	assert.True(t, vfs.cache.exists("i_was_renamed"))
 }

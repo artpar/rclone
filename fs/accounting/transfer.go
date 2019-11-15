@@ -18,6 +18,7 @@ type TransferSnapshot struct {
 	StartedAt   time.Time `json:"started_at"`
 	CompletedAt time.Time `json:"completed_at,omitempty"`
 	Error       error     `json:"-"`
+	Group       string    `json:"group"`
 }
 
 // MarshalJSON implements json.Marshaler interface.
@@ -26,6 +27,7 @@ func (as TransferSnapshot) MarshalJSON() ([]byte, error) {
 	if as.Error != nil {
 		err = as.Error.Error()
 	}
+
 	type Alias TransferSnapshot
 	return json.Marshal(&struct {
 		Error string `json:"error"`
@@ -102,6 +104,8 @@ func (tr *Transfer) Done(err error) {
 		}
 		// Signal done with accounting
 		acc.Done()
+		// free the account since we may keep the transfer
+		acc = nil
 	}
 
 	tr.mu.Lock()
@@ -113,6 +117,7 @@ func (tr *Transfer) Done(err error) {
 	} else {
 		tr.stats.DoneTransferring(tr.remote, err == nil)
 	}
+	tr.stats.PruneTransfers()
 }
 
 // Reset allows to switch the Account to another transfer method.
@@ -173,5 +178,6 @@ func (tr *Transfer) Snapshot() TransferSnapshot {
 		StartedAt:   tr.startedAt,
 		CompletedAt: tr.completedAt,
 		Error:       tr.err,
+		Group:       tr.stats.group,
 	}
 }

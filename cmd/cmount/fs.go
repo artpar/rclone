@@ -246,7 +246,12 @@ func (fsys *FS) Readdir(dirPath string,
 	for _, item := range items {
 		node, ok := item.(vfs.Node)
 		if ok {
-			fill(node.Name(), nil, 0)
+			name := node.Name()
+			if len(name) > mountlib.MaxLeafSize {
+				fs.Errorf(dirPath, "Name too long (%d bytes) for FUSE, skipping: %s", len(name), name)
+				continue
+			}
+			fill(name, nil, 0)
 		}
 	}
 	itemsRead = len(items)
@@ -366,7 +371,12 @@ func (fsys *FS) Write(path string, buff []byte, ofst int64, fh uint64) (n int) {
 	if errc != 0 {
 		return errc
 	}
-	n, err := handle.WriteAt(buff, ofst)
+	var err error
+	if fsys.VFS.Opt.CacheMode < vfs.CacheModeWrites || handle.Node().Mode()&os.ModeAppend == 0 {
+		n, err = handle.WriteAt(buff, ofst)
+	} else {
+		n, err = handle.Write(buff)
+	}
 	if err != nil {
 		return translateError(err)
 	}

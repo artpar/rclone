@@ -15,20 +15,20 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/cmd/serve/proxy"
-	"github.com/artpar/rclone/cmd/serve/proxy/proxyflags"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/config/flags"
-	"github.com/artpar/rclone/fs/log"
-	"github.com/artpar/rclone/fs/rc"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
-	ftp "github.com/goftp/server"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/cmd/serve/proxy"
+	"github.com/rclone/rclone/cmd/serve/proxy/proxyflags"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/config/flags"
+	"github.com/rclone/rclone/fs/log"
+	"github.com/rclone/rclone/fs/rc"
+	"github.com/rclone/rclone/vfs"
+	"github.com/rclone/rclone/vfs/vfsflags"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	ftp "goftp.io/server"
 )
 
 // Options contains options for the http Server
@@ -155,7 +155,7 @@ func newServer(f fs.Fs, opt *Options) (*server, error) {
 		PassivePorts:   opt.PassivePorts,
 		Auth:           s, // implemented by CheckPasswd method
 		Logger:         &Logger{},
-		//TODO implement a maximum of https://godoc.org/github.com/goftp/server#ServerOpts
+		//TODO implement a maximum of https://godoc.org/goftp.io/server#ServerOpts
 	}
 	s.srv = ftp.NewServer(ftpopt)
 	return s, nil
@@ -210,8 +210,8 @@ func (l *Logger) PrintResponse(sessionID string, code int, message string) {
 // CheckPassword is called with the connection.
 func findID(callerName []byte) (string, error) {
 	// Dump the stack in this format
-	// github.com/artpar/rclone/vendor/github.com/goftp/server.(*Conn).Serve(0xc0000b2680)
-	// 	/home/ncw/go/src/github.com/artpar/rclone/vendor/github.com/goftp/server/conn.go:116 +0x11d
+	// github.com/rclone/rclone/vendor/goftp.io/server.(*Conn).Serve(0xc0000b2680)
+	// 	/home/ncw/go/src/github.com/rclone/rclone/vendor/goftp.io/server/conn.go:116 +0x11d
 	buf := make([]byte, 4096)
 	n := runtime.Stack(buf, false)
 	buf = buf[:n]

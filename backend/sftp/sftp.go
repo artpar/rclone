@@ -19,25 +19,27 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/env"
-	"github.com/artpar/rclone/lib/readers"
 	"github.com/pkg/errors"
 	"github.com/pkg/sftp"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/env"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/readers"
 	sshagent "github.com/xanzy/ssh-agent"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/time/rate"
 )
 
 const (
-	connectionsPerSecond    = 10 // don't make more than this many ssh connections/s
 	hashCommandNotSupported = "none"
+	minSleep                = 100 * time.Millisecond
+	maxSleep                = 2 * time.Second
+	decayConstant           = 2 // bigger for slower decay, exponential
 )
 
 var (
@@ -86,8 +88,19 @@ requested from the ssh-agent. This allows to avoid ` + "`Too many authentication
 when the ssh-agent contains many keys.`,
 			Default: false,
 		}, {
-			Name:    "use_insecure_cipher",
-			Help:    "Enable the use of the aes128-cbc cipher and diffie-hellman-group-exchange-sha256, diffie-hellman-group-exchange-sha1 key exchange. Those algorithms are insecure and may allow plaintext data to be recovered by an attacker.",
+			Name: "use_insecure_cipher",
+			Help: `Enable the use of insecure ciphers and key exchange methods. 
+
+This enables the use of the the following insecure ciphers and key exchange methods:
+
+- aes128-cbc
+- aes192-cbc
+- aes256-cbc
+- 3des-cbc
+- diffie-hellman-group-exchange-sha256
+- diffie-hellman-group-exchange-sha1
+
+Those algorithms are insecure and may allow plaintext data to be recovered by an attacker.`,
 			Default: false,
 			Examples: []fs.OptionExample{
 				{
@@ -179,7 +192,7 @@ type Fs struct {
 	cachedHashes *hash.Set
 	poolMu       sync.Mutex
 	pool         []*conn
-	connLimit    *rate.Limiter // for limiting number of connections per second
+	pacer        *fs.Pacer // pacer for operations
 }
 
 // Object is a remote SFTP file that has been stat'd (so it exists, but is not necessarily open for reading)
@@ -259,10 +272,6 @@ func (c *conn) closed() error {
 // Open a new connection to the SFTP server.
 func (f *Fs) sftpConnection() (c *conn, err error) {
 	// Rate limit rate of new connections
-	err = f.connLimit.Wait(context.Background())
-	if err != nil {
-		return nil, errors.Wrap(err, "limiter failed in connect")
-	}
 	c = &conn{
 		err: make(chan error, 1),
 	}
@@ -296,7 +305,14 @@ func (f *Fs) getSftpConnection() (c *conn, err error) {
 	if c != nil {
 		return c, nil
 	}
-	return f.sftpConnection()
+	err = f.pacer.Call(func() (bool, error) {
+		c, err = f.sftpConnection()
+		if err != nil {
+			return true, err
+		}
+		return false, nil
+	})
+	return c, err
 }
 
 // Return an SFTP connection to the pool
@@ -363,7 +379,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 
 	if opt.UseInsecureCipher {
 		sshConfig.Config.SetDefaults()
-		sshConfig.Config.Ciphers = append(sshConfig.Config.Ciphers, "aes128-cbc")
+		sshConfig.Config.Ciphers = append(sshConfig.Config.Ciphers, "aes128-cbc", "aes192-cbc", "aes256-cbc", "3des-cbc")
 		sshConfig.Config.KeyExchanges = append(sshConfig.Config.KeyExchanges, "diffie-hellman-group-exchange-sha1", "diffie-hellman-group-exchange-sha256")
 	}
 
@@ -454,7 +470,7 @@ func NewFsWithConnection(ctx context.Context, name string, root string, m config
 		config:    sshConfig,
 		url:       "sftp://" + opt.User + "@" + opt.Host + ":" + opt.Port + "/" + root,
 		mkdirLock: newStringLock(),
-		connLimit: rate.NewLimiter(rate.Limit(connectionsPerSecond), 1),
+		pacer:     fs.NewPacer(pacer.NewDefault(pacer.MinSleep(minSleep), pacer.MaxSleep(maxSleep), pacer.DecayConstant(decayConstant))),
 	}
 	f.features = (&fs.Features{
 		CanHaveEmptyDirectories: true,
@@ -950,6 +966,7 @@ func (o *Object) Hash(ctx context.Context, r hash.Type) (string, error) {
 		escapedPath = shellEscape(path.Join(o.fs.opt.PathOverride, o.remote))
 	}
 	err = session.Run(hashCmd + " " + escapedPath)
+	fs.Debugf(nil, "sftp cmd = %s", escapedPath)
 	if err != nil {
 		_ = session.Close()
 		fs.Debugf(o, "Failed to calculate %v hash: %v (%s)", r, err, bytes.TrimSpace(stderr.Bytes()))
@@ -957,7 +974,10 @@ func (o *Object) Hash(ctx context.Context, r hash.Type) (string, error) {
 	}
 
 	_ = session.Close()
-	str := parseHash(stdout.Bytes())
+	b := stdout.Bytes()
+	fs.Debugf(nil, "sftp output = %q", b)
+	str := parseHash(b)
+	fs.Debugf(nil, "sftp hash = %q", str)
 	if r == hash.MD5 {
 		o.md5sum = &str
 	} else if r == hash.SHA1 {
@@ -966,7 +986,7 @@ func (o *Object) Hash(ctx context.Context, r hash.Type) (string, error) {
 	return str, nil
 }
 
-var shellEscapeRegex = regexp.MustCompile(`[^A-Za-z0-9_.,:/@\n-]`)
+var shellEscapeRegex = regexp.MustCompile("[^A-Za-z0-9_.,:/\\@\u0080-\uFFFFFFFF\n-]")
 
 // Escape a string s.t. it cannot cause unintended behavior
 // when sending it to a shell.
@@ -979,7 +999,9 @@ func shellEscape(str string) string {
 // an invocation of md5sum/sha1sum to a hash string
 // as expected by the rest of this application
 func parseHash(bytes []byte) string {
-	return strings.Split(string(bytes), " ")[0] // Split at hash / filename separator
+	// For strings with backslash *sum writes a leading \
+	// https://unix.stackexchange.com/q/313733/94054
+	return strings.Split(strings.TrimLeft(string(bytes), "\\"), " ")[0] // Split at hash / filename separator
 }
 
 // Parses the byte array output from the SSH session

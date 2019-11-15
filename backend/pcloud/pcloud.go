@@ -19,21 +19,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/backend/pcloud/api"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/backend/pcloud/api"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/encodings"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/dircache"
+	"github.com/rclone/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/rest"
 	"golang.org/x/oauth2"
 )
+
+const enc = encodings.Pcloud
 
 const (
 	rcloneClientID              = "DnONSzyJXpm"
@@ -175,21 +178,6 @@ func shouldRetry(resp *http.Response, err error) (bool, error) {
 	return doRetry || fserrors.ShouldRetry(err) || fserrors.ShouldRetryHTTP(resp, retryErrorCodes), err
 }
 
-// substitute reserved characters for pcloud
-//
-// Generally all characters are allowed in filenames, except the NULL
-// byte, forward and backslash (/,\ and \0)
-func replaceReservedChars(x string) string {
-	// Backslash for FULLWIDTH REVERSE SOLIDUS
-	return strings.Replace(x, "\\", "＼", -1)
-}
-
-// restore reserved characters for pcloud
-func restoreReservedChars(x string) string {
-	// FULLWIDTH REVERSE SOLIDUS for Backslash
-	return strings.Replace(x, "＼", "\\", -1)
-}
-
 // readMetaDataForPath reads the metadata from the path
 func (f *Fs) readMetaDataForPath(ctx context.Context, path string) (info *api.Item, err error) {
 	// defer fs.Trace(f, "path=%q", path)("info=%+v, err=%v", &info, &err)
@@ -295,7 +283,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		}
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
-		// See https://github.com/artpar/rclone/issues/2182
+		// See https://github.com/rclone/rclone/issues/2182
 		f.dirCache = tempF.dirCache
 		f.root = tempF.root
 		// return an error with an fs which points to the parent
@@ -354,7 +342,7 @@ func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, 
 		Path:       "/createfolder",
 		Parameters: url.Values{},
 	}
-	opts.Parameters.Set("name", replaceReservedChars(leaf))
+	opts.Parameters.Set("name", enc.FromStandardName(leaf))
 	opts.Parameters.Set("folderid", dirIDtoNumber(pathID))
 	err = f.pacer.Call(func() (bool, error) {
 		resp, err = f.srv.CallJSON(ctx, &opts, nil, &result)
@@ -430,7 +418,7 @@ func (f *Fs) listAll(ctx context.Context, dirID string, directoriesOnly bool, fi
 				continue
 			}
 		}
-		item.Name = restoreReservedChars(item.Name)
+		item.Name = enc.ToStandardName(item.Name)
 		if fn(item) {
 			found = true
 			break
@@ -622,7 +610,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 		Parameters: url.Values{},
 	}
 	opts.Parameters.Set("fileid", fileIDtoNumber(srcObj.id))
-	opts.Parameters.Set("toname", replaceReservedChars(leaf))
+	opts.Parameters.Set("toname", enc.FromStandardName(leaf))
 	opts.Parameters.Set("tofolderid", dirIDtoNumber(directoryID))
 	opts.Parameters.Set("mtime", fmt.Sprintf("%d", srcObj.modTime.Unix()))
 	var resp *http.Response
@@ -701,7 +689,7 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 		Parameters: url.Values{},
 	}
 	opts.Parameters.Set("fileid", fileIDtoNumber(srcObj.id))
-	opts.Parameters.Set("toname", replaceReservedChars(leaf))
+	opts.Parameters.Set("toname", enc.FromStandardName(leaf))
 	opts.Parameters.Set("tofolderid", dirIDtoNumber(directoryID))
 	var resp *http.Response
 	var result api.ItemResult
@@ -798,7 +786,7 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 		Parameters: url.Values{},
 	}
 	opts.Parameters.Set("folderid", dirIDtoNumber(srcID))
-	opts.Parameters.Set("toname", replaceReservedChars(leaf))
+	opts.Parameters.Set("toname", enc.FromStandardName(leaf))
 	opts.Parameters.Set("tofolderid", dirIDtoNumber(directoryID))
 	var resp *http.Response
 	var result api.ItemResult
@@ -1078,7 +1066,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 		Parameters:       url.Values{},
 		TransferEncoding: []string{"identity"}, // pcloud doesn't like chunked encoding
 	}
-	leaf = replaceReservedChars(leaf)
+	leaf = enc.FromStandardName(leaf)
 	opts.Parameters.Set("filename", leaf)
 	opts.Parameters.Set("folderid", dirIDtoNumber(directoryID))
 	opts.Parameters.Set("nopartial", "1")

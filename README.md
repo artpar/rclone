@@ -22,13 +22,14 @@ Rclone *("rsync for cloud storage")* is a command line program to sync files and
 
 ## Storage providers
 
-  * 1Fichier [:page_facing_up:](https://rclone.org/ficher/)
+  * 1Fichier [:page_facing_up:](https://rclone.org/fichier/)
   * Alibaba Cloud (Aliyun) Object Storage System (OSS) [:page_facing_up:](https://rclone.org/s3/#alibaba-oss)
   * Amazon Drive [:page_facing_up:](https://rclone.org/amazonclouddrive/) ([See note](https://rclone.org/amazonclouddrive/#status))
   * Amazon S3 [:page_facing_up:](https://rclone.org/s3/)
   * Backblaze B2 [:page_facing_up:](https://rclone.org/b2/)
   * Box [:page_facing_up:](https://rclone.org/box/)
   * Ceph [:page_facing_up:](https://rclone.org/s3/#ceph)
+  * Citrix ShareFile [:page_facing_up:](https://rclone.org/sharefile/)
   * DigitalOcean Spaces [:page_facing_up:](https://rclone.org/s3/#digitalocean-spaces)
   * Dreamhost [:page_facing_up:](https://rclone.org/s3/#dreamhost)
   * Dropbox [:page_facing_up:](https://rclone.org/dropbox/)

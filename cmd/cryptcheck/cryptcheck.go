@@ -3,12 +3,13 @@ package cryptcheck
 import (
 	"context"
 
-	"github.com/artpar/rclone/backend/crypt"
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/operations"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/backend/crypt"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config/flags"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -18,11 +19,12 @@ var (
 )
 
 func init() {
-	cmd.Root.AddCommand(commandDefintion)
-	commandDefintion.Flags().BoolVarP(&oneway, "one-way", "", oneway, "Check one way only, source files must exist on destination")
+	cmd.Root.AddCommand(commandDefinition)
+	cmdFlag := commandDefinition.Flags()
+	flags.BoolVarP(cmdFlag, &oneway, "one-way", "", oneway, "Check one way only, source files must exist on destination")
 }
 
-var commandDefintion = &cobra.Command{
+var commandDefinition = &cobra.Command{
 	Use:   "cryptcheck remote:path cryptedremote:path",
 	Short: `Cryptcheck checks the integrity of a crypted remote.`,
 	Long: `

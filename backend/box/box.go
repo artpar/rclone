@@ -25,27 +25,30 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/lib/jwtutil"
+	"github.com/rclone/rclone/lib/jwtutil"
 
 	"github.com/youmark/pkcs8"
 
-	"github.com/artpar/rclone/backend/box/api"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/backend/box/api"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/encodings"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/dircache"
+	"github.com/rclone/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/rest"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/jws"
 )
+
+const enc = encodings.Box
 
 const (
 	rcloneClientID              = "d0374ba6pgmaguie02ge15sv1mllndho"
@@ -298,18 +301,6 @@ func shouldRetry(resp *http.Response, err error) (bool, error) {
 	return authRetry || fserrors.ShouldRetry(err) || fserrors.ShouldRetryHTTP(resp, retryErrorCodes), err
 }
 
-// substitute reserved characters for box
-func replaceReservedChars(x string) string {
-	// Backslash for FULLWIDTH REVERSE SOLIDUS
-	return strings.Replace(x, "\\", "＼", -1)
-}
-
-// restore reserved characters for box
-func restoreReservedChars(x string) string {
-	// FULLWIDTH REVERSE SOLIDUS for Backslash
-	return strings.Replace(x, "＼", "\\", -1)
-}
-
 // readMetaDataForPath reads the metadata from the path
 func (f *Fs) readMetaDataForPath(ctx context.Context, path string) (info *api.Item, err error) {
 	// defer fs.Trace(f, "path=%q", path)("info=%+v, err=%v", &info, &err)
@@ -422,7 +413,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		f.features.Fill(&tempF)
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
-		// See https://github.com/artpar/rclone/issues/2182
+		// See https://github.com/rclone/rclone/issues/2182
 		f.dirCache = tempF.dirCache
 		f.root = tempF.root
 		// return an error with an fs which points to the parent
@@ -497,7 +488,7 @@ func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, 
 		Parameters: fieldsValue(),
 	}
 	mkdir := api.CreateFolder{
-		Name: replaceReservedChars(leaf),
+		Name: enc.FromStandardName(leaf),
 		Parent: api.Parent{
 			ID: pathID,
 		},
@@ -563,7 +554,7 @@ OUTER:
 			if item.ItemStatus != api.ItemStatusActive {
 				continue
 			}
-			item.Name = restoreReservedChars(item.Name)
+			item.Name = enc.ToStandardName(item.Name)
 			if fn(item) {
 				found = true
 				break OUTER
@@ -799,9 +790,8 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 		Path:       "/files/" + srcObj.id + "/copy",
 		Parameters: fieldsValue(),
 	}
-	replacedLeaf := replaceReservedChars(leaf)
 	copyFile := api.CopyFile{
-		Name: replacedLeaf,
+		Name: enc.FromStandardName(leaf),
 		Parent: api.Parent{
 			ID: directoryID,
 		},
@@ -840,7 +830,7 @@ func (f *Fs) move(ctx context.Context, endpoint, id, leaf, directoryID string) (
 		Parameters: fieldsValue(),
 	}
 	move := api.UpdateFileMove{
-		Name: replaceReservedChars(leaf),
+		Name: enc.FromStandardName(leaf),
 		Parent: api.Parent{
 			ID: directoryID,
 		},
@@ -1041,11 +1031,6 @@ func (o *Object) Remote() string {
 	return o.remote
 }
 
-// srvPath returns a path for use in server
-func (o *Object) srvPath() string {
-	return replaceReservedChars(o.fs.rootSlash() + o.remote)
-}
-
 // Hash returns the SHA-1 of an object returning a lowercase hex string
 func (o *Object) Hash(ctx context.Context, t hash.Type) (string, error) {
 	if t != hash.SHA1 {
@@ -1170,7 +1155,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 // This is recommended for less than 50 MB of content
 func (o *Object) upload(ctx context.Context, in io.Reader, leaf, directoryID string, modTime time.Time) (err error) {
 	upload := api.UploadFile{
-		Name:              replaceReservedChars(leaf),
+		Name:              enc.FromStandardName(leaf),
 		ContentModifiedAt: api.Time(modTime),
 		ContentCreatedAt:  api.Time(modTime),
 		Parent: api.Parent{
