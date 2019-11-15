@@ -569,6 +569,6 @@ Check `rclone --version` and make sure that the plugin's rclone dependency and h
 
 Then, run `go build -buildmode=plugin -o PLUGIN_NAME.so .` to build the plugin.
 
-[Go reference](https://godoc.org/github.com/rclone/rclone/lib/plugin)
+[Go reference](https://godoc.org/github.com/artpar/rclone/lib/plugin)
 
 [Minimal example](https://gist.github.com/terorie/21b517ee347828e899e1913efc1d684f)

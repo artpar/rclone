@@ -1122,7 +1122,7 @@ HTTP/2.  HTTP/2 is therefore disabled by default for the drive backend
 but can be re-enabled here.  When the issue is solved this flag will
 be removed.
 
-See: https://github.com/rclone/rclone/issues/3631
+See: https://github.com/artpar/rclone/issues/3631
 
 
 

@@ -2858,7 +2858,7 @@ all the docs and Edward Barker for helping re-write the front page.
         * Convert python scripts to python3 (Nick Craig-Wood)
         * Swap Azure/go-ansiterm for mattn/go-colorable (Nick Craig-Wood)
         * Dockerfile fixes (Matei David)
-        * Add [plugin support](https://github.com/rclone/rclone/blob/master/CONTRIBUTING.md#writing-a-plugin) for backends and commands (Richard Patel)
+        * Add [plugin support](https://github.com/artpar/rclone/blob/master/CONTRIBUTING.md#writing-a-plugin) for backends and commands (Richard Patel)
     * config
         * Use alternating Red/Green in config to make more obvious (Nick Craig-Wood)
     * contrib
