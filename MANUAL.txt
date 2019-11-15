@@ -177,11 +177,11 @@ The :latest tag will always point to the latest stable release. You can
 use the :beta tag to get the latest build from master. You can also use
 version tags, eg :1.49.1, :1.49 or :1.
 
-    $ docker pull rclone/rclone:latest
-    latest: Pulling from rclone/rclone
+    $ docker pull artpar/rclone:latest
+    latest: Pulling from artpar/rclone
     Digest: sha256:0e0ced72671989bb837fea8e88578b3fc48371aa45d209663683e24cfdaa0e11
     ...
-    $ docker run --rm rclone/rclone:latest version
+    $ docker run --rm artpar/rclone:latest version
     rclone v1.49.1
     - os/arch: linux/amd64
     - go version: go1.12.9
@@ -214,7 +214,7 @@ Docker container from the rclone image.
 
 Here are some commands tested on an Ubuntu 18.04.3 host:
 
-    # config on host at ~/.config/rclone/rclone.conf
+    # config on host at ~/.config/artpar/rclone.conf
     # data on host at ~/data
 
     # make sure the config is ok by listing the remotes
@@ -222,7 +222,7 @@ Here are some commands tested on an Ubuntu 18.04.3 host:
         --volume ~/.config/rclone:/config/rclone \
         --volume ~/data:/data:shared \
         --user $(id -u):$(id -g) \
-        rclone/rclone \
+        artpar/rclone \
         listremotes
 
     # perform mount inside Docker container, expose result to host
@@ -233,7 +233,7 @@ Here are some commands tested on an Ubuntu 18.04.3 host:
         --user $(id -u):$(id -g) \
         --volume /etc/passwd:/etc/passwd:ro --volume /etc/group:/etc/group:ro \
         --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined \
-        rclone/rclone \
+        artpar/rclone \
         mount dropbox:Photos /data/mount &
     ls ~/data/mount
     kill %1
@@ -244,7 +244,7 @@ Install from source
 Make sure you have at least Go 1.7 installed. Download go if necessary.
 The latest release is recommended. Then
 
-    git clone https://github.com/rclone/rclone.git
+    git clone https://github.com/artpar/rclone.git
     cd rclone
     go build
     ./rclone version
@@ -252,11 +252,11 @@ The latest release is recommended. Then
 You can also build and install rclone in the GOPATH (which defaults to
 ~/go) with:
 
-    go get -u -v github.com/rclone/rclone
+    go get -u -v github.com/artpar/rclone
 
 and this will build the binary in $GOPATH/bin (~/go/bin/rclone by
 default) after downloading the source to
-$GOPATH/src/github.com/rclone/rclone (~/go/src/github.com/rclone/rclone
+$GOPATH/src/github.com/artpar/rclone (~/go/src/github.com/artpar/rclone
 by default).
 
 
@@ -4732,9 +4732,9 @@ See --copy-dest and --backup-dir.
 Specify the location of the rclone config file.
 
 Normally the config file is in your home directory as a file called
-.config/rclone/rclone.conf (or .rclone.conf if created with an older
+.config/artpar/rclone.conf (or .rclone.conf if created with an older
 version). If $XDG_CONFIG_HOME is set it will be at
-$XDG_CONFIG_HOME/rclone/rclone.conf.
+$XDG_CONFIG_HOME/artpar/rclone.conf.
 
 If there is a file rclone.conf in the same directory as the rclone
 executable it will be preferred. This file must be created manually for
@@ -6345,7 +6345,7 @@ the GUI in a web browser.
 This will produce logs like this and rclone needs to continue to run to
 serve the GUI:
 
-    2019/08/25 11:40:14 NOTICE: A new release for gui is present at https://github.com/rclone/rclone-webui-react/releases/download/v0.0.6/currentbuild.zip
+    2019/08/25 11:40:14 NOTICE: A new release for gui is present at https://github.com/artpar/rclone-webui-react/releases/download/v0.0.6/currentbuild.zip
     2019/08/25 11:40:14 NOTICE: Downloading webgui binary. Please wait. [Size: 3813937, Path :  /home/USER/.cache/rclone/webgui/v0.0.6.zip]
     2019/08/25 11:40:16 NOTICE: Unzipping
     2019/08/25 11:40:16 NOTICE: Serving remote control on http://127.0.0.1:5572/
@@ -6433,7 +6433,7 @@ Or instead of htpassword if you just want a single user and password:
 
 Project
 
-The GUI is being developed in the: rclone/rclone-webui-react
+The GUI is being developed in the: artpar/rclone-webui-react
 respository.
 
 Bug reports and contributions very welcome welcome :-)
@@ -6546,7 +6546,7 @@ Default is IP address on which rc is running.
 Set the URL to fetch the rclone-web-gui files from.
 
 Default
-https://api.github.com/repos/rclone/rclone-webui-react/releases/latest.
+https://api.github.com/repos/artpar/rclone-webui-react/releases/latest.
 
 –rc-web-gui-update
 
@@ -7503,17 +7503,17 @@ curl -H “Content-Type: application/json” -X POST -d
 $ go tool pprof -text http://localhost:5572/debug/pprof/heap Showing
 nodes accounting for 1537.03kB, 100% of 1537.03kB total flat flat% sum%
 cum cum% 1024.03kB 66.62% 66.62% 1024.03kB 66.62%
-github.com/rclone/rclone/vendor/golang.org/x/net/http2/hpack.addDecoderNode
+github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.addDecoderNode
 513kB 33.38% 100% 513kB 33.38% net/http.newBufioWriterSize 0 0% 100%
-1024.03kB 66.62% github.com/rclone/rclone/cmd/all.init 0 0% 100%
-1024.03kB 66.62% github.com/rclone/rclone/cmd/serve.init 0 0% 100%
-1024.03kB 66.62% github.com/rclone/rclone/cmd/serve/restic.init 0 0%
+1024.03kB 66.62% github.com/artpar/rclone/cmd/all.init 0 0% 100%
+1024.03kB 66.62% github.com/artpar/rclone/cmd/serve.init 0 0% 100%
+1024.03kB 66.62% github.com/artpar/rclone/cmd/serve/restic.init 0 0%
 100% 1024.03kB 66.62%
-github.com/rclone/rclone/vendor/golang.org/x/net/http2.init 0 0% 100%
+github.com/artpar/rclone/vendor/golang.org/x/net/http2.init 0 0% 100%
 1024.03kB 66.62%
-github.com/rclone/rclone/vendor/golang.org/x/net/http2/hpack.init 0 0%
+github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.init 0 0%
 100% 1024.03kB 66.62%
-github.com/rclone/rclone/vendor/golang.org/x/net/http2/hpack.init.0 0 0%
+github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.init.0 0 0%
 100% 1024.03kB 66.62% main.init 0 0% 100% 513kB 33.38%
 net/http.(_conn).readRequest 0 0% 100% 513kB 33.38%
 net/http.(_conn).serve 0 0% 100% 1024.03kB 66.62% runtime.main
@@ -7778,31 +7778,31 @@ net/http.(_conn).serve 0 0% 100% 1024.03kB 66.62% runtime.main
     | Name                         | Purge | Copy | Move | DirMove | CleanUp | ListR | StreamUpload | LinkSharing | About | EmptyDir |
     | ---------------------------- |:-----:|:----:|:----:|:-------:|:-------:|:-----:|:------------:|:------------:|:-----:| :------: |
     | 1Fichier                     | No    | No   | No   | No      | No      | No    | No           | No           |   No  |  Yes |
-    | Amazon Drive                 | Yes   | No   | Yes  | Yes     | No [#575](https://github.com/rclone/rclone/issues/575) | No  | No  | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | Yes |
-    | Amazon S3                    | No    | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | No |
+    | Amazon Drive                 | Yes   | No   | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | No  | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | Yes |
+    | Amazon S3                    | No    | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | No |
     | Backblaze B2                 | No    | Yes  | No   | No      | Yes     | Yes   | Yes          | Yes | No  | No |
-    | Box                          | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/rclone/rclone/issues/575) | No  | Yes | Yes | No  | Yes |
+    | Box                          | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | Yes | Yes | No  | Yes |
     | Citrix ShareFile             | Yes   | Yes  | Yes  | Yes     | No      | No    | Yes          | No          | No  | Yes |
-    | Dropbox                      | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/rclone/rclone/issues/575) | No  | Yes | Yes | Yes | Yes |
-    | FTP                          | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | Yes |
-    | Google Cloud Storage         | Yes   | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | No |
+    | Dropbox                      | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | Yes | Yes | Yes | Yes |
+    | FTP                          | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | Yes |
+    | Google Cloud Storage         | Yes   | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | No |
     | Google Drive                 | Yes   | Yes  | Yes  | Yes     | Yes     | Yes   | Yes          | Yes         | Yes | Yes |
     | Google Photos                | No    | No   | No   | No      | No      | No    | No           | No          | No | No |
-    | HTTP                         | No    | No   | No   | No      | No      | No    | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | Yes |
-    | Hubic                        | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes | No |
+    | HTTP                         | No    | No   | No   | No      | No      | No    | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | Yes |
+    | Hubic                        | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes | No |
     | Jottacloud                   | Yes   | Yes  | Yes  | Yes     | No      | Yes   | No           | Yes                                                   | Yes | Yes |
     | Mail.ru Cloud                | Yes   | Yes  | Yes  | Yes     | Yes     | No    | No           | Yes                                                   | Yes | Yes |
-    | Mega                         | Yes   | No   | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes | Yes |
-    | Microsoft Azure Blob Storage | Yes   | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | No |
-    | Microsoft OneDrive           | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/rclone/rclone/issues/575) | No | No | Yes | Yes | Yes |
+    | Mega                         | Yes   | No   | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes | Yes |
+    | Microsoft Azure Blob Storage | Yes   | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | No |
+    | Microsoft OneDrive           | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No | No | Yes | Yes | Yes |
     | OpenDrive                    | Yes   | Yes  | Yes  | Yes     | No      | No    | No           | No                                                    | No  | Yes |
-    | Openstack Swift              | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes | No |
-    | pCloud                       | Yes   | Yes  | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes | Yes |
+    | Openstack Swift              | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes | No |
+    | pCloud                       | Yes   | Yes  | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes | Yes |
     | premiumize.me                | Yes   | No   | Yes  | Yes     | No      | No    | No           | Yes         | Yes | Yes |
-    | put.io                       | Yes   | No   | Yes  | Yes     | Yes     | No    | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes | Yes |
-    | QingStor                     | No    | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | No |
-    | SFTP                         | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes  | Yes |
-    | WebDAV                       | Yes   | Yes  | Yes  | Yes     | No      | No    | Yes ‡        | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes  | Yes |
+    | put.io                       | Yes   | No   | Yes  | Yes     | Yes     | No    | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes | Yes |
+    | QingStor                     | No    | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | No |
+    | SFTP                         | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes  | Yes |
+    | WebDAV                       | Yes   | Yes  | Yes  | Yes     | No      | No    | Yes ‡        | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes  | Yes |
     | Yandex Disk                  | Yes   | Yes  | Yes  | Yes     | Yes     | No    | Yes          | Yes         | Yes | Yes |
     | The local filesystem         | Yes   | No   | Yes  | Yes     | No      | No    | Yes          | No          | Yes | Yes |
 
@@ -7906,7 +7906,7 @@ net/http.(_conn).serve 0 0% 100% 1024.03kB 66.62% runtime.main
 & size –client-cert string Client SSL certificate (PEM) for mutual TLS
 auth –client-key string Client SSL private key (PEM) for mutual TLS auth
 –compare-dest string use DIR to server side copy flies from. –config
-string Config file. (default “$HOME/.config/rclone/rclone.conf”)
+string Config file. (default “$HOME/.config/artpar/rclone.conf”)
 –contimeout duration Connect timeout (default 1m0s) –copy-dest string
 Compare dest to DIR also. –cpuprofile string Write cpu profile to file
 –delete-after When synchronizing, delete files on destination after
@@ -7979,7 +7979,7 @@ data (default 1h0m0s) –rc-server-write-timeout duration Timeout for
 server writing data (default 1h0m0s) –rc-user string User name for
 authentication. –rc-web-fetch-url string URL to fetch the releases for
 webgui. (default
-“https://api.github.com/repos/rclone/rclone-webui-react/releases/latest”)
+“https://api.github.com/repos/artpar/rclone-webui-react/releases/latest”)
 –rc-web-gui Launch WebGUI on localhost –rc-web-gui-update Update / Force
 update to latest version of web gui –retries int Retry operations this
 many times if they fail (default 3) –retries-sleep duration Interval
@@ -9032,7 +9032,7 @@ this remote y/e/d>
     you can't transfer small objects.  As a work-around you can use the
     `--ignore-checksum` flag.
 
-    A proper fix is being worked on in [issue #1824](https://github.com/rclone/rclone/issues/1824).
+    A proper fix is being worked on in [issue #1824](https://github.com/artpar/rclone/issues/1824).
 
     ### Glacier and Glacier Deep Archive ###
 
@@ -10291,7 +10291,7 @@ remote y/e/d> y
 
     Sources which don't support SHA1, in particular `crypt` will upload
     large files without SHA1 checksums.  This may be fixed in the future
-    (see [#1767](https://github.com/rclone/rclone/issues/1767)).
+    (see [#1767](https://github.com/artpar/rclone/issues/1767)).
 
     Files sizes below `--b2-upload-cutoff` will always have an SHA1
     regardless of the source.
@@ -10324,7 +10324,7 @@ remote y/e/d> y
     `--b2-versions` flag.
 
     **NB** Note that `--b2-versions` does not work with crypt at the
-    moment [#1627](https://github.com/rclone/rclone/issues/1627). Using
+    moment [#1627](https://github.com/artpar/rclone/issues/1627). Using
     [--backup-dir](/docs/#backup-dir-dir) with rclone is the recommended
     way of working around this.
 
@@ -10386,7 +10386,7 @@ $ rclone -q –b2-versions ls b2:cleanup-test 9 one.txt
     The `b2_list_file_names` request will be sent once for every 1k files
     in the remote path, providing the checksum and modification time of
     the listed files. As of version 1.33 issue
-    [#818](https://github.com/rclone/rclone/issues/818) causes extra requests
+    [#818](https://github.com/artpar/rclone/issues/818) causes extra requests
     to be sent when using B2 with Crypt. When a copy operation does not
     require any files to be uploaded, no more requests will be sent.
 
@@ -11019,9 +11019,9 @@ dummyusername plex_password = *** ENCRYPTED *** chunk_size = 5M info_age
 
     Any reports or feedback on how cache behaves on this OS is greatly appreciated.
      
-    - https://github.com/rclone/rclone/issues/1935
-    - https://github.com/rclone/rclone/issues/1907
-    - https://github.com/rclone/rclone/issues/1834 
+    - https://github.com/artpar/rclone/issues/1935
+    - https://github.com/artpar/rclone/issues/1907
+    - https://github.com/artpar/rclone/issues/1834
 
     #### Risk of throttling ####
 
@@ -11040,8 +11040,8 @@ dummyusername plex_password = *** ENCRYPTED *** chunk_size = 5M info_age
 
     Future enhancements:
 
-    - https://github.com/rclone/rclone/issues/1937
-    - https://github.com/rclone/rclone/issues/1936 
+    - https://github.com/artpar/rclone/issues/1937
+    - https://github.com/artpar/rclone/issues/1936
 
     #### cache and crypt ####
 
@@ -13790,7 +13790,7 @@ rclone lsjson -vv -R –checkers=6 gdrive:folder
     official export URLs can't export large documents, whereas these
     unofficial ones can.
 
-    See rclone issue [#2243](https://github.com/rclone/rclone/issues/2243) for background,
+    See rclone issue [#2243](https://github.com/artpar/rclone/issues/2243) for background,
     [this google drive issue](https://issuetracker.google.com/issues/36761333) and
     [this helpful post](https://www.labnol.org/internet/direct-links-for-google-drive/28356/).
 
@@ -13908,7 +13908,7 @@ rclone lsjson -vv -R –checkers=6 gdrive:folder
     but can be re-enabled here.  When the issue is solved this flag will
     be removed.
 
-    See: https://github.com/rclone/rclone/issues/3631
+    See: https://github.com/artpar/rclone/issues/3631
 
 
 
@@ -21987,7 +21987,7 @@ Gitub project
 
 The project website is at:
 
--   https://github.com/rclone/rclone
+-   https://github.com/artpar/rclone
 
 There you can file bug reports or contribute pull requests.
 

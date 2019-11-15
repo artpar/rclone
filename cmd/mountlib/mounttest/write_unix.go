@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	"github.com/rclone/rclone/vfs"
+	"github.com/artpar/rclone/vfs"
 )
 
 // TestWriteFileDoubleClose tests double close on write

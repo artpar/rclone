@@ -42,17 +42,17 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/ncw/swift"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/configstruct"
-	"github.com/rclone/rclone/fs/encodings"
-	"github.com/rclone/rclone/fs/fserrors"
-	"github.com/rclone/rclone/fs/fshttp"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/walk"
-	"github.com/rclone/rclone/lib/bucket"
-	"github.com/rclone/rclone/lib/pacer"
-	"github.com/rclone/rclone/lib/rest"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/encodings"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/fshttp"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/walk"
+	"github.com/artpar/rclone/lib/bucket"
+	"github.com/artpar/rclone/lib/pacer"
+	"github.com/artpar/rclone/lib/rest"
 )
 
 const enc = encodings.S3
@@ -1256,7 +1256,7 @@ func (f *Fs) list(ctx context.Context, bucket, directory, prefix string, addBuck
 	// it doesn't encode CommonPrefixes.
 	// See: https://tracker.ceph.com/issues/41870
 	//
-	// This does not work under IBM COS also: See https://github.com/rclone/rclone/issues/3345
+	// This does not work under IBM COS also: See https://github.com/artpar/rclone/issues/3345
 	// though maybe it does on some versions.
 	//
 	// This does work with minio but was only added relatively recently

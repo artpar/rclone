@@ -19,11 +19,11 @@ import (
 	"github.com/billziss-gh/cgofuse/fuse"
 	"github.com/okzk/sdnotify"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/cmd/mountlib"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/lib/atexit"
-	"github.com/rclone/rclone/vfs"
-	"github.com/rclone/rclone/vfs/vfsflags"
+	"github.com/artpar/rclone/cmd/mountlib"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/lib/atexit"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfsflags"
 )
 
 func init() {

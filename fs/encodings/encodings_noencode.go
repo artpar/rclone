@@ -3,7 +3,7 @@
 package encodings
 
 import (
-	"github.com/rclone/rclone/lib/encoder"
+	"github.com/artpar/rclone/lib/encoder"
 )
 
 // Fake encodings used for testing

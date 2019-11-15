@@ -4,10 +4,10 @@ import (
 	"context"
 	"os"
 
-	"github.com/rclone/rclone/backend/dropbox/dbhash"
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/operations"
+	"github.com/artpar/rclone/backend/dropbox/dbhash"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/operations"
 	"github.com/spf13/cobra"
 )
 

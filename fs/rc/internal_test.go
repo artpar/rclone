@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/obscure"
-	"github.com/rclone/rclone/fs/version"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fs/version"
 )
 
 func TestInternalNoop(t *testing.T) {

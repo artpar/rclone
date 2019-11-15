@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/rclone/rclone/vfs"
+	"github.com/artpar/rclone/vfs"
 )
 
 // TestWriteFileNoWrite tests writing a file with no write()'s to it

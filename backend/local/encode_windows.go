@@ -3,7 +3,7 @@
 package local
 
 import (
-	"github.com/rclone/rclone/fs/encodings"
+	"github.com/artpar/rclone/fs/encodings"
 )
 
 const enc = encodings.LocalWindows

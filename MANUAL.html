@@ -89,7 +89,7 @@
 <p>Links</p>
 <ul>
 <li><a href="https://rclone.org/">Home page</a></li>
-<li><a href="https://github.com/rclone/rclone">GitHub project page for source and bug tracker</a></li>
+<li><a href="https://github.com/artpar/rclone">GitHub project page for source and bug tracker</a></li>
 <li><a href="https://forum.rclone.org">Rclone Forum</a></li>
 <li><a href="https://rclone.org/downloads/">Downloads</a></li>
 </ul>
@@ -138,13 +138,13 @@ sudo mv rclone /usr/local/bin/</code></pre>
 <p>Run <code>rclone config</code> to setup. See <a href="https://rclone.org/docs/">rclone config docs</a> for more details.</p>
 <pre><code>rclone config</code></pre>
 <h2 id="install-with-docker">Install with docker</h2>
-<p>The rclone maintains a <a href="https://hub.docker.com/r/rclone/rclone">docker image for rclone</a>. These images are autobuilt by docker hub from the rclone source based on a minimal Alpine linux image.</p>
+<p>The rclone maintains a <a href="https://hub.docker.com/r/artpar/rclone">docker image for rclone</a>. These images are autobuilt by docker hub from the rclone source based on a minimal Alpine linux image.</p>
 <p>The <code>:latest</code> tag will always point to the latest stable release. You can use the <code>:beta</code> tag to get the latest build from master. You can also use version tags, eg <code>:1.49.1</code>, <code>:1.49</code> or <code>:1</code>.</p>
-<pre><code>$ docker pull rclone/rclone:latest
-latest: Pulling from rclone/rclone
+<pre><code>$ docker pull artpar/rclone:latest
+latest: Pulling from artpar/rclone
 Digest: sha256:0e0ced72671989bb837fea8e88578b3fc48371aa45d209663683e24cfdaa0e11
 ...
-$ docker run --rm rclone/rclone:latest version
+$ docker run --rm artpar/rclone:latest version
 rclone v1.49.1
 - os/arch: linux/amd64
 - go version: go1.12.9</code></pre>
@@ -157,7 +157,7 @@ rclone v1.49.1
 <p>You also need to mount the host <code>/etc/passwd</code> and <code>/etc/group</code> for fuse to work inside the container.</p></li>
 </ul>
 <p>Here are some commands tested on an Ubuntu 18.04.3 host:</p>
-<pre><code># config on host at ~/.config/rclone/rclone.conf
+<pre><code># config on host at ~/.config/artpar/rclone.conf
 # data on host at ~/data
 
 # make sure the config is ok by listing the remotes
@@ -165,7 +165,7 @@ docker run --rm \
     --volume ~/.config/rclone:/config/rclone \
     --volume ~/data:/data:shared \
     --user $(id -u):$(id -g) \
-    rclone/rclone \
+    artpar/rclone \
     listremotes
 
 # perform mount inside Docker container, expose result to host
@@ -176,19 +176,19 @@ docker run --rm \
     --user $(id -u):$(id -g) \
     --volume /etc/passwd:/etc/passwd:ro --volume /etc/group:/etc/group:ro \
     --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined \
-    rclone/rclone \
+    artpar/rclone \
     mount dropbox:Photos /data/mount &amp;
 ls ~/data/mount
 kill %1</code></pre>
 <h2 id="install-from-source">Install from source</h2>
 <p>Make sure you have at least <a href="https://golang.org/">Go</a> 1.7 installed. <a href="https://golang.org/dl/">Download go</a> if necessary. The latest release is recommended. Then</p>
-<pre><code>git clone https://github.com/rclone/rclone.git
+<pre><code>git clone https://github.com/artpar/rclone.git
 cd rclone
 go build
 ./rclone version</code></pre>
 <p>You can also build and install rclone in the <a href="https://github.com/golang/go/wiki/GOPATH">GOPATH</a> (which defaults to <code>~/go</code>) with:</p>
-<pre><code>go get -u -v github.com/rclone/rclone</code></pre>
-<p>and this will build the binary in <code>$GOPATH/bin</code> (<code>~/go/bin/rclone</code> by default) after downloading the source to <code>$GOPATH/src/github.com/rclone/rclone</code> (<code>~/go/src/github.com/rclone/rclone</code> by default).</p>
+<pre><code>go get -u -v github.com/artpar/rclone</code></pre>
+<p>and this will build the binary in <code>$GOPATH/bin</code> (<code>~/go/bin/rclone</code> by default) after downloading the source to <code>$GOPATH/src/github.com/artpar/rclone</code> (<code>~/go/src/github.com/artpar/rclone</code> by default).</p>
 <h2 id="installation-with-ansible">Installation with Ansible</h2>
 <p>This can be done with <a href="https://github.com/stefangweichinger/ansible-rclone">Stefan Weichinger’s ansible role</a>.</p>
 <p>Instructions</p>
@@ -1292,7 +1292,7 @@ umount /path/to/local/mount</code></pre>
 <h3 id="attribute-caching">Attribute caching</h3>
 <p>You can use the flag –attr-timeout to set the time the kernel caches the attributes (size, modification time etc) for directory entries.</p>
 <p>The default is “1s” which caches files just long enough to avoid too many callbacks to rclone from the kernel.</p>
-<p>In theory 0s should be the correct value for filesystems which can change outside the control of the kernel. However this causes quite a few problems such as <a href="https://github.com/rclone/rclone/issues/2157">rclone using too much memory</a>, <a href="https://forum.rclone.org/t/rclone-1-39-vs-1-40-mount-issue/5112">rclone not serving files to samba</a> and <a href="https://github.com/rclone/rclone/issues/2095#issuecomment-371141147">excessive time listing directories</a>.</p>
+<p>In theory 0s should be the correct value for filesystems which can change outside the control of the kernel. However this causes quite a few problems such as <a href="https://github.com/artpar/rclone/issues/2157">rclone using too much memory</a>, <a href="https://forum.rclone.org/t/rclone-1-39-vs-1-40-mount-issue/5112">rclone not serving files to samba</a> and <a href="https://github.com/artpar/rclone/issues/2095#issuecomment-371141147">excessive time listing directories</a>.</p>
 <p>The kernel can cache the info about a file for the time given by “–attr-timeout”. You may see corruption if the remote file changes length during this window. It will show up as either a truncated file or a file with garbage on the end. With “–attr-timeout 1s” this is very unlikely but not impossible. The higher you set “–attr-timeout” the more likely it is. The default setting of “1s” is the lowest setting which mitigates the problems above.</p>
 <p>If you set it higher (‘10s’ or ‘1m’ say) then the kernel will call back to rclone less often making it more efficient, however there is more chance of the corruption issue above.</p>
 <p>If files don’t change on the remote outside of the control of rclone then there is no chance of corruption.</p>
@@ -1721,7 +1721,7 @@ ffmpeg - | rclone rcat remote:path/to/file</code></pre>
 <p>If an upload or download fails it will be retried up to –low-level-retries times.</p>
 <h3 id="auth-proxy">Auth Proxy</h3>
 <p>If you supply the parameter <code>--auth-proxy /path/to/program</code> then rclone will use that program to generate backends on the fly which then are used to authenticate incoming requests. This uses a simple JSON based protocl with input on STDIN and output on STDOUT.</p>
-<p>There is an example program <a href="https://github.com/rclone/rclone/blob/master/test_proxy.py">bin/test_proxy.py</a> in the rclone source code.</p>
+<p>There is an example program <a href="https://github.com/artpar/rclone/blob/master/test_proxy.py">bin/test_proxy.py</a> in the rclone source code.</p>
 <p>The program’s job is to take a <code>user</code> and <code>pass</code> on the input and turn those into the config for a backend on STDOUT in JSON format. This config will have any default parameters for the backend added, but it won’t use configuration from environment variables or command line options - it is the job of the proxy program to make a complete config.</p>
 <p>This config generated must have this extra parameter - <code>_root</code> - root to use for the backend</p>
 <p>And it may have this parameter - <code>_obscure</code> - comma separated strings for parameters to obscure</p>
@@ -2049,7 +2049,7 @@ htpasswd -B htpasswd anotherUser</code></pre>
 <p>If an upload or download fails it will be retried up to –low-level-retries times.</p>
 <h3 id="auth-proxy-1">Auth Proxy</h3>
 <p>If you supply the parameter <code>--auth-proxy /path/to/program</code> then rclone will use that program to generate backends on the fly which then are used to authenticate incoming requests. This uses a simple JSON based protocl with input on STDIN and output on STDOUT.</p>
-<p>There is an example program <a href="https://github.com/rclone/rclone/blob/master/test_proxy.py">bin/test_proxy.py</a> in the rclone source code.</p>
+<p>There is an example program <a href="https://github.com/artpar/rclone/blob/master/test_proxy.py">bin/test_proxy.py</a> in the rclone source code.</p>
 <p>The program’s job is to take a <code>user</code> and <code>pass</code> on the input and turn those into the config for a backend on STDOUT in JSON format. This config will have any default parameters for the backend added, but it won’t use configuration from environment variables or command line options - it is the job of the proxy program to make a complete config.</p>
 <p>This config generated must have this extra parameter - <code>_root</code> - root to use for the backend</p>
 <p>And it may have this parameter - <code>_obscure</code> - comma separated strings for parameters to obscure</p>
@@ -2190,7 +2190,7 @@ htpasswd -B htpasswd anotherUser</code></pre>
 <p>If an upload or download fails it will be retried up to –low-level-retries times.</p>
 <h3 id="auth-proxy-2">Auth Proxy</h3>
 <p>If you supply the parameter <code>--auth-proxy /path/to/program</code> then rclone will use that program to generate backends on the fly which then are used to authenticate incoming requests. This uses a simple JSON based protocl with input on STDIN and output on STDOUT.</p>
-<p>There is an example program <a href="https://github.com/rclone/rclone/blob/master/test_proxy.py">bin/test_proxy.py</a> in the rclone source code.</p>
+<p>There is an example program <a href="https://github.com/artpar/rclone/blob/master/test_proxy.py">bin/test_proxy.py</a> in the rclone source code.</p>
 <p>The program’s job is to take a <code>user</code> and <code>pass</code> on the input and turn those into the config for a backend on STDOUT in JSON format. This config will have any default parameters for the backend added, but it won’t use configuration from environment variables or command line options - it is the job of the proxy program to make a complete config.</p>
 <p>This config generated must have this extra parameter - <code>_root</code> - root to use for the backend</p>
 <p>And it may have this parameter - <code>_obscure</code> - comma separated strings for parameters to obscure</p>
@@ -2374,7 +2374,7 @@ htpasswd -B htpasswd anotherUser</code></pre>
 <h3 id="windows">Windows</h3>
 <p>If your names have spaces in you need to put them in <code>&quot;</code>, eg</p>
 <pre><code>rclone copy &quot;E:\folder name\folder name\folder name&quot; remote:backup</code></pre>
-<p>If you are using the root directory on its own then don’t quote it (see <a href="https://github.com/rclone/rclone/issues/464">#464</a> for why), eg</p>
+<p>If you are using the root directory on its own then don’t quote it (see <a href="https://github.com/artpar/rclone/issues/464">#464</a> for why), eg</p>
 <pre><code>rclone copy E:\ remote:backup</code></pre>
 <h2 id="copying-files-or-directories-with-in-the-names">Copying files or directories with <code>:</code> in the names</h2>
 <p>rclone uses <code>:</code> to mark a remote name. This is, however, a valid filename component in non-Windows OSes. The remote name parser will only search for a <code>:</code> up to the first <code>/</code> so if you need to act on a file or directory like this then use the full path starting with a <code>/</code>, or use <code>./</code> as a current directory prefix.</p>
@@ -2451,7 +2451,7 @@ rclone sync /path/to/files remote:current-backup</code></pre>
 <p>See <code>--copy-dest</code> and <code>--backup-dir</code>.</p>
 <h3 id="configconfig_file">–config=CONFIG_FILE</h3>
 <p>Specify the location of the rclone config file.</p>
-<p>Normally the config file is in your home directory as a file called <code>.config/rclone/rclone.conf</code> (or <code>.rclone.conf</code> if created with an older version). If <code>$XDG_CONFIG_HOME</code> is set it will be at <code>$XDG_CONFIG_HOME/rclone/rclone.conf</code>.</p>
+<p>Normally the config file is in your home directory as a file called <code>.config/artpar/rclone.conf</code> (or <code>.rclone.conf</code> if created with an older version). If <code>$XDG_CONFIG_HOME</code> is set it will be at <code>$XDG_CONFIG_HOME/artpar/rclone.conf</code>.</p>
 <p>If there is a file <code>rclone.conf</code> in the same directory as the rclone executable it will be preferred. This file must be created manually for Rclone to use it, it will never be created automatically.</p>
 <p>If you run <code>rclone config file</code> you will see where the default location is for you.</p>
 <p>Use this flag to override the config location, eg <code>rclone --config=&quot;.myconfig&quot; .config</code>.</p>
@@ -2485,7 +2485,7 @@ rclone sync /path/to/files remote:current-backup</code></pre>
 <h3 id="ignore-size">–ignore-size</h3>
 <p>Normally rclone will look at modification time and size of files to see if they are equal. If you set this flag then rclone will check only the modification time. If <code>--checksum</code> is set then it only checks the checksum.</p>
 <p>It will also cause rclone to skip verifying the sizes are the same after transfer.</p>
-<p>This can be useful for transferring files to and from OneDrive which occasionally misreports the size of image files (see <a href="https://github.com/rclone/rclone/issues/399">#399</a> for more info).</p>
+<p>This can be useful for transferring files to and from OneDrive which occasionally misreports the size of image files (see <a href="https://github.com/artpar/rclone/issues/399">#399</a> for more info).</p>
 <h3 id="i-ignore-times">-I, –ignore-times</h3>
 <p>Using this option will cause rclone to unconditionally upload all files regardless of the state of files on the destination.</p>
 <p>Normally rclone would skip any files that have the same modification time and are the same size (or have the same checksum if using <code>--checksum</code>).</p>
@@ -3143,7 +3143,7 @@ dir1/dir2/dir3/.ignore</code></pre>
 <p>Run this command in a terminal and rclone will download and then display the GUI in a web browser.</p>
 <pre><code>rclone rcd --rc-web-gui</code></pre>
 <p>This will produce logs like this and rclone needs to continue to run to serve the GUI:</p>
-<pre><code>2019/08/25 11:40:14 NOTICE: A new release for gui is present at https://github.com/rclone/rclone-webui-react/releases/download/v0.0.6/currentbuild.zip
+<pre><code>2019/08/25 11:40:14 NOTICE: A new release for gui is present at https://github.com/artpar/rclone-webui-react/releases/download/v0.0.6/currentbuild.zip
 2019/08/25 11:40:14 NOTICE: Downloading webgui binary. Please wait. [Size: 3813937, Path :  /home/USER/.cache/rclone/webgui/v0.0.6.zip]
 2019/08/25 11:40:16 NOTICE: Unzipping
 2019/08/25 11:40:16 NOTICE: Serving remote control on http://127.0.0.1:5572/</code></pre>
@@ -3203,7 +3203,7 @@ dir1/dir2/dir3/.ignore</code></pre>
 <li><code>--rc-pass mypassword</code></li>
 </ul>
 <h2 id="project">Project</h2>
-<p>The GUI is being developed in the: <a href="https://github.com/rclone/rclone-webui-react">rclone/rclone-webui-react respository</a>.</p>
+<p>The GUI is being developed in the: <a href="https://github.com/artpar/rclone-webui-react">artpar/rclone-webui-react respository</a>.</p>
 <p>Bug reports and contributions very welcome welcome :-)</p>
 <p>If you have questions then please ask them on the <a href="https://forum.rclone.org/">rclone forum</a>.</p>
 <h1 id="remote-controlling-rclone">Remote controlling rclone</h1>
@@ -3252,7 +3252,7 @@ dir1/dir2/dir3/.ignore</code></pre>
 <p>Default is IP address on which rc is running.</p>
 <h3 id="rc-web-fetch-url">–rc-web-fetch-url</h3>
 <p>Set the URL to fetch the rclone-web-gui files from.</p>
-<p>Default https://api.github.com/repos/rclone/rclone-webui-react/releases/latest.</p>
+<p>Default https://api.github.com/repos/artpar/rclone-webui-react/releases/latest.</p>
 <h3 id="rc-web-gui-update">–rc-web-gui-update</h3>
 <p>Set this flag to Download / Force update rclone-webui-react from the rc-web-fetch-url.</p>
 <p>Default Off.</p>
@@ -4000,7 +4000,7 @@ memory.
 
 You can also use the `-text` flag to produce a textual summary
 </code></pre>
-<p>$ go tool pprof -text http://localhost:5572/debug/pprof/heap Showing nodes accounting for 1537.03kB, 100% of 1537.03kB total flat flat% sum% cum cum% 1024.03kB 66.62% 66.62% 1024.03kB 66.62% github.com/rclone/rclone/vendor/golang.org/x/net/http2/hpack.addDecoderNode 513kB 33.38% 100% 513kB 33.38% net/http.newBufioWriterSize 0 0% 100% 1024.03kB 66.62% github.com/rclone/rclone/cmd/all.init 0 0% 100% 1024.03kB 66.62% github.com/rclone/rclone/cmd/serve.init 0 0% 100% 1024.03kB 66.62% github.com/rclone/rclone/cmd/serve/restic.init 0 0% 100% 1024.03kB 66.62% github.com/rclone/rclone/vendor/golang.org/x/net/http2.init 0 0% 100% 1024.03kB 66.62% github.com/rclone/rclone/vendor/golang.org/x/net/http2/hpack.init 0 0% 100% 1024.03kB 66.62% github.com/rclone/rclone/vendor/golang.org/x/net/http2/hpack.init.0 0 0% 100% 1024.03kB 66.62% main.init 0 0% 100% 513kB 33.38% net/http.(<em>conn).readRequest 0 0% 100% 513kB 33.38% net/http.(</em>conn).serve 0 0% 100% 1024.03kB 66.62% runtime.main</p>
+<p>$ go tool pprof -text http://localhost:5572/debug/pprof/heap Showing nodes accounting for 1537.03kB, 100% of 1537.03kB total flat flat% sum% cum cum% 1024.03kB 66.62% 66.62% 1024.03kB 66.62% github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.addDecoderNode 513kB 33.38% 100% 513kB 33.38% net/http.newBufioWriterSize 0 0% 100% 1024.03kB 66.62% github.com/artpar/rclone/cmd/all.init 0 0% 100% 1024.03kB 66.62% github.com/artpar/rclone/cmd/serve.init 0 0% 100% 1024.03kB 66.62% github.com/artpar/rclone/cmd/serve/restic.init 0 0% 100% 1024.03kB 66.62% github.com/artpar/rclone/vendor/golang.org/x/net/http2.init 0 0% 100% 1024.03kB 66.62% github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.init 0 0% 100% 1024.03kB 66.62% github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.init.0 0 0% 100% 1024.03kB 66.62% main.init 0 0% 100% 513kB 33.38% net/http.(<em>conn).readRequest 0 0% 100% 513kB 33.38% net/http.(</em>conn).serve 0 0% 100% 1024.03kB 66.62% runtime.main</p>
 <pre><code>
 ### Debugging go routine leaks
 
@@ -4261,31 +4261,31 @@ operations more efficient.
 | Name                         | Purge | Copy | Move | DirMove | CleanUp | ListR | StreamUpload | LinkSharing | About | EmptyDir |
 | ---------------------------- |:-----:|:----:|:----:|:-------:|:-------:|:-----:|:------------:|:------------:|:-----:| :------: |
 | 1Fichier                     | No    | No   | No   | No      | No      | No    | No           | No           |   No  |  Yes |
-| Amazon Drive                 | Yes   | No   | Yes  | Yes     | No [#575](https://github.com/rclone/rclone/issues/575) | No  | No  | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | Yes |
-| Amazon S3                    | No    | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | No |
+| Amazon Drive                 | Yes   | No   | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | No  | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | Yes |
+| Amazon S3                    | No    | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | No |
 | Backblaze B2                 | No    | Yes  | No   | No      | Yes     | Yes   | Yes          | Yes | No  | No |
-| Box                          | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/rclone/rclone/issues/575) | No  | Yes | Yes | No  | Yes |
+| Box                          | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | Yes | Yes | No  | Yes |
 | Citrix ShareFile             | Yes   | Yes  | Yes  | Yes     | No      | No    | Yes          | No          | No  | Yes |
-| Dropbox                      | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/rclone/rclone/issues/575) | No  | Yes | Yes | Yes | Yes |
-| FTP                          | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | Yes |
-| Google Cloud Storage         | Yes   | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | No |
+| Dropbox                      | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No  | Yes | Yes | Yes | Yes |
+| FTP                          | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | Yes |
+| Google Cloud Storage         | Yes   | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | No |
 | Google Drive                 | Yes   | Yes  | Yes  | Yes     | Yes     | Yes   | Yes          | Yes         | Yes | Yes |
 | Google Photos                | No    | No   | No   | No      | No      | No    | No           | No          | No | No |
-| HTTP                         | No    | No   | No   | No      | No      | No    | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | Yes |
-| Hubic                        | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes | No |
+| HTTP                         | No    | No   | No   | No      | No      | No    | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | Yes |
+| Hubic                        | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes | No |
 | Jottacloud                   | Yes   | Yes  | Yes  | Yes     | No      | Yes   | No           | Yes                                                   | Yes | Yes |
 | Mail.ru Cloud                | Yes   | Yes  | Yes  | Yes     | Yes     | No    | No           | Yes                                                   | Yes | Yes |
-| Mega                         | Yes   | No   | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes | Yes |
-| Microsoft Azure Blob Storage | Yes   | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | No |
-| Microsoft OneDrive           | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/rclone/rclone/issues/575) | No | No | Yes | Yes | Yes |
+| Mega                         | Yes   | No   | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes | Yes |
+| Microsoft Azure Blob Storage | Yes   | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | No |
+| Microsoft OneDrive           | Yes   | Yes  | Yes  | Yes     | No [#575](https://github.com/artpar/rclone/issues/575) | No | No | Yes | Yes | Yes |
 | OpenDrive                    | Yes   | Yes  | Yes  | Yes     | No      | No    | No           | No                                                    | No  | Yes |
-| Openstack Swift              | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes | No |
-| pCloud                       | Yes   | Yes  | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes | Yes |
+| Openstack Swift              | Yes † | Yes  | No   | No      | No      | Yes   | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes | No |
+| pCloud                       | Yes   | Yes  | Yes  | Yes     | Yes     | No    | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes | Yes |
 | premiumize.me                | Yes   | No   | Yes  | Yes     | No      | No    | No           | Yes         | Yes | Yes |
-| put.io                       | Yes   | No   | Yes  | Yes     | Yes     | No    | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes | Yes |
-| QingStor                     | No    | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/rclone/rclone/issues/2178) | No  | No |
-| SFTP                         | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes  | Yes |
-| WebDAV                       | Yes   | Yes  | Yes  | Yes     | No      | No    | Yes ‡        | No [#2178](https://github.com/rclone/rclone/issues/2178) | Yes  | Yes |
+| put.io                       | Yes   | No   | Yes  | Yes     | Yes     | No    | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes | Yes |
+| QingStor                     | No    | Yes  | No   | No      | No      | Yes   | No           | No [#2178](https://github.com/artpar/rclone/issues/2178) | No  | No |
+| SFTP                         | No    | No   | Yes  | Yes     | No      | No    | Yes          | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes  | Yes |
+| WebDAV                       | Yes   | Yes  | Yes  | Yes     | No      | No    | Yes ‡        | No [#2178](https://github.com/artpar/rclone/issues/2178) | Yes  | Yes |
 | Yandex Disk                  | Yes   | Yes  | Yes  | Yes     | Yes     | No    | Yes          | Yes         | Yes | Yes |
 | The local filesystem         | Yes   | No   | Yes  | Yes     | No      | No    | Yes          | No          | Yes | Yes |
 
@@ -4384,7 +4384,7 @@ These flags are available for every command.
   --ca-cert string                       CA certificate used to verify servers
   --cache-dir string                     Directory rclone will use for caching. (default &quot;$HOME/.cache/rclone&quot;)
   --checkers int                         Number of checkers to run in parallel. (default 8)</code></pre>
-<p>-c, –checksum Skip based on checksum (if available) &amp; size, not mod-time &amp; size –client-cert string Client SSL certificate (PEM) for mutual TLS auth –client-key string Client SSL private key (PEM) for mutual TLS auth –compare-dest string use DIR to server side copy flies from. –config string Config file. (default “$HOME/.config/rclone/rclone.conf”) –contimeout duration Connect timeout (default 1m0s) –copy-dest string Compare dest to DIR also. –cpuprofile string Write cpu profile to file –delete-after When synchronizing, delete files on destination after transferring (default) –delete-before When synchronizing, delete files on destination before transferring –delete-during When synchronizing, delete files during transfer –delete-excluded Delete files on dest excluded from sync –disable string Disable a comma separated list of features. Use help to see a list. -n, –dry-run Do a trial run with no permanent changes –dump DumpFlags List of items to dump from: headers,bodies,requests,responses,auth,filters,goroutines,openfiles –dump-bodies Dump HTTP headers and bodies - may contain sensitive info –dump-headers Dump HTTP headers - may contain sensitive info –exclude stringArray Exclude files matching pattern –exclude-from stringArray Read exclude patterns from file –exclude-if-present string Exclude directories if filename is present –fast-list Use recursive list if available. Uses more memory but fewer transactions. –files-from stringArray Read list of source-file names from file -f, –filter stringArray Add a file-filtering rule –filter-from stringArray Read filtering patterns from a file –ignore-case Ignore case in filters (case insensitive) –ignore-case-sync Ignore case when synchronizing –ignore-checksum Skip post copy check of checksums. –ignore-errors delete even if there are I/O errors –ignore-existing Skip all files that exist on destination –ignore-size Ignore size when skipping use mod-time or checksum. -I, –ignore-times Don’t skip files that match size and time - transfer all files –immutable Do not modify files. Fail if existing files have been modified. –include stringArray Include files matching pattern –include-from stringArray Read include patterns from file –log-file string Log everything to this file –log-format string Comma separated list of log format options (default “date,time”) –log-level string Log level DEBUG|INFO|NOTICE|ERROR (default “NOTICE”) –low-level-retries int Number of low level retries to do. (default 10) –max-age Duration Only transfer files younger than this in s or suffix ms|s|m|h|d|w|M|y (default off) –max-backlog int Maximum number of objects in sync or check backlog. (default 10000) –max-delete int When synchronizing, limit the number of deletes (default -1) –max-depth int If set limits the recursion depth to this. (default -1) –max-size SizeSuffix Only transfer files smaller than this in k or suffix b|k|M|G (default off) –max-stats-groups int Maximum number of stats groups to keep in memory. On max oldest is discarded. (default 1000) –max-transfer SizeSuffix Maximum size of data to transfer. (default off) –memprofile string Write memory profile to file –min-age Duration Only transfer files older than this in s or suffix ms|s|m|h|d|w|M|y (default off) –min-size SizeSuffix Only transfer files bigger than this in k or suffix b|k|M|G (default off) –modify-window duration Max time diff to be considered the same (default 1ns) –multi-thread-cutoff SizeSuffix Use multi-thread downloads for files above this size. (default 250M) –multi-thread-streams int Max number of streams to use for multi-thread downloads. (default 4) –no-check-certificate Do not verify the server SSL certificate. Insecure. –no-gzip-encoding Don’t set Accept-Encoding: gzip. –no-traverse Don’t traverse destination file system on copy. –no-update-modtime Don’t update destination mod-time if files identical. -P, –progress Show progress during transfer. -q, –quiet Print as little stuff as possible –rc Enable the remote control server. –rc-addr string IPaddress:Port or :Port to bind server to. (default “localhost:5572”) –rc-allow-origin string Set the allowed origin for CORS. –rc-baseurl string Prefix for URLs - leave blank for root. –rc-cert string SSL PEM key (concatenation of certificate and CA certificate) –rc-client-ca string Client certificate authority to verify clients with –rc-files string Path to local files to serve on the HTTP server. –rc-htpasswd string htpasswd file - if not provided no authentication is done –rc-job-expire-duration duration expire finished async jobs older than this value (default 1m0s) –rc-job-expire-interval duration interval to check for expired async jobs (default 10s) –rc-key string SSL PEM Private key –rc-max-header-bytes int Maximum size of request header (default 4096) –rc-no-auth Don’t require auth for certain methods. –rc-pass string Password for authentication. –rc-realm string realm for authentication (default “rclone”) –rc-serve Enable the serving of remote objects. –rc-server-read-timeout duration Timeout for server reading data (default 1h0m0s) –rc-server-write-timeout duration Timeout for server writing data (default 1h0m0s) –rc-user string User name for authentication. –rc-web-fetch-url string URL to fetch the releases for webgui. (default “https://api.github.com/repos/rclone/rclone-webui-react/releases/latest”) –rc-web-gui Launch WebGUI on localhost –rc-web-gui-update Update / Force update to latest version of web gui –retries int Retry operations this many times if they fail (default 3) –retries-sleep duration Interval between retrying operations if they fail, e.g 500ms, 60s, 5m. (0 to disable) –size-only Skip based on size only, not mod-time or checksum –stats duration Interval between printing stats, e.g 500ms, 60s, 5m. (0 to disable) (default 1m0s) –stats-file-name-length int Max file name length in stats. 0 for no limit (default 45) –stats-log-level string Log level to show –stats output DEBUG|INFO|NOTICE|ERROR (default “INFO”) –stats-one-line Make the stats fit on one line. –stats-one-line-date Enables –stats-one-line and add current date/time prefix. –stats-one-line-date-format string Enables –stats-one-line-date and uses custom formatted date. Enclose date string in double quotes (“). See https://golang.org/pkg/time/#Time.Format –stats-unit string Show data rate in stats as either ‘bits’ or ‘bytes’/s (default”bytes“) –streaming-upload-cutoff SizeSuffix Cutoff for switching to chunked upload if file size is unknown. Upload starts after reaching cutoff or when file ends. (default 100k) –suffix string Suffix to add to changed files. –suffix-keep-extension Preserve the extension when using –suffix. –syslog Use Syslog for logging –syslog-facility string Facility for syslog, eg KERN,USER,… (default”DAEMON“) –timeout duration IO idle timeout (default 5m0s) –tpslimit float Limit HTTP transactions per second to this. –tpslimit-burst int Max burst of transactions for –tpslimit. (default 1) –track-renames When synchronizing, track file renames and do a server side move if possible –transfers int Number of file transfers to run in parallel. (default 4) -u, –update Skip files that are newer on the destination. –use-cookies Enable session cookiejar. –use-json-log Use json log format. –use-mmap Use mmap allocator (see docs). –use-server-modtime Use server modified time instead of object metadata –user-agent string Set the user-agent to a specified string. The default is rclone/ version (default”rclone/v1.50.0&quot;) -v, –verbose count Print lots more stuff (repeat for more)</p>
+<p>-c, –checksum Skip based on checksum (if available) &amp; size, not mod-time &amp; size –client-cert string Client SSL certificate (PEM) for mutual TLS auth –client-key string Client SSL private key (PEM) for mutual TLS auth –compare-dest string use DIR to server side copy flies from. –config string Config file. (default “$HOME/.config/artpar/rclone.conf”) –contimeout duration Connect timeout (default 1m0s) –copy-dest string Compare dest to DIR also. –cpuprofile string Write cpu profile to file –delete-after When synchronizing, delete files on destination after transferring (default) –delete-before When synchronizing, delete files on destination before transferring –delete-during When synchronizing, delete files during transfer –delete-excluded Delete files on dest excluded from sync –disable string Disable a comma separated list of features. Use help to see a list. -n, –dry-run Do a trial run with no permanent changes –dump DumpFlags List of items to dump from: headers,bodies,requests,responses,auth,filters,goroutines,openfiles –dump-bodies Dump HTTP headers and bodies - may contain sensitive info –dump-headers Dump HTTP headers - may contain sensitive info –exclude stringArray Exclude files matching pattern –exclude-from stringArray Read exclude patterns from file –exclude-if-present string Exclude directories if filename is present –fast-list Use recursive list if available. Uses more memory but fewer transactions. –files-from stringArray Read list of source-file names from file -f, –filter stringArray Add a file-filtering rule –filter-from stringArray Read filtering patterns from a file –ignore-case Ignore case in filters (case insensitive) –ignore-case-sync Ignore case when synchronizing –ignore-checksum Skip post copy check of checksums. –ignore-errors delete even if there are I/O errors –ignore-existing Skip all files that exist on destination –ignore-size Ignore size when skipping use mod-time or checksum. -I, –ignore-times Don’t skip files that match size and time - transfer all files –immutable Do not modify files. Fail if existing files have been modified. –include stringArray Include files matching pattern –include-from stringArray Read include patterns from file –log-file string Log everything to this file –log-format string Comma separated list of log format options (default “date,time”) –log-level string Log level DEBUG|INFO|NOTICE|ERROR (default “NOTICE”) –low-level-retries int Number of low level retries to do. (default 10) –max-age Duration Only transfer files younger than this in s or suffix ms|s|m|h|d|w|M|y (default off) –max-backlog int Maximum number of objects in sync or check backlog. (default 10000) –max-delete int When synchronizing, limit the number of deletes (default -1) –max-depth int If set limits the recursion depth to this. (default -1) –max-size SizeSuffix Only transfer files smaller than this in k or suffix b|k|M|G (default off) –max-stats-groups int Maximum number of stats groups to keep in memory. On max oldest is discarded. (default 1000) –max-transfer SizeSuffix Maximum size of data to transfer. (default off) –memprofile string Write memory profile to file –min-age Duration Only transfer files older than this in s or suffix ms|s|m|h|d|w|M|y (default off) –min-size SizeSuffix Only transfer files bigger than this in k or suffix b|k|M|G (default off) –modify-window duration Max time diff to be considered the same (default 1ns) –multi-thread-cutoff SizeSuffix Use multi-thread downloads for files above this size. (default 250M) –multi-thread-streams int Max number of streams to use for multi-thread downloads. (default 4) –no-check-certificate Do not verify the server SSL certificate. Insecure. –no-gzip-encoding Don’t set Accept-Encoding: gzip. –no-traverse Don’t traverse destination file system on copy. –no-update-modtime Don’t update destination mod-time if files identical. -P, –progress Show progress during transfer. -q, –quiet Print as little stuff as possible –rc Enable the remote control server. –rc-addr string IPaddress:Port or :Port to bind server to. (default “localhost:5572”) –rc-allow-origin string Set the allowed origin for CORS. –rc-baseurl string Prefix for URLs - leave blank for root. –rc-cert string SSL PEM key (concatenation of certificate and CA certificate) –rc-client-ca string Client certificate authority to verify clients with –rc-files string Path to local files to serve on the HTTP server. –rc-htpasswd string htpasswd file - if not provided no authentication is done –rc-job-expire-duration duration expire finished async jobs older than this value (default 1m0s) –rc-job-expire-interval duration interval to check for expired async jobs (default 10s) –rc-key string SSL PEM Private key –rc-max-header-bytes int Maximum size of request header (default 4096) –rc-no-auth Don’t require auth for certain methods. –rc-pass string Password for authentication. –rc-realm string realm for authentication (default “rclone”) –rc-serve Enable the serving of remote objects. –rc-server-read-timeout duration Timeout for server reading data (default 1h0m0s) –rc-server-write-timeout duration Timeout for server writing data (default 1h0m0s) –rc-user string User name for authentication. –rc-web-fetch-url string URL to fetch the releases for webgui. (default “https://api.github.com/repos/artpar/rclone-webui-react/releases/latest”) –rc-web-gui Launch WebGUI on localhost –rc-web-gui-update Update / Force update to latest version of web gui –retries int Retry operations this many times if they fail (default 3) –retries-sleep duration Interval between retrying operations if they fail, e.g 500ms, 60s, 5m. (0 to disable) –size-only Skip based on size only, not mod-time or checksum –stats duration Interval between printing stats, e.g 500ms, 60s, 5m. (0 to disable) (default 1m0s) –stats-file-name-length int Max file name length in stats. 0 for no limit (default 45) –stats-log-level string Log level to show –stats output DEBUG|INFO|NOTICE|ERROR (default “INFO”) –stats-one-line Make the stats fit on one line. –stats-one-line-date Enables –stats-one-line and add current date/time prefix. –stats-one-line-date-format string Enables –stats-one-line-date and uses custom formatted date. Enclose date string in double quotes (“). See https://golang.org/pkg/time/#Time.Format –stats-unit string Show data rate in stats as either ‘bits’ or ‘bytes’/s (default”bytes“) –streaming-upload-cutoff SizeSuffix Cutoff for switching to chunked upload if file size is unknown. Upload starts after reaching cutoff or when file ends. (default 100k) –suffix string Suffix to add to changed files. –suffix-keep-extension Preserve the extension when using –suffix. –syslog Use Syslog for logging –syslog-facility string Facility for syslog, eg KERN,USER,… (default”DAEMON“) –timeout duration IO idle timeout (default 5m0s) –tpslimit float Limit HTTP transactions per second to this. –tpslimit-burst int Max burst of transactions for –tpslimit. (default 1) –track-renames When synchronizing, track file renames and do a server side move if possible –transfers int Number of file transfers to run in parallel. (default 4) -u, –update Skip files that are newer on the destination. –use-cookies Enable session cookiejar. –use-json-log Use json log format. –use-mmap Use mmap allocator (see docs). –use-server-modtime Use server modified time instead of object metadata –user-agent string Set the user-agent to a specified string. The default is rclone/ version (default”rclone/v1.50.0&quot;) -v, –verbose count Print lots more stuff (repeat for more)</p>
 <pre><code>
 ## Backend Flags
 
@@ -5062,7 +5062,7 @@ If you are using server side encryption with KMS then you will find
 you can&#39;t transfer small objects.  As a work-around you can use the
 `--ignore-checksum` flag.
 
-A proper fix is being worked on in [issue #1824](https://github.com/rclone/rclone/issues/1824).
+A proper fix is being worked on in [issue #1824](https://github.com/artpar/rclone/issues/1824).
 
 ### Glacier and Glacier Deep Archive ###
 
@@ -6130,7 +6130,7 @@ support SHA1.
 
 Sources which don&#39;t support SHA1, in particular `crypt` will upload
 large files without SHA1 checksums.  This may be fixed in the future
-(see [#1767](https://github.com/rclone/rclone/issues/1767)).
+(see [#1767](https://github.com/artpar/rclone/issues/1767)).
 
 Files sizes below `--b2-upload-cutoff` will always have an SHA1
 regardless of the source.
@@ -6163,7 +6163,7 @@ Old versions of files, where available, are visible using the
 `--b2-versions` flag.
 
 **NB** Note that `--b2-versions` does not work with crypt at the
-moment [#1627](https://github.com/rclone/rclone/issues/1627). Using
+moment [#1627](https://github.com/artpar/rclone/issues/1627). Using
 [--backup-dir](/docs/#backup-dir-dir) with rclone is the recommended
 way of working around this.
 
@@ -6212,7 +6212,7 @@ All copy commands send the following 4 requests:
 The `b2_list_file_names` request will be sent once for every 1k files
 in the remote path, providing the checksum and modification time of
 the listed files. As of version 1.33 issue
-[#818](https://github.com/rclone/rclone/issues/818) causes extra requests
+[#818](https://github.com/artpar/rclone/issues/818) causes extra requests
 to be sent when using B2 with Crypt. When a copy operation does not
 require any files to be uploaded, no more requests will be sent.
 
@@ -6778,9 +6778,9 @@ on Linux flavors and Windows as cache is heavily dependant on them.
 
 Any reports or feedback on how cache behaves on this OS is greatly appreciated.
  
-- https://github.com/rclone/rclone/issues/1935
-- https://github.com/rclone/rclone/issues/1907
-- https://github.com/rclone/rclone/issues/1834 
+- https://github.com/artpar/rclone/issues/1935
+- https://github.com/artpar/rclone/issues/1907
+- https://github.com/artpar/rclone/issues/1834
 
 #### Risk of throttling ####
 
@@ -6799,8 +6799,8 @@ of adding the file in the cache at the same time if configured to do so.
 
 Future enhancements:
 
-- https://github.com/rclone/rclone/issues/1937
-- https://github.com/rclone/rclone/issues/1936 
+- https://github.com/artpar/rclone/issues/1937
+- https://github.com/artpar/rclone/issues/1936
 
 #### cache and crypt ####
 
@@ -9336,7 +9336,7 @@ export URLs for drive documents.  Users have reported that the
 official export URLs can&#39;t export large documents, whereas these
 unofficial ones can.
 
-See rclone issue [#2243](https://github.com/rclone/rclone/issues/2243) for background,
+See rclone issue [#2243](https://github.com/artpar/rclone/issues/2243) for background,
 [this google drive issue](https://issuetracker.google.com/issues/36761333) and
 [this helpful post](https://www.labnol.org/internet/direct-links-for-google-drive/28356/).
 
@@ -9454,7 +9454,7 @@ HTTP/2.  HTTP/2 is therefore disabled by default for the drive backend
 but can be re-enabled here.  When the issue is solved this flag will
 be removed.
 
-See: https://github.com/rclone/rclone/issues/3631
+See: https://github.com/artpar/rclone/issues/3631
 
 
 
@@ -11258,7 +11258,7 @@ y/e/d&gt; y</code></pre>
 <h4 id="path-length">Path length</h4>
 <p>The entire path, including the file name, must contain fewer than 400 characters for OneDrive, OneDrive for Business and SharePoint Online. If you are encrypting file and folder names with rclone, you may want to pay attention to this limitation because the encrypted names are typically longer than the original ones.</p>
 <h4 id="number-of-files">Number of files</h4>
-<p>OneDrive seems to be OK with at least 50,000 files in a folder, but at 100,000 rclone will get errors listing the directory like <code>couldn’t list files: UnknownError:</code>. See <a href="https://github.com/rclone/rclone/issues/2707">#2707</a> for more info.</p>
+<p>OneDrive seems to be OK with at least 50,000 files in a folder, but at 100,000 rclone will get errors listing the directory like <code>couldn’t list files: UnknownError:</code>. See <a href="https://github.com/artpar/rclone/issues/2707">#2707</a> for more info.</p>
 <p>An official document about the limitations for different types of OneDrive can be found <a href="https://support.office.com/en-us/article/invalid-file-names-and-file-types-in-onedrive-onedrive-for-business-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa">here</a>.</p>
 <h3 id="versioning-issue">Versioning issue</h3>
 <p>Every change in OneDrive causes the service to create a new version. This counts against a users quota. For example changing the modification time of a file creates a second version, so the file is using twice the space.</p>
@@ -12866,7 +12866,7 @@ y/e/d&gt; y</code></pre>
 <h3 id="nextcloud">Nextcloud</h3>
 <p>This is configured in an identical way to Owncloud. Note that Nextcloud does not support streaming of files (<code>rcat</code>) whereas Owncloud does. This <a href="https://github.com/nextcloud/nextcloud-snap/issues/365">may be fixed</a> in the future.</p>
 <h3 id="sharepoint">Sharepoint</h3>
-<p>Rclone can be used with Sharepoint provided by OneDrive for Business or Office365 Education Accounts. This feature is only needed for a few of these Accounts, mostly Office365 Education ones. These accounts are sometimes not verified by the domain owner <a href="https://github.com/rclone/rclone/issues/1975">github#1975</a></p>
+<p>Rclone can be used with Sharepoint provided by OneDrive for Business or Office365 Education Accounts. This feature is only needed for a few of these Accounts, mostly Office365 Education ones. These accounts are sometimes not verified by the domain owner <a href="https://github.com/artpar/rclone/issues/1975">github#1975</a></p>
 <p>This means that these accounts can’t be added using the official API (other Accounts should work with the “onedrive” option). However, it is possible to access them using webdav.</p>
 <p>To use a sharepoint remote with rclone, add it like this: First, you need to get your remote’s URL:</p>
 <ul>
@@ -13289,7 +13289,7 @@ y/e/d&gt; y</code></pre>
 <h3 id="long-paths-on-windows">Long paths on Windows</h3>
 <p>Rclone handles long paths automatically, by converting all paths to long <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx#maxpath">UNC paths</a> which allows paths up to 32,767 characters.</p>
 <p>This is why you will see that your paths, for instance <code>c:\files</code> is converted to the UNC path <code>\\?\c:\files</code> in the output, and <code>\\server\share</code> is converted to <code>\\?\UNC\server\share</code>.</p>
-<p>However, in rare cases this may cause problems with buggy file system drivers like <a href="https://github.com/rclone/rclone/issues/261">EncFS</a>. To disable UNC conversion globally, add this to your <code>.rclone.conf</code> file:</p>
+<p>However, in rare cases this may cause problems with buggy file system drivers like <a href="https://github.com/artpar/rclone/issues/261">EncFS</a>. To disable UNC conversion globally, add this to your <code>.rclone.conf</code> file:</p>
 <pre><code>[local]
 nounc = true</code></pre>
 <p>If you want to selectively disable UNC, you can add it to a separate entry like this:</p>
@@ -13437,7 +13437,7 @@ $ tree /tmp/b
 <h4 id="local-no-check-updated">–local-no-check-updated</h4>
 <p>Don’t check to see if the files change during upload</p>
 <p>Normally rclone checks the size and modification time of files as they are being uploaded and aborts with a message which starts “can’t copy - source file is being updated” if the file changes during upload.</p>
-<p>However on some file systems this modification time check may fail (eg <a href="https://github.com/rclone/rclone/issues/2206">Glusterfs #2206</a>) so this check can be disabled with this flag.</p>
+<p>However on some file systems this modification time check may fail (eg <a href="https://github.com/artpar/rclone/issues/2206">Glusterfs #2206</a>) so this check can be disabled with this flag.</p>
 <ul>
 <li>Config: no_check_updated</li>
 <li>Env Var: RCLONE_LOCAL_NO_CHECK_UPDATED</li>
@@ -13496,7 +13496,7 @@ $ tree /tmp/b
 <li>Convert python scripts to python3 (Nick Craig-Wood)</li>
 <li>Swap Azure/go-ansiterm for mattn/go-colorable (Nick Craig-Wood)</li>
 <li>Dockerfile fixes (Matei David)</li>
-<li>Add <a href="https://github.com/rclone/rclone/blob/master/CONTRIBUTING.md#writing-a-plugin">plugin support</a> for backends and commands (Richard Patel)</li>
+<li>Add <a href="https://github.com/artpar/rclone/blob/master/CONTRIBUTING.md#writing-a-plugin">plugin support</a> for backends and commands (Richard Patel)</li>
 </ul></li>
 <li>config
 <ul>
@@ -16650,8 +16650,8 @@ $ tree /tmp/b
 <h2 id="bugs">Bugs</h2>
 <p>Bugs are stored in rclone’s GitHub project:</p>
 <ul>
-<li><a href="https://github.com/rclone/rclone/issues?q=is%3Aopen+is%3Aissue+label%3Abug">Reported bugs</a></li>
-<li><a href="https://github.com/rclone/rclone/issues?q=is%3Aopen+is%3Aissue+milestone%3A%22Known+Problem%22">Known issues</a></li>
+<li><a href="https://github.com/artpar/rclone/issues?q=is%3Aopen+is%3Aissue+label%3Abug">Reported bugs</a></li>
+<li><a href="https://github.com/artpar/rclone/issues?q=is%3Aopen+is%3Aissue+milestone%3A%22Known+Problem%22">Known issues</a></li>
 </ul>
 <h2 id="frequently-asked-questions">Frequently Asked Questions</h2>
 <h3 id="do-all-cloud-storage-systems-support-all-rclone-commands">Do all cloud storage systems support all rclone commands</h3>
@@ -17059,7 +17059,7 @@ THE SOFTWARE.</code></pre>
 <h2 id="gitub-project">Gitub project</h2>
 <p>The project website is at:</p>
 <ul>
-<li>https://github.com/rclone/rclone</li>
+<li>https://github.com/artpar/rclone</li>
 </ul>
 <p>There you can file bug reports or contribute pull requests.</p>
 <h2 id="twitter">Twitter</h2>

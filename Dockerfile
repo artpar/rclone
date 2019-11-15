@@ -14,7 +14,7 @@ FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates fuse
 
-COPY --from=builder /go/src/github.com/artpar/rclone/rclone /usr/local/bin/
+COPY --from=builder /go/src/github.com/artpar/artpar/rclone /usr/local/bin/
 
 ENTRYPOINT [ "rclone" ]
 

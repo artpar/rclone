@@ -196,7 +196,7 @@ func unzip(src, dest string) (err error) {
 	// Closure to address file descriptors issue with all the deferred .Close() methods
 	extractAndWriteFile := func(f *zip.File) error {
 		path := filepath.Join(dest, f.Name)
-		// Check for Zip Slip: https://github.com/rclone/rclone/issues/3529
+		// Check for Zip Slip: https://github.com/artpar/rclone/issues/3529
 		if !strings.HasPrefix(path, dest) {
 			return fmt.Errorf("%s: illegal file path", path)
 		}
