@@ -285,6 +285,7 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 			log.Printf("Failed to %s with %d errors: last error was: %v", cmd.Name(), nerrs, err)
 		}
 		resolveExitCode(err)
+		return
 	}
 	if showStats && (accounting.GlobalStats().Errored() || *statsInterval > 0) {
 		accounting.GlobalStats().Log()
@@ -429,6 +430,7 @@ func initConfig() {
 }
 
 func resolveExitCode(err error) {
+	log.Printf("[RCLONE] Failed to rclone with err: %v", err)
 	atexit.Run()
 	return
 	//if err == nil {
