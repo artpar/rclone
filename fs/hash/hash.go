@@ -10,9 +10,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/artpar/rclone/backend/dropbox/dbhash"
-	"github.com/artpar/rclone/backend/mailru/mrhash"
-	"github.com/artpar/rclone/backend/onedrive/quickxorhash"
+	_ "github.com/artpar/rclone/backend/dropbox/dbhash"
+	_ "github.com/artpar/rclone/backend/mailru/mrhash"
+	_ "github.com/artpar/rclone/backend/onedrive/quickxorhash"
 	"github.com/jzelinskie/whirlpool"
 	"github.com/pkg/errors"
 )
