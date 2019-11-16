@@ -28,7 +28,6 @@ import (
 	"github.com/artpar/rclone/fs/config/flags"
 	"github.com/artpar/rclone/fs/filter"
 	"github.com/artpar/rclone/fs/filter/filterflags"
-	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fspath"
 	fslog "github.com/artpar/rclone/fs/log"
 	"github.com/artpar/rclone/fs/rc/rcflags"
@@ -431,30 +430,31 @@ func initConfig() {
 
 func resolveExitCode(err error) {
 	atexit.Run()
-	if err == nil {
-		os.Exit(exitCodeSuccess)
-	}
-
-	_, unwrapped := fserrors.Cause(err)
-
-	switch {
-	case unwrapped == fs.ErrorDirNotFound:
-		os.Exit(exitCodeDirNotFound)
-	case unwrapped == fs.ErrorObjectNotFound:
-		os.Exit(exitCodeFileNotFound)
-	case unwrapped == errorUncategorized:
-		os.Exit(exitCodeUncategorizedError)
-	case unwrapped == accounting.ErrorMaxTransferLimitReached:
-		os.Exit(exitCodeTransferExceeded)
-	case fserrors.ShouldRetry(err):
-		os.Exit(exitCodeRetryError)
-	case fserrors.IsNoRetryError(err):
-		os.Exit(exitCodeNoRetryError)
-	case fserrors.IsFatalError(err):
-		os.Exit(exitCodeFatalError)
-	default:
-		os.Exit(exitCodeUsageError)
-	}
+	return
+	//if err == nil {
+	//	os.Exit(exitCodeSuccess)
+	//}
+	//
+	//_, unwrapped := fserrors.Cause(err)
+	//
+	//switch {
+	//case unwrapped == fs.ErrorDirNotFound:
+	//	os.Exit(exitCodeDirNotFound)
+	//case unwrapped == fs.ErrorObjectNotFound:
+	//	os.Exit(exitCodeFileNotFound)
+	//case unwrapped == errorUncategorized:
+	//	os.Exit(exitCodeUncategorizedError)
+	//case unwrapped == accounting.ErrorMaxTransferLimitReached:
+	//	os.Exit(exitCodeTransferExceeded)
+	//case fserrors.ShouldRetry(err):
+	//	os.Exit(exitCodeRetryError)
+	//case fserrors.IsNoRetryError(err):
+	//	os.Exit(exitCodeNoRetryError)
+	//case fserrors.IsFatalError(err):
+	//	os.Exit(exitCodeFatalError)
+	//default:
+	//	os.Exit(exitCodeUsageError)
+	//}
 }
 
 var backendFlags map[string]struct{}
