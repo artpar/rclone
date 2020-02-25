@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-	"github.com/putdotio/go-putio/putio"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
@@ -23,6 +21,8 @@ import (
 	"github.com/artpar/rclone/lib/oauthutil"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/readers"
+	"github.com/pkg/errors"
+	"github.com/putdotio/go-putio/putio"
 )
 
 // Fs represents a remote Putio server

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/putdotio/go-putio/putio"
 	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/putdotio/go-putio/putio"
 )
 
 func checkStatusCode(resp *http.Response, expected int) error {
