@@ -20,17 +20,15 @@ import (
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
 	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/oauthutil"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/readers"
 	"github.com/artpar/rclone/lib/rest"
 	"golang.org/x/oauth2"
 )
-
-const enc = encodings.Yandex
 
 //oAuth
 const (
@@ -65,7 +63,7 @@ func init() {
 		Config: func(name string, m configmap.Mapper) {
 			err := oauthutil.Config("yandex", name, m, oauthConfig)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 				return
 			}
 		},
@@ -80,14 +78,23 @@ func init() {
 			Help:     "Remove existing public link to file/folder with link command rather than creating.\nDefault is false, meaning link command will create or retrieve public link.",
 			Default:  false,
 			Advanced: true,
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			// Of the control characters \t \n \r are allowed
+			// it doesn't seem worth making an exception for this
+			Default: (encoder.Display |
+				encoder.EncodeInvalidUtf8),
 		}},
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
-	Token  string `config:"token"`
-	Unlink bool   `config:"unlink"`
+	Token  string               `config:"token"`
+	Unlink bool                 `config:"unlink"`
+	Enc    encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote yandex
@@ -210,7 +217,7 @@ func (f *Fs) readMetaDataForPath(ctx context.Context, path string, options *api.
 		Parameters: url.Values{},
 	}
 
-	opts.Parameters.Set("path", enc.FromStandardPath(path))
+	opts.Parameters.Set("path", f.opt.Enc.FromStandardPath(path))
 
 	if options.SortMode != nil {
 		opts.Parameters.Set("sort", options.SortMode.String())
@@ -237,7 +244,7 @@ func (f *Fs) readMetaDataForPath(ctx context.Context, path string, options *api.
 		return nil, err
 	}
 
-	info.Name = enc.ToStandardName(info.Name)
+	info.Name = f.opt.Enc.ToStandardName(info.Name)
 	return &info, nil
 }
 
@@ -253,22 +260,22 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 
 	token, err := oauthutil.GetToken(name, m)
 	if err != nil {
-		log.Fatalf("Couldn't read OAuth token (this should never happen).")
+		log.Printf("Couldn't read OAuth token (this should never happen).")
 	}
 	if token.RefreshToken == "" {
-		log.Fatalf("Unable to get RefreshToken. If you are upgrading from older versions of rclone, please run `rclone config` and re-configure this backend.")
+		log.Printf("Unable to get RefreshToken. If you are upgrading from older versions of rclone, please run `rclone config` and re-configure this backend.")
 	}
 	if token.TokenType != "OAuth" {
 		token.TokenType = "OAuth"
 		err = oauthutil.PutToken(name, m, token, false)
 		if err != nil {
-			log.Fatalf("Couldn't save OAuth token (this should never happen).")
+			log.Printf("Couldn't save OAuth token (this should never happen).")
 		}
 		log.Printf("Automatically upgraded OAuth config.")
 	}
 	oAuthClient, _, err := oauthutil.NewClient(name, m, oauthConfig)
 	if err != nil {
-		log.Fatalf("Failed to configure Yandex: %v", err)
+		log.Printf("Failed to configure Yandex: %v", err)
 	}
 
 	f := &Fs{
@@ -364,7 +371,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 		if info.ResourceType == "dir" {
 			//list all subdirs
 			for _, element := range info.Embedded.Items {
-				element.Name = enc.ToStandardName(element.Name)
+				element.Name = f.opt.Enc.ToStandardName(element.Name)
 				remote := path.Join(dir, element.Name)
 				entry, err := f.itemToDirEntry(ctx, remote, &element)
 				if err != nil {
@@ -467,7 +474,7 @@ func (f *Fs) CreateDir(ctx context.Context, path string) (err error) {
 	if strings.IndexRune(path, ':') >= 0 {
 		path = "disk:" + path
 	}
-	opts.Parameters.Set("path", enc.FromStandardPath(path))
+	opts.Parameters.Set("path", f.opt.Enc.FromStandardPath(path))
 
 	err = f.pacer.Call(func() (bool, error) {
 		resp, err = f.srv.Call(ctx, &opts)
@@ -581,7 +588,7 @@ func (f *Fs) delete(ctx context.Context, path string, hardDelete bool) (err erro
 		Parameters: url.Values{},
 	}
 
-	opts.Parameters.Set("path", enc.FromStandardPath(path))
+	opts.Parameters.Set("path", f.opt.Enc.FromStandardPath(path))
 	opts.Parameters.Set("permanently", strconv.FormatBool(hardDelete))
 
 	var resp *http.Response
@@ -653,8 +660,8 @@ func (f *Fs) copyOrMove(ctx context.Context, method, src, dst string, overwrite 
 		Parameters: url.Values{},
 	}
 
-	opts.Parameters.Set("from", enc.FromStandardPath(src))
-	opts.Parameters.Set("path", enc.FromStandardPath(dst))
+	opts.Parameters.Set("from", f.opt.Enc.FromStandardPath(src))
+	opts.Parameters.Set("path", f.opt.Enc.FromStandardPath(dst))
 	opts.Parameters.Set("overwrite", strconv.FormatBool(overwrite))
 
 	var resp *http.Response
@@ -803,12 +810,12 @@ func (f *Fs) PublicLink(ctx context.Context, remote string) (link string, err er
 	}
 	opts := rest.Opts{
 		Method:     "PUT",
-		Path:       enc.FromStandardPath(path),
+		Path:       f.opt.Enc.FromStandardPath(path),
 		Parameters: url.Values{},
 		NoResponse: true,
 	}
 
-	opts.Parameters.Set("path", enc.FromStandardPath(f.filePath(remote)))
+	opts.Parameters.Set("path", f.opt.Enc.FromStandardPath(f.filePath(remote)))
 
 	var resp *http.Response
 	err = f.pacer.Call(func() (bool, error) {
@@ -994,7 +1001,7 @@ func (o *Object) setCustomProperty(ctx context.Context, property string, value s
 		NoResponse: true,
 	}
 
-	opts.Parameters.Set("path", enc.FromStandardPath(o.filePath()))
+	opts.Parameters.Set("path", o.fs.opt.Enc.FromStandardPath(o.filePath()))
 	rcm := map[string]interface{}{
 		property: value,
 	}
@@ -1031,7 +1038,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 		Parameters: url.Values{},
 	}
 
-	opts.Parameters.Set("path", enc.FromStandardPath(o.filePath()))
+	opts.Parameters.Set("path", o.fs.opt.Enc.FromStandardPath(o.filePath()))
 
 	err = o.fs.pacer.Call(func() (bool, error) {
 		resp, err = o.fs.srv.CallJSON(ctx, &opts, nil, &dl)
@@ -1068,7 +1075,7 @@ func (o *Object) upload(ctx context.Context, in io.Reader, overwrite bool, mimeT
 		Parameters: url.Values{},
 	}
 
-	opts.Parameters.Set("path", enc.FromStandardPath(o.filePath()))
+	opts.Parameters.Set("path", o.fs.opt.Enc.FromStandardPath(o.filePath()))
 	opts.Parameters.Set("overwrite", strconv.FormatBool(overwrite))
 
 	err = o.fs.pacer.Call(func() (bool, error) {

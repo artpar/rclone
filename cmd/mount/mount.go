@@ -1,6 +1,6 @@
 // Package mount implents a FUSE mounting system for rclone remotes.
 
-// +build linux darwin freebsd
+// +build linux,go1.11 darwin,go1.11 freebsd,go1.11
 
 package mount
 
@@ -22,7 +22,7 @@ import (
 )
 
 func init() {
-	mountlib.NewMountCommand("mount", Mount)
+	mountlib.NewMountCommand("mount", false, Mount)
 }
 
 // mountOptions configures the options from the command line flags

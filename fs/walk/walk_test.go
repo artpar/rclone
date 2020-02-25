@@ -8,15 +8,26 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
+	_ "github.com/artpar/rclone/fs/accounting"
 	"github.com/artpar/rclone/fs/filter"
+	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fstest/mockdir"
 	"github.com/artpar/rclone/fstest/mockfs"
 	"github.com/artpar/rclone/fstest/mockobject"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var errDirNotFound, errorBoom error
+
+func init() {
+	errDirNotFound = fserrors.FsError(fs.ErrorDirNotFound)
+	fserrors.Count(errDirNotFound)
+	errorBoom = fserrors.FsError(errors.New("boom"))
+	fserrors.Count(errorBoom)
+}
 
 type (
 	listResult struct {
@@ -196,12 +207,12 @@ func TestWalkREmptySkip(t *testing.T) { testWalkEmptySkip(t).WalkR() }
 func testWalkNotFound(t *testing.T) *listDirs {
 	return newListDirs(t, nil, true,
 		listResults{
-			"": {err: fs.ErrorDirNotFound},
+			"": {err: errDirNotFound},
 		},
 		errorMap{
-			"": fs.ErrorDirNotFound,
+			"": errDirNotFound,
 		},
-		fs.ErrorDirNotFound,
+		errDirNotFound,
 	)
 }
 func TestWalkNotFound(t *testing.T)  { testWalkNotFound(t).Walk() }
@@ -211,7 +222,7 @@ func TestWalkNotFoundMaskError(t *testing.T) {
 	// this doesn't work for WalkR
 	newListDirs(t, nil, true,
 		listResults{
-			"": {err: fs.ErrorDirNotFound},
+			"": {err: errDirNotFound},
 		},
 		errorMap{
 			"": nil,
@@ -224,7 +235,7 @@ func TestWalkNotFoundSkipError(t *testing.T) {
 	// this doesn't work for WalkR
 	newListDirs(t, nil, true,
 		listResults{
-			"": {err: fs.ErrorDirNotFound},
+			"": {err: errDirNotFound},
 		},
 		errorMap{
 			"": ErrorSkipDir,
@@ -342,7 +353,7 @@ func testWalkSkip(t *testing.T) *listDirs {
 func TestWalkSkip(t *testing.T)  { testWalkSkip(t).Walk() }
 func TestWalkRSkip(t *testing.T) { testWalkSkip(t).WalkR() }
 
-func testWalkErrors(t *testing.T) *listDirs {
+func walkErrors(t *testing.T, expectedErr error) *listDirs {
 	lr := listResults{}
 	em := errorMap{}
 	de := make(fs.DirEntries, 10)
@@ -357,13 +368,20 @@ func testWalkErrors(t *testing.T) *listDirs {
 	return newListDirs(t, nil, true,
 		lr,
 		em,
-		fs.ErrorDirNotFound,
+		expectedErr,
 	).NoCheckMaps()
 }
-func TestWalkErrors(t *testing.T)  { testWalkErrors(t).Walk() }
-func TestWalkRErrors(t *testing.T) { testWalkErrors(t).WalkR() }
 
-var errorBoom = errors.New("boom")
+func testWalkErrors(t *testing.T) *listDirs {
+	return walkErrors(t, errDirNotFound)
+}
+
+func testWalkRErrors(t *testing.T) *listDirs {
+	return walkErrors(t, fs.ErrorDirNotFound)
+}
+
+func TestWalkErrors(t *testing.T)  { testWalkErrors(t).Walk() }
+func TestWalkRErrors(t *testing.T) { testWalkRErrors(t).WalkR() }
 
 func makeTree(level int, terminalErrors bool) (listResults, errorMap) {
 	lr := listResults{}

@@ -69,7 +69,7 @@ func main() {
 	conf, err := NewConfig(*configFile)
 	if err != nil {
 		log.Println("test_all should be run from the root of the rclone source code")
-		log.Fatal(err)
+		log.Print(err)
 	}
 
 	// Seed the random number generator
@@ -90,7 +90,7 @@ func main() {
 	if *clean {
 		err := cleanRemotes(conf.Remotes())
 		if err != nil {
-			log.Fatalf("Failed to clean: %v", err)
+			log.Printf("Failed to clean: %v", err)
 		}
 		return
 	}

@@ -23,7 +23,7 @@ func main() {
 	}
 	err := doc.GenManTree(cmd, header, "/tmp")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 }
 ```

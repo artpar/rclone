@@ -86,7 +86,7 @@ ctx, err := tag.New(ctx,
 	tag.Upsert(userIDKey, "cde36753ed"),
 )
 if err != nil {
-	log.Fatal(err)
+	log.Print(err)
 }
 ```
 
@@ -141,7 +141,7 @@ if err := view.Register(&view.View{
 	Measure:     videoSize,
 	Aggregation: view.Distribution(1<<32, 2<<32, 3<<32),
 }); err != nil {
-	log.Fatalf("Failed to register view: %v", err)
+	log.Printf("Failed to register view: %v", err)
 }
 ```
 
@@ -221,7 +221,7 @@ ctx, err = tag.New(ctx,
 	tag.Insert(userIDKey, "fff0989878"),
 )
 if err != nil {
-	log.Fatal(err)
+	log.Print(err)
 }
 tag.Do(ctx, func(ctx context.Context) {
 	// Do work.

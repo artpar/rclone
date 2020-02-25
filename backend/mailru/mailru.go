@@ -24,16 +24,17 @@ import (
 	"github.com/artpar/rclone/backend/mailru/mrhash"
 
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
 	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/fs/object"
 	"github.com/artpar/rclone/fs/operations"
 
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/oauthutil"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/rest"
@@ -41,8 +42,6 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 )
-
-const enc = encodings.Mailru
 
 // Global constants
 const (
@@ -193,21 +192,31 @@ facilitate remote troubleshooting of backend issues. Strict meaning of
 flags is not documented and not guaranteed to persist between releases.
 Quirks will be removed when the backend grows stable.
 Supported quirks: atomicmkdir binlist gzip insecure retry400`,
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			// Encode invalid UTF-8 bytes as json doesn't handle them properly.
+			Default: (encoder.Display |
+				encoder.EncodeWin | // :?"*<>|
+				encoder.EncodeBackSlash |
+				encoder.EncodeInvalidUtf8),
 		}},
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
-	Username        string        `config:"user"`
-	Password        string        `config:"pass"`
-	UserAgent       string        `config:"user_agent"`
-	CheckHash       bool          `config:"check_hash"`
-	SpeedupEnable   bool          `config:"speedup_enable"`
-	SpeedupPatterns string        `config:"speedup_file_patterns"`
-	SpeedupMaxDisk  fs.SizeSuffix `config:"speedup_max_disk"`
-	SpeedupMaxMem   fs.SizeSuffix `config:"speedup_max_memory"`
-	Quirks          string        `config:"quirks"`
+	Username        string               `config:"user"`
+	Password        string               `config:"pass"`
+	UserAgent       string               `config:"user_agent"`
+	CheckHash       bool                 `config:"check_hash"`
+	SpeedupEnable   bool                 `config:"speedup_enable"`
+	SpeedupPatterns string               `config:"speedup_file_patterns"`
+	SpeedupMaxDisk  fs.SizeSuffix        `config:"speedup_max_disk"`
+	SpeedupMaxMem   fs.SizeSuffix        `config:"speedup_max_memory"`
+	Quirks          string               `config:"quirks"`
+	Enc             encoder.MultiEncoder `config:"encoding"`
 }
 
 // retryErrorCodes is a slice of error codes that we will retry
@@ -607,7 +616,7 @@ func (f *Fs) readItemMetaData(ctx context.Context, path string) (entry fs.DirEnt
 		Path:   "/api/m1/file",
 		Parameters: url.Values{
 			"access_token": {token},
-			"home":         {enc.FromStandardPath(path)},
+			"home":         {f.opt.Enc.FromStandardPath(path)},
 			"offset":       {"0"},
 			"limit":        {strconv.Itoa(maxInt32)},
 		},
@@ -642,7 +651,7 @@ func (f *Fs) readItemMetaData(ctx context.Context, path string) (entry fs.DirEnt
 //   =0 - for an empty directory
 //   >0 - for a non-empty directory
 func (f *Fs) itemToDirEntry(ctx context.Context, item *api.ListItem) (entry fs.DirEntry, dirSize int, err error) {
-	remote, err := f.relPath(enc.ToStandardPath(item.Home))
+	remote, err := f.relPath(f.opt.Enc.ToStandardPath(item.Home))
 	if err != nil {
 		return nil, -1, err
 	}
@@ -708,7 +717,7 @@ func (f *Fs) listM1(ctx context.Context, dirPath string, offset int, limit int) 
 	params.Set("limit", strconv.Itoa(limit))
 
 	data := url.Values{}
-	data.Set("home", enc.FromStandardPath(dirPath))
+	data.Set("home", f.opt.Enc.FromStandardPath(dirPath))
 
 	opts := rest.Opts{
 		Method:      "POST",
@@ -756,7 +765,7 @@ func (f *Fs) listBin(ctx context.Context, dirPath string, depth int) (entries fs
 
 	req := api.NewBinWriter()
 	req.WritePu16(api.OperationFolderList)
-	req.WriteString(enc.FromStandardPath(dirPath))
+	req.WriteString(f.opt.Enc.FromStandardPath(dirPath))
 	req.WritePu32(int64(depth))
 	req.WritePu32(int64(options))
 	req.WritePu32(0)
@@ -892,7 +901,7 @@ func (t *treeState) NextRecord() (fs.DirEntry, error) {
 	if (head & 4096) != 0 {
 		t.dunnoNodeID = r.ReadNBytes(api.DunnoNodeIDLength)
 	}
-	name := enc.FromStandardPath(string(r.ReadBytesByLength()))
+	name := t.f.opt.Enc.FromStandardPath(string(r.ReadBytesByLength()))
 	t.dunno1 = int(r.ReadULong())
 	t.dunno2 = 0
 	t.dunno3 = 0
@@ -1031,7 +1040,7 @@ func (f *Fs) CreateDir(ctx context.Context, path string) error {
 	req := api.NewBinWriter()
 	req.WritePu16(api.OperationCreateFolder)
 	req.WritePu16(0) // revision
-	req.WriteString(enc.FromStandardPath(path))
+	req.WriteString(f.opt.Enc.FromStandardPath(path))
 	req.WritePu32(0)
 
 	token, err := f.accessToken()
@@ -1186,7 +1195,7 @@ func (f *Fs) delete(ctx context.Context, path string, hardDelete bool) error {
 		return err
 	}
 
-	data := url.Values{"home": {enc.FromStandardPath(path)}}
+	data := url.Values{"home": {f.opt.Enc.FromStandardPath(path)}}
 	opts := rest.Opts{
 		Method: "POST",
 		Path:   "/api/m1/file/remove",
@@ -1243,8 +1252,8 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	}
 
 	data := url.Values{}
-	data.Set("home", enc.FromStandardPath(srcPath))
-	data.Set("folder", enc.FromStandardPath(parentDir(dstPath)))
+	data.Set("home", f.opt.Enc.FromStandardPath(srcPath))
+	data.Set("folder", f.opt.Enc.FromStandardPath(parentDir(dstPath)))
 	data.Set("email", f.opt.Username)
 	data.Set("x-email", f.opt.Username)
 
@@ -1282,7 +1291,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 		return nil, fmt.Errorf("copy failed with code %d", response.Status)
 	}
 
-	tmpPath := enc.ToStandardPath(response.Body)
+	tmpPath := f.opt.Enc.ToStandardPath(response.Body)
 	if tmpPath != dstPath {
 		// fs.Debugf(f, "rename temporary file %q -> %q\n", tmpPath, dstPath)
 		err = f.moveItemBin(ctx, tmpPath, dstPath, "rename temporary file")
@@ -1357,9 +1366,9 @@ func (f *Fs) moveItemBin(ctx context.Context, srcPath, dstPath, opName string) e
 	req := api.NewBinWriter()
 	req.WritePu16(api.OperationRename)
 	req.WritePu32(0) // old revision
-	req.WriteString(enc.FromStandardPath(srcPath))
+	req.WriteString(f.opt.Enc.FromStandardPath(srcPath))
 	req.WritePu32(0) // new revision
-	req.WriteString(enc.FromStandardPath(dstPath))
+	req.WriteString(f.opt.Enc.FromStandardPath(dstPath))
 	req.WritePu32(0) // dunno
 
 	opts := rest.Opts{
@@ -1450,7 +1459,7 @@ func (f *Fs) PublicLink(ctx context.Context, remote string) (link string, err er
 	}
 
 	data := url.Values{}
-	data.Set("home", enc.FromStandardPath(f.absPath(remote)))
+	data.Set("home", f.opt.Enc.FromStandardPath(f.absPath(remote)))
 	data.Set("email", f.opt.Username)
 	data.Set("x-email", f.opt.Username)
 
@@ -2015,7 +2024,7 @@ func (o *Object) addFileMetaData(ctx context.Context, overwrite bool) error {
 	req := api.NewBinWriter()
 	req.WritePu16(api.OperationAddFile)
 	req.WritePu16(0) // revision
-	req.WriteString(enc.FromStandardPath(o.absPath()))
+	req.WriteString(o.fs.opt.Enc.FromStandardPath(o.absPath()))
 	req.WritePu64(o.size)
 	req.WritePu64(o.modTime.Unix())
 	req.WritePu32(0)
@@ -2113,7 +2122,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 	opts := rest.Opts{
 		Method:  "GET",
 		Options: options,
-		Path:    url.PathEscape(strings.TrimLeft(enc.FromStandardPath(o.absPath()), "/")),
+		Path:    url.PathEscape(strings.TrimLeft(o.fs.opt.Enc.FromStandardPath(o.absPath()), "/")),
 		Parameters: url.Values{
 			"client_id": {api.OAuthClientID},
 			"token":     {token},

@@ -13,20 +13,19 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
 	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/readers"
 	"github.com/artpar/rclone/lib/rest"
 )
-
-const enc = encodings.OpenDrive
 
 const (
 	defaultEndpoint = "https://dev.opendrive.com/api/v1"
@@ -50,14 +49,57 @@ func init() {
 			Help:       "Password.",
 			IsPassword: true,
 			Required:   true,
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			// List of replaced characters:
+			//   < (less than)     -> '＜' // FULLWIDTH LESS-THAN SIGN
+			//   > (greater than)  -> '＞' // FULLWIDTH GREATER-THAN SIGN
+			//   : (colon)         -> '：' // FULLWIDTH COLON
+			//   " (double quote)  -> '＂' // FULLWIDTH QUOTATION MARK
+			//   \ (backslash)     -> '＼' // FULLWIDTH REVERSE SOLIDUS
+			//   | (vertical line) -> '｜' // FULLWIDTH VERTICAL LINE
+			//   ? (question mark) -> '？' // FULLWIDTH QUESTION MARK
+			//   * (asterisk)      -> '＊' // FULLWIDTH ASTERISK
+			//
+			// Additionally names can't begin or end with a ASCII whitespace.
+			// List of replaced characters:
+			//     (space)           -> '␠'  // SYMBOL FOR SPACE
+			//     (horizontal tab)  -> '␉'  // SYMBOL FOR HORIZONTAL TABULATION
+			//     (line feed)       -> '␊'  // SYMBOL FOR LINE FEED
+			//     (vertical tab)    -> '␋'  // SYMBOL FOR VERTICAL TABULATION
+			//     (carriage return) -> '␍'  // SYMBOL FOR CARRIAGE RETURN
+			//
+			// Also encode invalid UTF-8 bytes as json doesn't handle them properly.
+			//
+			// https://www.opendrive.com/wp-content/uploads/guides/OpenDrive_API_guide.pdf
+			Default: (encoder.Base |
+				encoder.EncodeWin |
+				encoder.EncodeLeftCrLfHtVt |
+				encoder.EncodeRightCrLfHtVt |
+				encoder.EncodeBackSlash |
+				encoder.EncodeLeftSpace |
+				encoder.EncodeRightSpace |
+				encoder.EncodeInvalidUtf8),
+		}, {
+			Name: "chunk_size",
+			Help: `Files will be uploaded in chunks this size.
+
+Note that these chunks are buffered in memory so increasing them will
+increase memory use.`,
+			Default:  10 * fs.MebiByte,
+			Advanced: true,
 		}},
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
-	UserName string `config:"username"`
-	Password string `config:"password"`
+	UserName  string               `config:"username"`
+	Password  string               `config:"password"`
+	Enc       encoder.MultiEncoder `config:"encoding"`
+	ChunkSize fs.SizeSuffix        `config:"chunk_size"`
 }
 
 // Fs represents a remote server
@@ -588,7 +630,7 @@ func (f *Fs) createObject(ctx context.Context, remote string, modTime time.Time,
 		fs:     f,
 		remote: remote,
 	}
-	return o, enc.FromStandardName(leaf), directoryID, nil
+	return o, f.opt.Enc.FromStandardName(leaf), directoryID, nil
 }
 
 // readMetaDataForPath reads the metadata from the path
@@ -690,7 +732,7 @@ func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, 
 	err = f.pacer.Call(func() (bool, error) {
 		createDirData := createFolder{
 			SessionID:           f.session.SessionID,
-			FolderName:          enc.FromStandardName(leaf),
+			FolderName:          f.opt.Enc.FromStandardName(leaf),
 			FolderSubParent:     pathID,
 			FolderIsPublic:      0,
 			FolderPublicUpl:     0,
@@ -736,7 +778,7 @@ func (f *Fs) FindLeaf(ctx context.Context, pathID, leaf string) (pathIDOut strin
 		return "", false, errors.Wrap(err, "failed to get folder list")
 	}
 
-	leaf = enc.FromStandardName(leaf)
+	leaf = f.opt.Enc.FromStandardName(leaf)
 	for _, folder := range folderList.Folders {
 		// fs.Debugf(nil, "Folder: %s (%s)", folder.Name, folder.FolderID)
 
@@ -784,7 +826,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 	}
 
 	for _, folder := range folderList.Folders {
-		folder.Name = enc.ToStandardName(folder.Name)
+		folder.Name = f.opt.Enc.ToStandardName(folder.Name)
 		// fs.Debugf(nil, "Folder: %s (%s)", folder.Name, folder.FolderID)
 		remote := path.Join(dir, folder.Name)
 		// cache the directory ID for later lookups
@@ -795,7 +837,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 	}
 
 	for _, file := range folderList.Files {
-		file.Name = enc.ToStandardName(file.Name)
+		file.Name = f.opt.Enc.ToStandardName(file.Name)
 		// fs.Debugf(nil, "File: %s (%s)", file.Name, file.FileID)
 		remote := path.Join(dir, file.Name)
 		o, err := f.newObjectWithInfo(ctx, remote, &file)
@@ -940,15 +982,13 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 	// resp.Body.Close()
 	// fs.Debugf(nil, "PostOpen: %#v", openResponse)
 
-	// 10 MB chunks size
-	chunkSize := int64(1024 * 1024 * 10)
-	buf := make([]byte, int(chunkSize))
+	buf := make([]byte, o.fs.opt.ChunkSize)
 	chunkOffset := int64(0)
 	remainingBytes := size
 	chunkCounter := 0
 
 	for remainingBytes > 0 {
-		currentChunkSize := chunkSize
+		currentChunkSize := int64(o.fs.opt.ChunkSize)
 		if currentChunkSize > remainingBytes {
 			currentChunkSize = remainingBytes
 		}
@@ -1050,7 +1090,7 @@ func (o *Object) readMetaData(ctx context.Context) (err error) {
 		opts := rest.Opts{
 			Method: "GET",
 			Path: fmt.Sprintf("/folder/itembyname.json/%s/%s?name=%s",
-				o.fs.session.SessionID, directoryID, url.QueryEscape(enc.FromStandardName(leaf))),
+				o.fs.session.SessionID, directoryID, url.QueryEscape(o.fs.opt.Enc.FromStandardName(leaf))),
 		}
 		resp, err = o.fs.srv.CallJSON(ctx, &opts, nil, &folderList)
 		return o.fs.shouldRetry(resp, err)

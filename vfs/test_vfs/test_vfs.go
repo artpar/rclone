@@ -293,7 +293,7 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 	if len(args) != 1 {
-		log.Fatalf("%s: Syntax [opts] <directory>", os.Args[0])
+		log.Printf("%s: Syntax [opts] <directory>", os.Args[0])
 	}
 	dir := args[0]
 	_ = os.MkdirAll(dir, 0777)

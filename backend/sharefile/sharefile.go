@@ -87,21 +87,20 @@ import (
 	"github.com/pkg/errors"
 	"github.com/artpar/rclone/backend/sharefile/api"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
 	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/oauthutil"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/random"
 	"github.com/artpar/rclone/lib/rest"
 	"golang.org/x/oauth2"
 )
-
-const enc = encodings.Sharefile
 
 const (
 	rcloneClientID              = "djQUPlHTUM9EvayYBWuKC5IrVIoQde46"
@@ -155,7 +154,7 @@ func init() {
 			}
 			err := oauthutil.ConfigWithCallback("sharefile", name, m, oauthConfig, checkAuth)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 			}
 		},
 		Options: []fs.Option{{
@@ -204,16 +203,30 @@ be set manually to something like: https://XXX.sharefile.com
 `,
 			Advanced: true,
 			Default:  "",
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			Default: (encoder.Base |
+				encoder.EncodeWin | // :?"*<>|
+				encoder.EncodeBackSlash | // \
+				encoder.EncodeCtl |
+				encoder.EncodeRightSpace |
+				encoder.EncodeRightPeriod |
+				encoder.EncodeLeftSpace |
+				encoder.EncodeLeftPeriod |
+				encoder.EncodeInvalidUtf8),
 		}},
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
-	RootFolderID string        `config:"root_folder_id"`
-	UploadCutoff fs.SizeSuffix `config:"upload_cutoff"`
-	ChunkSize    fs.SizeSuffix `config:"chunk_size"`
-	Endpoint     string        `config:"endpoint"`
+	RootFolderID string               `config:"root_folder_id"`
+	UploadCutoff fs.SizeSuffix        `config:"upload_cutoff"`
+	ChunkSize    fs.SizeSuffix        `config:"chunk_size"`
+	Endpoint     string               `config:"endpoint"`
+	Enc          encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote cloud storage system
@@ -301,7 +314,7 @@ func (f *Fs) readMetaDataForIDPath(ctx context.Context, id, path string, directo
 	}
 	if path != "" {
 		opts.Path += "/ByPath"
-		opts.Parameters.Set("path", "/"+enc.FromStandardPath(path))
+		opts.Parameters.Set("path", "/"+f.opt.Enc.FromStandardPath(path))
 	}
 	var item api.Item
 	var resp *http.Response
@@ -595,7 +608,7 @@ func (f *Fs) FindLeaf(ctx context.Context, pathID, leaf string) (pathIDOut strin
 // CreateDir makes a directory with pathID as parent and name leaf
 func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, err error) {
 	var resp *http.Response
-	leaf = enc.FromStandardName(leaf)
+	leaf = f.opt.Enc.FromStandardName(leaf)
 	var req = api.Item{
 		Name:      leaf,
 		FileName:  leaf,
@@ -664,7 +677,7 @@ func (f *Fs) listAll(ctx context.Context, dirID string, directoriesOnly bool, fi
 			fs.Debugf(f, "Ignoring %q - unknown type %q", item.Name, item.Type)
 			continue
 		}
-		item.Name = enc.ToStandardName(item.Name)
+		item.Name = f.opt.Enc.ToStandardName(item.Name)
 		if fn(item) {
 			found = true
 			break
@@ -873,7 +886,7 @@ func (f *Fs) updateItem(ctx context.Context, id, leaf, directoryID string, modTi
 			"overwrite": {"false"},
 		},
 	}
-	leaf = enc.FromStandardName(leaf)
+	leaf = f.opt.Enc.FromStandardName(leaf)
 	// FIXME this appears to be a bug in the API
 	//
 	// If you set the modified time via PATCH then the server
@@ -1119,7 +1132,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (dst fs.Obj
 	if err != nil {
 		return nil, err
 	}
-	srcLeaf = enc.FromStandardName(srcLeaf)
+	srcLeaf = f.opt.Enc.FromStandardName(srcLeaf)
 	_ = srcParentID
 
 	// Create temporary object
@@ -1127,7 +1140,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (dst fs.Obj
 	if err != nil {
 		return nil, err
 	}
-	dstLeaf = enc.FromStandardName(dstLeaf)
+	dstLeaf = f.opt.Enc.FromStandardName(dstLeaf)
 
 	sameName := strings.ToLower(srcLeaf) == strings.ToLower(dstLeaf)
 	if sameName && srcParentID == dstParentID {
@@ -1390,7 +1403,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 	if err != nil {
 		return err
 	}
-	leaf = enc.FromStandardName(leaf)
+	leaf = o.fs.opt.Enc.FromStandardName(leaf)
 	var req = api.UploadRequest{
 		Method:       "standard",
 		Raw:          true,

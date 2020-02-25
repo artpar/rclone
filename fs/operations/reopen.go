@@ -5,8 +5,9 @@ import (
 	"io"
 	"sync"
 
-	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/fserrors"
 )
 
 // reOpen is a wrapper for an object reader which reopens the stream on error
@@ -104,7 +105,7 @@ func (h *reOpen) Read(p []byte) (n int, err error) {
 		h.err = err
 	}
 	h.read += int64(n)
-	if err != nil && err != io.EOF {
+	if err != nil && err != io.EOF && !fserrors.IsNoLowLevelRetryError(err) {
 		// close underlying stream
 		h.opened = false
 		_ = h.rc.Close()

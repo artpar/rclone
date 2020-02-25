@@ -309,6 +309,13 @@ func (c *cache) rename(name string, newName string) (err error) {
 	if err = os.Rename(osOldPath, osNewPath); err != nil {
 		return errors.Wrapf(err, "Failed to rename in cache: %s to %s", osOldPath, osNewPath)
 	}
+	// Rename the cache item
+	c.itemMu.Lock()
+	if oldItem, ok := c.item[name]; ok {
+		c.item[newName] = oldItem
+		delete(c.item, name)
+	}
+	c.itemMu.Unlock()
 	fs.Infof(name, "Renamed in cache")
 	return nil
 }
@@ -372,6 +379,15 @@ func (c *cache) removeDir(dir string) bool {
 		fs.Errorf(dir, "Failed to remove cached dir: %v", err)
 	}
 	return false
+}
+
+// setModTime should be called to set the modification time of the cache file
+func (c *cache) setModTime(name string, modTime time.Time) {
+	osPath := c.toOSPath(name)
+	err := os.Chtimes(osPath, modTime, modTime)
+	if err != nil {
+		fs.Errorf(name, "Failed to set modification time of cached file: %v", err)
+	}
 }
 
 // cleanUp empties the cache of everything

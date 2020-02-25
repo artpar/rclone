@@ -16,10 +16,10 @@ import (
 
 	"github.com/anacrolix/dms/dlna"
 	"github.com/anacrolix/dms/upnp"
-	"github.com/anacrolix/dms/upnpav"
+	"github.com/pkg/errors"
+	"github.com/artpar/rclone/cmd/serve/dlna/upnpav"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/vfs"
-	"github.com/pkg/errors"
 )
 
 // Add a minimal number of mime types to augment go's built in types
@@ -77,16 +77,10 @@ func (cds *contentDirectoryService) cdsObjectToUpnpavObject(cdsObject object, fi
 	}
 
 	if fileInfo.IsDir() {
-		children, err := cds.readContainer(cdsObject, host)
-		if err != nil {
-			return nil, err
-		}
-
 		obj.Class = "object.container.storageFolder"
 		obj.Title = fileInfo.Name()
 		return upnpav.Container{
-			Object:     obj,
-			ChildCount: len(children),
+			Object: obj,
 		}, nil
 	}
 

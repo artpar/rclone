@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -22,6 +23,7 @@ import (
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/walk"
 	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/lib/file"
 	"github.com/artpar/rclone/vfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -119,12 +121,12 @@ func newRun() *Run {
 	var err error
 	r.fremote, r.fremoteName, r.cleanRemote, err = fstest.RandomRemote()
 	if err != nil {
-		log.Fatalf("Failed to open remote %q: %v", *fstest.RemoteName, err)
+		log.Printf("Failed to open remote %q: %v", *fstest.RemoteName, err)
 	}
 
 	err = r.fremote.Mkdir(context.Background(), "")
 	if err != nil {
-		log.Fatalf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
+		log.Printf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
 	}
 
 	r.mountPath = findMountPath()
@@ -138,7 +140,7 @@ func findMountPath() string {
 	if runtime.GOOS != "windows" {
 		mountPath, err := ioutil.TempDir("", "rclonefs-mount")
 		if err != nil {
-			log.Fatalf("Failed to create mount dir: %v", err)
+			log.Printf("Failed to create mount dir: %v", err)
 		}
 		return mountPath
 	}
@@ -152,7 +154,7 @@ func findMountPath() string {
 			goto found
 		}
 	}
-	log.Fatalf("Couldn't find free drive letter for test")
+	log.Printf("Couldn't find free drive letter for test")
 found:
 	return drive
 }
@@ -189,12 +191,12 @@ func (r *Run) umount() {
 		err = r.umountFn()
 	}
 	if err != nil {
-		log.Fatalf("signal to umount failed: %v", err)
+		log.Printf("signal to umount failed: %v", err)
 	}
 	log.Printf("Waiting for umount")
 	err = <-r.umountResult
 	if err != nil {
-		log.Fatalf("umount failed: %v", err)
+		log.Printf("umount failed: %v", err)
 	}
 
 	// Cleanup the VFS cache - umount has called Shutdown
@@ -216,7 +218,7 @@ func (r *Run) cacheMode(cacheMode vfs.CacheMode) {
 	r.cleanRemote()
 	err := r.fremote.Mkdir(context.Background(), "")
 	if err != nil {
-		log.Fatalf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
+		log.Printf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
 	}
 	// Empty the cache
 	err = r.vfs.CleanUp()
@@ -345,9 +347,36 @@ func (r *Run) waitForWriters() {
 	run.vfs.WaitForWriters(10 * time.Second)
 }
 
+// writeFile writes data to a file named by filename.
+// If the file does not exist, WriteFile creates it with permissions perm;
+// otherwise writeFile truncates it before writing.
+// If there is an error writing then writeFile
+// deletes it an existing file and tries again.
+func writeFile(filename string, data []byte, perm os.FileMode) error {
+	f, err := file.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		err = os.Remove(filename)
+		if err != nil {
+			return err
+		}
+		f, err = file.OpenFile(filename, os.O_WRONLY|os.O_CREATE, perm)
+		if err != nil {
+			return err
+		}
+	}
+	n, err := f.Write(data)
+	if err == nil && n < len(data) {
+		err = io.ErrShortWrite
+	}
+	if err1 := f.Close(); err == nil {
+		err = err1
+	}
+	return err
+}
+
 func (r *Run) createFile(t *testing.T, filepath string, contents string) {
 	filepath = r.path(filepath)
-	err := ioutil.WriteFile(filepath, []byte(contents), 0600)
+	err := writeFile(filepath, []byte(contents), 0600)
 	require.NoError(t, err)
 	r.waitForWriters()
 }

@@ -32,12 +32,12 @@ import (
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
 	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/fs/walk"
 	"github.com/artpar/rclone/lib/bucket"
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/oauthutil"
 	"github.com/artpar/rclone/lib/pacer"
 	"golang.org/x/oauth2"
@@ -69,8 +69,6 @@ var (
 	}
 )
 
-const enc = encodings.GoogleCloudStorage
-
 // Register with Fs
 func init() {
 	fs.Register(&fs.RegInfo{
@@ -86,7 +84,7 @@ func init() {
 			}
 			err := oauthutil.Config("google cloud storage", name, m, storageConfig)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 			}
 		},
 		Options: []fs.Option{{
@@ -248,20 +246,28 @@ Docs: https://cloud.google.com/storage/docs/bucket-policy-only
 				Value: "DURABLE_REDUCED_AVAILABILITY",
 				Help:  "Durable reduced availability storage class",
 			}},
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			Default: (encoder.Base |
+				encoder.EncodeCrLf |
+				encoder.EncodeInvalidUtf8),
 		}},
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
-	ProjectNumber             string `config:"project_number"`
-	ServiceAccountFile        string `config:"service_account_file"`
-	ServiceAccountCredentials string `config:"service_account_credentials"`
-	ObjectACL                 string `config:"object_acl"`
-	BucketACL                 string `config:"bucket_acl"`
-	BucketPolicyOnly          bool   `config:"bucket_policy_only"`
-	Location                  string `config:"location"`
-	StorageClass              string `config:"storage_class"`
+	ProjectNumber             string               `config:"project_number"`
+	ServiceAccountFile        string               `config:"service_account_file"`
+	ServiceAccountCredentials string               `config:"service_account_credentials"`
+	ObjectACL                 string               `config:"object_acl"`
+	BucketACL                 string               `config:"bucket_acl"`
+	BucketPolicyOnly          bool                 `config:"bucket_policy_only"`
+	Location                  string               `config:"location"`
+	StorageClass              string               `config:"storage_class"`
+	Enc                       encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote storage server
@@ -353,7 +359,7 @@ func parsePath(path string) (root string) {
 // relative to f.root
 func (f *Fs) split(rootRelativePath string) (bucketName, bucketPath string) {
 	bucketName, bucketPath = bucket.Split(path.Join(f.root, rootRelativePath))
-	return enc.FromStandardName(bucketName), enc.FromStandardPath(bucketPath)
+	return f.opt.Enc.FromStandardName(bucketName), f.opt.Enc.FromStandardPath(bucketPath)
 }
 
 // split returns bucket and bucketPath from the object
@@ -442,7 +448,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 
 	if f.rootBucket != "" && f.rootDirectory != "" {
 		// Check to see if the object exists
-		encodedDirectory := enc.FromStandardPath(f.rootDirectory)
+		encodedDirectory := f.opt.Enc.FromStandardPath(f.rootDirectory)
 		err = f.pacer.Call(func() (bool, error) {
 			_, err = f.svc.Objects.Get(f.rootBucket, encodedDirectory).Context(ctx).Do()
 			return shouldRetry(err)
@@ -527,7 +533,7 @@ func (f *Fs) list(ctx context.Context, bucket, directory, prefix string, addBuck
 				if !strings.HasSuffix(remote, "/") {
 					continue
 				}
-				remote = enc.ToStandardPath(remote)
+				remote = f.opt.Enc.ToStandardPath(remote)
 				if !strings.HasPrefix(remote, prefix) {
 					fs.Logf(f, "Odd name received %q", remote)
 					continue
@@ -543,7 +549,7 @@ func (f *Fs) list(ctx context.Context, bucket, directory, prefix string, addBuck
 			}
 		}
 		for _, object := range objects.Items {
-			remote := enc.ToStandardPath(object.Name)
+			remote := f.opt.Enc.ToStandardPath(object.Name)
 			if !strings.HasPrefix(remote, prefix) {
 				fs.Logf(f, "Odd name received %q", object.Name)
 				continue
@@ -620,7 +626,7 @@ func (f *Fs) listBuckets(ctx context.Context) (entries fs.DirEntries, err error)
 			return nil, err
 		}
 		for _, bucket := range buckets.Items {
-			d := fs.NewDir(enc.ToStandardName(bucket.Name), time.Time{})
+			d := fs.NewDir(f.opt.Enc.ToStandardName(bucket.Name), time.Time{})
 			entries = append(entries, d)
 		}
 		if buckets.NextPageToken == "" {

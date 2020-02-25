@@ -50,10 +50,12 @@ func AddFlags(flagSet *pflag.FlagSet) {
 	flags.BoolVarP(flagSet, &fs.Config.DryRun, "dry-run", "n", fs.Config.DryRun, "Do a trial run with no permanent changes")
 	flags.DurationVarP(flagSet, &fs.Config.ConnectTimeout, "contimeout", "", fs.Config.ConnectTimeout, "Connect timeout")
 	flags.DurationVarP(flagSet, &fs.Config.Timeout, "timeout", "", fs.Config.Timeout, "IO idle timeout")
+	flags.DurationVarP(flagSet, &fs.Config.ExpectContinueTimeout, "expect-continue-timeout", "", fs.Config.ExpectContinueTimeout, "Timeout when using expect / 100-continue in HTTP")
 	flags.BoolVarP(flagSet, &dumpHeaders, "dump-headers", "", false, "Dump HTTP headers - may contain sensitive info")
 	flags.BoolVarP(flagSet, &dumpBodies, "dump-bodies", "", false, "Dump HTTP headers and bodies - may contain sensitive info")
 	flags.BoolVarP(flagSet, &fs.Config.InsecureSkipVerify, "no-check-certificate", "", fs.Config.InsecureSkipVerify, "Do not verify the server SSL certificate. Insecure.")
 	flags.BoolVarP(flagSet, &fs.Config.AskPassword, "ask-password", "", fs.Config.AskPassword, "Allow prompt for password for encrypted configuration.")
+	flags.FVarP(flagSet, &fs.Config.PasswordCommand, "password-command", "", "Command for supplying password for encrypted configuration.")
 	flags.BoolVarP(flagSet, &deleteBefore, "delete-before", "", false, "When synchronizing, delete files on destination before transferring")
 	flags.BoolVarP(flagSet, &deleteDuring, "delete-during", "", false, "When synchronizing, delete files during transfer")
 	flags.BoolVarP(flagSet, &deleteAfter, "delete-after", "", false, "When synchronizing, delete files on destination after transferring (default)")
@@ -68,6 +70,7 @@ func AddFlags(flagSet *pflag.FlagSet) {
 	flags.BoolVarP(flagSet, &fs.Config.IgnoreChecksum, "ignore-checksum", "", fs.Config.IgnoreChecksum, "Skip post copy check of checksums.")
 	flags.BoolVarP(flagSet, &fs.Config.IgnoreCaseSync, "ignore-case-sync", "", fs.Config.IgnoreCaseSync, "Ignore case when synchronizing")
 	flags.BoolVarP(flagSet, &fs.Config.NoTraverse, "no-traverse", "", fs.Config.NoTraverse, "Don't traverse destination file system on copy.")
+	flags.BoolVarP(flagSet, &fs.Config.NoCheckDest, "no-check-dest", "", fs.Config.NoCheckDest, "Don't check the destination, copy regardless.")
 	flags.BoolVarP(flagSet, &fs.Config.NoUpdateModTime, "no-update-modtime", "", fs.Config.NoUpdateModTime, "Don't update destination mod-time if files identical.")
 	flags.StringVarP(flagSet, &fs.Config.CompareDest, "compare-dest", "", fs.Config.CompareDest, "Include additional server-side path during comparison.")
 	flags.StringVarP(flagSet, &fs.Config.CopyDest, "copy-dest", "", fs.Config.CopyDest, "Implies --compare-dest but also copies files from path into destination.")
@@ -90,6 +93,7 @@ func AddFlags(flagSet *pflag.FlagSet) {
 	flags.FVarP(flagSet, &fs.Config.StreamingUploadCutoff, "streaming-upload-cutoff", "", "Cutoff for switching to chunked upload if file size is unknown. Upload starts after reaching cutoff or when file ends.")
 	flags.FVarP(flagSet, &fs.Config.Dump, "dump", "", "List of items to dump from: "+fs.DumpFlagsList)
 	flags.FVarP(flagSet, &fs.Config.MaxTransfer, "max-transfer", "", "Maximum size of data to transfer.")
+	flags.DurationVarP(flagSet, &fs.Config.MaxDuration, "max-duration", "", 0, "Maximum duration rclone will transfer data for.")
 	flags.IntVarP(flagSet, &fs.Config.MaxBacklog, "max-backlog", "", fs.Config.MaxBacklog, "Maximum number of objects in sync or check backlog.")
 	flags.IntVarP(flagSet, &fs.Config.MaxStatsGroups, "max-stats-groups", "", fs.Config.MaxStatsGroups, "Maximum number of stats groups to keep in memory. On max oldest is discarded.")
 	flags.BoolVarP(flagSet, &fs.Config.StatsOneLine, "stats-one-line", "", fs.Config.StatsOneLine, "Make the stats fit on one line.")
@@ -104,6 +108,7 @@ func AddFlags(flagSet *pflag.FlagSet) {
 	flags.FVarP(flagSet, &fs.Config.MultiThreadCutoff, "multi-thread-cutoff", "", "Use multi-thread downloads for files above this size.")
 	flags.IntVarP(flagSet, &fs.Config.MultiThreadStreams, "multi-thread-streams", "", fs.Config.MultiThreadStreams, "Max number of streams to use for multi-thread downloads.")
 	flags.BoolVarP(flagSet, &fs.Config.UseJSONLog, "use-json-log", "", fs.Config.UseJSONLog, "Use json log format.")
+	flags.StringVarP(flagSet, &fs.Config.OrderBy, "order-by", "", fs.Config.OrderBy, "Instructions on how to order the transfers, eg 'size,descending'")
 }
 
 // SetFlags converts any flags into config which weren't straight forward
@@ -115,17 +120,17 @@ func SetFlags() {
 	}
 	if quiet {
 		if verbose > 0 {
-			log.Fatalf("Can't set -v and -q")
+			log.Printf("Can't set -v and -q")
 		}
 		fs.Config.LogLevel = fs.LogLevelError
 	}
 	logLevelFlag := pflag.Lookup("log-level")
 	if logLevelFlag != nil && logLevelFlag.Changed {
 		if verbose > 0 {
-			log.Fatalf("Can't set -v and --log-level")
+			log.Printf("Can't set -v and --log-level")
 		}
 		if quiet {
-			log.Fatalf("Can't set -q and --log-level")
+			log.Printf("Can't set -q and --log-level")
 		}
 	}
 	if fs.Config.UseJSONLog {
@@ -162,7 +167,7 @@ func SetFlags() {
 	switch {
 	case deleteBefore && (deleteDuring || deleteAfter),
 		deleteDuring && deleteAfter:
-		log.Fatalf(`Only one of --delete-before, --delete-during or --delete-after can be used.`)
+		log.Printf(`Only one of --delete-before, --delete-during or --delete-after can be used.`)
 	case deleteBefore:
 		fs.Config.DeleteMode = fs.DeleteModeBefore
 	case deleteDuring:
@@ -174,7 +179,7 @@ func SetFlags() {
 	}
 
 	if fs.Config.CompareDest != "" && fs.Config.CopyDest != "" {
-		log.Fatalf(`Can't use --compare-dest with --copy-dest.`)
+		log.Printf(`Can't use --compare-dest with --copy-dest.`)
 	}
 
 	switch {
@@ -189,17 +194,17 @@ func SetFlags() {
 	if bindAddr != "" {
 		addrs, err := net.LookupIP(bindAddr)
 		if err != nil {
-			log.Fatalf("--bind: Failed to parse %q as IP address: %v", bindAddr, err)
+			log.Printf("--bind: Failed to parse %q as IP address: %v", bindAddr, err)
 		}
 		if len(addrs) != 1 {
-			log.Fatalf("--bind: Expecting 1 IP address for %q but got %d", bindAddr, len(addrs))
+			log.Printf("--bind: Expecting 1 IP address for %q but got %d", bindAddr, len(addrs))
 		}
 		fs.Config.BindAddr = addrs[0]
 	}
 
 	if disableFeatures != "" {
 		if disableFeatures == "help" {
-			log.Fatalf("Possible backend features are: %s\n", strings.Join(new(fs.Features).List(), ", "))
+			log.Printf("Possible backend features are: %s\n", strings.Join(new(fs.Features).List(), ", "))
 		}
 		fs.Config.DisableFeatures = strings.Split(disableFeatures, ",")
 	}

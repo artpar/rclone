@@ -704,11 +704,20 @@ func (m *Mega) addFSNode(itm FSNode) (*Node, error) {
 	switch {
 	case itm.T == FOLDER || itm.T == FILE:
 		args := strings.Split(itm.Key, ":")
+		if len(args) < 2 {
+			return nil, fmt.Errorf("not enough : in item.Key: %q", itm.Key)
+		}
+		itemUser, itemKey := args[0], args[1]
+		itemKeyParts := strings.Split(itemKey, "/")
+		if len(itemKeyParts) >= 2 {
+			itemKey = itemKeyParts[0]
+			// the other part is maybe a share key handle?
+		}
 
 		switch {
 		// File or folder owned by current user
-		case args[0] == itm.User:
-			buf, err := base64urldecode(args[1])
+		case itemUser == itm.User:
+			buf, err := base64urldecode(itemKey)
 			if err != nil {
 				return nil, err
 			}
@@ -736,7 +745,7 @@ func (m *Mega) addFSNode(itm FSNode) (*Node, error) {
 			}
 
 			m.FS.skmap[itm.Hash] = itm.SKey
-			buf, err := base64urldecode(args[1])
+			buf, err := base64urldecode(itemKey)
 			if err != nil {
 				return nil, err
 			}
@@ -750,7 +759,10 @@ func (m *Mega) addFSNode(itm FSNode) (*Node, error) {
 			}
 			// Shared file
 		default:
-			k := m.FS.skmap[args[0]]
+			k, ok := m.FS.skmap[itemUser]
+			if !ok {
+				return nil, errors.New("couldn't find decryption key for shared file")
+			}
 			b, err := base64urldecode(k)
 			if err != nil {
 				return nil, err
@@ -763,7 +775,7 @@ func (m *Mega) addFSNode(itm FSNode) (*Node, error) {
 			if err != nil {
 				return nil, err
 			}
-			buf, err := base64urldecode(args[1])
+			buf, err := base64urldecode(itemKey)
 			if err != nil {
 				return nil, err
 			}
@@ -921,7 +933,8 @@ func (m *Mega) getFileSystem() error {
 	for _, itm := range res[0].F {
 		_, err = m.addFSNode(itm)
 		if err != nil {
-			return err
+			m.debugf("couldn't decode FSNode %#v: %v ", itm, err)
+			continue
 		}
 	}
 

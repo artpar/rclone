@@ -36,6 +36,7 @@ import (
 	_ "github.com/artpar/rclone/cmd/memtest"
 	_ "github.com/artpar/rclone/cmd/mkdir"
 	_ "github.com/artpar/rclone/cmd/mount"
+	_ "github.com/artpar/rclone/cmd/mount2"
 	_ "github.com/artpar/rclone/cmd/move"
 	_ "github.com/artpar/rclone/cmd/moveto"
 	_ "github.com/artpar/rclone/cmd/ncdu"

@@ -123,7 +123,7 @@ func main() {
 	// It will be created if it doesn't exist.
 	db, err := bolt.Open("my.db", 0600, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 	defer db.Close()
 
@@ -637,7 +637,7 @@ it will block any processes from opening the database in read-write mode.
 ```go
 db, err := bolt.Open("my.db", 0666, &bolt.Options{ReadOnly: true})
 if err != nil {
-	log.Fatal(err)
+	log.Print(err)
 }
 ```
 
@@ -653,7 +653,7 @@ Neither Android nor iOS require extra permissions or cleanup from using this met
 func NewBoltDB(filepath string) *BoltDB {
 	db, err := bolt.Open(filepath+"/demo.db", 0600, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 
 	return &BoltDB{db}

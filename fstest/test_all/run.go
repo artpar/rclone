@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest/testserver"
 )
 
 // Control concurrency per backend if required
@@ -196,12 +197,12 @@ func (r *Run) trial() {
 	logName := path.Join(r.logDir, r.trialName)
 	out, err := os.Create(logName)
 	if err != nil {
-		log.Fatalf("Couldn't create log file: %v", err)
+		log.Printf("Couldn't create log file: %v", err)
 	}
 	defer func() {
 		err := out.Close()
 		if err != nil {
-			log.Fatalf("Failed to close log file: %v", err)
+			log.Printf("Failed to close log file: %v", err)
 		}
 	}()
 	_, _ = fmt.Fprintln(out, msg)
@@ -212,6 +213,16 @@ func (r *Run) trial() {
 		_, _ = fmt.Fprintln(out, "--dry-run is set - not running")
 		return
 	}
+
+	// Start the test server if required
+	finish, err := testserver.Start(r.Remote)
+	if err != nil {
+		log.Printf("%s: Failed to start test server: %v", r.Remote, err)
+		_, _ = fmt.Fprintf(out, "%s: Failed to start test server: %v\n", r.Remote, err)
+		r.err = err
+		return
+	}
+	defer finish()
 
 	// Internal buffer
 	var b bytes.Buffer
@@ -282,10 +293,10 @@ func (r *Run) MakeTestBinary() {
 	cmd.Dir = r.Path
 	err := cmd.Run()
 	if err != nil {
-		log.Fatalf("Failed to make test binary: %v", err)
+		log.Printf("Failed to make test binary: %v", err)
 	}
 	if _, err := os.Stat(binary); err != nil {
-		log.Fatalf("Couldn't find test binary %q", binary)
+		log.Printf("Couldn't find test binary %q", binary)
 	}
 }
 

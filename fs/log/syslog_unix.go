@@ -32,14 +32,14 @@ var (
 
 // Starts syslog
 func startSysLog() bool {
-	facility, ok := syslogFacilityMap[*syslogFacility]
+	facility, ok := syslogFacilityMap[Opt.SyslogFacility]
 	if !ok {
-		log.Fatalf("Unknown syslog facility %q - man syslog for list", *syslogFacility)
+		log.Printf("Unknown syslog facility %q - man syslog for list", Opt.SyslogFacility)
 	}
 	Me := path.Base(os.Args[0])
 	w, err := syslog.New(syslog.LOG_NOTICE|facility, Me)
 	if err != nil {
-		log.Fatalf("Failed to start syslog: %v", err)
+		log.Printf("Failed to start syslog: %v", err)
 	}
 	log.SetFlags(0)
 	log.SetOutput(w)

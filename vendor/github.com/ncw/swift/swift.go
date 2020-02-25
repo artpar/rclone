@@ -175,7 +175,7 @@ func setFromEnv(param interface{}, name string) (err error) {
 //
 //    c := new(Connection)
 //    err := c.ApplyEnvironment()
-//    if err != nil { log.Fatal(err) }
+//    if err != nil { log.Print(err) }
 //
 // The naming of these variables follows the official Openstack naming
 // scheme so it should be compatible with OpenStack rc files.

@@ -20,7 +20,7 @@ const (
 )
 
 type mapping struct {
-	mask     uint
+	mask     encoder.MultiEncoder
 	src, dst []rune
 }
 type stringPair struct {
@@ -36,7 +36,7 @@ package encoder
 `
 
 var maskBits = []struct {
-	mask uint
+	mask encoder.MultiEncoder
 	name string
 }{
 	{encoder.EncodeZero, "EncodeZero"},
@@ -68,7 +68,7 @@ var maskBits = []struct {
 }
 
 type edge struct {
-	mask    uint
+	mask    encoder.MultiEncoder
 	name    string
 	edge    int
 	orig    []rune
@@ -417,19 +417,19 @@ var testCasesDoubleEdge = []testCase{
 
 func fatal(err error, s ...interface{}) {
 	if err != nil {
-		log.Fatalln(append(s, err))
+		log.Println(append(s, err))
 	}
 }
 func fatalW(_ int, err error) func(...interface{}) {
 	if err != nil {
 		return func(s ...interface{}) {
-			log.Fatalln(append(s, err))
+			log.Println(append(s, err))
 		}
 	}
 	return func(s ...interface{}) {}
 }
 
-func invalidMask(mask uint) bool {
+func invalidMask(mask encoder.MultiEncoder) bool {
 	return mask&(encoder.EncodeCtl|encoder.EncodeCrLf) != 0 && mask&(encoder.EncodeLeftCrLfHtVt|encoder.EncodeRightCrLfHtVt) != 0
 }
 
@@ -445,7 +445,7 @@ func runeRange(l, h rune) []rune {
 	return out
 }
 
-func getMapping(mask uint) mapping {
+func getMapping(mask encoder.MultiEncoder) mapping {
 	for _, m := range allMappings {
 		if m.mask == mask {
 			return m

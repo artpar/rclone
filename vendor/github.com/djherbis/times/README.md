@@ -27,7 +27,7 @@ import (
 func main() {
   t, err := times.Stat("myfile")
   if err != nil {
-    log.Fatal(err.Error())
+    log.Print(err.Error())
   }
 
   log.Println(t.AccessTime())

@@ -33,12 +33,12 @@ import (
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
 	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/fs/walk"
 	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/oauthutil"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/readers"
@@ -48,8 +48,6 @@ import (
 	drive "google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
 )
-
-const enc = encodings.Drive
 
 // Constants
 const (
@@ -179,12 +177,12 @@ func init() {
 			if opt.ServiceAccountFile == "" {
 				err = oauthutil.Config("drive", name, m, driveConfig)
 				if err != nil {
-					log.Fatalf("Failed to configure token: %v", err)
+					log.Printf("Failed to configure token: %v", err)
 				}
 			}
 			err = configTeamDrive(ctx, opt, m, name)
 			if err != nil {
-				log.Fatalf("Failed to configure team drive: %v", err)
+				log.Printf("Failed to configure team drive: %v", err)
 			}
 		},
 		Options: []fs.Option{{
@@ -326,6 +324,19 @@ Photos folder" option in your google drive settings. You can then copy
 or move the photos locally and use the date the image was taken
 (created) set as the modification date.`,
 			Advanced: true,
+			Hide:     fs.OptionHideConfigurator,
+		}, {
+			Name:    "use_shared_date",
+			Default: false,
+			Help: `Use date file was shared instead of modified date.
+
+Note that, as with "--drive-use-created-date", this flag may have
+unexpected consequences when uploading/downloading files.
+
+If both this flag and "--drive-use-created-date" are set, the created
+date is used.`,
+			Advanced: true,
+			Hide:     fs.OptionHideConfigurator,
 		}, {
 			Name:     "list_chunk",
 			Default:  1000,
@@ -384,11 +395,22 @@ will download it anyway.`,
 		}, {
 			Name:    "size_as_quota",
 			Default: false,
-			Help: `Show storage quota usage for file size.
+			Help: `Show sizes as storage quota usage, not actual size.
 
-The storage used by a file is the size of the current version plus any
-older versions that have been set to keep forever.`,
+Show the size of a file as the the storage quota used. This is the
+current version plus any older versions that have been set to keep
+forever.
+
+**WARNING**: This flag may have some unexpected consequences.
+
+It is not recommended to set this flag in your config - the
+recommended usage is using the flag form --drive-size-as-quota when
+doing rclone ls/lsl/lsf/lsjson/etc only.
+
+If you do use this flag for syncing (not recommended) then you will
+need to use --ignore size also.`,
 			Advanced: true,
+			Hide:     fs.OptionHideConfigurator,
 		}, {
 			Name:     "v2_download_min_size",
 			Default:  fs.SizeSuffix(-1),
@@ -428,6 +450,30 @@ See: https://github.com/artpar/rclone/issues/3631
 
 `,
 			Advanced: true,
+		}, {
+			Name:    "stop_on_upload_limit",
+			Default: false,
+			Help: `Make upload limit errors be fatal
+
+At the time of writing it is only possible to upload 750GB of data to
+Google Drive a day (this is an undocumented limit). When this limit is
+reached Google Drive produces a slightly different error message. When
+this flag is set it causes these errors to be fatal.  These will stop
+the in-progress sync.
+
+Note that this detection is relying on error message strings which
+Google don't document so it may break in the future.
+
+See: https://github.com/artpar/rclone/issues/3857
+`,
+			Advanced: true,
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			// Encode invalid UTF-8 bytes as json doesn't handle them properly.
+			// Don't encode / as it's a valid name character in drive.
+			Default: encoder.EncodeInvalidUtf8,
 		}},
 	})
 
@@ -439,7 +485,7 @@ See: https://github.com/artpar/rclone/issues/3631
 	} {
 		for mimeType, extension := range m {
 			if err := mime.AddExtensionType(extension, mimeType); err != nil {
-				log.Fatalf("Failed to register MIME type %q: %v", mimeType, err)
+				log.Printf("Failed to register MIME type %q: %v", mimeType, err)
 			}
 		}
 	}
@@ -447,35 +493,38 @@ See: https://github.com/artpar/rclone/issues/3631
 
 // Options defines the configuration for this backend
 type Options struct {
-	Scope                     string        `config:"scope"`
-	RootFolderID              string        `config:"root_folder_id"`
-	ServiceAccountFile        string        `config:"service_account_file"`
-	ServiceAccountCredentials string        `config:"service_account_credentials"`
-	TeamDriveID               string        `config:"team_drive"`
-	AuthOwnerOnly             bool          `config:"auth_owner_only"`
-	UseTrash                  bool          `config:"use_trash"`
-	SkipGdocs                 bool          `config:"skip_gdocs"`
-	SkipChecksumGphotos       bool          `config:"skip_checksum_gphotos"`
-	SharedWithMe              bool          `config:"shared_with_me"`
-	TrashedOnly               bool          `config:"trashed_only"`
-	Extensions                string        `config:"formats"`
-	ExportExtensions          string        `config:"export_formats"`
-	ImportExtensions          string        `config:"import_formats"`
-	AllowImportNameChange     bool          `config:"allow_import_name_change"`
-	UseCreatedDate            bool          `config:"use_created_date"`
-	ListChunk                 int64         `config:"list_chunk"`
-	Impersonate               string        `config:"impersonate"`
-	AlternateExport           bool          `config:"alternate_export"`
-	UploadCutoff              fs.SizeSuffix `config:"upload_cutoff"`
-	ChunkSize                 fs.SizeSuffix `config:"chunk_size"`
-	AcknowledgeAbuse          bool          `config:"acknowledge_abuse"`
-	KeepRevisionForever       bool          `config:"keep_revision_forever"`
-	SizeAsQuota               bool          `config:"size_as_quota"`
-	V2DownloadMinSize         fs.SizeSuffix `config:"v2_download_min_size"`
-	PacerMinSleep             fs.Duration   `config:"pacer_min_sleep"`
-	PacerBurst                int           `config:"pacer_burst"`
-	ServerSideAcrossConfigs   bool          `config:"server_side_across_configs"`
-	DisableHTTP2              bool          `config:"disable_http2"`
+	Scope                     string               `config:"scope"`
+	RootFolderID              string               `config:"root_folder_id"`
+	ServiceAccountFile        string               `config:"service_account_file"`
+	ServiceAccountCredentials string               `config:"service_account_credentials"`
+	TeamDriveID               string               `config:"team_drive"`
+	AuthOwnerOnly             bool                 `config:"auth_owner_only"`
+	UseTrash                  bool                 `config:"use_trash"`
+	SkipGdocs                 bool                 `config:"skip_gdocs"`
+	SkipChecksumGphotos       bool                 `config:"skip_checksum_gphotos"`
+	SharedWithMe              bool                 `config:"shared_with_me"`
+	TrashedOnly               bool                 `config:"trashed_only"`
+	Extensions                string               `config:"formats"`
+	ExportExtensions          string               `config:"export_formats"`
+	ImportExtensions          string               `config:"import_formats"`
+	AllowImportNameChange     bool                 `config:"allow_import_name_change"`
+	UseCreatedDate            bool                 `config:"use_created_date"`
+	UseSharedDate             bool                 `config:"use_shared_date"`
+	ListChunk                 int64                `config:"list_chunk"`
+	Impersonate               string               `config:"impersonate"`
+	AlternateExport           bool                 `config:"alternate_export"`
+	UploadCutoff              fs.SizeSuffix        `config:"upload_cutoff"`
+	ChunkSize                 fs.SizeSuffix        `config:"chunk_size"`
+	AcknowledgeAbuse          bool                 `config:"acknowledge_abuse"`
+	KeepRevisionForever       bool                 `config:"keep_revision_forever"`
+	SizeAsQuota               bool                 `config:"size_as_quota"`
+	V2DownloadMinSize         fs.SizeSuffix        `config:"v2_download_min_size"`
+	PacerMinSleep             fs.Duration          `config:"pacer_min_sleep"`
+	PacerBurst                int                  `config:"pacer_burst"`
+	ServerSideAcrossConfigs   bool                 `config:"server_side_across_configs"`
+	DisableHTTP2              bool                 `config:"disable_http2"`
+	StopOnUploadLimit         bool                 `config:"stop_on_upload_limit"`
+	Enc                       encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote drive server
@@ -546,7 +595,7 @@ func (f *Fs) Features() *fs.Features {
 }
 
 // shouldRetry determines whether a given err rates being retried
-func shouldRetry(err error) (bool, error) {
+func (f *Fs) shouldRetry(err error) (bool, error) {
 	if err == nil {
 		return false, nil
 	}
@@ -562,6 +611,10 @@ func shouldRetry(err error) (bool, error) {
 		if len(gerr.Errors) > 0 {
 			reason := gerr.Errors[0].Reason
 			if reason == "rateLimitExceeded" || reason == "userRateLimitExceeded" {
+				if f.opt.StopOnUploadLimit && gerr.Errors[0].Message == "User rate limit exceeded." {
+					fs.Errorf(f, "Received upload limit error: %v", err)
+					return false, fserrors.FatalError(err)
+				}
 				return true, err
 			}
 		}
@@ -598,7 +651,7 @@ func (f *Fs) getRootID() (string, error) {
 			Fields("id").
 			SupportsAllDrives(true).
 			Do()
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err != nil {
 		return "", errors.Wrap(err, "couldn't find root directory ID")
@@ -643,7 +696,7 @@ func (f *Fs) list(ctx context.Context, dirIDs []string, title string, directorie
 	}
 	var stems []string
 	if title != "" {
-		searchTitle := enc.FromStandardName(title)
+		searchTitle := f.opt.Enc.FromStandardName(title)
 		// Escaping the backslash isn't documented but seems to work
 		searchTitle = strings.Replace(searchTitle, `\`, `\\`, -1)
 		searchTitle = strings.Replace(searchTitle, `'`, `\'`, -1)
@@ -694,6 +747,9 @@ func (f *Fs) list(ctx context.Context, dirIDs []string, title string, directorie
 	if f.opt.AuthOwnerOnly {
 		fields += ",owners"
 	}
+	if f.opt.UseSharedDate {
+		fields += ",sharedWithMeTime"
+	}
 	if f.opt.SkipChecksumGphotos {
 		fields += ",spaces"
 	}
@@ -701,20 +757,23 @@ func (f *Fs) list(ctx context.Context, dirIDs []string, title string, directorie
 		fields += ",quotaBytesUsed"
 	}
 
-	fields = fmt.Sprintf("files(%s),nextPageToken", fields)
+	fields = fmt.Sprintf("files(%s),nextPageToken,incompleteSearch", fields)
 
 OUTER:
 	for {
 		var files *drive.FileList
 		err = f.pacer.Call(func() (bool, error) {
 			files, err = list.Fields(googleapi.Field(fields)).Context(ctx).Do()
-			return shouldRetry(err)
+			return f.shouldRetry(err)
 		})
 		if err != nil {
 			return false, errors.Wrap(err, "couldn't list directory")
 		}
+		if files.IncompleteSearch {
+			fs.Errorf(f, "search result INCOMPLETE")
+		}
 		for _, item := range files.Files {
-			item.Name = enc.ToStandardName(item.Name)
+			item.Name = f.opt.Enc.ToStandardName(item.Name)
 			// Check the case of items is correct since
 			// the `=` operator is case insensitive.
 			if title != "" && title != item.Name {
@@ -845,11 +904,12 @@ func configTeamDrive(ctx context.Context, opt *Options, m configmap.Mapper, name
 	var driveIDs, driveNames []string
 	listTeamDrives := svc.Teamdrives.List().PageSize(100)
 	listFailed := false
+	var defaultFs Fs // default Fs with default Options
 	for {
 		var teamDrives *drive.TeamDriveList
 		err = newPacer(opt).Call(func() (bool, error) {
 			teamDrives, err = listTeamDrives.Context(ctx).Do()
-			return shouldRetry(err)
+			return defaultFs.shouldRetry(err)
 		})
 		if err != nil {
 			fmt.Printf("Listing team drives failed: %v\n", err)
@@ -1021,11 +1081,11 @@ func NewFs(name, path string, m configmap.Mapper) (fs.Fs, error) {
 	}
 
 	// set root folder for a team drive or query the user root folder
-	if f.isTeamDrive {
-		f.rootFolderID = f.opt.TeamDriveID
-	} else if opt.RootFolderID != "" {
+	if opt.RootFolderID != "" {
 		// override root folder if set or cached in the config
 		f.rootFolderID = opt.RootFolderID
+	} else if f.isTeamDrive {
+		f.rootFolderID = f.opt.TeamDriveID
 	} else {
 		// Look up the root ID and cache it in the config
 		rootID, err := f.getRootID()
@@ -1095,6 +1155,8 @@ func (f *Fs) newBaseObject(remote string, info *drive.File) baseObject {
 	modifiedDate := info.ModifiedTime
 	if f.opt.UseCreatedDate {
 		modifiedDate = info.CreatedTime
+	} else if f.opt.UseSharedDate && info.SharedWithMeTime != "" {
+		modifiedDate = info.SharedWithMeTime
 	}
 	size := info.Size
 	if f.opt.SizeAsQuota {
@@ -1273,7 +1335,7 @@ func (f *Fs) FindLeaf(ctx context.Context, pathID, leaf string) (pathIDOut strin
 
 // CreateDir makes a directory with pathID as parent and name leaf
 func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, err error) {
-	leaf = enc.FromStandardName(leaf)
+	leaf = f.opt.Enc.FromStandardName(leaf)
 	// fmt.Println("Making", path)
 	// Define the metadata for the directory we are going to create.
 	createInfo := &drive.File{
@@ -1288,7 +1350,7 @@ func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, 
 			Fields("id").
 			SupportsAllDrives(true).
 			Do()
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err != nil {
 		return "", err
@@ -1331,7 +1393,7 @@ func (f *Fs) fetchFormats() {
 			about, err = f.svc.About.Get().
 				Fields("exportFormats,importFormats").
 				Do()
-			return shouldRetry(err)
+			return f.shouldRetry(err)
 		})
 		if err != nil {
 			fs.Errorf(f, "Failed to get Drive exportFormats and importFormats: %v", err)
@@ -1463,6 +1525,14 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 	if iErr != nil {
 		return nil, iErr
 	}
+	// If listing the root of a teamdrive and got no entries,
+	// double check we have access
+	if f.isTeamDrive && len(entries) == 0 && f.root == "" && dir == "" {
+		err = f.teamDriveOK(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return entries, nil
 }
 
@@ -1521,15 +1591,23 @@ func (f *Fs) listRRunner(ctx context.Context, wg *sync.WaitGroup, in <-chan list
 		listRSlices{dirs, paths}.Sort()
 		var iErr error
 		_, err := f.list(ctx, dirs, "", false, false, false, func(item *drive.File) bool {
-			// shared with me items have no parents when at the root
-			if f.opt.SharedWithMe && len(item.Parents) == 0 && len(paths) == 1 && paths[0] == "" {
-				item.Parents = dirs
-			}
 			for _, parent := range item.Parents {
-				// only handle parents that are in the requested dirs list
-				i := sort.SearchStrings(dirs, parent)
-				if i == len(dirs) || dirs[i] != parent {
-					continue
+				var i int
+				// If only one item in paths then no need to search for the ID
+				// assuming google drive is doing its job properly.
+				//
+				// Note that we at the root when len(paths) == 1 && paths[0] == ""
+				if len(paths) == 1 {
+					// don't check parents at root because
+					// - shared with me items have no parents at the root
+					// - if using a root alias, eg "root" or "appDataFolder" the ID won't match
+					i = 0
+				} else {
+					// only handle parents that are in the requested dirs list if not at root
+					i = sort.SearchStrings(dirs, parent)
+					if i == len(dirs) || dirs[i] != parent {
+						continue
+					}
 				}
 				remote := path.Join(paths[i], item.Name)
 				entry, err := f.itemToDirEntry(remote, item)
@@ -1600,6 +1678,7 @@ func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (
 	out := make(chan error, fs.Config.Checkers)
 	list := walk.NewListRHelper(callback)
 	overflow := []listREntry{}
+	listed := 0
 
 	cb := func(entry fs.DirEntry) error {
 		mu.Lock()
@@ -1612,6 +1691,7 @@ func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (
 				overflow = append(overflow, listREntry{d.ID(), d.Remote()})
 			}
 		}
+		listed++
 		return list.Add(entry)
 	}
 
@@ -1668,7 +1748,21 @@ func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (
 		return err
 	}
 
-	return list.Flush()
+	err = list.Flush()
+	if err != nil {
+		return err
+	}
+
+	// If listing the root of a teamdrive and got no entries,
+	// double check we have access
+	if f.isTeamDrive && listed == 0 && f.root == "" && dir == "" {
+		err = f.teamDriveOK(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // itemToDirEntry converts a drive.File to a fs.DirEntry.
@@ -1699,7 +1793,7 @@ func (f *Fs) createFileInfo(ctx context.Context, remote string, modTime time.Tim
 		return nil, err
 	}
 
-	leaf = enc.FromStandardName(leaf)
+	leaf = f.opt.Enc.FromStandardName(leaf)
 	// Define the metadata for the file we are going to create.
 	createInfo := &drive.File{
 		Name:         leaf,
@@ -1773,7 +1867,7 @@ func (f *Fs) PutUnchecked(ctx context.Context, in io.Reader, src fs.ObjectInfo, 
 	}
 
 	var info *drive.File
-	if size == 0 || size < int64(f.opt.UploadCutoff) {
+	if size >= 0 && size < int64(f.opt.UploadCutoff) {
 		// Make the API request to upload metadata and file data.
 		// Don't retry, return a retry error instead
 		err = f.pacer.CallNoRetry(func() (bool, error) {
@@ -1783,7 +1877,7 @@ func (f *Fs) PutUnchecked(ctx context.Context, in io.Reader, src fs.ObjectInfo, 
 				SupportsAllDrives(true).
 				KeepRevisionForever(f.opt.KeepRevisionForever).
 				Do()
-			return shouldRetry(err)
+			return f.shouldRetry(err)
 		})
 		if err != nil {
 			return nil, err
@@ -1826,7 +1920,7 @@ func (f *Fs) MergeDirs(ctx context.Context, dirs []fs.Directory) error {
 					Fields("").
 					SupportsAllDrives(true).
 					Do()
-				return shouldRetry(err)
+				return f.shouldRetry(err)
 			})
 			if err != nil {
 				return errors.Wrapf(err, "MergeDirs move failed on %q in %v", info.Name, srcDir)
@@ -1872,7 +1966,7 @@ func (f *Fs) rmdir(ctx context.Context, directoryID string, useTrash bool) error
 				SupportsAllDrives(true).
 				Do()
 		}
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 }
 
@@ -1970,7 +2064,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 			SupportsAllDrives(true).
 			KeepRevisionForever(f.opt.KeepRevisionForever).
 			Do()
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err != nil {
 		return nil, err
@@ -2019,7 +2113,7 @@ func (f *Fs) Purge(ctx context.Context) error {
 				SupportsAllDrives(true).
 				Do()
 		}
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	f.dirCache.ResetRoot()
 	if err != nil {
@@ -2032,7 +2126,7 @@ func (f *Fs) Purge(ctx context.Context) error {
 func (f *Fs) CleanUp(ctx context.Context) error {
 	err := f.pacer.Call(func() (bool, error) {
 		err := f.svc.Files.EmptyTrash().Context(ctx).Do()
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 
 	if err != nil {
@@ -2041,9 +2135,30 @@ func (f *Fs) CleanUp(ctx context.Context) error {
 	return nil
 }
 
+// teamDriveOK checks to see if we can access the team drive
+func (f *Fs) teamDriveOK(ctx context.Context) (err error) {
+	if !f.isTeamDrive {
+		return nil
+	}
+	var td *drive.Drive
+	err = f.pacer.Call(func() (bool, error) {
+		td, err = f.svc.Drives.Get(f.opt.TeamDriveID).Fields("name,id,capabilities,createdTime,restrictions").Context(ctx).Do()
+		return f.shouldRetry(err)
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to get Team/Shared Drive info")
+	}
+	fs.Debugf(f, "read info from team drive %q", td.Name)
+	return err
+}
+
 // About gets quota information
 func (f *Fs) About(ctx context.Context) (*fs.Usage, error) {
 	if f.isTeamDrive {
+		err := f.teamDriveOK(ctx)
+		if err != nil {
+			return nil, err
+		}
 		// Teamdrives don't appear to have a usage API so just return empty
 		return &fs.Usage{}, nil
 	}
@@ -2051,7 +2166,7 @@ func (f *Fs) About(ctx context.Context) (*fs.Usage, error) {
 	var err error
 	err = f.pacer.Call(func() (bool, error) {
 		about, err = f.svc.About.Get().Fields("storageQuota").Context(ctx).Do()
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get Drive storageQuota")
@@ -2123,7 +2238,7 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 			Fields(partialFields).
 			SupportsAllDrives(true).
 			Do()
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err != nil {
 		return nil, err
@@ -2159,7 +2274,7 @@ func (f *Fs) PublicLink(ctx context.Context, remote string) (link string, err er
 			Fields("").
 			SupportsAllDrives(true).
 			Do()
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err != nil {
 		return "", err
@@ -2259,7 +2374,7 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 			Fields("").
 			SupportsAllDrives(true).
 			Do()
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err != nil {
 		return err
@@ -2325,7 +2440,7 @@ func (f *Fs) changeNotifyStartPageToken() (pageToken string, err error) {
 			changes.DriveId(f.opt.TeamDriveID)
 		}
 		startPageToken, err = changes.Do()
-		return shouldRetry(err)
+		return f.shouldRetry(err)
 	})
 	if err != nil {
 		return
@@ -2354,7 +2469,7 @@ func (f *Fs) changeNotifyRunner(ctx context.Context, notifyFunc func(string, fs.
 				changesCall.Spaces("appDataFolder")
 			}
 			changeList, err = changesCall.Context(ctx).Do()
-			return shouldRetry(err)
+			return f.shouldRetry(err)
 		})
 		if err != nil {
 			return
@@ -2377,7 +2492,7 @@ func (f *Fs) changeNotifyRunner(ctx context.Context, notifyFunc func(string, fs.
 
 			// find the new path
 			if change.File != nil {
-				change.File.Name = enc.ToStandardName(change.File.Name)
+				change.File.Name = f.opt.Enc.ToStandardName(change.File.Name)
 				changeType := fs.EntryDirectory
 				if change.File.MimeType != driveFolderType {
 					changeType = fs.EntryObject
@@ -2545,7 +2660,7 @@ func (o *baseObject) SetModTime(ctx context.Context, modTime time.Time) error {
 			Fields(partialFields).
 			SupportsAllDrives(true).
 			Do()
-		return shouldRetry(err)
+		return o.fs.shouldRetry(err)
 	})
 	if err != nil {
 		return err
@@ -2584,7 +2699,7 @@ func (o *baseObject) httpResponse(ctx context.Context, url, method string, optio
 				_ = res.Body.Close() // ignore error
 			}
 		}
-		return shouldRetry(err)
+		return o.fs.shouldRetry(err)
 	})
 	if err != nil {
 		return req, nil, err
@@ -2674,7 +2789,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 				Fields("downloadUrl").
 				SupportsAllDrives(true).
 				Do()
-			return shouldRetry(err)
+			return o.fs.shouldRetry(err)
 		})
 		if err == nil {
 			fs.Debugf(o, "Using v2 download: %v", v2File.DownloadUrl)
@@ -2746,7 +2861,7 @@ func (o *baseObject) update(ctx context.Context, updateInfo *drive.File, uploadM
 	src fs.ObjectInfo) (info *drive.File, err error) {
 	// Make the API request to upload metadata and file data.
 	size := src.Size()
-	if size == 0 || size < int64(o.fs.opt.UploadCutoff) {
+	if size >= 0 && size < int64(o.fs.opt.UploadCutoff) {
 		// Don't retry, return a retry error instead
 		err = o.fs.pacer.CallNoRetry(func() (bool, error) {
 			info, err = o.fs.svc.Files.Update(o.id, updateInfo).
@@ -2755,7 +2870,7 @@ func (o *baseObject) update(ctx context.Context, updateInfo *drive.File, uploadM
 				SupportsAllDrives(true).
 				KeepRevisionForever(o.fs.opt.KeepRevisionForever).
 				Do()
-			return shouldRetry(err)
+			return o.fs.shouldRetry(err)
 		})
 		return
 	}
@@ -2855,7 +2970,7 @@ func (o *baseObject) Remove(ctx context.Context) error {
 				SupportsAllDrives(true).
 				Do()
 		}
-		return shouldRetry(err)
+		return o.fs.shouldRetry(err)
 	})
 	return err
 }

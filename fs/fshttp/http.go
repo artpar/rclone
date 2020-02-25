@@ -149,11 +149,11 @@ func NewTransportCustom(ci *fs.ConfigInfo, customize func(*http.Transport)) http
 	// Load client certs
 	if ci.ClientCert != "" || ci.ClientKey != "" {
 		if ci.ClientCert == "" || ci.ClientKey == "" {
-			log.Fatalf("Both --client-cert and --client-key must be set")
+			log.Printf("Both --client-cert and --client-key must be set")
 		}
 		cert, err := tls.LoadX509KeyPair(ci.ClientCert, ci.ClientKey)
 		if err != nil {
-			log.Fatalf("Failed to load --client-cert/--client-key pair: %v", err)
+			log.Printf("Failed to load --client-cert/--client-key pair: %v", err)
 		}
 		t.TLSClientConfig.Certificates = []tls.Certificate{cert}
 		t.TLSClientConfig.BuildNameToCertificate()
@@ -163,12 +163,12 @@ func NewTransportCustom(ci *fs.ConfigInfo, customize func(*http.Transport)) http
 	if ci.CaCert != "" {
 		caCert, err := ioutil.ReadFile(ci.CaCert)
 		if err != nil {
-			log.Fatalf("Failed to read --ca-cert: %v", err)
+			log.Printf("Failed to read --ca-cert: %v", err)
 		}
 		caCertPool := x509.NewCertPool()
 		ok := caCertPool.AppendCertsFromPEM(caCert)
 		if !ok {
-			log.Fatalf("Failed to add certificates from --ca-cert")
+			log.Printf("Failed to add certificates from --ca-cert")
 		}
 		t.TLSClientConfig.RootCAs = caCertPool
 	}
@@ -178,7 +178,14 @@ func NewTransportCustom(ci *fs.ConfigInfo, customize func(*http.Transport)) http
 		return dialContextTimeout(ctx, network, addr, ci)
 	}
 	t.IdleConnTimeout = 60 * time.Second
-	t.ExpectContinueTimeout = ci.ConnectTimeout
+	t.ExpectContinueTimeout = ci.ExpectContinueTimeout
+
+	if ci.Dump&(fs.DumpHeaders|fs.DumpBodies|fs.DumpAuth|fs.DumpRequests|fs.DumpResponses) != 0 {
+		fs.Debugf(nil, "You have specified to dump information. Please be noted that the "+
+			"Accept-Encoding as shown may not be correct in the request and the response may not show "+
+			"Content-Encoding if the go standard libraries auto gzip encoding was in effect. In this case"+
+			" the body of the request will be gunzipped before showing it.")
+	}
 
 	// customize the transport if required
 	if customize != nil {

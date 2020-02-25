@@ -270,6 +270,53 @@ func TestConfigLoadEncrypted(t *testing.T) {
 	assert.Equal(t, expect, keys)
 }
 
+func TestConfigLoadEncryptedWithValidPassCommand(t *testing.T) {
+	oldConfigPath := ConfigPath
+	oldConfig := fs.Config
+	ConfigPath = "./testdata/encrypted.conf"
+	// using fs.Config.PasswordCommand, correct password
+	fs.Config.PasswordCommand = fs.SpaceSepList{"echo", "asdf"}
+	defer func() {
+		ConfigPath = oldConfigPath
+		configKey = nil // reset password
+		fs.Config = oldConfig
+		fs.Config.PasswordCommand = nil
+	}()
+
+	configKey = nil // reset password
+
+	c, err := loadConfigFile()
+	require.NoError(t, err)
+
+	sections := c.GetSectionList()
+	var expect = []string{"nounc", "unc"}
+	assert.Equal(t, expect, sections)
+
+	keys := c.GetKeyList("nounc")
+	expect = []string{"type", "nounc"}
+	assert.Equal(t, expect, keys)
+}
+
+func TestConfigLoadEncryptedWithInvalidPassCommand(t *testing.T) {
+	oldConfigPath := ConfigPath
+	oldConfig := fs.Config
+	ConfigPath = "./testdata/encrypted.conf"
+	// using fs.Config.PasswordCommand, incorrect password
+	fs.Config.PasswordCommand = fs.SpaceSepList{"echo", "asdf-blurfl"}
+	defer func() {
+		ConfigPath = oldConfigPath
+		configKey = nil // reset password
+		fs.Config = oldConfig
+		fs.Config.PasswordCommand = nil
+	}()
+
+	configKey = nil // reset password
+
+	_, err := loadConfigFile()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "using --password-command derived password")
+}
+
 func TestConfigLoadEncryptedFailures(t *testing.T) {
 	var err error
 

@@ -242,16 +242,16 @@ To create and play with a Test object:
 		}
 		data, err := proto.Marshal(test)
 		if err != nil {
-			log.Fatal("marshaling error: ", err)
+			log.Print("marshaling error: ", err)
 		}
 		newTest := &pb.Test{}
 		err = proto.Unmarshal(data, newTest)
 		if err != nil {
-			log.Fatal("unmarshaling error: ", err)
+			log.Print("unmarshaling error: ", err)
 		}
 		// Now test and newTest contain the same data.
 		if test.GetLabel() != newTest.GetLabel() {
-			log.Fatalf("data mismatch %q != %q", test.GetLabel(), newTest.GetLabel())
+			log.Printf("data mismatch %q != %q", test.GetLabel(), newTest.GetLabel())
 		}
 		// Use a type switch to determine which oneof was set.
 		switch u := test.Union.(type) {

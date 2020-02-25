@@ -439,7 +439,7 @@ func (s *Server) RegisterService(sd *ServiceDesc, ss interface{}) {
 	ht := reflect.TypeOf(sd.HandlerType).Elem()
 	st := reflect.TypeOf(ss)
 	if !st.Implements(ht) {
-		grpclog.Fatalf("grpc: Server.RegisterService found the handler of type %v that does not satisfy %v", st, ht)
+		grpclog.Printf("grpc: Server.RegisterService found the handler of type %v that does not satisfy %v", st, ht)
 	}
 	s.register(sd, ss)
 }
@@ -449,10 +449,10 @@ func (s *Server) register(sd *ServiceDesc, ss interface{}) {
 	defer s.mu.Unlock()
 	s.printf("RegisterService(%q)", sd.ServiceName)
 	if s.serve {
-		grpclog.Fatalf("grpc: Server.RegisterService after Server.Serve for %q", sd.ServiceName)
+		grpclog.Printf("grpc: Server.RegisterService after Server.Serve for %q", sd.ServiceName)
 	}
 	if _, ok := s.m[sd.ServiceName]; ok {
-		grpclog.Fatalf("grpc: Server.RegisterService found duplicate service registration for %q", sd.ServiceName)
+		grpclog.Printf("grpc: Server.RegisterService found duplicate service registration for %q", sd.ServiceName)
 	}
 	srv := &service{
 		server: ss,

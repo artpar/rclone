@@ -14,7 +14,7 @@ func startBackgroundMode() bool {
 	cntxt := &daemon.Context{}
 	d, err := cntxt.Reborn()
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
 	}
 
 	if d != nil {

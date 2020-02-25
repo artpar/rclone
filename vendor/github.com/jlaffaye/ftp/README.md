@@ -18,18 +18,18 @@ go get -u github.com/jlaffaye/ftp
 ```go
 c, err := ftp.Dial("ftp.example.org:21", ftp.DialWithTimeout(5*time.Second))
 if err != nil {
-    log.Fatal(err)
+    log.Print(err)
 }
 
 err = c.Login("anonymous", "anonymous")
 if err != nil {
-    log.Fatal(err)
+    log.Print(err)
 }
 
 // Do something with the FTP conn
 
 if err := c.Quit(); err != nil {
-    log.Fatal(err)
+    log.Print(err)
 }
 ```
 

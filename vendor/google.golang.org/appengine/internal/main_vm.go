@@ -30,7 +30,7 @@ func Main() {
 		host = "127.0.0.1"
 	}
 	if err := http.ListenAndServe(host+":"+port, http.HandlerFunc(handleHTTP)); err != nil {
-		log.Fatalf("http.ListenAndServe: %v", err)
+		log.Printf("http.ListenAndServe: %v", err)
 	}
 }
 

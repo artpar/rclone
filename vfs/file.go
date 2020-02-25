@@ -37,13 +37,19 @@ type File struct {
 }
 
 // newFile creates a new File
+//
+// o may be nil
 func newFile(d *Dir, o fs.Object, leaf string) *File {
-	return &File{
+	f := &File{
 		d:     d,
 		o:     o,
 		leaf:  leaf,
 		inode: newInode(),
 	}
+	if o != nil {
+		f.size = o.Size()
+	}
+	return f
 }
 
 // String converts it to printable
@@ -82,11 +88,22 @@ func (f *File) Name() (name string) {
 	return f.leaf
 }
 
+// _path returns the full path of the file
+// use when lock is held
+func (f *File) _path() string {
+	return path.Join(f.d.path, f.leaf)
+}
+
 // Path returns the full path of the file
 func (f *File) Path() string {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	return path.Join(f.d.path, f.leaf)
+	return f._path()
+}
+
+// osPath returns the full path of the file in the cache in OS format
+func (f *File) osPath() string {
+	return f.d.vfs.cache.toOSPath(f.Path())
 }
 
 // Sys returns underlying data source (can be nil) - satisfies Node interface
@@ -126,27 +143,43 @@ func (f *File) applyPendingRename() {
 func (f *File) rename(ctx context.Context, destDir *Dir, newName string) error {
 	f.mu.RLock()
 	d := f.d
+	o := f.o
+	oldPendingRenameFun := f.pendingRenameFun
 	f.mu.RUnlock()
+
 	if features := d.f.Features(); features.Move == nil && features.Copy == nil {
 		err := errors.Errorf("Fs %q can't rename files (no server side Move or Copy)", d.f)
 		fs.Errorf(f.Path(), "Dir.Rename error: %v", err)
 		return err
 	}
 
+	newPath := path.Join(destDir.path, newName)
+
 	renameCall := func(ctx context.Context) error {
-		newPath := path.Join(destDir.path, newName)
+		// chain rename calls if any
+		if oldPendingRenameFun != nil {
+			err := oldPendingRenameFun(ctx)
+			if err != nil {
+				return err
+			}
+		}
+
+		f.mu.RLock()
+		o := f.o
+		f.mu.RUnlock()
+		if o == nil {
+			return errors.New("Cannot rename: file object is not available")
+		}
+		if o.Remote() == newPath {
+			return nil // no need to rename
+		}
+
+		// do the move of the remote object
 		dstOverwritten, _ := d.f.NewObject(ctx, newPath)
-		newObject, err := operations.Move(ctx, d.f, dstOverwritten, newPath, f.o)
+		newObject, err := operations.Move(ctx, d.f, dstOverwritten, newPath, o)
 		if err != nil {
 			fs.Errorf(f.Path(), "File.Rename error: %v", err)
 			return err
-		}
-
-		// Rename in the cache too if it exists
-		if f.d.vfs.Opt.CacheMode >= CacheModeWrites && f.d.vfs.cache.exists(f.Path()) {
-			if err := f.d.vfs.cache.rename(f.Path(), newPath); err != nil {
-				fs.Infof(f.Path(), "File.Rename failed in Cache: %v", err)
-			}
 		}
 
 		// newObject can be nil here for example if --dry-run
@@ -156,25 +189,32 @@ func (f *File) rename(ctx context.Context, destDir *Dir, newName string) error {
 			return err
 		}
 		// Update the node with the new details
-		fs.Debugf(f.o, "Updating file with %v %p", newObject, f)
+		fs.Debugf(o, "Updating file with %v %p", newObject, f)
 		// f.rename(destDir, newObject)
 		f.mu.Lock()
 		f.o = newObject
-		f.d = destDir
-		f.leaf = path.Base(newObject.Remote())
 		f.pendingRenameFun = nil
 		f.mu.Unlock()
 		return nil
 	}
 
-	f.mu.RLock()
+	// Rename in the cache if it exists
+	if f.d.vfs.Opt.CacheMode != CacheModeOff && f.d.vfs.cache.exists(f.Path()) {
+		if err := f.d.vfs.cache.rename(f.Path(), newPath); err != nil {
+			fs.Infof(f.Path(), "File.Rename failed in Cache: %v", err)
+		}
+	}
+
+	// rename the file object
+	f.mu.Lock()
+	f.d = destDir
+	f.leaf = newName
 	writing := f._writingInProgress()
-	f.mu.RUnlock()
+	f.mu.Unlock()
+
 	if writing {
-		fs.Debugf(f.o, "File is currently open, delaying rename %p", f)
+		fs.Debugf(o, "File is currently open, delaying rename %p", f)
 		f.mu.Lock()
-		f.d = destDir
-		f.leaf = newName
 		f.pendingRenameFun = renameCall
 		f.mu.Unlock()
 		return nil
@@ -338,6 +378,12 @@ func (f *File) _applyPendingModTime() error {
 		return errors.New("Cannot apply ModTime, file object is not available")
 	}
 
+	// set the time of the file in the cache
+	if f.d.vfs.Opt.CacheMode != CacheModeOff {
+		f.d.vfs.cache.setModTime(f._path(), f.pendingModTime)
+	}
+
+	// set the time of the object
 	err := f.o.SetModTime(context.TODO(), f.pendingModTime)
 	switch err {
 	case nil:
@@ -467,7 +513,7 @@ func (f *File) openRW(flags int) (fh *RWFileHandle, err error) {
 	}
 	// fs.Debugf(o, "File.openRW")
 
-	fh, err = newRWFileHandle(d, f, f.Path(), flags)
+	fh, err = newRWFileHandle(d, f, flags)
 	if err != nil {
 		fs.Errorf(f, "File.openRW failed: %v", err)
 		return nil, err

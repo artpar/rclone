@@ -80,13 +80,13 @@ func main() {
     
         err := yaml.Unmarshal([]byte(data), &t)
         if err != nil {
-                log.Fatalf("error: %v", err)
+                log.Printf("error: %v", err)
         }
         fmt.Printf("--- t:\n%v\n\n", t)
     
         d, err := yaml.Marshal(&t)
         if err != nil {
-                log.Fatalf("error: %v", err)
+                log.Printf("error: %v", err)
         }
         fmt.Printf("--- t dump:\n%s\n\n", string(d))
     
@@ -94,13 +94,13 @@ func main() {
     
         err = yaml.Unmarshal([]byte(data), &m)
         if err != nil {
-                log.Fatalf("error: %v", err)
+                log.Printf("error: %v", err)
         }
         fmt.Printf("--- m:\n%v\n\n", m)
     
         d, err = yaml.Marshal(&m)
         if err != nil {
-                log.Fatalf("error: %v", err)
+                log.Printf("error: %v", err)
         }
         fmt.Printf("--- m dump:\n%s\n\n", string(d))
 }

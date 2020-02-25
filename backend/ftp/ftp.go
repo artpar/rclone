@@ -14,16 +14,15 @@ import (
 	"github.com/jlaffaye/ftp"
 	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
 	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/readers"
 )
-
-const enc = encodings.FTP
 
 // Register with Fs
 func init() {
@@ -31,60 +30,70 @@ func init() {
 		Name:        "ftp",
 		Description: "FTP Connection",
 		NewFs:       NewFs,
-		Options: []fs.Option{
-			{
-				Name:     "host",
-				Help:     "FTP host to connect to",
-				Required: true,
-				Examples: []fs.OptionExample{{
-					Value: "ftp.example.com",
-					Help:  "Connect to ftp.example.com",
-				}},
-			}, {
-				Name: "user",
-				Help: "FTP username, leave blank for current username, " + os.Getenv("USER"),
-			}, {
-				Name: "port",
-				Help: "FTP port, leave blank to use default (21)",
-			}, {
-				Name:       "pass",
-				Help:       "FTP password",
-				IsPassword: true,
-				Required:   true,
-			}, {
-				Name:    "tls",
-				Help:    "Use FTP over TLS (Implicit)",
-				Default: false,
-			}, {
-				Name:     "concurrency",
-				Help:     "Maximum number of FTP simultaneous connections, 0 for unlimited",
-				Default:  0,
-				Advanced: true,
-			}, {
-				Name:     "no_check_certificate",
-				Help:     "Do not verify the TLS certificate of the server",
-				Default:  false,
-				Advanced: true,
-			}, {
-				Name:     "disable_epsv",
-				Help:     "Disable using EPSV even if server advertises support",
-				Default:  false,
-				Advanced: true,
-			},
-		},
+		Options: []fs.Option{{
+			Name:     "host",
+			Help:     "FTP host to connect to",
+			Required: true,
+			Examples: []fs.OptionExample{{
+				Value: "ftp.example.com",
+				Help:  "Connect to ftp.example.com",
+			}},
+		}, {
+			Name: "user",
+			Help: "FTP username, leave blank for current username, " + os.Getenv("USER"),
+		}, {
+			Name: "port",
+			Help: "FTP port, leave blank to use default (21)",
+		}, {
+			Name:       "pass",
+			Help:       "FTP password",
+			IsPassword: true,
+			Required:   true,
+		}, {
+			Name:    "tls",
+			Help:    "Use FTP over TLS (Implicit)",
+			Default: false,
+		}, {
+			Name:     "concurrency",
+			Help:     "Maximum number of FTP simultaneous connections, 0 for unlimited",
+			Default:  0,
+			Advanced: true,
+		}, {
+			Name:     "no_check_certificate",
+			Help:     "Do not verify the TLS certificate of the server",
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name:     "disable_epsv",
+			Help:     "Disable using EPSV even if server advertises support",
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			// The FTP protocal can't handle trailing spaces (for instance
+			// pureftpd turns them into _)
+			//
+			// proftpd can't handle '*' in file names
+			// pureftpd can't handle '[', ']' or '*'
+			Default: (encoder.Display |
+				encoder.EncodeRightSpace),
+		}},
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
-	Host              string `config:"host"`
-	User              string `config:"user"`
-	Pass              string `config:"pass"`
-	Port              string `config:"port"`
-	TLS               bool   `config:"tls"`
-	Concurrency       int    `config:"concurrency"`
-	SkipVerifyTLSCert bool   `config:"no_check_certificate"`
-	DisableEPSV       bool   `config:"disable_epsv"`
+	Host              string               `config:"host"`
+	User              string               `config:"user"`
+	Pass              string               `config:"pass"`
+	Port              string               `config:"port"`
+	TLS               bool                 `config:"tls"`
+	Concurrency       int                  `config:"concurrency"`
+	SkipVerifyTLSCert bool                 `config:"no_check_certificate"`
+	DisableEPSV       bool                 `config:"disable_epsv"`
+	Enc               encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote FTP server
@@ -181,7 +190,11 @@ func (f *Fs) getFtpConnection() (c *ftp.ServerConn, err error) {
 	if c != nil {
 		return c, nil
 	}
-	return f.ftpConnection()
+	c, err = f.ftpConnection()
+	if err != nil && f.opt.Concurrency > 0 {
+		f.tokens.Put()
+	}
+	return c, err
 }
 
 // Return an FTP connection to the pool
@@ -194,7 +207,13 @@ func (f *Fs) putFtpConnection(pc **ftp.ServerConn, err error) {
 	if f.opt.Concurrency > 0 {
 		defer f.tokens.Put()
 	}
+	if pc == nil {
+		return
+	}
 	c := *pc
+	if c == nil {
+		return
+	}
 	*pc = nil
 	if err != nil {
 		// If not a regular FTP error code then check the connection
@@ -308,22 +327,22 @@ func translateErrorDir(err error) error {
 }
 
 // entryToStandard converts an incoming ftp.Entry to Standard encoding
-func entryToStandard(entry *ftp.Entry) {
+func (f *Fs) entryToStandard(entry *ftp.Entry) {
 	// Skip . and .. as we don't want these encoded
 	if entry.Name == "." || entry.Name == ".." {
 		return
 	}
-	entry.Name = enc.ToStandardName(entry.Name)
-	entry.Target = enc.ToStandardPath(entry.Target)
+	entry.Name = f.opt.Enc.ToStandardName(entry.Name)
+	entry.Target = f.opt.Enc.ToStandardPath(entry.Target)
 }
 
 // dirFromStandardPath returns dir in encoded form.
-func dirFromStandardPath(dir string) string {
+func (f *Fs) dirFromStandardPath(dir string) string {
 	// Skip . and .. as we don't want these encoded
 	if dir == "." || dir == ".." {
 		return dir
 	}
-	return enc.FromStandardPath(dir)
+	return f.opt.Enc.FromStandardPath(dir)
 }
 
 // findItem finds a directory entry for the name in its parent directory
@@ -345,13 +364,13 @@ func (f *Fs) findItem(remote string) (entry *ftp.Entry, err error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "findItem")
 	}
-	files, err := c.List(dirFromStandardPath(dir))
+	files, err := c.List(f.dirFromStandardPath(dir))
 	f.putFtpConnection(&c, err)
 	if err != nil {
 		return nil, translateErrorFile(err)
 	}
 	for _, file := range files {
-		entryToStandard(file)
+		f.entryToStandard(file)
 		if file.Name == base {
 			return file, nil
 		}
@@ -418,7 +437,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 	resultchan := make(chan []*ftp.Entry, 1)
 	errchan := make(chan error, 1)
 	go func() {
-		result, err := c.List(dirFromStandardPath(path.Join(f.root, dir)))
+		result, err := c.List(f.dirFromStandardPath(path.Join(f.root, dir)))
 		f.putFtpConnection(&c, err)
 		if err != nil {
 			errchan <- err
@@ -455,7 +474,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 	}
 	for i := range files {
 		object := files[i]
-		entryToStandard(object)
+		f.entryToStandard(object)
 		newremote := path.Join(dir, object.Name)
 		switch object.Type {
 		case ftp.EntryTypeFolder:
@@ -525,7 +544,7 @@ func (f *Fs) getInfo(remote string) (fi *FileInfo, err error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "getInfo")
 	}
-	files, err := c.List(dirFromStandardPath(dir))
+	files, err := c.List(f.dirFromStandardPath(dir))
 	f.putFtpConnection(&c, err)
 	if err != nil {
 		return nil, translateErrorFile(err)
@@ -533,7 +552,7 @@ func (f *Fs) getInfo(remote string) (fi *FileInfo, err error) {
 
 	for i := range files {
 		file := files[i]
-		entryToStandard(file)
+		f.entryToStandard(file)
 		if file.Name == base {
 			info := &FileInfo{
 				Name:    remote,
@@ -571,7 +590,7 @@ func (f *Fs) mkdir(abspath string) error {
 	if connErr != nil {
 		return errors.Wrap(connErr, "mkdir")
 	}
-	err = c.MakeDir(dirFromStandardPath(abspath))
+	err = c.MakeDir(f.dirFromStandardPath(abspath))
 	f.putFtpConnection(&c, err)
 	switch errX := err.(type) {
 	case *textproto.Error:
@@ -607,7 +626,7 @@ func (f *Fs) Rmdir(ctx context.Context, dir string) error {
 	if err != nil {
 		return errors.Wrap(translateErrorFile(err), "Rmdir")
 	}
-	err = c.RemoveDir(dirFromStandardPath(path.Join(f.root, dir)))
+	err = c.RemoveDir(f.dirFromStandardPath(path.Join(f.root, dir)))
 	f.putFtpConnection(&c, err)
 	return translateErrorDir(err)
 }
@@ -628,8 +647,8 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 		return nil, errors.Wrap(err, "Move")
 	}
 	err = c.Rename(
-		enc.FromStandardPath(path.Join(srcObj.fs.root, srcObj.remote)),
-		enc.FromStandardPath(path.Join(f.root, remote)),
+		f.opt.Enc.FromStandardPath(path.Join(srcObj.fs.root, srcObj.remote)),
+		f.opt.Enc.FromStandardPath(path.Join(f.root, remote)),
 	)
 	f.putFtpConnection(&c, err)
 	if err != nil {
@@ -682,8 +701,8 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 		return errors.Wrap(err, "DirMove")
 	}
 	err = c.Rename(
-		dirFromStandardPath(srcPath),
-		dirFromStandardPath(dstPath),
+		f.dirFromStandardPath(srcPath),
+		f.dirFromStandardPath(dstPath),
 	)
 	f.putFtpConnection(&c, err)
 	if err != nil {
@@ -769,11 +788,13 @@ func (f *ftpReadCloser) Close() error {
 	case <-timer.C:
 		// if timer fired assume no error but connection dead
 		fs.Errorf(f.f, "Timeout when waiting for connection Close")
+		f.f.putFtpConnection(nil, nil)
 		return nil
 	}
 	// if errors while reading or closing, dump the connection
 	if err != nil || f.err != nil {
 		_ = f.c.Quit()
+		f.f.putFtpConnection(nil, nil)
 	} else {
 		f.f.putFtpConnection(&f.c, nil)
 	}
@@ -809,7 +830,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (rc io.Read
 	if err != nil {
 		return nil, errors.Wrap(err, "open")
 	}
-	fd, err := c.RetrFrom(enc.FromStandardPath(path), uint64(offset))
+	fd, err := c.RetrFrom(o.fs.opt.Enc.FromStandardPath(path), uint64(offset))
 	if err != nil {
 		o.fs.putFtpConnection(&c, err)
 		return nil, errors.Wrap(err, "open")
@@ -844,10 +865,11 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 	if err != nil {
 		return errors.Wrap(err, "Update")
 	}
-	err = c.Stor(enc.FromStandardPath(path), in)
+	err = c.Stor(o.fs.opt.Enc.FromStandardPath(path), in)
 	if err != nil {
 		_ = c.Quit() // toss this connection to avoid sync errors
 		remove()
+		o.fs.putFtpConnection(nil, err)
 		return errors.Wrap(err, "update stor")
 	}
 	o.fs.putFtpConnection(&c, nil)
@@ -874,7 +896,7 @@ func (o *Object) Remove(ctx context.Context) (err error) {
 		if err != nil {
 			return errors.Wrap(err, "Remove")
 		}
-		err = c.Delete(enc.FromStandardPath(path))
+		err = c.Delete(o.fs.opt.Enc.FromStandardPath(path))
 		o.fs.putFtpConnection(&c, err)
 	}
 	return err

@@ -107,7 +107,19 @@ Default https://api.github.com/repos/artpar/rclone-webui-react/releases/latest.
 
 ### --rc-web-gui-update
 
-Set this flag to Download / Force update rclone-webui-react from the rc-web-fetch-url.
+Set this flag to check and update rclone-webui-react from the rc-web-fetch-url.
+
+Default Off.
+
+### --rc-web-gui-force-update
+
+Set this flag to force update rclone-webui-react from the rc-web-fetch-url.
+
+Default Off.
+
+### --rc-web-gui-no-open-browser
+
+Set this flag to disable opening browser automatically when using web-gui.
 
 Default Off.
 
@@ -519,10 +531,18 @@ Returns the following values:
 Values for "transferring", "checking" and "lastError" are only assigned if data is available.
 The value for "eta" is null if an eta cannot be determined.
 
+### core/stats-delete: Delete stats group. {#core/stats-delete}
+
+This deletes entire stats group
+
+Parameters
+
+- group - name of the stats group (string)
+
 ### core/stats-reset: Reset stats. {#core/stats-reset}
 
-This clears counters and errors for all stats or specific stats group if group
-is provided.
+This clears counters, errors and finished transfers for all stats or specific 
+stats group if group is provided.
 
 Parameters
 

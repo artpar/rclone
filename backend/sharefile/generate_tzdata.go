@@ -17,6 +17,6 @@ func main() {
 		VariableName: "tzdata",
 	})
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
 	}
 }

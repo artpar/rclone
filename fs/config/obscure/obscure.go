@@ -62,7 +62,7 @@ func Obscure(x string) (string, error) {
 func MustObscure(x string) string {
 	out, err := Obscure(x)
 	if err != nil {
-		log.Fatalf("Obscure failed: %v", err)
+		log.Printf("Obscure failed: %v", err)
 	}
 	return out
 }
@@ -88,7 +88,7 @@ func Reveal(x string) (string, error) {
 func MustReveal(x string) string {
 	out, err := Reveal(x)
 	if err != nil {
-		log.Fatalf("Reveal failed: %v", err)
+		log.Printf("Reveal failed: %v", err)
 	}
 	return out
 }

@@ -17,7 +17,7 @@ var (
 func init() {
 	cmd.Root.AddCommand(commandDefinition)
 	cmdFlag := commandDefinition.Flags()
-	flags.FVarP(cmdFlag, &dedupeMode, "dedupe-mode", "", "Dedupe mode interactive|skip|first|newest|oldest|rename.")
+	flags.FVarP(cmdFlag, &dedupeMode, "dedupe-mode", "", "Dedupe mode interactive|skip|first|newest|oldest|largest|smallest|rename.")
 }
 
 var commandDefinition = &cobra.Command{
@@ -94,6 +94,7 @@ Dedupe can be run non interactively using the ` + "`" + `--dedupe-mode` + "`" + 
   * ` + "`" + `--dedupe-mode newest` + "`" + ` - removes identical files then keeps the newest one.
   * ` + "`" + `--dedupe-mode oldest` + "`" + ` - removes identical files then keeps the oldest one.
   * ` + "`" + `--dedupe-mode largest` + "`" + ` - removes identical files then keeps the largest one.
+  * ` + "`" + `--dedupe-mode smallest` + "`" + ` - removes identical files then keeps the smallest one.
   * ` + "`" + `--dedupe-mode rename` + "`" + ` - removes identical files then renames the rest to be different.
 
 For example to rename all the identically named photos in your Google Photos directory, do
@@ -109,7 +110,7 @@ Or
 		if len(args) > 1 {
 			err := dedupeMode.Set(args[0])
 			if err != nil {
-				log.Fatal(err)
+				log.Print(err)
 			}
 			args = args[1:]
 		}

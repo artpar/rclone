@@ -31,22 +31,21 @@ import (
 	"github.com/pkg/errors"
 	"github.com/artpar/rclone/backend/premiumizeme/api"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
 	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/oauthutil"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/random"
 	"github.com/artpar/rclone/lib/rest"
 	"golang.org/x/oauth2"
 )
-
-const enc = encodings.PremiumizeMe
 
 const (
 	rcloneClientID              = "658922194"
@@ -82,7 +81,7 @@ func init() {
 		Config: func(name string, m configmap.Mapper) {
 			err := oauthutil.Config("premiumizeme", name, m, oauthConfig)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 			}
 		},
 		Options: []fs.Option{{
@@ -93,13 +92,23 @@ This is not normally used - use oauth instead.
 `,
 			Hide:    fs.OptionHideBoth,
 			Default: "",
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			// Encode invalid UTF-8 bytes as json doesn't handle them properly.
+			Default: (encoder.Display |
+				encoder.EncodeBackSlash |
+				encoder.EncodeDoubleQuote |
+				encoder.EncodeInvalidUtf8),
 		}},
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
-	APIKey string `config:"api_key"`
+	APIKey string               `config:"api_key"`
+	Enc    encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote cloud storage system
@@ -306,14 +315,6 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	return f, nil
 }
 
-// rootSlash returns root with a slash on if it is empty, otherwise empty string
-func (f *Fs) rootSlash() string {
-	if f.root == "" {
-		return f.root
-	}
-	return f.root + "/"
-}
-
 // Return an Object from a path
 //
 // If it can't be found it returns the error fs.ErrorObjectNotFound.
@@ -364,7 +365,7 @@ func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, 
 		Path:       "/folder/create",
 		Parameters: f.baseParams(),
 		MultipartParams: url.Values{
-			"name":      {enc.FromStandardName(leaf)},
+			"name":      {f.opt.Enc.FromStandardName(leaf)},
 			"parent_id": {pathID},
 		},
 	}
@@ -429,7 +430,7 @@ func (f *Fs) listAll(ctx context.Context, dirID string, directoriesOnly bool, fi
 			fs.Debugf(f, "Ignoring %q - unknown type %q", item.Name, item.Type)
 			continue
 		}
-		item.Name = enc.ToStandardName(item.Name)
+		item.Name = f.opt.Enc.ToStandardName(item.Name)
 		if fn(item) {
 			found = true
 			break
@@ -637,8 +638,8 @@ func (f *Fs) Purge(ctx context.Context) error {
 // between directories and a separate one to rename them.  We try to
 // call the minimum number of API calls.
 func (f *Fs) move(ctx context.Context, isFile bool, id, oldLeaf, newLeaf, oldDirectoryID, newDirectoryID string) (err error) {
-	newLeaf = enc.FromStandardName(newLeaf)
-	oldLeaf = enc.FromStandardName(oldLeaf)
+	newLeaf = f.opt.Enc.FromStandardName(newLeaf)
+	oldLeaf = f.opt.Enc.FromStandardName(oldLeaf)
 	doRenameLeaf := oldLeaf != newLeaf
 	doMove := oldDirectoryID != newDirectoryID
 
@@ -889,11 +890,6 @@ func (o *Object) Remote() string {
 	return o.remote
 }
 
-// srvPath returns a path for use in server
-func (o *Object) srvPath() string {
-	return enc.FromStandardPath(o.fs.rootSlash() + o.remote)
-}
-
 // Hash returns the SHA-1 of an object returning a lowercase hex string
 func (o *Object) Hash(ctx context.Context, t hash.Type) (string, error) {
 	return "", hash.ErrUnsupported
@@ -984,14 +980,6 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 	return resp.Body, err
 }
 
-// metaHash returns a rough hash of metadata to detect if object has been updated
-func (o *Object) metaHash() string {
-	if !o.hasMetaData {
-		return ""
-	}
-	return fmt.Sprintf("remote=%q, size=%d, modTime=%v, id=%q, mimeType=%q", o.remote, o.size, o.modTime, o.id, o.mimeType)
-}
-
 // Update the object with the contents of the io.Reader, modTime and size
 //
 // If existing is set then it updates the object rather than creating a new one
@@ -1006,7 +994,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 	if err != nil {
 		return err
 	}
-	leaf = enc.FromStandardName(leaf)
+	leaf = o.fs.opt.Enc.FromStandardName(leaf)
 
 	var resp *http.Response
 	var info api.FolderUploadinfoResponse

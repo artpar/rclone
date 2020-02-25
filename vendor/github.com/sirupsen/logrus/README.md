@@ -204,7 +204,7 @@ func main() {
 #### Fields
 
 Logrus encourages careful, structured logging through logging fields instead of
-long, unparseable error messages. For example, instead of: `log.Fatalf("Failed
+long, unparseable error messages. For example, instead of: `log.Printf("Failed
 to send event %s to topic %s with key %d")`, you should log the much more
 discoverable:
 
@@ -286,7 +286,7 @@ log.Info("Something noteworthy happened!")
 log.Warn("You should probably take a look at this.")
 log.Error("Something failed but I'm not quitting.")
 // Calls os.Exit(1) after logging
-log.Fatal("Bye.")
+log.Print("Bye.")
 // Calls panic() after logging
 log.Panic("I'm bailing.")
 ```

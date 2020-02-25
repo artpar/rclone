@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -15,15 +16,16 @@ import (
 	"github.com/ncw/swift"
 	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/fs/operations"
 	"github.com/artpar/rclone/fs/walk"
 	"github.com/artpar/rclone/lib/bucket"
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/readers"
 )
@@ -59,9 +61,13 @@ Rclone will still chunk files bigger than chunk_size when doing normal
 copy operations.`,
 	Default:  false,
 	Advanced: true,
+}, {
+	Name:     config.ConfigEncoding,
+	Help:     config.ConfigEncodingHelp,
+	Advanced: true,
+	Default: (encoder.EncodeInvalidUtf8 |
+		encoder.EncodeSlash),
 }}
-
-const enc = encodings.Swift
 
 // Register with Fs
 func init() {
@@ -108,7 +114,7 @@ func init() {
 				Value: "https://auth.storage.memset.com/v2.0",
 			}, {
 				Help:  "OVH",
-				Value: "https://auth.cloud.ovh.net/v2.0",
+				Value: "https://auth.cloud.ovh.net/v3",
 			}},
 		}, {
 			Name: "user_id",
@@ -186,26 +192,27 @@ provider.`,
 
 // Options defines the configuration for this backend
 type Options struct {
-	EnvAuth                     bool          `config:"env_auth"`
-	User                        string        `config:"user"`
-	Key                         string        `config:"key"`
-	Auth                        string        `config:"auth"`
-	UserID                      string        `config:"user_id"`
-	Domain                      string        `config:"domain"`
-	Tenant                      string        `config:"tenant"`
-	TenantID                    string        `config:"tenant_id"`
-	TenantDomain                string        `config:"tenant_domain"`
-	Region                      string        `config:"region"`
-	StorageURL                  string        `config:"storage_url"`
-	AuthToken                   string        `config:"auth_token"`
-	AuthVersion                 int           `config:"auth_version"`
-	ApplicationCredentialID     string        `config:"application_credential_id"`
-	ApplicationCredentialName   string        `config:"application_credential_name"`
-	ApplicationCredentialSecret string        `config:"application_credential_secret"`
-	StoragePolicy               string        `config:"storage_policy"`
-	EndpointType                string        `config:"endpoint_type"`
-	ChunkSize                   fs.SizeSuffix `config:"chunk_size"`
-	NoChunk                     bool          `config:"no_chunk"`
+	EnvAuth                     bool                 `config:"env_auth"`
+	User                        string               `config:"user"`
+	Key                         string               `config:"key"`
+	Auth                        string               `config:"auth"`
+	UserID                      string               `config:"user_id"`
+	Domain                      string               `config:"domain"`
+	Tenant                      string               `config:"tenant"`
+	TenantID                    string               `config:"tenant_id"`
+	TenantDomain                string               `config:"tenant_domain"`
+	Region                      string               `config:"region"`
+	StorageURL                  string               `config:"storage_url"`
+	AuthToken                   string               `config:"auth_token"`
+	AuthVersion                 int                  `config:"auth_version"`
+	ApplicationCredentialID     string               `config:"application_credential_id"`
+	ApplicationCredentialName   string               `config:"application_credential_name"`
+	ApplicationCredentialSecret string               `config:"application_credential_secret"`
+	StoragePolicy               string               `config:"storage_policy"`
+	EndpointType                string               `config:"endpoint_type"`
+	ChunkSize                   fs.SizeSuffix        `config:"chunk_size"`
+	NoChunk                     bool                 `config:"no_chunk"`
+	Enc                         encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote swift server
@@ -324,7 +331,7 @@ func parsePath(path string) (root string) {
 // relative to f.root
 func (f *Fs) split(rootRelativePath string) (container, containerPath string) {
 	container, containerPath = bucket.Split(path.Join(f.root, rootRelativePath))
-	return enc.FromStandardName(container), enc.FromStandardPath(containerPath)
+	return f.opt.Enc.FromStandardName(container), f.opt.Enc.FromStandardPath(containerPath)
 }
 
 // split returns container and containerPath from the object
@@ -445,7 +452,7 @@ func NewFsWithConnection(opt *Options, name, root string, c *swift.Connection, n
 		// Check to see if the object exists - ignoring directory markers
 		var info swift.Object
 		var err error
-		encodedDirectory := enc.FromStandardPath(f.rootDirectory)
+		encodedDirectory := f.opt.Enc.FromStandardPath(f.rootDirectory)
 		err = f.pacer.Call(func() (bool, error) {
 			var rxHeaders swift.Headers
 			info, rxHeaders, err = f.c.Object(f.rootContainer, encodedDirectory)
@@ -530,10 +537,10 @@ type listFn func(remote string, object *swift.Object, isDirectory bool) error
 //
 // Set recurse to read sub directories
 func (f *Fs) listContainerRoot(container, directory, prefix string, addContainer bool, recurse bool, fn listFn) error {
-	if prefix != "" {
+	if prefix != "" && !strings.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
-	if directory != "" {
+	if directory != "" && !strings.HasSuffix(directory, "/") {
 		directory += "/"
 	}
 	// Options for ObjectsWalk
@@ -558,7 +565,7 @@ func (f *Fs) listContainerRoot(container, directory, prefix string, addContainer
 				if !recurse {
 					isDirectory = strings.HasSuffix(object.Name, "/")
 				}
-				remote := enc.ToStandardPath(object.Name)
+				remote := f.opt.Enc.ToStandardPath(object.Name)
 				if !strings.HasPrefix(remote, prefix) {
 					fs.Logf(f, "Odd name received %q", remote)
 					continue
@@ -641,7 +648,7 @@ func (f *Fs) listContainers(ctx context.Context) (entries fs.DirEntries, err err
 	}
 	for _, container := range containers {
 		f.cache.MarkOK(container.Name)
-		d := fs.NewDir(enc.ToStandardName(container.Name), time.Time{}).SetSize(container.Bytes).SetItems(container.Count)
+		d := fs.NewDir(f.opt.Enc.ToStandardName(container.Name), time.Time{}).SetSize(container.Bytes).SetItems(container.Count)
 		entries = append(entries, d)
 	}
 	return entries, nil
@@ -952,6 +959,18 @@ func (o *Object) isStaticLargeObject() (bool, error) {
 	return o.hasHeader("X-Static-Large-Object")
 }
 
+func (o *Object) isInContainerVersioning(container string) (bool, error) {
+	_, headers, err := o.fs.c.Container(container)
+	if err != nil {
+		return false, err
+	}
+	xHistoryLocation := headers["X-History-Location"]
+	if len(xHistoryLocation) > 0 {
+		return true, nil
+	}
+	return false, nil
+}
+
 // Size returns the size of an object in bytes
 func (o *Object) Size() int64 {
 	return o.size
@@ -1083,9 +1102,8 @@ func min(x, y int64) int64 {
 //
 // if except is passed in then segments with that prefix won't be deleted
 func (o *Object) removeSegments(except string) error {
-	container, containerPath := o.split()
-	segmentsContainer := container + "_segments"
-	err := o.fs.listContainerRoot(segmentsContainer, containerPath, "", false, true, func(remote string, object *swift.Object, isDirectory bool) error {
+	segmentsContainer, prefix, err := o.getSegmentsDlo()
+	err = o.fs.listContainerRoot(segmentsContainer, prefix, "", false, true, func(remote string, object *swift.Object, isDirectory bool) error {
 		if isDirectory {
 			return nil
 		}
@@ -1112,6 +1130,23 @@ func (o *Object) removeSegments(except string) error {
 		fs.Debugf(o, "Removed empty container %q", segmentsContainer)
 	}
 	return nil
+}
+
+func (o *Object) getSegmentsDlo() (segmentsContainer string, prefix string, err error) {
+	if err = o.readMetaData(); err != nil {
+		return
+	}
+	dirManifest := o.headers["X-Object-Manifest"]
+	dirManifest, err = url.PathUnescape(dirManifest)
+	if err != nil {
+		return
+	}
+	delimiter := strings.Index(dirManifest, "/")
+	if len(dirManifest) == 0 || delimiter < 0 {
+		err = errors.New("Missing or wrong structure of manifest of Dynamic large object")
+		return
+	}
+	return dirManifest[:delimiter], dirManifest[delimiter+1:], nil
 }
 
 // urlEncode encodes a string so that it is a valid URL
@@ -1300,12 +1335,9 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 }
 
 // Remove an object
-func (o *Object) Remove(ctx context.Context) error {
+func (o *Object) Remove(ctx context.Context) (err error) {
 	container, containerPath := o.split()
-	isDynamicLargeObject, err := o.isDynamicLargeObject()
-	if err != nil {
-		return err
-	}
+
 	// Remove file/manifest first
 	err = o.fs.pacer.Call(func() (bool, error) {
 		err = o.fs.c.ObjectDelete(container, containerPath)
@@ -1314,11 +1346,21 @@ func (o *Object) Remove(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	isDynamicLargeObject, err := o.isDynamicLargeObject()
+	if err != nil {
+		return err
+	}
 	// ...then segments if required
 	if isDynamicLargeObject {
-		err = o.removeSegments("")
+		isInContainerVersioning, err := o.isInContainerVersioning(container)
 		if err != nil {
 			return err
+		}
+		if !isInContainerVersioning {
+			err = o.removeSegments("")
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

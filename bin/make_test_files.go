@@ -105,21 +105,21 @@ func (d *dir) list(path string, output []string) []string {
 func writeFile(dir, name string) {
 	err := os.MkdirAll(dir, 0777)
 	if err != nil {
-		log.Fatalf("Failed to make directory %q: %v", dir, err)
+		log.Printf("Failed to make directory %q: %v", dir, err)
 	}
 	path := filepath.Join(dir, name)
 	fd, err := os.Create(path)
 	if err != nil {
-		log.Fatalf("Failed to open file %q: %v", path, err)
+		log.Printf("Failed to open file %q: %v", path, err)
 	}
 	size := rand.Int63n(*maxFileSize-*minFileSize) + *minFileSize
 	_, err = io.CopyN(fd, cryptrand.Reader, size)
 	if err != nil {
-		log.Fatalf("Failed to write %v bytes to file %q: %v", size, path, err)
+		log.Printf("Failed to write %v bytes to file %q: %v", size, path, err)
 	}
 	err = fd.Close()
 	if err != nil {
-		log.Fatalf("Failed to close file %q: %v", path, err)
+		log.Printf("Failed to close file %q: %v", path, err)
 	}
 }
 
@@ -127,7 +127,7 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 	if len(args) != 1 {
-		log.Fatalf("Require 1 directory argument")
+		log.Printf("Require 1 directory argument")
 	}
 	outputDirectory := args[0]
 	log.Printf("Output dir %q", outputDirectory)

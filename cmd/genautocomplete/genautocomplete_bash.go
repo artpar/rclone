@@ -38,7 +38,7 @@ there.
 		}
 		err := cmd.Root.GenBashCompletionFile(out)
 		if err != nil {
-			log.Fatal(err)
+			log.Print(err)
 		}
 	},
 }

@@ -19,7 +19,7 @@ func main() {
 	}
 	err := doc.GenYamlTree(cmd, "/tmp")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 }
 ```
@@ -48,7 +48,7 @@ func main() {
 	kubectl := cmd.NewKubectlCommand(cmdutil.NewFactory(nil), os.Stdin, ioutil.Discard, ioutil.Discard)
 	err := doc.GenYamlTree(kubectl, "./")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 }
 ```

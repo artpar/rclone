@@ -1,7 +1,7 @@
 module github.com/artpar/rclone
 
 require (
-	bazil.org/fuse v0.0.0-20180421153158-65cc252bf669
+	bazil.org/fuse v0.0.0-20191225233854-3a99aca11732
 	cloud.google.com/go v0.47.0 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.2
 	github.com/Azure/azure-storage-blob-go v0.8.0
@@ -20,6 +20,7 @@ require (
 	github.com/google/go-cmp v0.3.1 // indirect
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20190812055157-5d271430af9f // indirect
+	github.com/hanwen/go-fuse/v2 v2.0.3-0.20191108143333-152e6ac32d54
 	github.com/jlaffaye/ftp v0.0.0-20191025175106-a59fe673c9b2
 	github.com/jzelinskie/whirlpool v0.0.0-20170603002051-c19460b8caa6
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
@@ -29,11 +30,11 @@ require (
 	github.com/mattn/go-colorable v0.1.4
 	github.com/mattn/go-ieproxy v0.0.0-20190805055040-f9202b1cfdeb // indirect
 	github.com/mattn/go-isatty v0.0.11-0.20191112051248-2a2f0ea997f9 // indirect
-	github.com/mattn/go-runewidth v0.0.6
+	github.com/mattn/go-runewidth v0.0.7
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/ncw/go-acd v0.0.0-20171120105400-887eb06ab6a2
 	github.com/ncw/swift v1.0.49
-	github.com/nsf/termbox-go v0.0.0-20190817171036-93860e161317
+	github.com/nsf/termbox-go v0.0.0-20191229070316-58d4fcbce2a7
 	github.com/okzk/sdnotify v0.0.0-20180710141335-d9becc38acbd
 	github.com/onsi/ginkgo v1.9.0 // indirect
 	github.com/onsi/gomega v1.6.0 // indirect
@@ -50,18 +51,18 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.4.0
-	github.com/t3rm1n4l/go-mega v0.0.0-20191014094753-e8695d78299a
+	github.com/t3rm1n4l/go-mega v0.0.0-20200117211730-79a813bb328d
 	github.com/xanzy/ssh-agent v0.2.1
 	github.com/youmark/pkcs8 v0.0.0-20191102193632-94c173a94d60
 	github.com/yunify/qingstor-sdk-go/v3 v3.1.1
 	go.etcd.io/bbolt v1.3.3 // indirect
 	go.opencensus.io v0.22.2 // indirect
 	goftp.io/server v0.0.0-20190812052725-72a57b186803
-	golang.org/x/crypto v0.0.0-20191108234033-bd318be0434a
+	golang.org/x/crypto v0.0.0-20200109152110-61a87790db17
 	golang.org/x/net v0.0.0-20191109021931-daa7c04131f5
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e
-	golang.org/x/sys v0.0.0-20191113165036-4c7a9d0fe056
+	golang.org/x/sys v0.0.0-20191210023423-ac6580df4449
 	golang.org/x/text v0.3.2
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	google.golang.org/api v0.13.0

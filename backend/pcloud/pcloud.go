@@ -26,17 +26,15 @@ import (
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
 	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/oauthutil"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/rest"
 	"golang.org/x/oauth2"
 )
-
-const enc = encodings.Pcloud
 
 const (
 	rcloneClientID              = "DnONSzyJXpm"
@@ -72,7 +70,7 @@ func init() {
 		Config: func(name string, m configmap.Mapper) {
 			err := oauthutil.Config("pcloud", name, m, oauthConfig)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 			}
 		},
 		Options: []fs.Option{{
@@ -81,12 +79,23 @@ func init() {
 		}, {
 			Name: config.ConfigClientSecret,
 			Help: "Pcloud App Client Secret\nLeave blank normally.",
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			// Encode invalid UTF-8 bytes as json doesn't handle them properly.
+			//
+			// TODO: Investigate Unicode simplification (＼ gets converted to \ server-side)
+			Default: (encoder.Display |
+				encoder.EncodeBackSlash |
+				encoder.EncodeInvalidUtf8),
 		}},
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
+	Enc encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote pcloud
@@ -342,7 +351,7 @@ func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, 
 		Path:       "/createfolder",
 		Parameters: url.Values{},
 	}
-	opts.Parameters.Set("name", enc.FromStandardName(leaf))
+	opts.Parameters.Set("name", f.opt.Enc.FromStandardName(leaf))
 	opts.Parameters.Set("folderid", dirIDtoNumber(pathID))
 	err = f.pacer.Call(func() (bool, error) {
 		resp, err = f.srv.CallJSON(ctx, &opts, nil, &result)
@@ -418,7 +427,7 @@ func (f *Fs) listAll(ctx context.Context, dirID string, directoriesOnly bool, fi
 				continue
 			}
 		}
-		item.Name = enc.ToStandardName(item.Name)
+		item.Name = f.opt.Enc.ToStandardName(item.Name)
 		if fn(item) {
 			found = true
 			break
@@ -610,7 +619,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 		Parameters: url.Values{},
 	}
 	opts.Parameters.Set("fileid", fileIDtoNumber(srcObj.id))
-	opts.Parameters.Set("toname", enc.FromStandardName(leaf))
+	opts.Parameters.Set("toname", f.opt.Enc.FromStandardName(leaf))
 	opts.Parameters.Set("tofolderid", dirIDtoNumber(directoryID))
 	opts.Parameters.Set("mtime", fmt.Sprintf("%d", srcObj.modTime.Unix()))
 	var resp *http.Response
@@ -689,7 +698,7 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 		Parameters: url.Values{},
 	}
 	opts.Parameters.Set("fileid", fileIDtoNumber(srcObj.id))
-	opts.Parameters.Set("toname", enc.FromStandardName(leaf))
+	opts.Parameters.Set("toname", f.opt.Enc.FromStandardName(leaf))
 	opts.Parameters.Set("tofolderid", dirIDtoNumber(directoryID))
 	var resp *http.Response
 	var result api.ItemResult
@@ -786,7 +795,7 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 		Parameters: url.Values{},
 	}
 	opts.Parameters.Set("folderid", dirIDtoNumber(srcID))
-	opts.Parameters.Set("toname", enc.FromStandardName(leaf))
+	opts.Parameters.Set("toname", f.opt.Enc.FromStandardName(leaf))
 	opts.Parameters.Set("tofolderid", dirIDtoNumber(directoryID))
 	var resp *http.Response
 	var result api.ItemResult
@@ -1066,7 +1075,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 		Parameters:       url.Values{},
 		TransferEncoding: []string{"identity"}, // pcloud doesn't like chunked encoding
 	}
-	leaf = enc.FromStandardName(leaf)
+	leaf = o.fs.opt.Enc.FromStandardName(leaf)
 	opts.Parameters.Set("filename", leaf)
 	opts.Parameters.Set("folderid", dirIDtoNumber(directoryID))
 	opts.Parameters.Set("nopartial", "1")

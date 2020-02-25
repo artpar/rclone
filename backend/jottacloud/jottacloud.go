@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -25,48 +26,42 @@ import (
 	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/fs/walk"
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/oauthutil"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/rest"
 	"golang.org/x/oauth2"
 )
 
-const enc = encodings.JottaCloud
-
 // Globals
 const (
-	minSleep                    = 10 * time.Millisecond
-	maxSleep                    = 2 * time.Second
-	decayConstant               = 2 // bigger for slower decay, exponential
-	defaultDevice               = "Jotta"
-	defaultMountpoint           = "Archive"
-	rootURL                     = "https://www.jottacloud.com/jfs/"
-	apiURL                      = "https://api.jottacloud.com/"
-	baseURL                     = "https://www.jottacloud.com/"
-	tokenURL                    = "https://api.jottacloud.com/auth/v1/token"
-	registerURL                 = "https://api.jottacloud.com/auth/v1/register"
-	cachePrefix                 = "rclone-jcmd5-"
-	rcloneClientID              = "nibfk8biu12ju7hpqomr8b1e40"
-	rcloneEncryptedClientSecret = "Vp8eAv7eVElMnQwN-kgU9cbhgApNDaMqWdlDi5qFydlQoji4JBxrGMF2"
-	configClientID              = "client_id"
-	configClientSecret          = "client_secret"
-	configDevice                = "device"
-	configMountpoint            = "mountpoint"
-	charset                     = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	minSleep          = 10 * time.Millisecond
+	maxSleep          = 2 * time.Second
+	decayConstant     = 2 // bigger for slower decay, exponential
+	defaultDevice     = "Jotta"
+	defaultMountpoint = "Archive"
+	rootURL           = "https://www.jottacloud.com/jfs/"
+	apiURL            = "https://api.jottacloud.com/"
+	baseURL           = "https://www.jottacloud.com/"
+	defaultTokenURL   = "https://id.jottacloud.com/auth/realms/jottacloud/protocol/openid-connect/token"
+	cachePrefix       = "rclone-jcmd5-"
+	configDevice      = "device"
+	configMountpoint  = "mountpoint"
+	configTokenURL    = "tokenURL"
+	configVersion     = 1
 )
 
 var (
 	// Description of how to auth for this app for a personal account
 	oauthConfig = &oauth2.Config{
+		ClientID: "jottacli",
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  tokenURL,
-			TokenURL: tokenURL,
+			AuthURL:  defaultTokenURL,
+			TokenURL: defaultTokenURL,
 		},
 		RedirectURL: oauthutil.RedirectLocalhostURL,
 	}
@@ -81,56 +76,50 @@ func init() {
 		NewFs:       NewFs,
 		Config: func(name string, m configmap.Mapper) {
 			ctx := context.TODO()
-			tokenString, ok := m.Get("token")
-			if ok && tokenString != "" {
-				fmt.Printf("Already have a token - refresh?\n")
-				if !config.Confirm(false) {
-					return
-				}
-			}
 
-			srv := rest.NewClient(fshttp.NewClient(fs.Config))
-			fmt.Printf("\nDo you want to create a machine specific API key?\n\nRclone has it's own Jottacloud API KEY which works fine as long as one only uses rclone on a single machine. When you want to use rclone with this account on more than one machine it's recommended to create a machine specific API key. These keys can NOT be shared between machines.\n\n")
-			if config.Confirm(false) {
-				deviceRegistration, err := registerDevice(ctx, srv)
+			refresh := false
+			if version, ok := m.Get("configVersion"); ok {
+				ver, err := strconv.Atoi(version)
 				if err != nil {
-					log.Fatalf("Failed to register device: %v", err)
+					log.Printf("Failed to parse config version - corrupted config")
 				}
-
-				m.Set(configClientID, deviceRegistration.ClientID)
-				m.Set(configClientSecret, obscure.MustObscure(deviceRegistration.ClientSecret))
-				fs.Debugf(nil, "Got clientID '%s' and clientSecret '%s'", deviceRegistration.ClientID, deviceRegistration.ClientSecret)
+				refresh = ver != configVersion
 			}
 
-			clientID, ok := m.Get(configClientID)
-			if !ok {
-				clientID = rcloneClientID
+			if refresh {
+				fmt.Printf("Config outdated - refreshing\n")
+			} else {
+				tokenString, ok := m.Get("token")
+				if ok && tokenString != "" {
+					fmt.Printf("Already have a token - refresh?\n")
+					if !config.Confirm(false) {
+						return
+					}
+				}
 			}
-			clientSecret, ok := m.Get(configClientSecret)
-			if !ok {
-				clientSecret = rcloneEncryptedClientSecret
-			}
-			oauthConfig.ClientID = clientID
-			oauthConfig.ClientSecret = obscure.MustReveal(clientSecret)
 
-			fmt.Printf("Username> ")
-			username := config.ReadLine()
-			password := config.GetPassword("Your Jottacloud password is only required during setup and will not be stored.")
+			clientConfig := *fs.Config
+			clientConfig.UserAgent = "JottaCli 0.6.18626 windows-amd64"
+			srv := rest.NewClient(fshttp.NewClient(&clientConfig))
 
-			token, err := doAuth(ctx, srv, username, password)
+			fmt.Printf("Generate a personal login token here: https://www.jottacloud.com/web/secure\n")
+			fmt.Printf("Login Token> ")
+			loginToken := config.ReadLine()
+
+			token, err := doAuth(ctx, srv, loginToken, m)
 			if err != nil {
-				log.Fatalf("Failed to get oauth token: %s", err)
+				log.Printf("Failed to get oauth token: %s", err)
 			}
 			err = oauthutil.PutToken(name, m, &token, true)
 			if err != nil {
-				log.Fatalf("Error while saving token: %s", err)
+				log.Printf("Error while saving token: %s", err)
 			}
 
 			fmt.Printf("\nDo you want to use a non standard device/mountpoint e.g. for accessing files uploaded using the official Jottacloud client?\n\n")
 			if config.Confirm(false) {
 				oAuthClient, _, err := oauthutil.NewClient(name, m, oauthConfig)
 				if err != nil {
-					log.Fatalf("Failed to load oAuthClient: %s", err)
+					log.Printf("Failed to load oAuthClient: %s", err)
 				}
 
 				srv = rest.NewClient(oAuthClient).SetRoot(rootURL)
@@ -138,11 +127,13 @@ func init() {
 
 				device, mountpoint, err := setupMountpoint(ctx, srv, apiSrv)
 				if err != nil {
-					log.Fatalf("Failed to setup mountpoint: %s", err)
+					log.Printf("Failed to setup mountpoint: %s", err)
 				}
 				m.Set(configDevice, device)
 				m.Set(configMountpoint, mountpoint)
 			}
+
+			m.Set("configVersion", strconv.Itoa(configVersion))
 		},
 		Options: []fs.Option{{
 			Name:     "md5_memory_limit",
@@ -164,18 +155,29 @@ func init() {
 			Help:     "Files bigger than this can be resumed if the upload fail's.",
 			Default:  fs.SizeSuffix(10 * 1024 * 1024),
 			Advanced: true,
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			// Encode invalid UTF-8 bytes as xml doesn't handle them properly.
+			//
+			// Also: '*', '/', ':', '<', '>', '?', '\"', '\x00', '|'
+			Default: (encoder.Display |
+				encoder.EncodeWin | // :?"*<>|
+				encoder.EncodeInvalidUtf8),
 		}},
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
-	Device             string        `config:"device"`
-	Mountpoint         string        `config:"mountpoint"`
-	MD5MemoryThreshold fs.SizeSuffix `config:"md5_memory_limit"`
-	HardDelete         bool          `config:"hard_delete"`
-	Unlink             bool          `config:"unlink"`
-	UploadThreshold    fs.SizeSuffix `config:"upload_resume_limit"`
+	Device             string               `config:"device"`
+	Mountpoint         string               `config:"mountpoint"`
+	MD5MemoryThreshold fs.SizeSuffix        `config:"md5_memory_limit"`
+	HardDelete         bool                 `config:"hard_delete"`
+	Unlink             bool                 `config:"unlink"`
+	UploadThreshold    fs.SizeSuffix        `config:"upload_resume_limit"`
+	Enc                encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote jottacloud
@@ -249,67 +251,57 @@ func shouldRetry(resp *http.Response, err error) (bool, error) {
 	return fserrors.ShouldRetry(err) || fserrors.ShouldRetryHTTP(resp, retryErrorCodes), err
 }
 
-// registerDevice register a new device for use with the jottacloud API
-func registerDevice(ctx context.Context, srv *rest.Client) (reg *api.DeviceRegistrationResponse, err error) {
-	// random generator to generate random device names
-	seededRand := rand.New(rand.NewSource(time.Now().UnixNano()))
-	randonDeviceNamePartLength := 21
-	randomDeviceNamePart := make([]byte, randonDeviceNamePartLength)
-	for i := range randomDeviceNamePart {
-		randomDeviceNamePart[i] = charset[seededRand.Intn(len(charset))]
-	}
-	randomDeviceName := "rclone-" + string(randomDeviceNamePart)
-	fs.Debugf(nil, "Trying to register device '%s'", randomDeviceName)
-
-	values := url.Values{}
-	values.Set("device_id", randomDeviceName)
-
-	opts := rest.Opts{
-		Method:       "POST",
-		RootURL:      registerURL,
-		ContentType:  "application/x-www-form-urlencoded",
-		ExtraHeaders: map[string]string{"Authorization": "Bearer c2xrZmpoYWRsZmFramhkc2xma2phaHNkbGZramhhc2xkZmtqaGFzZGxrZmpobGtq"},
-		Parameters:   values,
-	}
-
-	var deviceRegistration *api.DeviceRegistrationResponse
-	_, err = srv.CallJSON(ctx, &opts, nil, &deviceRegistration)
-	return deviceRegistration, err
-}
-
 // doAuth runs the actual token request
-func doAuth(ctx context.Context, srv *rest.Client, username, password string) (token oauth2.Token, err error) {
+func doAuth(ctx context.Context, srv *rest.Client, loginTokenBase64 string, m configmap.Mapper) (token oauth2.Token, err error) {
+	loginTokenBytes, err := base64.RawURLEncoding.DecodeString(loginTokenBase64)
+	if err != nil {
+		return token, err
+	}
+
+	// decode login token
+	var loginToken api.LoginToken
+	decoder := json.NewDecoder(bytes.NewReader(loginTokenBytes))
+	err = decoder.Decode(&loginToken)
+	if err != nil {
+		return token, err
+	}
+
+	// retrieve endpoint urls
+	opts := rest.Opts{
+		Method:  "GET",
+		RootURL: loginToken.WellKnownLink,
+	}
+	var wellKnown api.WellKnown
+	_, err = srv.CallJSON(ctx, &opts, nil, &wellKnown)
+	if err != nil {
+		return token, err
+	}
+
+	// save the tokenurl
+	oauthConfig.Endpoint.AuthURL = wellKnown.TokenEndpoint
+	oauthConfig.Endpoint.TokenURL = wellKnown.TokenEndpoint
+	m.Set(configTokenURL, wellKnown.TokenEndpoint)
+
 	// prepare out token request with username and password
 	values := url.Values{}
-	values.Set("grant_type", "PASSWORD")
-	values.Set("password", password)
-	values.Set("username", username)
-	values.Set("client_id", oauthConfig.ClientID)
-	values.Set("client_secret", oauthConfig.ClientSecret)
-	opts := rest.Opts{
+	values.Set("client_id", "jottacli")
+	values.Set("grant_type", "password")
+	values.Set("password", loginToken.AuthToken)
+	values.Set("scope", "offline_access+openid")
+	values.Set("username", loginToken.Username)
+	values.Encode()
+	opts = rest.Opts{
 		Method:      "POST",
 		RootURL:     oauthConfig.Endpoint.AuthURL,
 		ContentType: "application/x-www-form-urlencoded",
-		Parameters:  values,
+		Body:        strings.NewReader(values.Encode()),
 	}
 
 	// do the first request
 	var jsonToken api.TokenJSON
-	resp, err := srv.CallJSON(ctx, &opts, nil, &jsonToken)
+	_, err = srv.CallJSON(ctx, &opts, nil, &jsonToken)
 	if err != nil {
-		// if 2fa is enabled the first request is expected to fail. We will do another request with the 2fa code as an additional http header
-		if resp != nil {
-			if resp.Header.Get("X-JottaCloud-OTP") == "required; SMS" {
-				fmt.Printf("This account uses 2 factor authentication you will receive a verification code via SMS.\n")
-				fmt.Printf("Enter verification code> ")
-				authCode := config.ReadLine()
-
-				authCode = strings.Replace(authCode, "-", "", -1) // remove any "-" contained in the code so we have a 6 digit number
-				opts.ExtraHeaders = make(map[string]string)
-				opts.ExtraHeaders["X-Jottacloud-Otp"] = authCode
-				resp, err = srv.CallJSON(ctx, &opts, nil, &jsonToken)
-			}
-		}
+		return token, err
 	}
 
 	token.AccessToken = jsonToken.AccessToken
@@ -463,35 +455,12 @@ func urlPathEscape(in string) string {
 
 // filePathRaw returns an unescaped file path (f.root, file)
 func (f *Fs) filePathRaw(file string) string {
-	return path.Join(f.endpointURL, enc.FromStandardPath(path.Join(f.root, file)))
+	return path.Join(f.endpointURL, f.opt.Enc.FromStandardPath(path.Join(f.root, file)))
 }
 
 // filePath returns a escaped file path (f.root, file)
 func (f *Fs) filePath(file string) string {
 	return urlPathEscape(f.filePathRaw(file))
-}
-
-// Jottacloud requires the grant_type 'refresh_token' string
-// to be uppercase and throws a 400 Bad Request if we use the
-// lower case used by the oauth2 module
-//
-// This filter catches all refresh requests, reads the body,
-// changes the case and then sends it on
-func grantTypeFilter(req *http.Request) {
-	if tokenURL == req.URL.String() {
-		// read the entire body
-		refreshBody, err := ioutil.ReadAll(req.Body)
-		if err != nil {
-			return
-		}
-		_ = req.Body.Close()
-
-		// make the refresh token upper case
-		refreshBody = []byte(strings.Replace(string(refreshBody), "grant_type=refresh_token", "grant_type=REFRESH_TOKEN", 1))
-
-		// set the new ReadCloser (with a dummy Close())
-		req.Body = ioutil.NopCloser(bytes.NewReader(refreshBody))
-	}
 }
 
 // NewFs constructs an Fs from the path, container:path
@@ -504,34 +473,36 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		return nil, err
 	}
 
-	rootIsDir := strings.HasSuffix(root, "/")
-	root = parsePath(root)
-
-	clientID, ok := m.Get(configClientID)
-	if !ok {
-		clientID = rcloneClientID
+	// Check config version
+	var ok bool
+	var version string
+	if version, ok = m.Get("configVersion"); ok {
+		ver, err := strconv.Atoi(version)
+		if err != nil {
+			return nil, errors.New("Failed to parse config version")
+		}
+		ok = ver == configVersion
 	}
-	clientSecret, ok := m.Get(configClientSecret)
 	if !ok {
-		clientSecret = rcloneEncryptedClientSecret
+		return nil, errors.New("Outdated config - please reconfigure this backend")
 	}
-	oauthConfig.ClientID = clientID
-	oauthConfig.ClientSecret = obscure.MustReveal(clientSecret)
 
-	// the oauth client for the api servers needs
-	// a filter to fix the grant_type issues (see above)
+	// if custome endpoints are set use them else stick with defaults
+	if tokenURL, ok := m.Get(configTokenURL); ok {
+		oauthConfig.Endpoint.TokenURL = tokenURL
+		// jottacloud is weird. we need to use the tokenURL as authURL
+		oauthConfig.Endpoint.AuthURL = tokenURL
+	}
+
+	// Create OAuth Client
 	baseClient := fshttp.NewClient(fs.Config)
-	if do, ok := baseClient.Transport.(interface {
-		SetRequestFilter(f func(req *http.Request))
-	}); ok {
-		do.SetRequestFilter(grantTypeFilter)
-	} else {
-		fs.Debugf(name+":", "Couldn't add request filter - uploads will fail")
-	}
 	oAuthClient, ts, err := oauthutil.NewClientWithBaseClient(name, m, oauthConfig, baseClient)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to configure Jottacloud oauth client")
 	}
+
+	rootIsDir := strings.HasSuffix(root, "/")
+	root = parsePath(root)
 
 	f := &Fs{
 		name:   name,
@@ -676,7 +647,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 		if item.Deleted {
 			continue
 		}
-		remote := path.Join(dir, enc.ToStandardName(item.Name))
+		remote := path.Join(dir, f.opt.Enc.ToStandardName(item.Name))
 		d := fs.NewDir(remote, time.Time(item.ModifiedAt))
 		entries = append(entries, d)
 	}
@@ -686,7 +657,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 		if item.Deleted || item.State != "COMPLETED" {
 			continue
 		}
-		remote := path.Join(dir, enc.ToStandardName(item.Name))
+		remote := path.Join(dir, f.opt.Enc.ToStandardName(item.Name))
 		o, err := f.newObjectWithInfo(ctx, remote, item)
 		if err != nil {
 			continue
@@ -711,7 +682,7 @@ func (f *Fs) listFileDir(ctx context.Context, remoteStartPath string, startFolde
 		if folder.Deleted {
 			return nil
 		}
-		folderPath := enc.ToStandardPath(path.Join(folder.Path, folder.Name))
+		folderPath := f.opt.Enc.ToStandardPath(path.Join(folder.Path, folder.Name))
 		folderPathLength := len(folderPath)
 		var remoteDir string
 		if folderPathLength > pathPrefixLength {
@@ -729,7 +700,7 @@ func (f *Fs) listFileDir(ctx context.Context, remoteStartPath string, startFolde
 			if file.Deleted || file.State != "COMPLETED" {
 				continue
 			}
-			remoteFile := path.Join(remoteDir, enc.ToStandardName(file.Name))
+			remoteFile := path.Join(remoteDir, f.opt.Enc.ToStandardName(file.Name))
 			o, err := f.newObjectWithInfo(ctx, remoteFile, file)
 			if err != nil {
 				return err
@@ -900,7 +871,7 @@ func (f *Fs) copyOrMove(ctx context.Context, method, src, dest string) (info *ap
 		Parameters: url.Values{},
 	}
 
-	opts.Parameters.Set(method, "/"+path.Join(f.endpointURL, enc.FromStandardPath(path.Join(f.root, dest))))
+	opts.Parameters.Set(method, "/"+path.Join(f.endpointURL, f.opt.Enc.FromStandardPath(path.Join(f.root, dest))))
 
 	var resp *http.Response
 	err = f.pacer.Call(func() (bool, error) {
@@ -1007,7 +978,7 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 		return fs.ErrorDirExists
 	}
 
-	_, err = f.copyOrMove(ctx, "mvDir", path.Join(f.endpointURL, enc.FromStandardPath(srcPath))+"/", dstRemote)
+	_, err = f.copyOrMove(ctx, "mvDir", path.Join(f.endpointURL, f.opt.Enc.FromStandardPath(srcPath))+"/", dstRemote)
 
 	if err != nil {
 		return errors.Wrap(err, "couldn't move directory")
@@ -1298,7 +1269,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 		Created:  fileDate,
 		Modified: fileDate,
 		Md5:      md5String,
-		Path:     path.Join(o.fs.opt.Mountpoint, enc.FromStandardPath(path.Join(o.fs.root, o.remote))),
+		Path:     path.Join(o.fs.opt.Mountpoint, o.fs.opt.Enc.FromStandardPath(path.Join(o.fs.root, o.remote))),
 	}
 
 	// send it

@@ -19,7 +19,7 @@ func main() {
 	}
 	err := doc.GenReSTTree(cmd, "/tmp")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 }
 ```
@@ -48,7 +48,7 @@ func main() {
 	kubectl := cmd.NewKubectlCommand(cmdutil.NewFactory(nil), os.Stdin, ioutil.Discard, ioutil.Discard)
 	err := doc.GenReSTTree(kubectl, "./")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 }
 ```
@@ -63,7 +63,7 @@ You may wish to have more control over the output, or only generate for a single
 	out := new(bytes.Buffer)
 	err := doc.GenReST(cmd, out)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 ```
 

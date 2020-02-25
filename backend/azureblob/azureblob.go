@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -26,14 +25,15 @@ import (
 	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/fs/walk"
 	"github.com/artpar/rclone/lib/bucket"
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/pacer"
 )
 
@@ -60,8 +60,6 @@ const (
 	emulatorAccountKey   = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
 	emulatorBlobEndpoint = "http://127.0.0.1:10000/devstoreaccount1"
 )
-
-const enc = encodings.AzureBlob
 
 // Register with Fs
 func init() {
@@ -127,21 +125,32 @@ If blobs are in "archive tier" at remote, trying to perform data transfer
 operations from remote will not be allowed. User should first restore by
 tiering blob to "Hot" or "Cool".`,
 			Advanced: true,
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			Default: (encoder.EncodeInvalidUtf8 |
+				encoder.EncodeSlash |
+				encoder.EncodeCtl |
+				encoder.EncodeDel |
+				encoder.EncodeBackSlash |
+				encoder.EncodeRightPeriod),
 		}},
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
-	Account       string        `config:"account"`
-	Key           string        `config:"key"`
-	Endpoint      string        `config:"endpoint"`
-	SASURL        string        `config:"sas_url"`
-	UploadCutoff  fs.SizeSuffix `config:"upload_cutoff"`
-	ChunkSize     fs.SizeSuffix `config:"chunk_size"`
-	ListChunkSize uint          `config:"list_chunk"`
-	AccessTier    string        `config:"access_tier"`
-	UseEmulator   bool          `config:"use_emulator"`
+	Account       string               `config:"account"`
+	Key           string               `config:"key"`
+	Endpoint      string               `config:"endpoint"`
+	SASURL        string               `config:"sas_url"`
+	UploadCutoff  fs.SizeSuffix        `config:"upload_cutoff"`
+	ChunkSize     fs.SizeSuffix        `config:"chunk_size"`
+	ListChunkSize uint                 `config:"list_chunk"`
+	AccessTier    string               `config:"access_tier"`
+	UseEmulator   bool                 `config:"use_emulator"`
+	Enc           encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote azure server
@@ -189,7 +198,7 @@ func (f *Fs) Root() string {
 // String converts this Fs to a string
 func (f *Fs) String() string {
 	if f.rootContainer == "" {
-		return fmt.Sprintf("Azure root")
+		return "Azure root"
 	}
 	if f.rootDirectory == "" {
 		return fmt.Sprintf("Azure container %s", f.rootContainer)
@@ -212,7 +221,7 @@ func parsePath(path string) (root string) {
 // relative to f.root
 func (f *Fs) split(rootRelativePath string) (containerName, containerPath string) {
 	containerName, containerPath = bucket.Split(path.Join(f.root, rootRelativePath))
-	return enc.FromStandardName(containerName), enc.FromStandardPath(containerPath)
+	return f.opt.Enc.FromStandardName(containerName), f.opt.Enc.FromStandardPath(containerPath)
 }
 
 // split returns container and containerPath from the object
@@ -588,7 +597,7 @@ func (f *Fs) list(ctx context.Context, container, directory, prefix string, addC
 			// if prefix != "" && !strings.HasPrefix(file.Name, prefix) {
 			// 	return nil
 			// }
-			remote := enc.ToStandardPath(file.Name)
+			remote := f.opt.Enc.ToStandardPath(file.Name)
 			if !strings.HasPrefix(remote, prefix) {
 				fs.Debugf(f, "Odd name received %q", remote)
 				continue
@@ -609,7 +618,7 @@ func (f *Fs) list(ctx context.Context, container, directory, prefix string, addC
 		// Send the subdirectories
 		for _, remote := range response.Segment.BlobPrefixes {
 			remote := strings.TrimRight(remote.Name, "/")
-			remote = enc.ToStandardPath(remote)
+			remote = f.opt.Enc.ToStandardPath(remote)
 			if !strings.HasPrefix(remote, prefix) {
 				fs.Debugf(f, "Odd directory name received %q", remote)
 				continue
@@ -673,7 +682,7 @@ func (f *Fs) listContainers(ctx context.Context) (entries fs.DirEntries, err err
 		return entries, nil
 	}
 	err = f.listContainersToFn(func(container *azblob.ContainerItem) error {
-		d := fs.NewDir(enc.ToStandardName(container.Name), container.Properties.LastModified)
+		d := fs.NewDir(f.opt.Enc.ToStandardName(container.Name), container.Properties.LastModified)
 		f.cache.MarkOK(container.Name)
 		entries = append(entries, d)
 		return nil
@@ -1109,22 +1118,6 @@ func (o *Object) readMetaData() (err error) {
 	}
 
 	return o.decodeMetaDataFromPropertiesResponse(blobProperties)
-}
-
-// parseTimeString converts a decimal string number of milliseconds
-// elapsed since January 1, 1970 UTC into a time.Time and stores it in
-// the modTime variable.
-func (o *Object) parseTimeString(timeString string) (err error) {
-	if timeString == "" {
-		return nil
-	}
-	unixMilliseconds, err := strconv.ParseInt(timeString, 10, 64)
-	if err != nil {
-		fs.Debugf(o, "Failed to parse mod time string %q: %v", timeString, err)
-		return err
-	}
-	o.modTime = time.Unix(unixMilliseconds/1e3, (unixMilliseconds%1e3)*1e6).UTC()
-	return nil
 }
 
 // ModTime returns the modification time of the object

@@ -78,7 +78,7 @@ func TestStatsError(t *testing.T) {
 	t0 := time.Now()
 	t1 := t0.Add(time.Second)
 
-	s.Error(nil)
+	_ = s.Error(nil)
 	assert.Equal(t, int64(0), s.GetErrors())
 	assert.False(t, s.HadFatalError())
 	assert.False(t, s.HadRetryError())
@@ -86,7 +86,7 @@ func TestStatsError(t *testing.T) {
 	assert.Equal(t, nil, s.GetLastError())
 	assert.False(t, s.Errored())
 
-	s.Error(io.EOF)
+	_ = s.Error(io.EOF)
 	assert.Equal(t, int64(1), s.GetErrors())
 	assert.False(t, s.HadFatalError())
 	assert.True(t, s.HadRetryError())
@@ -95,7 +95,7 @@ func TestStatsError(t *testing.T) {
 	assert.True(t, s.Errored())
 
 	e := fserrors.ErrorRetryAfter(t0)
-	s.Error(e)
+	_ = s.Error(e)
 	assert.Equal(t, int64(2), s.GetErrors())
 	assert.False(t, s.HadFatalError())
 	assert.True(t, s.HadRetryError())
@@ -103,14 +103,14 @@ func TestStatsError(t *testing.T) {
 	assert.Equal(t, e, s.GetLastError())
 
 	err := errors.Wrap(fserrors.ErrorRetryAfter(t1), "potato")
-	s.Error(err)
+	err = s.Error(err)
 	assert.Equal(t, int64(3), s.GetErrors())
 	assert.False(t, s.HadFatalError())
 	assert.True(t, s.HadRetryError())
 	assert.Equal(t, t1, s.RetryAfter())
 	assert.Equal(t, t1, fserrors.RetryAfterErrorTime(err))
 
-	s.Error(fserrors.FatalError(io.EOF))
+	_ = s.Error(fserrors.FatalError(io.EOF))
 	assert.Equal(t, int64(4), s.GetErrors())
 	assert.True(t, s.HadFatalError())
 	assert.True(t, s.HadRetryError())
@@ -124,7 +124,7 @@ func TestStatsError(t *testing.T) {
 	assert.Equal(t, nil, s.GetLastError())
 	assert.False(t, s.Errored())
 
-	s.Error(fserrors.NoRetryError(io.EOF))
+	_ = s.Error(fserrors.NoRetryError(io.EOF))
 	assert.Equal(t, int64(1), s.GetErrors())
 	assert.False(t, s.HadFatalError())
 	assert.False(t, s.HadRetryError())
@@ -382,28 +382,52 @@ func TestTimeRangeDuration(t *testing.T) {
 }
 
 func TestPruneTransfers(t *testing.T) {
-	max := maxCompletedTransfers + fs.Config.Transfers
+	for _, test := range []struct {
+		Name                     string
+		Transfers                int
+		Limit                    int
+		ExpectedStartedTransfers int
+	}{
+		{
+			Name:                     "Limited number of StartedTransfers",
+			Limit:                    100,
+			Transfers:                200,
+			ExpectedStartedTransfers: 100 + fs.Config.Transfers,
+		},
+		{
+			Name:                     "Unlimited number of StartedTransfers",
+			Limit:                    -1,
+			Transfers:                200,
+			ExpectedStartedTransfers: 200,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			prevLimit := MaxCompletedTransfers
+			MaxCompletedTransfers = test.Limit
+			defer func() { MaxCompletedTransfers = prevLimit }()
 
-	s := NewStats()
-	for i := int64(1); i <= int64(max+100); i++ {
-		s.AddTransfer(&Transfer{
-			startedAt:   time.Unix(i, 0),
-			completedAt: time.Unix(i+1, 0),
+			s := NewStats()
+			for i := int64(1); i <= int64(test.Transfers); i++ {
+				s.AddTransfer(&Transfer{
+					startedAt:   time.Unix(i, 0),
+					completedAt: time.Unix(i+1, 0),
+				})
+			}
+
+			s.mu.Lock()
+			assert.Equal(t, time.Duration(test.Transfers)*time.Second, s.totalDuration())
+			assert.Equal(t, test.Transfers, len(s.startedTransfers))
+			s.mu.Unlock()
+
+			for i := 0; i < test.Transfers; i++ {
+				s.PruneTransfers()
+			}
+
+			s.mu.Lock()
+			assert.Equal(t, time.Duration(test.Transfers)*time.Second, s.totalDuration())
+			assert.Equal(t, test.ExpectedStartedTransfers, len(s.startedTransfers))
+			s.mu.Unlock()
+
 		})
 	}
-
-	s.mu.Lock()
-	assert.Equal(t, time.Duration(max+100)*time.Second, s.totalDuration())
-	assert.Equal(t, max+100, len(s.startedTransfers))
-	s.mu.Unlock()
-
-	for i := 0; i < 200; i++ {
-		s.PruneTransfers()
-	}
-
-	s.mu.Lock()
-	assert.Equal(t, time.Duration(max+100)*time.Second, s.totalDuration())
-	assert.Equal(t, max, len(s.startedTransfers))
-	s.mu.Unlock()
-
 }

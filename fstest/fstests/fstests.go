@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/artpar/rclone/fs/operations"
 	"github.com/artpar/rclone/fs/walk"
 	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/fstest/testserver"
 	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/random"
 	"github.com/artpar/rclone/lib/readers"
@@ -305,6 +307,10 @@ func Run(t *testing.T, opt *Opt) {
 		ctx           = context.Background()
 	)
 
+	if strings.HasSuffix(os.Getenv("RCLONE_CONFIG"), "/notfound") && *fstest.RemoteName == "" {
+		t.Skip("quicktest only")
+	}
+
 	// Skip the test if the remote isn't configured
 	skipIfNotOk := func(t *testing.T) {
 		if remote == nil {
@@ -351,7 +357,11 @@ func Run(t *testing.T, opt *Opt) {
 	if *fstest.RemoteName != "" {
 		remoteName = *fstest.RemoteName
 	}
+	oldFstestRemoteName := fstest.RemoteName
 	fstest.RemoteName = &remoteName
+	defer func() {
+		fstest.RemoteName = oldFstestRemoteName
+	}()
 	t.Logf("Using remote %q", remoteName)
 	var err error
 	if remoteName == "" {
@@ -359,6 +369,11 @@ func Run(t *testing.T, opt *Opt) {
 		require.NoError(t, err)
 		isLocalRemote = true
 	}
+
+	// Start any test servers if required
+	finish, err := testserver.Start(remoteName)
+	require.NoError(t, err)
+	defer finish()
 
 	// Make the Fs we are testing with, initialising the local variables
 	// subRemoteName - name of the remote after the TestRemote:
@@ -1571,36 +1586,39 @@ func Run(t *testing.T, opt *Opt) {
 					t.Skip("FS has no PutStream interface")
 				}
 
-				file := fstest.Item{
-					ModTime: fstest.Time("2001-02-03T04:05:06.499999999Z"),
-					Path:    "piped data.txt",
-					Size:    -1, // use unknown size during upload
+				for _, contentSize := range []int{0, 100} {
+					t.Run(strconv.Itoa(contentSize), func(t *testing.T) {
+						file := fstest.Item{
+							ModTime: fstest.Time("2001-02-03T04:05:06.499999999Z"),
+							Path:    "piped data.txt",
+							Size:    -1, // use unknown size during upload
+						}
+
+						var (
+							err        error
+							obj        fs.Object
+							uploadHash *hash.MultiHasher
+						)
+						retry(t, "PutStream", func() error {
+							contents := random.String(contentSize)
+							buf := bytes.NewBufferString(contents)
+							uploadHash = hash.NewMultiHasher()
+							in := io.TeeReader(buf, uploadHash)
+
+							file.Size = -1
+							obji := object.NewStaticObjectInfo(file.Path, file.ModTime, file.Size, true, nil, nil)
+							obj, err = remote.Features().PutStream(ctx, in, obji)
+							return err
+						})
+						file.Hashes = uploadHash.Sums()
+						file.Size = int64(contentSize) // use correct size when checking
+						file.Check(t, obj, remote.Precision())
+						// Re-read the object and check again
+						obj = findObject(ctx, t, remote, file.Path)
+						file.Check(t, obj, remote.Precision())
+						require.NoError(t, obj.Remove(ctx))
+					})
 				}
-
-				var (
-					err         error
-					obj         fs.Object
-					uploadHash  *hash.MultiHasher
-					contentSize = 100
-				)
-				retry(t, "PutStream", func() error {
-					contents := random.String(contentSize)
-					buf := bytes.NewBufferString(contents)
-					uploadHash = hash.NewMultiHasher()
-					in := io.TeeReader(buf, uploadHash)
-
-					file.Size = -1
-					obji := object.NewStaticObjectInfo(file.Path, file.ModTime, file.Size, true, nil, nil)
-					obj, err = remote.Features().PutStream(ctx, in, obji)
-					return err
-				})
-				file.Hashes = uploadHash.Sums()
-				file.Size = int64(contentSize) // use correct size when checking
-				file.Check(t, obj, remote.Precision())
-				// Re-read the object and check again
-				obj = findObject(ctx, t, remote, file.Path)
-				file.Check(t, obj, remote.Precision())
-				require.NoError(t, obj.Remove(ctx))
 			})
 
 			// TestInternal calls InternalTest() on the Fs

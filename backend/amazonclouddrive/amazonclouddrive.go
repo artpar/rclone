@@ -28,18 +28,17 @@ import (
 	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/encodings"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/oauthutil"
 	"github.com/artpar/rclone/lib/pacer"
 	"golang.org/x/oauth2"
 )
 
 const (
-	enc                      = encodings.AmazonCloudDrive
 	folderKind               = "FOLDER"
 	fileKind                 = "FILE"
 	statusAvailable          = "AVAILABLE"
@@ -74,7 +73,7 @@ func init() {
 		Config: func(name string, m configmap.Mapper) {
 			err := oauthutil.Config("amazon cloud drive", name, m, acdConfig)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 			}
 		},
 		Options: []fs.Option{{
@@ -137,15 +136,23 @@ which downloads the file through a temporary URL directly from the
 underlying S3 storage.`,
 			Default:  defaultTempLinkThreshold,
 			Advanced: true,
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			// Encode invalid UTF-8 bytes as json doesn't handle them properly.
+			Default: (encoder.Base |
+				encoder.EncodeInvalidUtf8),
 		}},
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
-	Checkpoint        string        `config:"checkpoint"`
-	UploadWaitPerGB   fs.Duration   `config:"upload_wait_per_gb"`
-	TempLinkThreshold fs.SizeSuffix `config:"templink_threshold"`
+	Checkpoint        string               `config:"checkpoint"`
+	UploadWaitPerGB   fs.Duration          `config:"upload_wait_per_gb"`
+	TempLinkThreshold fs.SizeSuffix        `config:"templink_threshold"`
+	Enc               encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote acd server
@@ -386,7 +393,7 @@ func (f *Fs) FindLeaf(ctx context.Context, pathID, leaf string) (pathIDOut strin
 	var resp *http.Response
 	var subFolder *acd.Folder
 	err = f.pacer.Call(func() (bool, error) {
-		subFolder, resp, err = folder.GetFolder(enc.FromStandardName(leaf))
+		subFolder, resp, err = folder.GetFolder(f.opt.Enc.FromStandardName(leaf))
 		return f.shouldRetry(resp, err)
 	})
 	if err != nil {
@@ -413,7 +420,7 @@ func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, 
 	var resp *http.Response
 	var info *acd.Folder
 	err = f.pacer.Call(func() (bool, error) {
-		info, resp, err = folder.CreateFolder(enc.FromStandardName(leaf))
+		info, resp, err = folder.CreateFolder(f.opt.Enc.FromStandardName(leaf))
 		return f.shouldRetry(resp, err)
 	})
 	if err != nil {
@@ -481,7 +488,7 @@ func (f *Fs) listAll(dirID string, title string, directoriesOnly bool, filesOnly
 				if !hasValidParent {
 					continue
 				}
-				*node.Name = enc.ToStandardName(*node.Name)
+				*node.Name = f.opt.Enc.ToStandardName(*node.Name)
 				// Store the nodes up in case we have to retry the listing
 				out = append(out, node)
 			}
@@ -671,7 +678,7 @@ func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options .
 	err = f.pacer.CallNoRetry(func() (bool, error) {
 		start := time.Now()
 		f.tokenRenewer.Start()
-		info, resp, err = folder.Put(in, enc.FromStandardName(leaf))
+		info, resp, err = folder.Put(in, f.opt.Enc.FromStandardName(leaf))
 		f.tokenRenewer.Stop()
 		var ok bool
 		ok, info, err = f.checkUpload(ctx, resp, in, src, info, err, time.Since(start))
@@ -1041,7 +1048,7 @@ func (o *Object) readMetaData(ctx context.Context) (err error) {
 	var resp *http.Response
 	var info *acd.File
 	err = o.fs.pacer.Call(func() (bool, error) {
-		info, resp, err = folder.GetFile(enc.FromStandardName(leaf))
+		info, resp, err = folder.GetFile(o.fs.opt.Enc.FromStandardName(leaf))
 		return o.fs.shouldRetry(resp, err)
 	})
 	if err != nil {
@@ -1161,7 +1168,7 @@ func (f *Fs) restoreNode(info *acd.Node) (newInfo *acd.Node, err error) {
 func (f *Fs) renameNode(info *acd.Node, newName string) (newInfo *acd.Node, err error) {
 	var resp *http.Response
 	err = f.pacer.Call(func() (bool, error) {
-		newInfo, resp, err = info.Rename(enc.FromStandardName(newName))
+		newInfo, resp, err = info.Rename(f.opt.Enc.FromStandardName(newName))
 		return f.shouldRetry(resp, err)
 	})
 	return newInfo, err
@@ -1357,7 +1364,7 @@ func (f *Fs) changeNotifyRunner(notifyFunc func(string, fs.EntryType), checkpoin
 					if len(node.Parents) > 0 {
 						if path, ok := f.dirCache.GetInv(node.Parents[0]); ok {
 							// and append the drive file name to compute the full file name
-							name := enc.ToStandardName(*node.Name)
+							name := f.opt.Enc.ToStandardName(*node.Name)
 							if len(path) > 0 {
 								path = path + "/" + name
 							} else {

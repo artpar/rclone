@@ -11,13 +11,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pkg/sftp"
 	_ "github.com/artpar/rclone/backend/local"
 	"github.com/artpar/rclone/cmd/serve/servetest"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/pkg/sftp"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -45,7 +45,7 @@ func TestSftp(t *testing.T) {
 		opt.Pass = testPass
 
 		w := newServer(f, &opt)
-		assert.NoError(t, w.serve())
+		require.NoError(t, w.serve())
 
 		// Read the host and port we started on
 		addr := w.Addr()
