@@ -10,6 +10,8 @@ require (
 	github.com/a8m/tree v0.0.0-20181222104329-6a0b80129de4
 	github.com/abbot/go-http-auth v0.4.0
 	github.com/anacrolix/dms v1.1.0
+	github.com/artpar/go-httpclient v1.0.0
+	github.com/artpar/go-koofrclient v1.0.0
 	github.com/atotto/clipboard v0.1.2
 	github.com/aws/aws-sdk-go v1.25.31
 	github.com/billziss-gh/cgofuse v1.2.0
@@ -25,8 +27,7 @@ require (
 	github.com/jzelinskie/whirlpool v0.0.0-20170603002051-c19460b8caa6
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
-	github.com/koofr/go-httpclient v0.0.0-20190818202018-e0dc8fd921dc
-	github.com/koofr/go-koofrclient v0.0.0-20190724113126-8e5366da203a
+	github.com/koofr/go-httpclient v0.0.0-20190818202018-e0dc8fd921dc // indirect
 	github.com/mattn/go-colorable v0.1.4
 	github.com/mattn/go-ieproxy v0.0.0-20190805055040-f9202b1cfdeb // indirect
 	github.com/mattn/go-isatty v0.0.11-0.20191112051248-2a2f0ea997f9 // indirect
@@ -41,7 +42,7 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.8.1
 	github.com/pkg/sftp v1.10.1
-	github.com/putdotio/go-putio v1.1.1 // indirect
+	github.com/putdotio/go-putio/putio v0.0.0-20200123120452-16d982cac2b8
 	github.com/rfjakob/eme v0.0.0-20171028163933-2222dbd4ba46
 	github.com/sevlyar/go-daemon v0.1.5
 	github.com/sirupsen/logrus v1.4.2

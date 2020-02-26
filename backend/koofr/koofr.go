@@ -20,8 +20,8 @@ import (
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/lib/encoder"
 
-	httpclient "github.com/koofr/go-httpclient"
-	koofrclient "github.com/koofr/go-koofrclient"
+	httpclient "github.com/artpar/go-httpclient"
+	koofrclient "github.com/artpar/go-koofrclient"
 )
 
 // Register Fs with rclone
