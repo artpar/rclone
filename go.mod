@@ -11,7 +11,7 @@ require (
 	github.com/abbot/go-http-auth v0.4.0
 	github.com/anacrolix/dms v1.1.0
 	github.com/artpar/go-httpclient v1.0.0
-	github.com/artpar/go-koofrclient v1.0.0
+	github.com/artpar/go-koofrclient v1.0.1
 	github.com/atotto/clipboard v0.1.2
 	github.com/aws/aws-sdk-go v1.25.31
 	github.com/billziss-gh/cgofuse v1.2.0
@@ -27,7 +27,6 @@ require (
 	github.com/jzelinskie/whirlpool v0.0.0-20170603002051-c19460b8caa6
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
-	github.com/koofr/go-httpclient v0.0.0-20190818202018-e0dc8fd921dc // indirect
 	github.com/mattn/go-colorable v0.1.4
 	github.com/mattn/go-ieproxy v0.0.0-20190805055040-f9202b1cfdeb // indirect
 	github.com/mattn/go-isatty v0.0.11-0.20191112051248-2a2f0ea997f9 // indirect
@@ -37,8 +36,6 @@ require (
 	github.com/ncw/swift v1.0.49
 	github.com/nsf/termbox-go v0.0.0-20191229070316-58d4fcbce2a7
 	github.com/okzk/sdnotify v0.0.0-20180710141335-d9becc38acbd
-	github.com/onsi/ginkgo v1.9.0 // indirect
-	github.com/onsi/gomega v1.6.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.8.1
 	github.com/pkg/sftp v1.10.1
