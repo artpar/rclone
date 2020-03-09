@@ -329,7 +329,7 @@ func (o *object) FilePath() string {
 // Returns the ObjectID for the object. This is used in various ContentDirectory actions.
 func (o object) ID() string {
 	if !path.IsAbs(o.Path) {
-		log.Panicf("Relative object path: %s", o.Path)
+		log.Printf("Relative object path: %s", o.Path)
 	}
 	if len(o.Path) == 1 {
 		return "0"

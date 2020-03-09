@@ -21,7 +21,7 @@ func TestMountpointEmptyModificationTime(t *testing.T) {
 `
 	var jf JottaFolder
 	if err := xml.Unmarshal([]byte(mountpoint), &jf); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	if !time.Time(jf.ModifiedAt).IsZero() {
 		t.Errorf("got non-zero time, want zero")
