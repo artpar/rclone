@@ -35,7 +35,7 @@ func makeDefaultFriendlyName() string {
 func makeDeviceUUID(unique string) string {
 	h := md5.New()
 	if _, err := io.WriteString(h, unique); err != nil {
-		log.Panicf("makeDeviceUUID write failed: %s", err)
+		log.Printf("makeDeviceUUID write failed: %s", err)
 	}
 	buf := h.Sum(nil)
 	return upnp.FormatUUID(buf)
@@ -71,7 +71,7 @@ func didlLite(chardata string) string {
 func mustMarshalXML(value interface{}) []byte {
 	ret, err := xml.MarshalIndent(value, "", "  ")
 	if err != nil {
-		log.Panicf("mustMarshalXML failed to marshal %v: %s", value, err)
+		log.Printf("mustMarshalXML failed to marshal %v: %s", value, err)
 	}
 	return ret
 }
@@ -98,7 +98,7 @@ func parseServiceType(s string) (ret upnp.ServiceURN, err error) {
 		return
 	}
 	if len(matches) != 3 {
-		log.Panicf("Invalid serviceURNRegexp ?")
+		log.Printf("Invalid serviceURNRegexp ?")
 	}
 	ret.Type = matches[1]
 	ret.Version, err = strconv.ParseUint(matches[2], 0, 0)
