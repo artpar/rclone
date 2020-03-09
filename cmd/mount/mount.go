@@ -1,6 +1,6 @@
 // Package mount implents a FUSE mounting system for rclone remotes.
 
-// +build linux,go1.11 darwin,go1.11 freebsd,go1.11
+// +build linux,go1.13 darwin,go1.13 freebsd,go1.13
 
 package mount
 
@@ -32,11 +32,13 @@ func mountOptions(device string) (options []fuse.MountOption) {
 		fuse.Subtype("rclone"),
 		fuse.FSName(device),
 		fuse.VolumeName(mountlib.VolumeName),
-		fuse.AsyncRead(),
 
 		// Options from benchmarking in the fuse module
 		//fuse.MaxReadahead(64 * 1024 * 1024),
 		//fuse.WritebackCache(),
+	}
+	if mountlib.AsyncRead {
+		options = append(options, fuse.AsyncRead())
 	}
 	if mountlib.NoAppleDouble {
 		options = append(options, fuse.NoAppleDouble())
@@ -51,7 +53,8 @@ func mountOptions(device string) (options []fuse.MountOption) {
 		options = append(options, fuse.AllowOther())
 	}
 	if mountlib.AllowRoot {
-		options = append(options, fuse.AllowRoot())
+		// options = append(options, fuse.AllowRoot())
+		fs.Errorf(nil, "Ignoring --allow-root. Support has been removed upstream - see https://github.com/bazil/fuse/issues/144 for more info")
 	}
 	if mountlib.DefaultPermissions {
 		options = append(options, fuse.DefaultPermissions())

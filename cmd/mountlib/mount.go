@@ -36,6 +36,7 @@ var (
 	NoAppleDouble      = true        // use noappledouble by default
 	NoAppleXattr       = false       // do not use noapplexattr by default
 	DaemonTimeout      time.Duration // OSXFUSE only
+	AsyncRead          = true        // do async reads by default
 )
 
 // Global constants
@@ -321,6 +322,9 @@ be copied to the vfs cache before opening with --vfs-cache-mode full.
 			VolumeName = strings.Replace(VolumeName, ":", " ", -1)
 			VolumeName = strings.Replace(VolumeName, "/", " ", -1)
 			VolumeName = strings.TrimSpace(VolumeName)
+			if runtime.GOOS == "windows" && len(VolumeName) > 32 {
+				VolumeName = VolumeName[:32]
+			}
 
 			// Start background task if --background is specified
 			if Daemon {
@@ -356,6 +360,7 @@ be copied to the vfs cache before opening with --vfs-cache-mode full.
 	flags.BoolVarP(cmdFlags, &Daemon, "daemon", "", Daemon, "Run mount as a daemon (background mode).")
 	flags.StringVarP(cmdFlags, &VolumeName, "volname", "", VolumeName, "Set the volume name (not supported by all OSes).")
 	flags.DurationVarP(cmdFlags, &DaemonTimeout, "daemon-timeout", "", DaemonTimeout, "Time limit for rclone to respond to kernel (not supported by all OSes).")
+	flags.BoolVarP(cmdFlags, &AsyncRead, "async-read", "", AsyncRead, "Use asynchronous reads.")
 
 	if runtime.GOOS == "darwin" {
 		flags.BoolVarP(cmdFlags, &NoAppleDouble, "noappledouble", "", NoAppleDouble, "Sets the OSXFUSE option noappledouble.")

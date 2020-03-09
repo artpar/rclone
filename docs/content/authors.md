@@ -338,3 +338,9 @@ Contributors
   * Durval Menezes <DurvalMenezes@users.noreply.github.com>
   * Tim Gallant <me@timgallant.us>
   * Frederick Zhang <frederick888@tsundere.moe>
+  * valery1707 <valery1707@gmail.com>
+  * Yves G <theYinYeti@yalis.fr>
+  * Shing Kit Chan <chanshingkit@gmail.com>
+  * Franklyn Tackitt <franklyn@tackitt.net>
+  * Robert-André Mauchin <zebob.m@gmail.com>
+  * evileye <48332831+ibiruai@users.noreply.github.com>

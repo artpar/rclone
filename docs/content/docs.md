@@ -736,6 +736,20 @@ When the limit is reached all transfers will stop immediately.
 
 Rclone will exit with exit code 8 if the transfer limit is reached.
 
+### --cutoff-mode=hard|soft|cautious ###
+
+This modifies the behavior of `--max-transfer`
+Defaults to `--cutoff-mode=hard`.
+
+Specifiying `--cutoff-mode=hard` will stop transferring immediately
+when Rclone reaches the limit.
+
+Specifiying `--cutoff-mode=soft` will stop starting new transfers
+when Rclone reaches the limit.
+
+Specifiying `--cutoff-mode=cautious` will try to prevent Rclone
+from reaching the limit.
+
 ### --modify-window=TIME ###
 
 When checking whether a file has been modified, this is the maximum

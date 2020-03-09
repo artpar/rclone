@@ -16,10 +16,10 @@ import (
 	"sync"
 	"time"
 
-	bolt "github.com/etcd-io/bbolt"
 	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/walk"
+	bolt "go.etcd.io/bbolt"
 )
 
 // Constants

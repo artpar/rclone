@@ -16,9 +16,14 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/skratchdot/open-golang/open"
+
 	"github.com/artpar/rclone/cmd/serve/httplib"
 	"github.com/artpar/rclone/cmd/serve/httplib/serve"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
 	"github.com/artpar/rclone/fs/cache"
 	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/list"
@@ -26,8 +31,15 @@ import (
 	"github.com/artpar/rclone/fs/rc/jobs"
 	"github.com/artpar/rclone/fs/rc/rcflags"
 	"github.com/artpar/rclone/lib/random"
-	"github.com/skratchdot/open-golang/open"
 )
+
+var promHandler http.Handler
+
+func init() {
+	rcloneCollector := accounting.NewRcloneCollector()
+	prometheus.MustRegister(rcloneCollector)
+	promHandler = promhttp.Handler()
+}
 
 // Start the remote control server if configured
 //
@@ -71,7 +83,7 @@ func newServer(opt *rc.Options, mux *http.ServeMux) *Server {
 		s.files = http.FileServer(http.Dir(opt.Files))
 	} else if opt.WebUI {
 		if err := rc.CheckAndDownloadWebGUIRelease(opt.WebGUIUpdate, opt.WebGUIForceUpdate, opt.WebGUIFetchURL, config.CacheDir); err != nil {
-			log.Printf("Error while fetching the latest release of Web GUI: %v", err)
+			log.Fatalf("Error while fetching the latest release of Web GUI: %v", err)
 		}
 		if opt.NoAuth {
 			opt.NoAuth = false
@@ -84,7 +96,7 @@ func newServer(opt *rc.Options, mux *http.ServeMux) *Server {
 		if opt.HTTPOptions.BasicPass == "" {
 			randomPass, err := random.Password(128)
 			if err != nil {
-				log.Printf("Failed to make password: %v", err)
+				log.Fatalf("Failed to make password: %v", err)
 			}
 			opt.HTTPOptions.BasicPass = randomPass
 			fs.Infof(nil, "No password specified. Using random password: %s \n", randomPass)
@@ -334,6 +346,9 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, path string) 
 	case match != nil && s.opt.Serve:
 		// Serve /[fs]/remote files
 		s.serveRemote(w, r, match[2], match[1])
+		return
+	case path == "metrics" && s.opt.EnableMetrics:
+		promHandler.ServeHTTP(w, r)
 		return
 	case path == "*" && s.opt.Serve:
 		// Serve /* as the remote listing

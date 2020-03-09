@@ -39,6 +39,7 @@ import (
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/accounting"
 	"github.com/artpar/rclone/fs/filter"
+	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/fs/operations"
@@ -1526,4 +1527,59 @@ func TestRcatSize(t *testing.T) {
 
 	// Check files exist
 	fstest.CheckItems(t, r.Fremote, file1, file2)
+}
+
+func TestCopyFileMaxTransfer(t *testing.T) {
+	r := fstest.NewRun(t)
+	defer r.Finalise()
+	old := fs.Config.MaxTransfer
+	oldMode := fs.Config.CutoffMode
+
+	defer func() {
+		fs.Config.MaxTransfer = old
+		fs.Config.CutoffMode = oldMode
+		accounting.Stats(context.Background()).ResetCounters()
+	}()
+
+	file1 := r.WriteFile("file1", "file1 contents", t1)
+	file2 := r.WriteFile("file2", "file2 contents...........", t2)
+
+	rfile1 := file1
+	rfile1.Path = "sub/file1"
+	rfile2 := file2
+	rfile2.Path = "sub/file2"
+
+	fs.Config.MaxTransfer = 15
+	fs.Config.CutoffMode = fs.CutoffModeHard
+	accounting.Stats(context.Background()).ResetCounters()
+
+	err := operations.CopyFile(context.Background(), r.Fremote, r.Flocal, rfile1.Path, file1.Path)
+	require.NoError(t, err)
+	fstest.CheckItems(t, r.Flocal, file1, file2)
+	fstest.CheckItems(t, r.Fremote, rfile1)
+
+	accounting.Stats(context.Background()).ResetCounters()
+
+	err = operations.CopyFile(context.Background(), r.Fremote, r.Flocal, rfile2.Path, file2.Path)
+	fstest.CheckItems(t, r.Flocal, file1, file2)
+	fstest.CheckItems(t, r.Fremote, rfile1)
+	assert.Contains(t, err.Error(), "Max transfer limit reached")
+	assert.True(t, fserrors.IsFatalError(err))
+
+	fs.Config.CutoffMode = fs.CutoffModeCautious
+	accounting.Stats(context.Background()).ResetCounters()
+
+	err = operations.CopyFile(context.Background(), r.Fremote, r.Flocal, rfile2.Path, file2.Path)
+	fstest.CheckItems(t, r.Flocal, file1, file2)
+	fstest.CheckItems(t, r.Fremote, rfile1)
+	assert.Contains(t, err.Error(), "Max transfer limit reached")
+	assert.True(t, fserrors.IsFatalError(err))
+
+	fs.Config.CutoffMode = fs.CutoffModeSoft
+	accounting.Stats(context.Background()).ResetCounters()
+
+	err = operations.CopyFile(context.Background(), r.Fremote, r.Flocal, rfile2.Path, file2.Path)
+	require.NoError(t, err)
+	fstest.CheckItems(t, r.Flocal, file1, file2)
+	fstest.CheckItems(t, r.Fremote, rfile1, rfile2)
 }
