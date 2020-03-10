@@ -224,8 +224,12 @@ func ShowStats() bool {
 	return statsIntervalFlag != nil && statsIntervalFlag.Changed
 }
 
+type RcloneCommand interface {
+	Name() string
+}
+
 // Run the function with stats and retries if required
-func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
+func Run(Retry bool, showStats bool, cmd RcloneCommand, f func() error) {
 	var cmdErr error
 	stopStats := func() {}
 	if !showStats && ShowStats() {
