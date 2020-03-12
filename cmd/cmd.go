@@ -435,6 +435,7 @@ func resolveExitCode(err error) {
 	atexit.Run()
 	if err == nil {
 		log.Printf("RCLONE SUCCESS [%v]", exitCodeSuccess)
+		return
 	}
 
 	_, unwrapped := fserrors.Cause(err)
