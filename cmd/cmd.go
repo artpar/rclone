@@ -434,28 +434,28 @@ func initConfig() {
 func resolveExitCode(err error) {
 	atexit.Run()
 	if err == nil {
-		os.Exit(exitCodeSuccess)
+		log.Printf("RCLONE SUCCESS [%v]", exitCodeSuccess)
 	}
 
 	_, unwrapped := fserrors.Cause(err)
 
 	switch {
 	case unwrapped == fs.ErrorDirNotFound:
-		os.Exit(exitCodeDirNotFound)
+		log.Printf("RCLONE ERR [%v]", exitCodeDirNotFound)
 	case unwrapped == fs.ErrorObjectNotFound:
-		os.Exit(exitCodeFileNotFound)
+		log.Printf("RCLONE ERR [%v]", exitCodeFileNotFound)
 	case unwrapped == errorUncategorized:
-		os.Exit(exitCodeUncategorizedError)
+		log.Printf("RCLONE ERR [%v]", exitCodeUncategorizedError)
 	case unwrapped == accounting.ErrorMaxTransferLimitReached:
-		os.Exit(exitCodeTransferExceeded)
+		log.Printf("RCLONE ERR [%v]", exitCodeTransferExceeded)
 	case fserrors.ShouldRetry(err):
-		os.Exit(exitCodeRetryError)
+		log.Printf("RCLONE ERR [%v]", exitCodeRetryError)
 	case fserrors.IsNoRetryError(err):
-		os.Exit(exitCodeNoRetryError)
+		log.Printf("RCLONE ERR [%v]", exitCodeNoRetryError)
 	case fserrors.IsFatalError(err):
-		os.Exit(exitCodeFatalError)
+		log.Printf("RCLONE ERR [%v]", exitCodeFatalError)
 	default:
-		os.Exit(exitCodeUsageError)
+		log.Printf("RCLONE ERR [%v]", exitCodeUsageError)
 	}
 }
 
