@@ -5,6 +5,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -20,6 +21,8 @@ import (
 	"sync"
 	"text/template"
 	"time"
+
+	"github.com/coreos/go-semver/semver"
 )
 
 var (
@@ -37,6 +40,8 @@ var (
 )
 
 // GOOS/GOARCH pairs we build for
+//
+// If the GOARCH contains a - it is a synthetic arch with more parameters
 var osarches = []string{
 	"windows/386",
 	"windows/amd64",
@@ -45,15 +50,18 @@ var osarches = []string{
 	"linux/386",
 	"linux/amd64",
 	"linux/arm",
+	"linux/arm-v7",
 	"linux/arm64",
 	"linux/mips",
 	"linux/mipsle",
 	"freebsd/386",
 	"freebsd/amd64",
 	"freebsd/arm",
+	"freebsd/arm-v7",
 	"netbsd/386",
 	"netbsd/amd64",
 	"netbsd/arm",
+	"netbsd/arm-v7",
 	"openbsd/386",
 	"openbsd/amd64",
 	"plan9/386",
@@ -66,6 +74,7 @@ var archFlags = map[string][]string{
 	"386":    {"GO386=387"},
 	"mips":   {"GOMIPS=softfloat"},
 	"mipsle": {"GOMIPS=softfloat"},
+	"arm-v7": {"GOARM=7"},
 }
 
 // runEnv - run a shell command with env
@@ -94,7 +103,7 @@ func runEnv(args, env []string) error {
 func run(args ...string) {
 	err := runEnv(args, nil)
 	if err != nil {
-		log.Printf("Exiting after error: %v", err)
+		log.Fatalf("Exiting after error: %v", err)
 	}
 }
 
@@ -102,7 +111,7 @@ func run(args ...string) {
 func chdir(dir string) {
 	err := os.Chdir(dir)
 	if err != nil {
-		log.Printf("Couldn't cd into %q: %v", dir, err)
+		log.Fatalf("Couldn't cd into %q: %v", dir, err)
 	}
 }
 
@@ -110,21 +119,21 @@ func chdir(dir string) {
 func substitute(inFile, outFile string, data interface{}) {
 	t, err := template.ParseFiles(inFile)
 	if err != nil {
-		log.Printf("Failed to read template file %q: %v %v", inFile, err)
+		log.Fatalf("Failed to read template file %q: %v %v", inFile, err)
 	}
 	out, err := os.Create(outFile)
 	if err != nil {
-		log.Printf("Failed to create output file %q: %v %v", outFile, err)
+		log.Fatalf("Failed to create output file %q: %v %v", outFile, err)
 	}
 	defer func() {
 		err := out.Close()
 		if err != nil {
-			log.Printf("Failed to close output file %q: %v %v", outFile, err)
+			log.Fatalf("Failed to close output file %q: %v %v", outFile, err)
 		}
 	}()
 	err = t.Execute(out, data)
 	if err != nil {
-		log.Printf("Failed to substitute template file %q: %v %v", inFile, err)
+		log.Fatalf("Failed to substitute template file %q: %v %v", inFile, err)
 	}
 }
 
@@ -168,20 +177,127 @@ func buildDebAndRpm(dir, version, goarch string) []string {
 	return artifacts
 }
 
+// generate system object (syso) file to be picked up by a following go build for embedding icon and version info resources into windows executable
+func buildWindowsResourceSyso(goarch string, versionTag string) string {
+	type M map[string]interface{}
+	version := strings.TrimPrefix(versionTag, "v")
+	semanticVersion := semver.New(version)
+
+	// Build json input to goversioninfo utility
+	bs, err := json.Marshal(M{
+		"FixedFileInfo": M{
+			"FileVersion": M{
+				"Major": semanticVersion.Major,
+				"Minor": semanticVersion.Minor,
+				"Patch": semanticVersion.Patch,
+			},
+			"ProductVersion": M{
+				"Major": semanticVersion.Major,
+				"Minor": semanticVersion.Minor,
+				"Patch": semanticVersion.Patch,
+			},
+		},
+		"StringFileInfo": M{
+			"CompanyName":      "https://rclone.org",
+			"ProductName":      "Rclone",
+			"FileDescription":  "Rsync for cloud storage",
+			"InternalName":     "rclone",
+			"OriginalFilename": "rclone.exe",
+			"LegalCopyright":   "The Rclone Authors",
+			"FileVersion":      version,
+			"ProductVersion":   version,
+		},
+		"IconPath": "../graphics/logo/ico/logo_symbol_color.ico",
+	})
+	if err != nil {
+		log.Printf("Failed to build version info json: %v", err)
+		return ""
+	}
+
+	// Write json to temporary file that will only be used by the goversioninfo command executed below.
+	jsonPath, err := filepath.Abs("versioninfo_windows_" + goarch + ".json") // Appending goos and goarch as suffix to avoid any race conditions
+	if err != nil {
+		log.Printf("Failed to resolve path: %v", err)
+		return ""
+	}
+	err = ioutil.WriteFile(jsonPath, bs, 0644)
+	if err != nil {
+		log.Printf("Failed to write %s: %v", jsonPath, err)
+		return ""
+	}
+	defer func() {
+		if err := os.Remove(jsonPath); err != nil {
+			if !os.IsNotExist(err) {
+				log.Printf("Warning: Couldn't remove generated %s: %v. Please remove it manually.", jsonPath, err)
+			}
+		}
+	}()
+
+	// Execute goversioninfo utility using the json file as input.
+	// It will produce a system object (syso) file that a following go build should pick up.
+	sysoPath, err := filepath.Abs("../resource_windows_" + goarch + ".syso") // Appending goos and goarch as suffix to avoid any race conditions, and also it is recognized by go build and avoids any builds for other systems considering it
+	if err != nil {
+		log.Printf("Failed to resolve path: %v", err)
+		return ""
+	}
+	args := []string{
+		"goversioninfo",
+		"-o",
+		sysoPath,
+	}
+	if goarch == "amd64" {
+		args = append(args, "-64") // Make the syso a 64-bit coff file
+	}
+	args = append(args, jsonPath)
+	err = runEnv(args, nil)
+	if err != nil {
+		return ""
+	}
+
+	return sysoPath
+}
+
+// delete generated system object (syso) resource file
+func cleanupResourceSyso(sysoFilePath string) {
+	if sysoFilePath == "" {
+		return
+	}
+	if err := os.Remove(sysoFilePath); err != nil {
+		if !os.IsNotExist(err) {
+			log.Printf("Warning: Couldn't remove generated %s: %v. Please remove it manually.", sysoFilePath, err)
+		}
+	}
+}
+
+// Trip a version suffix off the arch if present
+func stripVersion(goarch string) string {
+	i := strings.Index(goarch, "-")
+	if i < 0 {
+		return goarch
+	}
+	return goarch[:i]
+}
+
 // build the binary in dir returning success or failure
 func compileArch(version, goos, goarch, dir string) bool {
 	log.Printf("Compiling %s/%s", goos, goarch)
 	output := filepath.Join(dir, "rclone")
 	if goos == "windows" {
 		output += ".exe"
+		sysoPath := buildWindowsResourceSyso(goarch, version)
+		if sysoPath == "" {
+			log.Printf("Warning: Windows binaries will not have file information embedded")
+		}
+		defer cleanupResourceSyso(sysoPath)
 	}
 	err := os.MkdirAll(dir, 0777)
 	if err != nil {
-		log.Printf("Failed to mkdir: %v", err)
+		log.Fatalf("Failed to mkdir: %v", err)
 	}
 	args := []string{
 		"go", "build",
 		"--ldflags", "-s -X github.com/artpar/rclone/fs.Version=" + version,
+		"-trimpath",
 		"-i",
 		"-o", output,
 		"-tags", *tags,
@@ -189,7 +305,7 @@ func compileArch(version, goos, goarch, dir string) bool {
 	}
 	env := []string{
 		"GOOS=" + goos,
-		"GOARCH=" + goarch,
+		"GOARCH=" + stripVersion(goarch),
 	}
 	if !*cgo {
 		env = append(env, "CGO_ENABLED=0")
@@ -237,11 +353,11 @@ func compile(version string) {
 	}
 	includeRe, err := regexp.Compile(*include)
 	if err != nil {
-		log.Printf("Bad -include regexp: %v", err)
+		log.Fatalf("Bad -include regexp: %v", err)
 	}
 	excludeRe, err := regexp.Compile(*exclude)
 	if err != nil {
-		log.Printf("Bad -exclude regexp: %v", err)
+		log.Fatalf("Bad -exclude regexp: %v", err)
 	}
 	compiled := 0
 	var failuresMu sync.Mutex
@@ -252,7 +368,7 @@ func compile(version string) {
 		}
 		parts := strings.Split(osarch, "/")
 		if len(parts) != 2 {
-			log.Printf("Bad osarch %q", osarch)
+			log.Fatalf("Bad osarch %q", osarch)
 		}
 		goos, goarch := parts[0], parts[1]
 		userGoos := goos
@@ -283,7 +399,7 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 	if len(args) != 1 {
-		log.Printf("Syntax: %s <version>", os.Args[0])
+		log.Fatalf("Syntax: %s <version>", os.Args[0])
 	}
 	version := args[0]
 	if !*noClean {
@@ -293,7 +409,7 @@ func main() {
 	chdir("build")
 	err := ioutil.WriteFile("version.txt", []byte(fmt.Sprintf("rclone %s\n", version)), 0666)
 	if err != nil {
-		log.Printf("Couldn't write version.txt: %v", err)
+		log.Fatalf("Couldn't write version.txt: %v", err)
 	}
 	compile(version)
 }

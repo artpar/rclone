@@ -14,6 +14,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -26,6 +27,8 @@ import (
 	"github.com/artpar/rclone/fs/config/obscure"
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fs/walk"
 	"github.com/artpar/rclone/lib/atexit"
 	"github.com/artpar/rclone/lib/dircache"
 	"github.com/artpar/rclone/lib/encoder"
@@ -79,9 +82,9 @@ func init() {
 		NewFs:       NewFs,
 		Config: func(name string, m configmap.Mapper) {
 			ctx := context.TODO()
-			err := oauthutil.Config("onedrive", name, m, oauthConfig)
+			err := oauthutil.Config("onedrive", name, m, oauthConfig, nil)
 			if err != nil {
-				log.Printf("Failed to configure token: %v", err)
+				log.Fatalf("Failed to configure token: %v", err)
 				return
 			}
 
@@ -110,7 +113,7 @@ func init() {
 
 			oAuthClient, _, err := oauthutil.NewClient(name, m, oauthConfig)
 			if err != nil {
-				log.Printf("Failed to configure OneDrive: %v", err)
+				log.Fatalf("Failed to configure OneDrive: %v", err)
 			}
 			srv := rest.NewClient(oAuthClient)
 
@@ -152,11 +155,11 @@ func init() {
 				sites := siteResponse{}
 				_, err := srv.CallJSON(ctx, &opts, nil, &sites)
 				if err != nil {
-					log.Printf("Failed to query available sites: %v", err)
+					log.Fatalf("Failed to query available sites: %v", err)
 				}
 
 				if len(sites.Sites) == 0 {
-					log.Printf("Search for '%s' returned no results", searchTerm)
+					log.Fatalf("Search for '%s' returned no results", searchTerm)
 				} else {
 					fmt.Printf("Found %d sites, please select the one you want to use:\n", len(sites.Sites))
 					for index, site := range sites.Sites {
@@ -181,11 +184,33 @@ func init() {
 				drives := drivesResponse{}
 				_, err := srv.CallJSON(ctx, &opts, nil, &drives)
 				if err != nil {
-					log.Printf("Failed to query available drives: %v", err)
+					log.Fatalf("Failed to query available drives: %v", err)
+				}
+
+				// Also call /me/drive as sometimes /me/drives doesn't return it #4068
+				if opts.Path == "/me/drives" {
+					opts.Path = "/me/drive"
+					meDrive := driveResource{}
+					_, err := srv.CallJSON(ctx, &opts, nil, &meDrive)
+					if err != nil {
+						log.Fatalf("Failed to query available drives: %v", err)
+					}
+					found := false
+					for _, drive := range drives.Drives {
+						if drive.DriveID == meDrive.DriveID {
+							found = true
+							break
+						}
+					}
+					// add the me drive if not found already
+					if !found {
+						fs.Debugf(nil, "Adding %v to drives list from /me/drive", meDrive)
+						drives.Drives = append(drives.Drives, meDrive)
+					}
 				}
 
 				if len(drives.Drives) == 0 {
-					log.Printf("No drives found")
+					log.Fatalf("No drives found")
 				} else {
 					fmt.Printf("Found %d drives, please select the one you want to use:\n", len(drives.Drives))
 					for index, drive := range drives.Drives {
@@ -203,31 +228,26 @@ func init() {
 			var rootItem api.Item
 			_, err = srv.CallJSON(ctx, &opts, nil, &rootItem)
 			if err != nil {
-				log.Printf("Failed to query root for drive %s: %v", finalDriveID, err)
+				log.Fatalf("Failed to query root for drive %s: %v", finalDriveID, err)
 			}
 
 			fmt.Printf("Found drive '%s' of type '%s', URL: %s\nIs that okay?\n", rootItem.Name, rootItem.ParentReference.DriveType, rootItem.WebURL)
 			// This does not work, YET :)
 			if !config.ConfirmWithConfig(m, "config_drive_ok", true) {
-				log.Printf("Cancelled by user")
+				log.Fatalf("Cancelled by user")
 			}
 
 			m.Set(configDriveID, finalDriveID)
 			m.Set(configDriveType, rootItem.ParentReference.DriveType)
 			config.SaveConfig()
 		},
-		Options: []fs.Option{{
-			Name: config.ConfigClientID,
-			Help: "Microsoft App Client Id\nLeave blank normally.",
-		}, {
-			Name: config.ConfigClientSecret,
-			Help: "Microsoft App Client Secret\nLeave blank normally.",
-		}, {
+		Options: append(oauthutil.SharedOptions, []fs.Option{{
 			Name: "chunk_size",
 			Help: `Chunk size to upload files with - must be multiple of 320k (327,680 bytes).
 
-Above this size files will be chunked - must be multiple of 320k (327,680 bytes). Note
-that the chunks will be buffered into memory.`,
+Above this size files will be chunked - must be multiple of 320k (327,680 bytes) and
+should not exceed 250M (262,144,000 bytes) else you may encounter \"Microsoft.SharePoint.Client.InvalidClientQueryException: The request message is too big.\"
+Note that the chunks will be buffered into memory.`,
 			Default:  defaultChunkSize,
 			Advanced: true,
 		}, {
@@ -250,6 +270,33 @@ behaviour may also prevent you from deleting them.  If you want to
 delete OneNote files or otherwise want them to show up in directory
 listing, set this option.`,
 			Default:  false,
+			Advanced: true,
+		}, {
+			Name:    "server_side_across_configs",
+			Default: false,
+			Help: `Allow server side operations (eg copy) to work across different onedrive configs.
+
+This can be useful if you wish to do a server side copy between two
+different Onedrives.  Note that this isn't enabled by default
+because it isn't easy to tell if it will work between any two
+configurations.`,
+			Advanced: true,
+		}, {
+			Name:    "no_versions",
+			Default: false,
+			Help: `Remove all versions on modifying operations
+
+Onedrive for business creates versions when rclone uploads new files
+overwriting an existing one and when it sets the modification time.
+
+These versions take up space out of the quota.
+
+This flag checks for versions after file upload and setting
+modification time and removes all but the last version.
+
+**NB** Onedrive personal can't currently delete versions so don't use
+this flag there.
+`,
 			Advanced: true,
 		}, {
 			Name:     config.ConfigEncoding,
@@ -297,17 +344,19 @@ listing, set this option.`,
 				encoder.EncodeRightSpace |
 				encoder.EncodeWin |
 				encoder.EncodeInvalidUtf8),
-		}},
+		}}...),
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
-	ChunkSize          fs.SizeSuffix        `config:"chunk_size"`
-	DriveID            string               `config:"drive_id"`
-	DriveType          string               `config:"drive_type"`
-	ExposeOneNoteFiles bool                 `config:"expose_onenote_files"`
-	Enc                encoder.MultiEncoder `config:"encoding"`
+	ChunkSize               fs.SizeSuffix        `config:"chunk_size"`
+	DriveID                 string               `config:"drive_id"`
+	DriveType               string               `config:"drive_type"`
+	ExposeOneNoteFiles      bool                 `config:"expose_onenote_files"`
+	ServerSideAcrossConfigs bool                 `config:"server_side_across_configs"`
+	NoVersions              bool                 `config:"no_versions"`
+	Enc                     encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote one drive
@@ -362,7 +411,7 @@ func (f *Fs) Features() *fs.Features {
 	return f.features
 }
 
-// parsePath parses an one drive 'url'
+// parsePath parses a one drive 'url'
 func parsePath(path string) (root string) {
 	root = strings.Trim(path, "/")
 	return
@@ -402,6 +451,8 @@ func shouldRetry(resp *http.Response, err error) (bool, error) {
 					fs.Debugf(nil, "Too many requests. Trying again in %d seconds.", retryAfter)
 				}
 			}
+		case 507: // Insufficient Storage
+			return false, fserrors.FatalError(err)
 		}
 	}
 	return retry || fserrors.ShouldRetry(err) || fserrors.ShouldRetryHTTP(resp, retryErrorCodes), err
@@ -462,13 +513,13 @@ func (f *Fs) readMetaDataForPath(ctx context.Context, path string) (info *api.It
 	var dirCacheFoundRoot bool
 	var rootNormalizedID string
 	if f.dirCache != nil {
-		var dirCacheRootIDExists bool
-		rootNormalizedID, dirCacheRootIDExists = f.dirCache.Get("")
+		rootNormalizedID, err = f.dirCache.RootID(ctx, false)
+		dirCacheRootIDExists := err == nil
 		if f.root == "" {
 			// if f.root == "", it means f.root is the absolute root of the drive
 			// and its ID should have been found in NewFs
 			dirCacheFoundRoot = dirCacheRootIDExists
-		} else if _, err := f.dirCache.RootParentID(); err == nil {
+		} else if _, err := f.dirCache.RootParentID(ctx, false); err == nil {
 			// if root is in a folder, it must have a parent folder, and
 			// if dirCache has found root in NewFs, the parent folder's ID
 			// should be present.
@@ -576,6 +627,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		CaseInsensitive:         true,
 		ReadMimeType:            true,
 		CanHaveEmptyDirectories: true,
+		ServerSideAcrossConfigs: opt.ServerSideAcrossConfigs,
 	}).Fill(f)
 	f.srv.SetErrorHandler(errorHandler)
 
@@ -776,10 +828,6 @@ OUTER:
 // This should return ErrDirNotFound if the directory isn't
 // found.
 func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err error) {
-	err = f.dirCache.FindRoot(ctx, false)
-	if err != nil {
-		return nil, err
-	}
 	directoryID, err := f.dirCache.FindDir(ctx, dir, false)
 	if err != nil {
 		return nil, err
@@ -827,7 +875,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 // Used to create new objects
 func (f *Fs) createObject(ctx context.Context, remote string, modTime time.Time, size int64) (o *Object, leaf string, directoryID string, err error) {
 	// Create the directory for the object if it doesn't exist
-	leaf, directoryID, err = f.dirCache.FindRootAndPath(ctx, remote, true)
+	leaf, directoryID, err = f.dirCache.FindPath(ctx, remote, true)
 	if err != nil {
 		return nil, leaf, directoryID, err
 	}
@@ -858,13 +906,7 @@ func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options .
 
 // Mkdir creates the container if it doesn't exist
 func (f *Fs) Mkdir(ctx context.Context, dir string) error {
-	err := f.dirCache.FindRoot(ctx, true)
-	if err != nil {
-		return err
-	}
-	if dir != "" {
-		_, err = f.dirCache.FindDir(ctx, dir, true)
-	}
+	_, err := f.dirCache.FindDir(ctx, dir, true)
 	return err
 }
 
@@ -887,10 +929,6 @@ func (f *Fs) purgeCheck(ctx context.Context, dir string, check bool) error {
 		return errors.New("can't purge root directory")
 	}
 	dc := f.dirCache
-	err := dc.FindRoot(ctx, false)
-	if err != nil {
-		return err
-	}
 	rootID, err := dc.FindDir(ctx, dir, false)
 	if err != nil {
 		return err
@@ -988,10 +1026,13 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 		return nil, err
 	}
 
-	srcPath := srcObj.rootPath()
-	dstPath := f.rootPath(remote)
-	if strings.ToLower(srcPath) == strings.ToLower(dstPath) {
-		return nil, errors.Errorf("can't copy %q -> %q as are same name when lowercase", srcPath, dstPath)
+	// Check we aren't overwriting a file on the same remote
+	if srcObj.fs == f {
+		srcPath := srcObj.rootPath()
+		dstPath := f.rootPath(remote)
+		if strings.ToLower(srcPath) == strings.ToLower(dstPath) {
+			return nil, errors.Errorf("can't copy %q -> %q as are same name when lowercase", srcPath, dstPath)
+		}
 	}
 
 	// Create temporary object
@@ -1047,13 +1088,13 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	return dstObj, nil
 }
 
-// Purge deletes all the files and the container
+// Purge deletes all the files in the directory
 //
 // Optional interface: Only implement this if you have a way of
 // deleting all the files quicker than just running Remove() on the
 // result of List()
-func (f *Fs) Purge(ctx context.Context) error {
-	return f.purgeCheck(ctx, "", false)
+func (f *Fs) Purge(ctx context.Context, dir string) error {
+	return f.purgeCheck(ctx, dir, false)
 }
 
 // Move src to this remote using server side move operations.
@@ -1081,9 +1122,10 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	id, dstDriveID, _ := parseNormalizedID(directoryID)
 	_, srcObjDriveID, _ := parseNormalizedID(srcObj.id)
 
-	if dstDriveID != srcObjDriveID {
+	if f.canonicalDriveID(dstDriveID) != srcObj.fs.canonicalDriveID(srcObjDriveID) {
 		// https://docs.microsoft.com/en-us/graph/api/driveitem-move?view=graph-rest-1.0
 		// "Items cannot be moved between Drives using this request."
+		fs.Debugf(f, "Can't move files between drives (%q != %q)", dstDriveID, srcObjDriveID)
 		return nil, fs.ErrorCantMove
 	}
 
@@ -1133,68 +1175,20 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 		fs.Debugf(srcFs, "Can't move directory - not same remote type")
 		return fs.ErrorCantDirMove
 	}
-	srcPath := path.Join(srcFs.root, srcRemote)
-	dstPath := path.Join(f.root, dstRemote)
 
-	// Refuse to move to or from the root
-	if srcPath == "" || dstPath == "" {
-		fs.Debugf(src, "DirMove error: Can't move root")
-		return errors.New("can't move root directory")
-	}
-
-	// find the root src directory
-	err := srcFs.dirCache.FindRoot(ctx, false)
+	srcID, _, _, dstDirectoryID, dstLeaf, err := f.dirCache.DirMove(ctx, srcFs.dirCache, srcFs.root, srcRemote, f.root, dstRemote)
 	if err != nil {
 		return err
 	}
 
-	// find the root dst directory
-	if dstRemote != "" {
-		err = f.dirCache.FindRoot(ctx, true)
-		if err != nil {
-			return err
-		}
-	} else {
-		if f.dirCache.FoundRoot() {
-			return fs.ErrorDirExists
-		}
-	}
-
-	// Find ID of dst parent, creating subdirs if necessary
-	var leaf, dstDirectoryID string
-	findPath := dstRemote
-	if dstRemote == "" {
-		findPath = f.root
-	}
-	leaf, dstDirectoryID, err = f.dirCache.FindPath(ctx, findPath, true)
-	if err != nil {
-		return err
-	}
 	parsedDstDirID, dstDriveID, _ := parseNormalizedID(dstDirectoryID)
-
-	// Find ID of src
-	srcID, err := srcFs.dirCache.FindDir(ctx, srcRemote, false)
-	if err != nil {
-		return err
-	}
 	_, srcDriveID, _ := parseNormalizedID(srcID)
 
-	if dstDriveID != srcDriveID {
+	if f.canonicalDriveID(dstDriveID) != srcFs.canonicalDriveID(srcDriveID) {
 		// https://docs.microsoft.com/en-us/graph/api/driveitem-move?view=graph-rest-1.0
 		// "Items cannot be moved between Drives using this request."
+		fs.Debugf(f, "Can't move directories between drives (%q != %q)", dstDriveID, srcDriveID)
 		return fs.ErrorCantDirMove
-	}
-
-	// Check destination does not exist
-	if dstRemote != "" {
-		_, err = f.dirCache.FindDir(ctx, dstRemote, false)
-		if err == fs.ErrorDirNotFound {
-			// OK
-		} else if err != nil {
-			return err
-		} else {
-			return fs.ErrorDirExists
-		}
 	}
 
 	// Get timestamps of src so they can be preserved
@@ -1206,7 +1200,7 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 	// Do the move
 	opts := newOptsCall(srcID, "PATCH", "")
 	move := api.MoveItemRequest{
-		Name: f.opt.Enc.FromStandardName(leaf),
+		Name: f.opt.Enc.FromStandardName(dstLeaf),
 		ParentReference: &api.ItemReference{
 			DriveID: dstDriveID,
 			ID:      parsedDstDirID,
@@ -1270,8 +1264,8 @@ func (f *Fs) Hashes() hash.Set {
 	return hash.Set(QuickXorHashType)
 }
 
-// PublicLink returns a link for downloading without accout.
-func (f *Fs) PublicLink(ctx context.Context, remote string) (link string, err error) {
+// PublicLink returns a link for downloading without account.
+func (f *Fs) PublicLink(ctx context.Context, remote string, expire fs.Duration, unlink bool) (link string, err error) {
 	info, _, err := f.readMetaDataForPath(ctx, f.rootPath(remote))
 	if err != nil {
 		return "", err
@@ -1294,6 +1288,73 @@ func (f *Fs) PublicLink(ctx context.Context, remote string) (link string, err er
 		return "", err
 	}
 	return result.Link.WebURL, nil
+}
+
+// CleanUp deletes all the hidden files.
+func (f *Fs) CleanUp(ctx context.Context) error {
+	token := make(chan struct{}, fs.Config.Checkers)
+	var wg sync.WaitGroup
+	err := walk.Walk(ctx, f, "", true, -1, func(path string, entries fs.DirEntries, err error) error {
+		err = entries.ForObjectError(func(obj fs.Object) error {
+			o, ok := obj.(*Object)
+			if !ok {
+				return errors.New("internal error: not a onedrive object")
+			}
+			wg.Add(1)
+			token <- struct{}{}
+			go func() {
+				defer func() {
+					<-token
+					wg.Done()
+				}()
+				err := o.deleteVersions(ctx)
+				if err != nil {
+					fs.Errorf(o, "Failed to remove versions: %v", err)
+				}
+			}()
+			return nil
+		})
+		wg.Wait()
+		return err
+	})
+	return err
+}
+
+// Finds and removes any old versions for o
+func (o *Object) deleteVersions(ctx context.Context) error {
+	opts := newOptsCall(o.id, "GET", "/versions")
+	var versions api.VersionsResponse
+	err := o.fs.pacer.Call(func() (bool, error) {
+		resp, err := o.fs.srv.CallJSON(ctx, &opts, nil, &versions)
+		return shouldRetry(resp, err)
+	})
+	if err != nil {
+		return err
+	}
+	if len(versions.Versions) < 2 {
+		return nil
+	}
+	for _, version := range versions.Versions[1:] {
+		err = o.deleteVersion(ctx, version.ID)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Finds and removes any old versions for o
+func (o *Object) deleteVersion(ctx context.Context, ID string) error {
+	if operations.SkipDestructive(ctx, fmt.Sprintf("%s of %s", ID, o.remote), "delete version") {
+		return nil
+	}
+	fs.Infof(o, "removing version %q", ID)
+	opts := newOptsCall(o.id, "DELETE", "/versions/"+ID)
+	opts.NoResponse = true
+	return o.fs.pacer.Call(func() (bool, error) {
+		resp, err := o.fs.srv.Call(ctx, &opts)
+		return shouldRetry(resp, err)
+	})
 }
 
 // ------------------------------------------------------------
@@ -1459,6 +1520,13 @@ func (o *Object) setModTime(ctx context.Context, modTime time.Time) (*api.Item, 
 		resp, err := o.fs.srv.CallJSON(ctx, &opts, &update, &info)
 		return shouldRetry(resp, err)
 	})
+	// Remove versions if required
+	if o.fs.opt.NoVersions {
+		err := o.deleteVersions(ctx)
+		if err != nil {
+			fs.Errorf(o, "Failed to remove versions: %v", err)
+		}
+	}
 	return info, err
 }
 
@@ -1572,7 +1640,7 @@ func (o *Object) getPosition(ctx context.Context, url string) (pos int64, err er
 }
 
 // uploadFragment uploads a part
-func (o *Object) uploadFragment(ctx context.Context, url string, start int64, totalSize int64, chunk io.ReadSeeker, chunkSize int64) (info *api.Item, err error) {
+func (o *Object) uploadFragment(ctx context.Context, url string, start int64, totalSize int64, chunk io.ReadSeeker, chunkSize int64, options ...fs.OpenOption) (info *api.Item, err error) {
 	//	var response api.UploadFragmentResponse
 	var resp *http.Response
 	var body []byte
@@ -1585,6 +1653,7 @@ func (o *Object) uploadFragment(ctx context.Context, url string, start int64, to
 			ContentLength: &toSend,
 			ContentRange:  fmt.Sprintf("bytes %d-%d/%d", start+skip, start+chunkSize-1, totalSize),
 			Body:          chunk,
+			Options:       options,
 		}
 		_, _ = chunk.Seek(skip, io.SeekStart)
 		resp, err = o.fs.srv.Call(ctx, &opts)
@@ -1642,46 +1711,27 @@ func (o *Object) cancelUploadSession(ctx context.Context, url string) (err error
 }
 
 // uploadMultipart uploads a file using multipart upload
-func (o *Object) uploadMultipart(ctx context.Context, in io.Reader, size int64, modTime time.Time) (info *api.Item, err error) {
+func (o *Object) uploadMultipart(ctx context.Context, in io.Reader, size int64, modTime time.Time, options ...fs.OpenOption) (info *api.Item, err error) {
 	if size <= 0 {
 		return nil, errors.New("unknown-sized upload not supported")
 	}
-
-	uploadURLChan := make(chan string, 1)
-	gracefulCancel := func() {
-		uploadURL, ok := <-uploadURLChan
-		// Reading from uploadURLChan blocks the atexit process until
-		// we are able to use uploadURL to cancel the upload
-		if !ok { // createUploadSession failed - no need to cancel upload
-			return
-		}
-
-		fs.Debugf(o, "Cancelling multipart upload")
-		cancelErr := o.cancelUploadSession(ctx, uploadURL)
-		if cancelErr != nil {
-			fs.Logf(o, "Failed to cancel multipart upload: %v", cancelErr)
-		}
-	}
-	cancelFuncHandle := atexit.Register(gracefulCancel)
 
 	// Create upload session
 	fs.Debugf(o, "Starting multipart upload")
 	session, err := o.createUploadSession(ctx, modTime)
 	if err != nil {
-		close(uploadURLChan)
-		atexit.Unregister(cancelFuncHandle)
 		return nil, err
 	}
 	uploadURL := session.UploadURL
-	uploadURLChan <- uploadURL
 
-	defer func() {
-		if err != nil {
-			fs.Debugf(o, "Error encountered during upload: %v", err)
-			gracefulCancel()
+	// Cancel the session if something went wrong
+	defer atexit.OnError(&err, func() {
+		fs.Debugf(o, "Cancelling multipart upload: %v", err)
+		cancelErr := o.cancelUploadSession(ctx, uploadURL)
+		if cancelErr != nil {
+			fs.Logf(o, "Failed to cancel multipart upload: %v", cancelErr)
 		}
-		atexit.Unregister(cancelFuncHandle)
-	}()
+	})()
 
 	// Upload the chunks
 	remaining := size
@@ -1693,7 +1743,7 @@ func (o *Object) uploadMultipart(ctx context.Context, in io.Reader, size int64, 
 		}
 		seg := readers.NewRepeatableReader(io.LimitReader(in, n))
 		fs.Debugf(o, "Uploading segment %d/%d size %d", position, size, n)
-		info, err = o.uploadFragment(ctx, uploadURL, position, size, seg, n)
+		info, err = o.uploadFragment(ctx, uploadURL, position, size, seg, n, options...)
 		if err != nil {
 			return nil, err
 		}
@@ -1706,7 +1756,7 @@ func (o *Object) uploadMultipart(ctx context.Context, in io.Reader, size int64, 
 
 // Update the content of a remote file within 4MB size in one single request
 // This function will set modtime after uploading, which will create a new version for the remote file
-func (o *Object) uploadSinglepart(ctx context.Context, in io.Reader, size int64, modTime time.Time) (info *api.Item, err error) {
+func (o *Object) uploadSinglepart(ctx context.Context, in io.Reader, size int64, modTime time.Time, options ...fs.OpenOption) (info *api.Item, err error) {
 	if size < 0 || size > int64(fs.SizeSuffix(4*1024*1024)) {
 		return nil, errors.New("size passed into uploadSinglepart must be >= 0 and <= 4MiB")
 	}
@@ -1723,6 +1773,7 @@ func (o *Object) uploadSinglepart(ctx context.Context, in io.Reader, size int64,
 			Path:          "/" + drive + "/items/" + trueDirID + ":/" + rest.URLPathEscape(o.fs.opt.Enc.FromStandardName(leaf)) + ":/content",
 			ContentLength: &size,
 			Body:          in,
+			Options:       options,
 		}
 	} else {
 		opts = rest.Opts{
@@ -1730,6 +1781,7 @@ func (o *Object) uploadSinglepart(ctx context.Context, in io.Reader, size int64,
 			Path:          "/root:/" + rest.URLPathEscape(o.srvPath()) + ":/content",
 			ContentLength: &size,
 			Body:          in,
+			Options:       options,
 		}
 	}
 
@@ -1771,14 +1823,22 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 
 	var info *api.Item
 	if size > 0 {
-		info, err = o.uploadMultipart(ctx, in, size, modTime)
+		info, err = o.uploadMultipart(ctx, in, size, modTime, options...)
 	} else if size == 0 {
-		info, err = o.uploadSinglepart(ctx, in, size, modTime)
+		info, err = o.uploadSinglepart(ctx, in, size, modTime, options...)
 	} else {
 		return errors.New("unknown-sized upload not supported")
 	}
 	if err != nil {
 		return err
+	}
+
+	// If updating the file then remove versions
+	if o.fs.opt.NoVersions && o.hasMetaData {
+		err = o.deleteVersions(ctx)
+		if err != nil {
+			fs.Errorf(o, "Failed to remove versions: %v", err)
+		}
 	}
 
 	return o.setMetaData(info)
@@ -1826,6 +1886,17 @@ func parseNormalizedID(ID string) (string, string, string) {
 	return ID, "", ""
 }
 
+// Returns the canonical form of the driveID
+func (f *Fs) canonicalDriveID(driveID string) (canonicalDriveID string) {
+	if driveID == "" {
+		canonicalDriveID = f.opt.DriveID
+	} else {
+		canonicalDriveID = driveID
+	}
+	canonicalDriveID = strings.ToLower(canonicalDriveID)
+	return canonicalDriveID
+}
+
 // getRelativePathInsideBase checks if `target` is inside `base`. If so, it
 // returns a relative path for `target` based on `base` and a boolean `true`.
 // Otherwise returns "", false.
@@ -1866,6 +1937,7 @@ var (
 	_ fs.DirCacheFlusher = (*Fs)(nil)
 	_ fs.Abouter         = (*Fs)(nil)
 	_ fs.PublicLinker    = (*Fs)(nil)
+	_ fs.CleanUpper      = (*Fs)(nil)
 	_ fs.Object          = (*Object)(nil)
 	_ fs.MimeTyper       = &Object{}
 	_ fs.IDer            = &Object{}

@@ -22,11 +22,9 @@ package operations_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -44,6 +42,7 @@ import (
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/fs/operations"
 	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/lib/random"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -164,10 +163,7 @@ func TestLsLong(t *testing.T) {
 		if err != nil {
 			t.Errorf("Error parsing %q: %v", m, err)
 		} else {
-			dt, ok := fstest.CheckTimeEqualWithPrecision(expected, modTime, precision)
-			if !ok {
-				t.Errorf("%s: Modification time difference too big |%s| > %s (%s vs %s) (precision %s)", filename, dt, precision, modTime, expected, precision)
-			}
+			fstest.AssertTimeEqualWithPrecision(t, filename, expected, modTime, precision)
 		}
 	}
 
@@ -330,96 +326,29 @@ func TestDelete(t *testing.T) {
 	fstest.CheckItems(t, r.Fremote, file3)
 }
 
-func testCheck(t *testing.T, checkFunction func(ctx context.Context, fdst, fsrc fs.Fs, oneway bool) error) {
-	r := fstest.NewRun(t)
-	defer r.Finalise()
-
-	check := func(i int, wantErrors int64, wantChecks int64, oneway bool) {
-		fs.Debugf(r.Fremote, "%d: Starting check test", i)
-		accounting.GlobalStats().ResetCounters()
-		var buf bytes.Buffer
-		log.SetOutput(&buf)
-		defer func() {
-			log.SetOutput(os.Stderr)
-		}()
-		err := checkFunction(context.Background(), r.Fremote, r.Flocal, oneway)
-		gotErrors := accounting.GlobalStats().GetErrors()
-		gotChecks := accounting.GlobalStats().GetChecks()
-		if wantErrors == 0 && err != nil {
-			t.Errorf("%d: Got error when not expecting one: %v", i, err)
+func TestRetry(t *testing.T) {
+	var i int
+	var err error
+	fn := func() error {
+		i--
+		if i <= 0 {
+			return nil
 		}
-		if wantErrors != 0 && err == nil {
-			t.Errorf("%d: No error when expecting one", i)
-		}
-		if wantErrors != gotErrors {
-			t.Errorf("%d: Expecting %d errors but got %d", i, wantErrors, gotErrors)
-		}
-		if gotChecks > 0 && !strings.Contains(buf.String(), "matching files") {
-			t.Errorf("%d: Total files matching line missing", i)
-		}
-		if wantChecks != gotChecks {
-			t.Errorf("%d: Expecting %d total matching files but got %d", i, wantChecks, gotChecks)
-		}
-		fs.Debugf(r.Fremote, "%d: Ending check test", i)
+		return err
 	}
 
-	file1 := r.WriteBoth(context.Background(), "rutabaga", "is tasty", t3)
-	fstest.CheckItems(t, r.Fremote, file1)
-	fstest.CheckItems(t, r.Flocal, file1)
-	check(1, 0, 1, false)
+	i, err = 3, io.EOF
+	assert.Equal(t, nil, operations.Retry(nil, 5, fn))
+	assert.Equal(t, 0, i)
 
-	file2 := r.WriteFile("potato2", "------------------------------------------------------------", t1)
-	fstest.CheckItems(t, r.Flocal, file1, file2)
-	check(2, 1, 1, false)
+	i, err = 10, io.EOF
+	assert.Equal(t, io.EOF, operations.Retry(nil, 5, fn))
+	assert.Equal(t, 5, i)
 
-	file3 := r.WriteObject(context.Background(), "empty space", "-", t2)
-	fstest.CheckItems(t, r.Fremote, file1, file3)
-	check(3, 2, 1, false)
+	i, err = 10, fs.ErrorObjectNotFound
+	assert.Equal(t, fs.ErrorObjectNotFound, operations.Retry(nil, 5, fn))
+	assert.Equal(t, 9, i)
 
-	file2r := file2
-	if fs.Config.SizeOnly {
-		file2r = r.WriteObject(context.Background(), "potato2", "--Some-Differences-But-Size-Only-Is-Enabled-----------------", t1)
-	} else {
-		r.WriteObject(context.Background(), "potato2", "------------------------------------------------------------", t1)
-	}
-	fstest.CheckItems(t, r.Fremote, file1, file2r, file3)
-	check(4, 1, 2, false)
-
-	r.WriteFile("empty space", "-", t2)
-	fstest.CheckItems(t, r.Flocal, file1, file2, file3)
-	check(5, 0, 3, false)
-
-	file4 := r.WriteObject(context.Background(), "remotepotato", "------------------------------------------------------------", t1)
-	fstest.CheckItems(t, r.Fremote, file1, file2r, file3, file4)
-	check(6, 1, 3, false)
-	check(7, 0, 3, true)
-}
-
-func TestCheck(t *testing.T) {
-	testCheck(t, operations.Check)
-}
-
-func TestCheckFsError(t *testing.T) {
-	dstFs, err := fs.NewFs("non-existent")
-	if err != nil {
-		t.Fatal(err)
-	}
-	srcFs, err := fs.NewFs("non-existent")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = operations.Check(context.Background(), dstFs, srcFs, false)
-	require.Error(t, err)
-}
-
-func TestCheckDownload(t *testing.T) {
-	testCheck(t, operations.CheckDownload)
-}
-
-func TestCheckSizeOnly(t *testing.T) {
-	fs.Config.SizeOnly = true
-	defer func() { fs.Config.SizeOnly = false }()
-	TestCheck(t)
 }
 
 func TestCat(t *testing.T) {
@@ -662,27 +591,31 @@ func TestCopyURL(t *testing.T) {
 	ts := httptest.NewServer(handler)
 	defer ts.Close()
 
-	o, err := operations.CopyURL(context.Background(), r.Fremote, "file1", ts.URL, false)
+	o, err := operations.CopyURL(context.Background(), r.Fremote, "file1", ts.URL, false, false)
 	require.NoError(t, err)
 	assert.Equal(t, int64(len(contents)), o.Size())
 
 	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{file1}, nil, fs.ModTimeNotSupported)
 
+	// Check file clobbering
+	o, err = operations.CopyURL(context.Background(), r.Fremote, "file1", ts.URL, false, true)
+	require.Error(t, err)
+
 	// Check auto file naming
 	status = 0
 	urlFileName := "filename.txt"
-	o, err = operations.CopyURL(context.Background(), r.Fremote, "", ts.URL+"/"+urlFileName, true)
+	o, err = operations.CopyURL(context.Background(), r.Fremote, "", ts.URL+"/"+urlFileName, true, false)
 	require.NoError(t, err)
 	assert.Equal(t, int64(len(contents)), o.Size())
 	assert.Equal(t, urlFileName, o.Remote())
 
 	// Check auto file naming when url without file name
-	o, err = operations.CopyURL(context.Background(), r.Fremote, "file1", ts.URL, true)
+	o, err = operations.CopyURL(context.Background(), r.Fremote, "file1", ts.URL, true, false)
 	require.Error(t, err)
 
 	// Check an error is returned for a 404
 	status = http.StatusNotFound
-	o, err = operations.CopyURL(context.Background(), r.Fremote, "file1", ts.URL, false)
+	o, err = operations.CopyURL(context.Background(), r.Fremote, "file1", ts.URL, false, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Not Found")
 	assert.Nil(t, o)
@@ -698,7 +631,7 @@ func TestCopyURL(t *testing.T) {
 	tss := httptest.NewTLSServer(handler)
 	defer tss.Close()
 
-	o, err = operations.CopyURL(context.Background(), r.Fremote, "file2", tss.URL, false)
+	o, err = operations.CopyURL(context.Background(), r.Fremote, "file2", tss.URL, false, false)
 	require.NoError(t, err)
 	assert.Equal(t, int64(len(contents)), o.Size())
 	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{file1, file2, fstest.NewItem(urlFileName, contents, t1)}, nil, fs.ModTimeNotSupported)
@@ -1151,76 +1084,6 @@ func TestOverlapping(t *testing.T) {
 	}
 }
 
-type errorReader struct {
-	err error
-}
-
-func (er errorReader) Read(p []byte) (n int, err error) {
-	return 0, er.err
-}
-
-func TestCheckEqualReaders(t *testing.T) {
-	b65a := make([]byte, 65*1024)
-	b65b := make([]byte, 65*1024)
-	b65b[len(b65b)-1] = 1
-	b66 := make([]byte, 66*1024)
-
-	differ, err := operations.CheckEqualReaders(bytes.NewBuffer(b65a), bytes.NewBuffer(b65a))
-	assert.NoError(t, err)
-	assert.Equal(t, differ, false)
-
-	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), bytes.NewBuffer(b65b))
-	assert.NoError(t, err)
-	assert.Equal(t, differ, true)
-
-	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), bytes.NewBuffer(b66))
-	assert.NoError(t, err)
-	assert.Equal(t, differ, true)
-
-	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b66), bytes.NewBuffer(b65a))
-	assert.NoError(t, err)
-	assert.Equal(t, differ, true)
-
-	myErr := errors.New("sentinel")
-	wrap := func(b []byte) io.Reader {
-		r := bytes.NewBuffer(b)
-		e := errorReader{myErr}
-		return io.MultiReader(r, e)
-	}
-
-	differ, err = operations.CheckEqualReaders(wrap(b65a), bytes.NewBuffer(b65a))
-	assert.Equal(t, myErr, err)
-	assert.Equal(t, differ, true)
-
-	differ, err = operations.CheckEqualReaders(wrap(b65a), bytes.NewBuffer(b65b))
-	assert.Equal(t, myErr, err)
-	assert.Equal(t, differ, true)
-
-	differ, err = operations.CheckEqualReaders(wrap(b65a), bytes.NewBuffer(b66))
-	assert.Equal(t, myErr, err)
-	assert.Equal(t, differ, true)
-
-	differ, err = operations.CheckEqualReaders(wrap(b66), bytes.NewBuffer(b65a))
-	assert.Equal(t, myErr, err)
-	assert.Equal(t, differ, true)
-
-	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), wrap(b65a))
-	assert.Equal(t, myErr, err)
-	assert.Equal(t, differ, true)
-
-	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), wrap(b65b))
-	assert.Equal(t, myErr, err)
-	assert.Equal(t, differ, true)
-
-	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b65a), wrap(b66))
-	assert.Equal(t, myErr, err)
-	assert.Equal(t, differ, true)
-
-	differ, err = operations.CheckEqualReaders(bytes.NewBuffer(b66), wrap(b65a))
-	assert.Equal(t, myErr, err)
-	assert.Equal(t, differ, true)
-}
-
 func TestListFormat(t *testing.T) {
 	item0 := &operations.ListJSONItem{
 		Path:      "a",
@@ -1541,45 +1404,58 @@ func TestCopyFileMaxTransfer(t *testing.T) {
 		accounting.Stats(context.Background()).ResetCounters()
 	}()
 
-	file1 := r.WriteFile("file1", "file1 contents", t1)
-	file2 := r.WriteFile("file2", "file2 contents...........", t2)
+	ctx := context.Background()
 
-	rfile1 := file1
-	rfile1.Path = "sub/file1"
-	rfile2 := file2
-	rfile2.Path = "sub/file2"
+	const sizeCutoff = 2048
+	file1 := r.WriteFile("TestCopyFileMaxTransfer/file1", "file1 contents", t1)
+	file2 := r.WriteFile("TestCopyFileMaxTransfer/file2", "file2 contents"+random.String(sizeCutoff), t2)
+	file3 := r.WriteFile("TestCopyFileMaxTransfer/file3", "file3 contents"+random.String(sizeCutoff), t2)
+	file4 := r.WriteFile("TestCopyFileMaxTransfer/file4", "file4 contents"+random.String(sizeCutoff), t2)
 
-	fs.Config.MaxTransfer = 15
+	// Cutoff mode: Hard
+	fs.Config.MaxTransfer = sizeCutoff
 	fs.Config.CutoffMode = fs.CutoffModeHard
-	accounting.Stats(context.Background()).ResetCounters()
 
-	err := operations.CopyFile(context.Background(), r.Fremote, r.Flocal, rfile1.Path, file1.Path)
+	// file1: Show a small file gets transferred OK
+	accounting.Stats(ctx).ResetCounters()
+	err := operations.CopyFile(ctx, r.Fremote, r.Flocal, file1.Path, file1.Path)
 	require.NoError(t, err)
-	fstest.CheckItems(t, r.Flocal, file1, file2)
-	fstest.CheckItems(t, r.Fremote, rfile1)
+	fstest.CheckItems(t, r.Flocal, file1, file2, file3, file4)
+	fstest.CheckItems(t, r.Fremote, file1)
 
-	accounting.Stats(context.Background()).ResetCounters()
-
-	err = operations.CopyFile(context.Background(), r.Fremote, r.Flocal, rfile2.Path, file2.Path)
-	fstest.CheckItems(t, r.Flocal, file1, file2)
-	fstest.CheckItems(t, r.Fremote, rfile1)
+	// file2: show a large file does not get transferred
+	accounting.Stats(ctx).ResetCounters()
+	err = operations.CopyFile(ctx, r.Fremote, r.Flocal, file2.Path, file2.Path)
+	require.NotNil(t, err, "Did not get expected max transfer limit error")
 	assert.Contains(t, err.Error(), "Max transfer limit reached")
 	assert.True(t, fserrors.IsFatalError(err))
+	fstest.CheckItems(t, r.Flocal, file1, file2, file3, file4)
+	fstest.CheckItems(t, r.Fremote, file1)
 
+	// Cutoff mode: Cautious
 	fs.Config.CutoffMode = fs.CutoffModeCautious
-	accounting.Stats(context.Background()).ResetCounters()
 
-	err = operations.CopyFile(context.Background(), r.Fremote, r.Flocal, rfile2.Path, file2.Path)
-	fstest.CheckItems(t, r.Flocal, file1, file2)
-	fstest.CheckItems(t, r.Fremote, rfile1)
+	// file3: show a large file does not get transferred
+	accounting.Stats(ctx).ResetCounters()
+	err = operations.CopyFile(ctx, r.Fremote, r.Flocal, file3.Path, file3.Path)
+	require.NotNil(t, err)
 	assert.Contains(t, err.Error(), "Max transfer limit reached")
 	assert.True(t, fserrors.IsFatalError(err))
+	fstest.CheckItems(t, r.Flocal, file1, file2, file3, file4)
+	fstest.CheckItems(t, r.Fremote, file1)
 
+	if strings.HasPrefix(r.Fremote.Name(), "TestChunker") {
+		t.Log("skipping remainder of test for chunker as it involves multiple transfers")
+		return
+	}
+
+	// Cutoff mode: Soft
 	fs.Config.CutoffMode = fs.CutoffModeSoft
-	accounting.Stats(context.Background()).ResetCounters()
 
-	err = operations.CopyFile(context.Background(), r.Fremote, r.Flocal, rfile2.Path, file2.Path)
+	// file4: show a large file does get transferred this time
+	accounting.Stats(ctx).ResetCounters()
+	err = operations.CopyFile(ctx, r.Fremote, r.Flocal, file4.Path, file4.Path)
 	require.NoError(t, err)
-	fstest.CheckItems(t, r.Flocal, file1, file2)
-	fstest.CheckItems(t, r.Fremote, rfile1, rfile2)
+	fstest.CheckItems(t, r.Flocal, file1, file2, file3, file4)
+	fstest.CheckItems(t, r.Fremote, file1, file4)
 }

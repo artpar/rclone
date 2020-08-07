@@ -77,10 +77,12 @@ func (cds *contentDirectoryService) cdsObjectToUpnpavObject(cdsObject object, fi
 	}
 
 	if fileInfo.IsDir() {
+		defaultChildCount := 1
 		obj.Class = "object.container.storageFolder"
 		obj.Title = fileInfo.Name()
 		return upnpav.Container{
-			Object: obj,
+			Object:     obj,
+			ChildCount: &defaultChildCount,
 		}, nil
 	}
 
@@ -181,7 +183,7 @@ func (cds *contentDirectoryService) readContainer(o object, host string) (ret []
 // Given a list of nodes, separate them into potential media items and any associated resources (external subtitles,
 // for example.)
 //
-// The result is a a slice of potential media nodes (in their original order) and a map containing associated
+// The result is a slice of potential media nodes (in their original order) and a map containing associated
 // resources nodes of each media node, if any.
 func mediaWithResources(nodes vfs.Nodes) (vfs.Nodes, map[vfs.Node]vfs.Nodes) {
 	media, mediaResources := vfs.Nodes{}, make(map[vfs.Node]vfs.Nodes)

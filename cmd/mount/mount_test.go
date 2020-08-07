@@ -6,12 +6,12 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/artpar/rclone/cmd/mountlib/mounttest"
+	"github.com/artpar/rclone/vfs/vfstest"
 )
 
 func TestMount(t *testing.T) {
 	if runtime.NumCPU() <= 2 {
 		t.Skip("FIXME skipping mount tests as they lock up on <= 2 CPUs - See: https://github.com/artpar/rclone/issues/3154")
 	}
-	mounttest.RunTests(t, mount)
+	vfstest.RunTests(t, false, mount)
 }

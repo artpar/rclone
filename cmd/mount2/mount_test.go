@@ -5,9 +5,9 @@ package mount2
 import (
 	"testing"
 
-	"github.com/artpar/rclone/cmd/mountlib/mounttest"
+	"github.com/artpar/rclone/vfs/vfstest"
 )
 
 func TestMount(t *testing.T) {
-	mounttest.RunTests(t, mount)
+	vfstest.RunTests(t, false, mount)
 }

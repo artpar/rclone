@@ -27,11 +27,20 @@ type Node struct {
 var _ fusefs.InodeEmbedder = (*Node)(nil)
 
 // newNode creates a new fusefs.Node from a vfs Node
-func newNode(fsys *FS, node vfs.Node) *Node {
-	return &Node{
-		node: node,
+func newNode(fsys *FS, vfsNode vfs.Node) (node *Node) {
+	// Check the vfsNode to see if it has a fuse Node cached
+	// We must return the same fuse nodes for vfs Nodes
+	node, ok := vfsNode.Sys().(*Node)
+	if ok {
+		return node
+	}
+	node = &Node{
+		node: vfsNode,
 		fsys: fsys,
 	}
+	// Cache the node for later
+	vfsNode.SetSys(node)
+	return node
 }
 
 // String used for pretty printing.
@@ -102,7 +111,7 @@ var _ = (fusefs.NodeStatfser)((*Node)(nil))
 // with the Options.NullPermissions setting. If blksize is unset, 4096
 // is assumed, and the 'blocks' field is set accordingly.
 func (n *Node) Getattr(ctx context.Context, f fusefs.FileHandle, out *fuse.AttrOut) syscall.Errno {
-	setAttrOut(n.node, out)
+	n.fsys.setAttrOut(n.node, out)
 	return 0
 }
 
@@ -112,7 +121,7 @@ var _ = (fusefs.NodeGetattrer)((*Node)(nil))
 func (n *Node) Setattr(ctx context.Context, f fusefs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) (errno syscall.Errno) {
 	defer log.Trace(n, "in=%v", in)("out=%#v, errno=%v", &out, &errno)
 	var err error
-	setAttrOut(n.node, out)
+	n.fsys.setAttrOut(n.node, out)
 	size, ok := in.GetSize()
 	if ok {
 		err = n.node.Truncate(int64(size))
@@ -149,7 +158,7 @@ func (n *Node) Open(ctx context.Context, flags uint32) (fh fusefs.FileHandle, fu
 	if entry := n.node.DirEntry(); entry != nil && entry.Size() < 0 {
 		fuseFlags |= fuse.FOPEN_DIRECT_IO
 	}
-	return newFileHandle(handle), fuseFlags, 0
+	return newFileHandle(handle, n.fsys), fuseFlags, 0
 }
 
 var _ = (fusefs.NodeOpener)((*Node)(nil))
@@ -183,15 +192,12 @@ func (n *Node) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (ino
 	if errno != 0 {
 		return nil, errno
 	}
-	newNode := &Node{
-		node: vfsNode,
-		fsys: n.fsys,
-	}
+	newNode := newNode(n.fsys, vfsNode)
 
 	// FIXME
 	// out.SetEntryTimeout(dt time.Duration)
 	// out.SetAttrTimeout(dt time.Duration)
-	setEntryOut(vfsNode, out)
+	n.fsys.setEntryOut(vfsNode, out)
 
 	return n.NewInode(ctx, newNode, fusefs.StableAttr{Mode: out.Attr.Mode}), 0
 }
@@ -300,7 +306,7 @@ func (n *Node) Mkdir(ctx context.Context, name string, mode uint32, out *fuse.En
 		return nil, translateError(err)
 	}
 	newNode := newNode(n.fsys, newDir)
-	setEntryOut(newNode.node, out)
+	n.fsys.setEntryOut(newNode.node, out)
 	newInode := n.NewInode(ctx, newNode, fusefs.StableAttr{Mode: out.Attr.Mode})
 	return newInode, 0
 }
@@ -327,7 +333,7 @@ func (n *Node) Create(ctx context.Context, name string, flags uint32, mode uint3
 	if err != nil {
 		return nil, nil, 0, translateError(err)
 	}
-	fh = newFileHandle(handle)
+	fh = newFileHandle(handle, n.fsys)
 	// FIXME
 	// fh = &fusefs.WithFlags{
 	// 	File: fh,
@@ -340,7 +346,7 @@ func (n *Node) Create(ctx context.Context, name string, flags uint32, mode uint3
 	if errno != 0 {
 		return nil, nil, 0, errno
 	}
-	setEntryOut(vfsNode, out)
+	n.fsys.setEntryOut(vfsNode, out)
 	newNode := newNode(n.fsys, vfsNode)
 	fs.Debugf(nil, "attr=%#v", out.Attr)
 	newInode := n.NewInode(ctx, newNode, fusefs.StableAttr{Mode: out.Attr.Mode})

@@ -6,6 +6,7 @@ import (
 	_ "github.com/artpar/rclone/cmd"
 	_ "github.com/artpar/rclone/cmd/about"
 	_ "github.com/artpar/rclone/cmd/authorize"
+	_ "github.com/artpar/rclone/cmd/backend"
 	_ "github.com/artpar/rclone/cmd/cachestats"
 	_ "github.com/artpar/rclone/cmd/cat"
 	_ "github.com/artpar/rclone/cmd/check"

@@ -66,6 +66,7 @@ const (
 	exitCodeNoRetryError
 	exitCodeFatalError
 	exitCodeTransferExceeded
+	exitCodeNoFilesTransferred
 )
 
 // ShowVersion prints the version to stdout
@@ -75,7 +76,7 @@ func ShowVersion() {
 	fmt.Printf("- go version: %s\n", runtime.Version())
 }
 
-// NewFsFile creates a Fs from a name but may point to a file.
+// NewFsFile creates an Fs from a name but may point to a file.
 //
 // It returns a string with the file name if points to a file
 // otherwise "".
@@ -83,7 +84,7 @@ func NewFsFile(remote string) (fs.Fs, string) {
 	_, _, fsPath, err := fs.ParseRemote(remote)
 	if err != nil {
 		err = fs.CountError(err)
-		log.Printf("Failed to create file system for %q: %v", remote, err)
+		log.Fatalf("Failed to create file system for %q: %v", remote, err)
 	}
 	f, err := cache.Get(remote)
 	switch err {
@@ -93,12 +94,12 @@ func NewFsFile(remote string) (fs.Fs, string) {
 		return f, ""
 	default:
 		err = fs.CountError(err)
-		log.Printf("Failed to create file system for %q: %v", remote, err)
+		log.Fatalf("Failed to create file system for %q: %v", remote, err)
 	}
 	return nil, ""
 }
 
-// newFsFileAddFilter creates a src Fs from a name
+// newFsFileAddFilter creates an src Fs from a name
 //
 // This works the same as NewFsFile however it adds filters to the Fs
 // to limit it to a single file if the remote pointed to a file.
@@ -108,13 +109,13 @@ func newFsFileAddFilter(remote string) (fs.Fs, string) {
 		if !filter.Active.InActive() {
 			err := errors.Errorf("Can't limit to single files when using filters: %v", remote)
 			err = fs.CountError(err)
-			log.Printf(err.Error())
+			log.Fatalf(err.Error())
 		}
 		// Limit transfers to this file
 		err := filter.Active.AddFile(fileName)
 		if err != nil {
 			err = fs.CountError(err)
-			log.Printf("Failed to limit to single file %q: %v", remote, err)
+			log.Fatalf("Failed to limit to single file %q: %v", remote, err)
 		}
 	}
 	return f, fileName
@@ -136,7 +137,7 @@ func newFsDir(remote string) fs.Fs {
 	f, err := cache.Get(remote)
 	if err != nil {
 		err = fs.CountError(err)
-		log.Printf("Failed to create file system for %q: %v", remote, err)
+		log.Fatalf("Failed to create file system for %q: %v", remote, err)
 	}
 	return f
 }
@@ -177,24 +178,24 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 		var err error
 		dstRemote, dstFileName, err = fspath.Split(dstRemote)
 		if err != nil {
-			log.Printf("Parsing %q failed: %v", args[1], err)
+			log.Fatalf("Parsing %q failed: %v", args[1], err)
 		}
 		if dstRemote == "" {
 			dstRemote = "."
 		}
 		if dstFileName == "" {
-			log.Printf("%q is a directory", args[1])
+			log.Fatalf("%q is a directory", args[1])
 		}
 	}
 	fdst, err := cache.Get(dstRemote)
 	switch err {
 	case fs.ErrorIsFile:
 		_ = fs.CountError(err)
-		log.Printf("Source doesn't exist or is a directory and destination is a file")
+		log.Fatalf("Source doesn't exist or is a directory and destination is a file")
 	case nil:
 	default:
 		_ = fs.CountError(err)
-		log.Printf("Failed to create file system for destination %q: %v", dstRemote, err)
+		log.Fatalf("Failed to create file system for destination %q: %v", dstRemote, err)
 	}
 	return
 }
@@ -203,13 +204,13 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 func NewFsDstFile(args []string) (fdst fs.Fs, dstFileName string) {
 	dstRemote, dstFileName, err := fspath.Split(args[0])
 	if err != nil {
-		log.Printf("Parsing %q failed: %v", args[0], err)
+		log.Fatalf("Parsing %q failed: %v", args[0], err)
 	}
 	if dstRemote == "" {
 		dstRemote = "."
 	}
 	if dstFileName == "" {
-		log.Printf("%q is a directory", args[0])
+		log.Fatalf("%q is a directory", args[0])
 	}
 	fdst = newFsDir(dstRemote)
 	return
@@ -224,12 +225,8 @@ func ShowStats() bool {
 	return statsIntervalFlag != nil && statsIntervalFlag.Changed
 }
 
-type RcloneCommand interface {
-	Name() string
-}
-
 // Run the function with stats and retries if required
-func Run(Retry bool, showStats bool, cmd RcloneCommand, f func() error) {
+func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 	var cmdErr error
 	stopStats := func() {}
 	if !showStats && ShowStats() {
@@ -316,6 +313,7 @@ func Run(Retry bool, showStats bool, cmd RcloneCommand, f func() error) {
 		}
 	}
 	resolveExitCode(cmdErr)
+
 }
 
 // CheckArgs checks there are enough arguments and prints a message if not
@@ -371,7 +369,7 @@ func initConfig() {
 	// Load filters
 	err := filterflags.Reload()
 	if err != nil {
-		log.Printf("Failed to load filters: %v", err)
+		log.Fatalf("Failed to load filters: %v", err)
 	}
 
 	// Write the args for debug purposes
@@ -380,7 +378,7 @@ func initConfig() {
 	// Start the remote control server if configured
 	_, err = rcserver.Start(&rcflags.Opt)
 	if err != nil {
-		log.Printf("Failed to start remote control: %v", err)
+		log.Fatalf("Failed to start remote control: %v", err)
 	}
 
 	// Setup CPU profiling if desired
@@ -389,12 +387,12 @@ func initConfig() {
 		f, err := os.Create(*cpuProfile)
 		if err != nil {
 			err = fs.CountError(err)
-			log.Print(err)
+			log.Fatal(err)
 		}
 		err = pprof.StartCPUProfile(f)
 		if err != nil {
 			err = fs.CountError(err)
-			log.Print(err)
+			log.Fatal(err)
 		}
 		atexit.Register(func() {
 			pprof.StopCPUProfile()
@@ -408,17 +406,17 @@ func initConfig() {
 			f, err := os.Create(*memProfile)
 			if err != nil {
 				err = fs.CountError(err)
-				log.Print(err)
+				log.Fatal(err)
 			}
 			err = pprof.WriteHeapProfile(f)
 			if err != nil {
 				err = fs.CountError(err)
-				log.Print(err)
+				log.Fatal(err)
 			}
 			err = f.Close()
 			if err != nil {
 				err = fs.CountError(err)
-				log.Print(err)
+				log.Fatal(err)
 			}
 		})
 	}
@@ -484,6 +482,9 @@ func AddBackendFlags() {
 					help = help[:nl]
 				}
 				help = strings.TrimSpace(help)
+				if opt.IsPassword {
+					help += " (obscured)"
+				}
 				flag := pflag.CommandLine.VarPF(opt, name, opt.ShortOpt, help)
 				if _, isBool := opt.Default.(bool); isBool {
 					flag.NoOptDefVal = "true"
@@ -507,6 +508,6 @@ func Main() {
 	setupRootCommand(Root)
 	AddBackendFlags()
 	if err := Root.Execute(); err != nil {
-		log.Printf("Fatal error: %v", err)
+		log.Fatalf("Fatal error: %v", err)
 	}
 }

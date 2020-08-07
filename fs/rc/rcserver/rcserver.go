@@ -14,6 +14,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,6 +36,7 @@ import (
 )
 
 var promHandler http.Handler
+var onlyOnceWarningAllowOrigin sync.Once
 
 func init() {
 	rcloneCollector := accounting.NewRcloneCollector()
@@ -62,12 +65,7 @@ type Server struct {
 }
 
 func newServer(opt *rc.Options, mux *http.ServeMux) *Server {
-	s := &Server{
-		Server: httplib.NewServer(mux, &opt.HTTPOptions),
-		opt:    opt,
-	}
-	mux.HandleFunc("/", s.handler)
-
+	fileHandler := http.Handler(nil)
 	// Add some more mime types which are often missing
 	_ = mime.AddExtensionType(".wasm", "application/wasm")
 	_ = mime.AddExtensionType(".js", "application/javascript")
@@ -80,7 +78,7 @@ func newServer(opt *rc.Options, mux *http.ServeMux) *Server {
 			fs.Logf(nil, "--rc-files overrides --rc-web-gui command\n")
 		}
 		fs.Logf(nil, "Serving files from %q", opt.Files)
-		s.files = http.FileServer(http.Dir(opt.Files))
+		fileHandler = http.FileServer(http.Dir(opt.Files))
 	} else if opt.WebUI {
 		if err := rc.CheckAndDownloadWebGUIRelease(opt.WebGUIUpdate, opt.WebGUIForceUpdate, opt.WebGUIFetchURL, config.CacheDir); err != nil {
 			log.Fatalf("Error while fetching the latest release of Web GUI: %v", err)
@@ -104,8 +102,16 @@ func newServer(opt *rc.Options, mux *http.ServeMux) *Server {
 		opt.Serve = true
 
 		fs.Logf(nil, "Serving Web GUI")
-		s.files = http.FileServer(http.Dir(extractPath))
+		fileHandler = http.FileServer(http.Dir(extractPath))
 	}
+
+	s := &Server{
+		Server: httplib.NewServer(mux, &opt.HTTPOptions),
+		opt:    opt,
+		files:  fileHandler,
+	}
+	mux.HandleFunc("/", s.handler)
+
 	return s
 }
 
@@ -184,9 +190,11 @@ func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
 
 	allowOrigin := rcflags.Opt.AccessControlAllowOrigin
 	if allowOrigin != "" {
-		if allowOrigin == "*" {
-			fs.Logf(nil, "Warning: Allow origin set to *. This can cause serious security problems.")
-		}
+		onlyOnceWarningAllowOrigin.Do(func() {
+			if allowOrigin == "*" {
+				fs.Logf(nil, "Warning: Allow origin set to *. This can cause serious security problems.")
+			}
+		})
 		w.Header().Add("Access-Control-Allow-Origin", allowOrigin)
 	} else {
 		w.Header().Add("Access-Control-Allow-Origin", s.URL())
@@ -240,7 +248,6 @@ func (s *Server) handlePost(w http.ResponseWriter, r *http.Request, path string)
 			return
 		}
 	}
-
 	// Find the call
 	call := rc.Calls.Get(path)
 	if call == nil {
@@ -252,6 +259,10 @@ func (s *Server) handlePost(w http.ResponseWriter, r *http.Request, path string)
 	if !s.opt.NoAuth && call.AuthRequired && !s.UsingAuth() {
 		writeError(path, in, w, errors.Errorf("authentication must be set up on the rc server to use %q or the --rc-no-auth flag must be in use", path), http.StatusForbidden)
 		return
+	}
+	if call.NeedsRequest {
+		// Add the request to RC
+		in["_request"] = r
 	}
 
 	// Check to see if it is async or not
@@ -296,12 +307,16 @@ func (s *Server) serveRoot(w http.ResponseWriter, r *http.Request) {
 	remotes := config.FileSections()
 	sort.Strings(remotes)
 	directory := serve.NewDirectory("", s.HTMLTemplate)
-	directory.Title = "List of all rclone remotes."
+	directory.Name = "List of all rclone remotes."
 	q := url.Values{}
 	for _, remote := range remotes {
 		q.Set("fs", remote)
-		directory.AddEntry("["+remote+":]", true)
+		directory.AddHTMLEntry("["+remote+":]", true, -1, time.Time{})
 	}
+	sortParm := r.URL.Query().Get("sort")
+	orderParm := r.URL.Query().Get("order")
+	directory.ProcessQueryParams(sortParm, orderParm)
+
 	directory.Serve(w, r)
 }
 
@@ -322,8 +337,13 @@ func (s *Server) serveRemote(w http.ResponseWriter, r *http.Request, path string
 		directory := serve.NewDirectory(path, s.HTMLTemplate)
 		for _, entry := range entries {
 			_, isDir := entry.(fs.Directory)
-			directory.AddEntry(entry.Remote(), isDir)
+			//directory.AddHTMLEntry(entry.Remote(), isDir, entry.Size(), entry.ModTime(r.Context()))
+			directory.AddHTMLEntry(entry.Remote(), isDir, entry.Size(), time.Time{})
 		}
+		sortParm := r.URL.Query().Get("sort")
+		orderParm := r.URL.Query().Get("order")
+		directory.ProcessQueryParams(sortParm, orderParm)
+
 		directory.Serve(w, r)
 	} else {
 		path = strings.Trim(path, "/")

@@ -1,7 +1,6 @@
 ---
 title: "Install"
 description: "Rclone Installation"
-date: "2018-08-28"
 ---
 
 # Install #
@@ -16,7 +15,7 @@ Rclone is a Go program and comes as a single binary file.
 
 See below for some expanded Linux / macOS instructions.
 
-See the [Usage section](/docs/) of the docs for how to use rclone, or
+See the [Usage section](/docs/#usage) of the docs for how to use rclone, or
 run `rclone -h`.
 
 ## Script installation ##
@@ -175,7 +174,7 @@ kill %1
 
 ## Install from source ##
 
-Make sure you have at least [Go](https://golang.org/) 1.7
+Make sure you have at least [Go](https://golang.org/) 1.11
 installed.  [Download go](https://golang.org/dl/) if necessary.  The
 latest release is recommended. Then
 
@@ -184,16 +183,23 @@ latest release is recommended. Then
     go build
     ./rclone version
 
-You can also build and install rclone in the
-[GOPATH](https://github.com/golang/go/wiki/GOPATH) (which defaults to
-`~/go`) with:
+This will leave you a checked out version of rclone you can modify and
+send pull requests with. If you use `make` instead of `go build` then
+the rclone build will have the correct version information in it.
 
-    go get -u -v github.com/artpar/rclone
+You can also build the latest stable rclone with:
 
-and this will build the binary in `$GOPATH/bin` (`~/go/bin/rclone` by
-default) after downloading the source to
-`$GOPATH/src/github.com/artpar/rclone` (`~/go/src/github.com/artpar/rclone`
-by default).
+    go get github.com/artpar/rclone
+
+or the latest version (equivalent to the beta) with
+
+    go get github.com/artpar/rclone@master
+
+These will build the binary in `$(go env GOPATH)/bin`
+(`~/go/bin/rclone` by default) after downloading the source to the go
+module cache. Note - do **not** use the `-u` flag here. This causes go
+to try to update the depencencies that rclone uses and sometimes these
+don't work with the current version of rclone.
 
 ## Installation with Ansible ##
 

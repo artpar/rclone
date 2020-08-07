@@ -6,6 +6,7 @@ import (
 
 	"github.com/artpar/rclone/backend/dropbox"
 	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/operations"
 	"github.com/spf13/cobra"
 )
@@ -23,9 +24,11 @@ hashes are calculated according to [Dropbox content hash
 rules](https://www.dropbox.com/developers/reference/content-hash).
 The output is in the same format as md5sum and sha1sum.
 `,
+	Hidden: true,
 	Run: func(command *cobra.Command, args []string) {
 		cmd.CheckArgs(1, 1, command, args)
 		fsrc := cmd.NewFsSrc(args)
+		fs.Logf(nil, `"rclone dbhashsum" is deprecated, use "rclone hashsum %v %s" instead`, dropbox.DbHashType, args[0])
 		cmd.Run(false, false, command, func() error {
 			return operations.HashLister(context.Background(), dropbox.DbHashType, fsrc, os.Stdout)
 		})

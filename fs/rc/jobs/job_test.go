@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs/rc"
 	"github.com/artpar/rclone/fs/rc/rcflags"
-	"github.com/pkg/errors"
+	"github.com/artpar/rclone/fstest/testy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,6 +20,7 @@ func TestNewJobs(t *testing.T) {
 }
 
 func TestJobsKickExpire(t *testing.T) {
+	testy.SkipUnreliable(t)
 	jobs := newJobs()
 	jobs.opt.JobExpireInterval = time.Millisecond
 	assert.Equal(t, false, jobs.expireRunning)
@@ -33,6 +35,7 @@ func TestJobsKickExpire(t *testing.T) {
 }
 
 func TestJobsExpire(t *testing.T) {
+	testy.SkipUnreliable(t)
 	wait := make(chan struct{})
 	jobs := newJobs()
 	jobs.opt.JobExpireInterval = time.Millisecond

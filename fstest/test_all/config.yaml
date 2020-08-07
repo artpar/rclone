@@ -205,6 +205,7 @@ backends:
    remote:   "TestQingStor:"
    fastlist: false
    oneonly:  true
+   cleanup:  true
  - backend:  "azureblob"
    remote:   "TestAzureBlob:"
    fastlist: true
@@ -263,3 +264,17 @@ backends:
    remote:   "TestMailru:"
    subdir:   false
    fastlist: false
+ - backend:  "seafile"
+   remote:   "TestSeafileV6:"
+   fastlist: false
+   ignore:
+     - TestIntegration/FsMkdir/FsPutFiles/FsDirMove
+ - backend:  "seafile"
+   remote:   "TestSeafile:"
+   fastlist: true
+ - backend:  "seafile"
+   remote:   "TestSeafileEncrypted:"
+   fastlist: true
+ - backend:  "tardigrade"
+   remote:   "TestTardigrade:"
+   fastlist: true

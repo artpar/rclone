@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"syscall"
 
 	fusefs "github.com/hanwen/go-fuse/v2/fs"
@@ -34,13 +33,15 @@ import (
 // FOPEN_DIRECT_IO flag from their `Open` method. See directio_test.go
 // for an example.
 type FileHandle struct {
-	h vfs.Handle
+	h    vfs.Handle
+	fsys *FS
 }
 
 // Create a new FileHandle
-func newFileHandle(h vfs.Handle) *FileHandle {
+func newFileHandle(h vfs.Handle, fsys *FS) *FileHandle {
 	return &FileHandle{
-		h: h,
+		h:    h,
+		fsys: fsys,
 	}
 }
 
@@ -74,11 +75,7 @@ func (f *FileHandle) Write(ctx context.Context, data []byte, off int64) (written
 	var n int
 	var err error
 	defer log.Trace(f, "off=%d", off)("n=%d, off=%d, errno=%v", &n, &off, &errno)
-	if f.h.Node().VFS().Opt.CacheMode < vfs.CacheModeWrites || f.h.Node().Mode()&os.ModeAppend == 0 {
-		n, err = f.h.WriteAt(data, off)
-	} else {
-		n, err = f.h.Write(data)
-	}
+	n, err = f.h.WriteAt(data, off)
 	return uint32(n), translateError(err)
 }
 
@@ -120,7 +117,7 @@ var _ fusefs.FileFsyncer = (*FileHandle)(nil)
 // is assumed, and the 'blocks' field is set accordingly.
 func (f *FileHandle) Getattr(ctx context.Context, out *fuse.AttrOut) (errno syscall.Errno) {
 	defer log.Trace(f, "")("attr=%v, errno=%v", &out, &errno)
-	setAttrOut(f.h.Node(), out)
+	f.fsys.setAttrOut(f.h.Node(), out)
 	return 0
 }
 
@@ -130,7 +127,7 @@ var _ fusefs.FileGetattrer = (*FileHandle)(nil)
 func (f *FileHandle) Setattr(ctx context.Context, in *fuse.SetAttrIn, out *fuse.AttrOut) (errno syscall.Errno) {
 	defer log.Trace(f, "in=%v", in)("attr=%v, errno=%v", &out, &errno)
 	var err error
-	setAttrOut(f.h.Node(), out)
+	f.fsys.setAttrOut(f.h.Node(), out)
 	size, ok := in.GetSize()
 	if ok {
 		err = f.h.Truncate(int64(size))

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/artpar/rclone/fs"
+	"github.com/sirupsen/logrus"
 )
 
 // Options contains options for the remote control server
@@ -113,20 +114,21 @@ func InitLogging() {
 	if Opt.File != "" {
 		f, err := os.OpenFile(Opt.File, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 		if err != nil {
-			log.Printf("Failed to open log file: %v", err)
+			log.Fatalf("Failed to open log file: %v", err)
 		}
 		_, err = f.Seek(0, io.SeekEnd)
 		if err != nil {
 			fs.Errorf(nil, "Failed to seek log file to end: %v", err)
 		}
 		log.SetOutput(f)
+		logrus.SetOutput(f)
 		redirectStderr(f)
 	}
 
 	// Syslog output
 	if Opt.UseSyslog {
 		if Opt.File != "" {
-			log.Printf("Can't use --syslog and --log-file together")
+			log.Fatalf("Can't use --syslog and --log-file together")
 		}
 		startSysLog()
 	}
