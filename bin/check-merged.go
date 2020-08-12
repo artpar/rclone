@@ -56,7 +56,8 @@ func gitDiffDiff(rev1, rev2 string) {
 		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
 			// OK just different
 		} else {
-			log.Fatalf("git diff failed: %#v", err)
+			log.Printf("git diff failed: %#v", err)
+			return
 		}
 	}
 	_, _ = os.Stdout.Write(out)
@@ -69,7 +70,8 @@ func gitLogGrep(branch, rev, logLine string) {
 	cmd := exec.Command("git", "log", "--grep", regexp.QuoteMeta(logLine), *master)
 	out, err := cmd.Output()
 	if err != nil {
-		log.Fatalf("git log grep failed: %v", err)
+		log.Printf("git log grep failed: %v", err)
+		return
 	}
 	if len(out) > 0 {
 		if !printedSep {
@@ -97,10 +99,12 @@ func gitBranch() {
 	cmd.Stderr = os.Stderr
 	out, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Fatalf("git branch pipe failed: %v", err)
+		log.Printf("git branch pipe failed: %v", err)
+		return
 	}
 	if err := cmd.Start(); err != nil {
-		log.Fatalf("git branch failed: %v", err)
+		log.Printf("git branch failed: %v", err)
+		return
 	}
 	scanner := bufio.NewScanner(out)
 	for scanner.Scan() {
@@ -118,10 +122,12 @@ func gitBranch() {
 		gitLogGrep(branch, rev, logLine)
 	}
 	if err := scanner.Err(); err != nil {
-		log.Fatalf("failed reading git branch: %v", err)
+		log.Printf("failed reading git branch: %v", err)
+		return
 	}
 	if err := cmd.Wait(); err != nil {
-		log.Fatalf("git branch wait failed: %v", err)
+		log.Printf("git branch wait failed: %v", err)
+		return
 	}
 }
 

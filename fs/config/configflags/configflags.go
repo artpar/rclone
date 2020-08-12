@@ -160,7 +160,8 @@ func ParseHeaders(headers []string) []*fs.HTTPOption {
 	for _, header := range headers {
 		parts := strings.SplitN(header, ":", 2)
 		if len(parts) == 1 {
-			log.Fatalf("Failed to parse '%s' as an HTTP header. Expecting a string like: 'Content-Encoding: gzip'", header)
+			log.Printf("Failed to parse '%s' as an HTTP header. Expecting a string like: 'Content-Encoding: gzip'", header)
+			return nil
 		}
 		option := &fs.HTTPOption{
 			Key:   strings.TrimSpace(parts[0]),
