@@ -97,7 +97,8 @@ func init() {
 			// Do the oauth
 			err = oauthutil.Config("google photos", name, m, oauthConfig, nil)
 			if err != nil {
-				golog.Fatalf("Failed to configure token: %v", err)
+				golog.Printf("Failed to configure token: %v", err)
+				return
 			}
 
 			// Warn the user

@@ -93,13 +93,15 @@ func init() {
 			if ok && boxSubTypeOk && jsonFile != "" && boxSubType != "" {
 				err = refreshJWTToken(jsonFile, boxSubType, name, m)
 				if err != nil {
-					log.Fatalf("Failed to configure token with jwt authentication: %v", err)
+					log.Printf("Failed to configure token with jwt authentication: %v", err)
+					return
 				}
 				// Else, if not using an access token, use oauth2
 			} else if boxAccessToken == "" || !boxAccessTokenOk {
 				err = oauthutil.Config("box", name, m, oauthConfig, nil)
 				if err != nil {
-					log.Fatalf("Failed to configure token with oauth authentication: %v", err)
+					log.Printf("Failed to configure token with oauth authentication: %v", err)
+					return
 				}
 			}
 		},
@@ -157,15 +159,18 @@ func refreshJWTToken(jsonFile string, boxSubType string, name string, m configma
 	jsonFile = env.ShellExpand(jsonFile)
 	boxConfig, err := getBoxConfig(jsonFile)
 	if err != nil {
-		log.Fatalf("Failed to configure token: %v", err)
+		log.Printf("Failed to configure token: %v", err)
+		return err
 	}
 	privateKey, err := getDecryptedPrivateKey(boxConfig)
 	if err != nil {
-		log.Fatalf("Failed to configure token: %v", err)
+		log.Printf("Failed to configure token: %v", err)
+		return err
 	}
 	claims, err := getClaims(boxConfig, boxSubType)
 	if err != nil {
-		log.Fatalf("Failed to configure token: %v", err)
+		log.Printf("Failed to configure token: %v", err)
+		return err
 	}
 	signingHeaders := getSigningHeaders(boxConfig)
 	queryParams := getQueryParams(boxConfig)

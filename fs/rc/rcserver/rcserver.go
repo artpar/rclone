@@ -81,7 +81,8 @@ func newServer(opt *rc.Options, mux *http.ServeMux) *Server {
 		fileHandler = http.FileServer(http.Dir(opt.Files))
 	} else if opt.WebUI {
 		if err := rc.CheckAndDownloadWebGUIRelease(opt.WebGUIUpdate, opt.WebGUIForceUpdate, opt.WebGUIFetchURL, config.CacheDir); err != nil {
-			log.Fatalf("Error while fetching the latest release of Web GUI: %v", err)
+			log.Printf("Error while fetching the latest release of Web GUI: %v", err)
+			return nil
 		}
 		if opt.NoAuth {
 			opt.NoAuth = false
@@ -94,7 +95,8 @@ func newServer(opt *rc.Options, mux *http.ServeMux) *Server {
 		if opt.HTTPOptions.BasicPass == "" {
 			randomPass, err := random.Password(128)
 			if err != nil {
-				log.Fatalf("Failed to make password: %v", err)
+				log.Printf("Failed to make password: %v", err)
+				return nil
 			}
 			opt.HTTPOptions.BasicPass = randomPass
 			fs.Infof(nil, "No password specified. Using random password: %s \n", randomPass)

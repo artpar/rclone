@@ -84,7 +84,8 @@ func NewFsFile(remote string) (fs.Fs, string) {
 	_, _, fsPath, err := fs.ParseRemote(remote)
 	if err != nil {
 		err = fs.CountError(err)
-		log.Fatalf("Failed to create file system for %q: %v", remote, err)
+		log.Printf("Failed to create file system for %q: %v", remote, err)
+		return nil, ""
 	}
 	f, err := cache.Get(remote)
 	switch err {
@@ -94,7 +95,8 @@ func NewFsFile(remote string) (fs.Fs, string) {
 		return f, ""
 	default:
 		err = fs.CountError(err)
-		log.Fatalf("Failed to create file system for %q: %v", remote, err)
+		log.Printf("Failed to create file system for %q: %v", remote, err)
+		return nil, ""
 	}
 	return nil, ""
 }
@@ -109,13 +111,15 @@ func newFsFileAddFilter(remote string) (fs.Fs, string) {
 		if !filter.Active.InActive() {
 			err := errors.Errorf("Can't limit to single files when using filters: %v", remote)
 			err = fs.CountError(err)
-			log.Fatalf(err.Error())
+			log.Printf(err.Error())
+			return nil, ""
 		}
 		// Limit transfers to this file
 		err := filter.Active.AddFile(fileName)
 		if err != nil {
 			err = fs.CountError(err)
-			log.Fatalf("Failed to limit to single file %q: %v", remote, err)
+			log.Printf("Failed to limit to single file %q: %v", remote, err)
+			return nil, ""
 		}
 	}
 	return f, fileName
@@ -137,7 +141,8 @@ func newFsDir(remote string) fs.Fs {
 	f, err := cache.Get(remote)
 	if err != nil {
 		err = fs.CountError(err)
-		log.Fatalf("Failed to create file system for %q: %v", remote, err)
+		log.Printf("Failed to create file system for %q: %v", remote, err)
+		return nil
 	}
 	return f
 }
@@ -178,24 +183,28 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 		var err error
 		dstRemote, dstFileName, err = fspath.Split(dstRemote)
 		if err != nil {
-			log.Fatalf("Parsing %q failed: %v", args[1], err)
+			log.Printf("Parsing %q failed: %v", args[1], err)
+			return nil, "", nil, ""
 		}
 		if dstRemote == "" {
 			dstRemote = "."
 		}
 		if dstFileName == "" {
-			log.Fatalf("%q is a directory", args[1])
+			log.Printf("%q is a directory", args[1])
+			return nil, "", nil, ""
 		}
 	}
 	fdst, err := cache.Get(dstRemote)
 	switch err {
 	case fs.ErrorIsFile:
 		_ = fs.CountError(err)
-		log.Fatalf("Source doesn't exist or is a directory and destination is a file")
+		log.Printf("Source doesn't exist or is a directory and destination is a file")
+		return nil, "", nil, ""
 	case nil:
 	default:
 		_ = fs.CountError(err)
-		log.Fatalf("Failed to create file system for destination %q: %v", dstRemote, err)
+		log.Printf("Failed to create file system for destination %q: %v", dstRemote, err)
+		return nil, "", nil, ""
 	}
 	return
 }
@@ -204,13 +213,15 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 func NewFsDstFile(args []string) (fdst fs.Fs, dstFileName string) {
 	dstRemote, dstFileName, err := fspath.Split(args[0])
 	if err != nil {
-		log.Fatalf("Parsing %q failed: %v", args[0], err)
+		log.Printf("Parsing %q failed: %v", args[0], err)
+		return nil, ""
 	}
 	if dstRemote == "" {
 		dstRemote = "."
 	}
 	if dstFileName == "" {
-		log.Fatalf("%q is a directory", args[0])
+		log.Printf("%q is a directory", args[0])
+		return 
 	}
 	fdst = newFsDir(dstRemote)
 	return
@@ -369,7 +380,8 @@ func initConfig() {
 	// Load filters
 	err := filterflags.Reload()
 	if err != nil {
-		log.Fatalf("Failed to load filters: %v", err)
+		log.Printf("Failed to load filters: %v", err)
+		return
 	}
 
 	// Write the args for debug purposes
@@ -378,7 +390,8 @@ func initConfig() {
 	// Start the remote control server if configured
 	_, err = rcserver.Start(&rcflags.Opt)
 	if err != nil {
-		log.Fatalf("Failed to start remote control: %v", err)
+		log.Printf("Failed to start remote control: %v", err)
+		return
 	}
 
 	// Setup CPU profiling if desired
@@ -388,11 +401,13 @@ func initConfig() {
 		if err != nil {
 			err = fs.CountError(err)
 			log.Fatal(err)
+			return
 		}
 		err = pprof.StartCPUProfile(f)
 		if err != nil {
 			err = fs.CountError(err)
 			log.Fatal(err)
+			return
 		}
 		atexit.Register(func() {
 			pprof.StopCPUProfile()
@@ -407,16 +422,19 @@ func initConfig() {
 			if err != nil {
 				err = fs.CountError(err)
 				log.Fatal(err)
+				return
 			}
 			err = pprof.WriteHeapProfile(f)
 			if err != nil {
 				err = fs.CountError(err)
 				log.Fatal(err)
+				return
 			}
 			err = f.Close()
 			if err != nil {
 				err = fs.CountError(err)
 				log.Fatal(err)
+				return
 			}
 		})
 	}
@@ -508,6 +526,6 @@ func Main() {
 	setupRootCommand(Root)
 	AddBackendFlags()
 	if err := Root.Execute(); err != nil {
-		log.Fatalf("Fatal error: %v", err)
+		log.Printf("Fatal error: %v", err)
 	}
 }

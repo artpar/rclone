@@ -64,12 +64,14 @@ func init() {
 
 				access, err := uplink.RequestAccessWithPassphrase(context.TODO(), satellite, apiKey, passphrase)
 				if err != nil {
-					log.Fatalf("Couldn't create access grant: %v", err)
+					log.Printf("Couldn't create access grant: %v", err)
+					return
 				}
 
 				serialziedAccess, err := access.Serialize()
 				if err != nil {
-					log.Fatalf("Couldn't serialize access grant: %v", err)
+					log.Printf("Couldn't serialize access grant: %v", err)
+					return
 				}
 				configMapper.Set("satellite_address", satellite)
 				configMapper.Set("access_grant", serialziedAccess)
@@ -78,7 +80,8 @@ func init() {
 				config.FileDeleteKey(name, "api_key")
 				config.FileDeleteKey(name, "passphrase")
 			} else {
-				log.Fatalf("Invalid provider type: %s", provider)
+				log.Printf("Invalid provider type: %s", provider)
+				return
 			}
 		},
 		Options: []fs.Option{

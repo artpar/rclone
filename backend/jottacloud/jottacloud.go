@@ -90,7 +90,8 @@ func init() {
 			if version, ok := m.Get("configVersion"); ok {
 				ver, err := strconv.Atoi(version)
 				if err != nil {
-					log.Fatalf("Failed to parse config version - corrupted config")
+					log.Printf("Failed to parse config version - corrupted config")
+					return
 				}
 				refresh = (ver != configVersion) && (ver != v1configVersion)
 			}
@@ -238,7 +239,8 @@ func v1config(ctx context.Context, name string, m configmap.Mapper) {
 	if config.Confirm(false) {
 		deviceRegistration, err := registerDevice(ctx, srv)
 		if err != nil {
-			log.Fatalf("Failed to register device: %v", err)
+			log.Printf("Failed to register device: %v", err)
+			return
 		}
 
 		m.Set(configClientID, deviceRegistration.ClientID)
@@ -266,18 +268,21 @@ func v1config(ctx context.Context, name string, m configmap.Mapper) {
 
 	token, err := doAuthV1(ctx, srv, username, password)
 	if err != nil {
-		log.Fatalf("Failed to get oauth token: %s", err)
+		log.Printf("Failed to get oauth token: %s", err)
+		return
 	}
 	err = oauthutil.PutToken(name, m, &token, true)
 	if err != nil {
-		log.Fatalf("Error while saving token: %s", err)
+		log.Printf("Error while saving token: %s", err)
+		return
 	}
 
 	fmt.Printf("\nDo you want to use a non standard device/mountpoint e.g. for accessing files uploaded using the official Jottacloud client?\n\n")
 	if config.Confirm(false) {
 		oAuthClient, _, err := oauthutil.NewClient(name, m, oauthConfig)
 		if err != nil {
-			log.Fatalf("Failed to load oAuthClient: %s", err)
+			log.Printf("Failed to load oAuthClient: %s", err)
+			return
 		}
 
 		srv = rest.NewClient(oAuthClient).SetRoot(rootURL)
@@ -285,7 +290,8 @@ func v1config(ctx context.Context, name string, m configmap.Mapper) {
 
 		device, mountpoint, err := setupMountpoint(ctx, srv, apiSrv)
 		if err != nil {
-			log.Fatalf("Failed to setup mountpoint: %s", err)
+			log.Printf("Failed to setup mountpoint: %s", err)
+			return
 		}
 		m.Set(configDevice, device)
 		m.Set(configMountpoint, mountpoint)
@@ -375,11 +381,12 @@ func v2config(ctx context.Context, name string, m configmap.Mapper) {
 
 	token, err := doAuthV2(ctx, srv, loginToken, m)
 	if err != nil {
-		log.Fatalf("Failed to get oauth token: %s", err)
+		log.Printf("Failed to get oauth token: %s", err)
+		return
 	}
 	err = oauthutil.PutToken(name, m, &token, true)
 	if err != nil {
-		log.Fatalf("Error while saving token: %s", err)
+		log.Printf("Error while saving token: %s", err)
 	}
 
 	fmt.Printf("\nDo you want to use a non standard device/mountpoint e.g. for accessing files uploaded using the official Jottacloud client?\n\n")
@@ -387,14 +394,16 @@ func v2config(ctx context.Context, name string, m configmap.Mapper) {
 		oauthConfig.ClientID = "jottacli"
 		oAuthClient, _, err := oauthutil.NewClient(name, m, oauthConfig)
 		if err != nil {
-			log.Fatalf("Failed to load oAuthClient: %s", err)
+			log.Printf("Failed to load oAuthClient: %s", err)
+			return
 		}
 
 		srv = rest.NewClient(oAuthClient).SetRoot(rootURL)
 		apiSrv := rest.NewClient(oAuthClient).SetRoot(apiURL)
 		device, mountpoint, err := setupMountpoint(ctx, srv, apiSrv)
 		if err != nil {
-			log.Fatalf("Failed to setup mountpoint: %s", err)
+			log.Printf("Failed to setup mountpoint: %s", err)
+			return
 		}
 		m.Set(configDevice, device)
 		m.Set(configMountpoint, mountpoint)

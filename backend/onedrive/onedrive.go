@@ -84,7 +84,7 @@ func init() {
 			ctx := context.TODO()
 			err := oauthutil.Config("onedrive", name, m, oauthConfig, nil)
 			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
+				log.Printf("Failed to configure token: %v", err)
 				return
 			}
 
@@ -113,7 +113,8 @@ func init() {
 
 			oAuthClient, _, err := oauthutil.NewClient(name, m, oauthConfig)
 			if err != nil {
-				log.Fatalf("Failed to configure OneDrive: %v", err)
+				log.Printf("Failed to configure OneDrive: %v", err)
+				return
 			}
 			srv := rest.NewClient(oAuthClient)
 
@@ -155,11 +156,13 @@ func init() {
 				sites := siteResponse{}
 				_, err := srv.CallJSON(ctx, &opts, nil, &sites)
 				if err != nil {
-					log.Fatalf("Failed to query available sites: %v", err)
+					log.Printf("Failed to query available sites: %v", err)
+					return
 				}
 
 				if len(sites.Sites) == 0 {
-					log.Fatalf("Search for '%s' returned no results", searchTerm)
+					log.Printf("Search for '%s' returned no results", searchTerm)
+					return
 				} else {
 					fmt.Printf("Found %d sites, please select the one you want to use:\n", len(sites.Sites))
 					for index, site := range sites.Sites {
@@ -184,7 +187,8 @@ func init() {
 				drives := drivesResponse{}
 				_, err := srv.CallJSON(ctx, &opts, nil, &drives)
 				if err != nil {
-					log.Fatalf("Failed to query available drives: %v", err)
+					log.Printf("Failed to query available drives: %v", err)
+					return
 				}
 
 				// Also call /me/drive as sometimes /me/drives doesn't return it #4068
@@ -193,7 +197,8 @@ func init() {
 					meDrive := driveResource{}
 					_, err := srv.CallJSON(ctx, &opts, nil, &meDrive)
 					if err != nil {
-						log.Fatalf("Failed to query available drives: %v", err)
+						log.Printf("Failed to query available drives: %v", err)
+						return
 					}
 					found := false
 					for _, drive := range drives.Drives {
@@ -210,7 +215,8 @@ func init() {
 				}
 
 				if len(drives.Drives) == 0 {
-					log.Fatalf("No drives found")
+					log.Printf("No drives found")
+					return
 				} else {
 					fmt.Printf("Found %d drives, please select the one you want to use:\n", len(drives.Drives))
 					for index, drive := range drives.Drives {
@@ -228,13 +234,15 @@ func init() {
 			var rootItem api.Item
 			_, err = srv.CallJSON(ctx, &opts, nil, &rootItem)
 			if err != nil {
-				log.Fatalf("Failed to query root for drive %s: %v", finalDriveID, err)
+				log.Printf("Failed to query root for drive %s: %v", finalDriveID, err)
+				return
 			}
 
 			fmt.Printf("Found drive '%s' of type '%s', URL: %s\nIs that okay?\n", rootItem.Name, rootItem.ParentReference.DriveType, rootItem.WebURL)
 			// This does not work, YET :)
 			if !config.ConfirmWithConfig(m, "config_drive_ok", true) {
-				log.Fatalf("Cancelled by user")
+				log.Printf("Cancelled by user")
+				return
 			}
 
 			m.Set(configDriveID, finalDriveID)

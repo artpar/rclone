@@ -130,11 +130,13 @@ func NewTransportCustom(ci *fs.ConfigInfo, customize func(*http.Transport)) http
 	// Load client certs
 	if ci.ClientCert != "" || ci.ClientKey != "" {
 		if ci.ClientCert == "" || ci.ClientKey == "" {
-			log.Fatalf("Both --client-cert and --client-key must be set")
+			log.Printf("Both --client-cert and --client-key must be set")
+			return nil
 		}
 		cert, err := tls.LoadX509KeyPair(ci.ClientCert, ci.ClientKey)
 		if err != nil {
-			log.Fatalf("Failed to load --client-cert/--client-key pair: %v", err)
+			log.Printf("Failed to load --client-cert/--client-key pair: %v", err)
+			return nil
 		}
 		t.TLSClientConfig.Certificates = []tls.Certificate{cert}
 		t.TLSClientConfig.BuildNameToCertificate()
@@ -144,12 +146,14 @@ func NewTransportCustom(ci *fs.ConfigInfo, customize func(*http.Transport)) http
 	if ci.CaCert != "" {
 		caCert, err := ioutil.ReadFile(ci.CaCert)
 		if err != nil {
-			log.Fatalf("Failed to read --ca-cert: %v", err)
+			log.Printf("Failed to read --ca-cert: %v", err)
+			return nil
 		}
 		caCertPool := x509.NewCertPool()
 		ok := caCertPool.AppendCertsFromPEM(caCert)
 		if !ok {
-			log.Fatalf("Failed to add certificates from --ca-cert")
+			log.Printf("Failed to add certificates from --ca-cert")
+			return nil
 		}
 		t.TLSClientConfig.RootCAs = caCertPool
 	}
