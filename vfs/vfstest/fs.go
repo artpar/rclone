@@ -152,7 +152,7 @@ func findMountPath() string {
 		mountPath, err := ioutil.TempDir("", "rclonefs-mount")
 		if err != nil {
 			log.Printf("Failed to create mount dir: %v", err)
-			return nil
+			return ""
 		}
 		return mountPath
 	}
@@ -212,13 +212,13 @@ func (r *Run) umount() {
 	}
 	if err != nil {
 		log.Printf("signal to umount failed: %v", err)
-		return 
+		return
 	}
 	log.Printf("Waiting for umount")
 	err = <-r.umountResult
 	if err != nil {
 		log.Printf("umount failed: %v", err)
-		return 
+		return
 	}
 
 	// Cleanup the VFS cache - umount has called Shutdown
@@ -241,7 +241,7 @@ func (r *Run) cacheMode(cacheMode vfscommon.CacheMode, writeBack time.Duration) 
 	err := r.fremote.Mkdir(context.Background(), "")
 	if err != nil {
 		log.Printf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
-		return 
+		return
 	}
 	// Empty the cache
 	err = r.vfs.CleanUp()
