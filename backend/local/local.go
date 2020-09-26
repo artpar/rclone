@@ -625,6 +625,10 @@ func (f *Fs) Purge(ctx context.Context, dir string) error {
 	dir = f.localPath(dir)
 	fi, err := f.lstat(dir)
 	if err != nil {
+		// already purged
+		if os.IsNotExist(err) {
+			return fs.ErrorDirNotFound
+		}
 		return err
 	}
 	if !fi.Mode().IsDir() {
@@ -1209,7 +1213,7 @@ func (f *Fs) OpenWriterAt(ctx context.Context, remote string, size int64) (fs.Wr
 		// Set the file to be a sparse file (important on Windows)
 		err = file.SetSparse(out)
 		if err != nil {
-			fs.Debugf(o, "Failed to set sparse: %v", err)
+			fs.Errorf(o, "Failed to set sparse: %v", err)
 		}
 	}
 

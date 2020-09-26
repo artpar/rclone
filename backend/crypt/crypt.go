@@ -9,14 +9,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/cache"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
 	"github.com/artpar/rclone/fs/config/obscure"
 	"github.com/artpar/rclone/fs/fspath"
 	"github.com/artpar/rclone/fs/hash"
-	"github.com/pkg/errors"
 )
 
 // Globals
@@ -158,24 +159,25 @@ func NewFs(name, rpath string, m configmap.Mapper) (fs.Fs, error) {
 	if strings.HasPrefix(remote, name+":") {
 		return nil, errors.New("can't point crypt remote at itself - check the value of the remote setting")
 	}
-	wInfo, wName, wPath, wConfig, err := fs.ConfigFs(remote)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse remote %q to wrap", remote)
-	}
 	// Make sure to remove trailing . reffering to the current dir
 	if path.Base(rpath) == "." {
 		rpath = strings.TrimSuffix(rpath, ".")
 	}
 	// Look for a file first
-	remotePath := fspath.JoinRootPath(wPath, cipher.EncryptFileName(rpath))
-	wrappedFs, err := wInfo.NewFs(wName, remotePath, wConfig)
-	// if that didn't produce a file, look for a directory
-	if err != fs.ErrorIsFile {
-		remotePath = fspath.JoinRootPath(wPath, cipher.EncryptDirName(rpath))
-		wrappedFs, err = wInfo.NewFs(wName, remotePath, wConfig)
+	var wrappedFs fs.Fs
+	if rpath == "" {
+		wrappedFs, err = cache.Get(remote)
+	} else {
+		remotePath := fspath.JoinRootPath(remote, cipher.EncryptFileName(rpath))
+		wrappedFs, err = cache.Get(remotePath)
+		// if that didn't produce a file, look for a directory
+		if err != fs.ErrorIsFile {
+			remotePath = fspath.JoinRootPath(remote, cipher.EncryptDirName(rpath))
+			wrappedFs, err = cache.Get(remotePath)
+		}
 	}
 	if err != fs.ErrorIsFile && err != nil {
-		return nil, errors.Wrapf(err, "failed to make remote %s:%q to wrap", wName, remotePath)
+		return nil, errors.Wrapf(err, "failed to make remote %q to wrap", remote)
 	}
 	f := &Fs{
 		Fs:     wrappedFs,
@@ -184,6 +186,7 @@ func NewFs(name, rpath string, m configmap.Mapper) (fs.Fs, error) {
 		opt:    *opt,
 		cipher: cipher,
 	}
+	cache.PinUntilFinalized(f.Fs, f)
 	// the features here are ones we could support, and they are
 	// ANDed with the ones from wrappedFs
 	f.features = (&fs.Features{
@@ -438,7 +441,7 @@ func (f *Fs) Purge(ctx context.Context, dir string) error {
 	if do == nil {
 		return fs.ErrorCantPurge
 	}
-	return do(ctx, dir)
+	return do(ctx, f.cipher.EncryptDirName(dir))
 }
 
 // Copy src to this remote using server side copy operations.

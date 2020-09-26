@@ -21,8 +21,8 @@ import (
 	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/operations"
 	"github.com/artpar/rclone/fs/walk"
+	"github.com/artpar/rclone/lib/terminal"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/http2"
 )
 

@@ -11,7 +11,7 @@ import (
 	"log"
 	"os"
 
-	"golang.org/x/crypto/ssh/terminal"
+	"github.com/artpar/rclone/lib/terminal"
 )
 
 // ReadPassword reads a password without echoing it to the terminal.

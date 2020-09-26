@@ -45,7 +45,6 @@ var (
 var osarches = []string{
 	"windows/386",
 	"windows/amd64",
-	"darwin/386",
 	"darwin/amd64",
 	"linux/386",
 	"linux/amd64",
@@ -67,6 +66,7 @@ var osarches = []string{
 	"plan9/386",
 	"plan9/amd64",
 	"solaris/amd64",
+	"js/wasm",
 }
 
 // Special environment flags for a given arch
@@ -280,7 +280,7 @@ func stripVersion(goarch string) string {
 
 // build the binary in dir returning success or failure
 func compileArch(version, goos, goarch, dir string) bool {
-	log.Printf("Compiling %s/%s", goos, goarch)
+	log.Printf("Compiling %s/%s into %s", goos, goarch, dir)
 	output := filepath.Join(dir, "rclone")
 	if goos == "windows" {
 		output += ".exe"
@@ -298,7 +298,6 @@ func compileArch(version, goos, goarch, dir string) bool {
 		"go", "build",
 		"--ldflags", "-s -X github.com/artpar/rclone/fs.Version=" + version,
 		"-trimpath",
-		"-i",
 		"-o", output,
 		"-tags", *tags,
 		"..",
@@ -321,14 +320,16 @@ func compileArch(version, goos, goarch, dir string) bool {
 		return false
 	}
 	if !*compileOnly {
-		artifacts := []string{buildZip(dir)}
-		// build a .deb and .rpm if appropriate
-		if goos == "linux" {
-			artifacts = append(artifacts, buildDebAndRpm(dir, version, goarch)...)
-		}
-		if *copyAs != "" {
-			for _, artifact := range artifacts {
-				run("ln", artifact, strings.Replace(artifact, "-"+version, "-"+*copyAs, 1))
+		if goos != "js" {
+			artifacts := []string{buildZip(dir)}
+			// build a .deb and .rpm if appropriate
+			if goos == "linux" {
+				artifacts = append(artifacts, buildDebAndRpm(dir, version, stripVersion(goarch))...)
+			}
+			if *copyAs != "" {
+				for _, artifact := range artifacts {
+					run("ln", artifact, strings.Replace(artifact, "-"+version, "-"+*copyAs, 1))
+				}
 			}
 		}
 		// tidy up
