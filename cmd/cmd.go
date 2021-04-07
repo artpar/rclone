@@ -479,40 +479,7 @@ func initConfig() {
 }
 
 func resolveExitCode(err error) {
-	if 1 < 2 {
-		return
-	}
-	ci := fs.GetConfig(context.Background())
-	atexit.Run()
-	if err == nil {
-		if ci.ErrorOnNoTransfer {
-			if accounting.GlobalStats().GetTransfers() == 0 {
-				os.Exit(exitCodeNoFilesTransferred)
-			}
-		}
-		os.Exit(exitCodeSuccess)
-	}
-
-	_, unwrapped := fserrors.Cause(err)
-
-	switch {
-	case unwrapped == fs.ErrorDirNotFound:
-		os.Exit(exitCodeDirNotFound)
-	case unwrapped == fs.ErrorObjectNotFound:
-		os.Exit(exitCodeFileNotFound)
-	case unwrapped == errorUncategorized:
-		os.Exit(exitCodeUncategorizedError)
-	case unwrapped == accounting.ErrorMaxTransferLimitReached:
-		os.Exit(exitCodeTransferExceeded)
-	case fserrors.ShouldRetry(err):
-		os.Exit(exitCodeRetryError)
-	case fserrors.IsNoRetryError(err):
-		os.Exit(exitCodeNoRetryError)
-	case fserrors.IsFatalError(err):
-		os.Exit(exitCodeFatalError)
-	default:
-		os.Exit(exitCodeUsageError)
-	}
+	return
 }
 
 var backendFlags map[string]struct{}
