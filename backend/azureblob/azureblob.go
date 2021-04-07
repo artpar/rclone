@@ -471,7 +471,7 @@ func newServicePrincipalTokenRefresher(ctx context.Context, credentialsData []by
 	// Wrap token inside a refresher closure.
 	var tokenRefresher azblob.TokenRefresher = func(credential azblob.TokenCredential) time.Duration {
 		if err := servicePrincipalToken.Refresh(); err != nil {
-			return nil, err
+			return time.Duration(0)
 		}
 		refreshedToken := servicePrincipalToken.Token()
 		credential.SetToken(refreshedToken.AccessToken)
