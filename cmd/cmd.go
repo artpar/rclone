@@ -21,7 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/accounting"
 	"github.com/artpar/rclone/fs/cache"
@@ -30,7 +29,6 @@ import (
 	"github.com/artpar/rclone/fs/config/flags"
 	"github.com/artpar/rclone/fs/filter"
 	"github.com/artpar/rclone/fs/filter/filterflags"
-	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fspath"
 	fslog "github.com/artpar/rclone/fs/log"
 	"github.com/artpar/rclone/fs/rc/rcflags"
@@ -39,6 +37,7 @@ import (
 	"github.com/artpar/rclone/lib/buildinfo"
 	"github.com/artpar/rclone/lib/random"
 	"github.com/artpar/rclone/lib/terminal"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
