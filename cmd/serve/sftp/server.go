@@ -4,6 +4,7 @@ package sftp
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/subtle"
@@ -33,20 +34,22 @@ type server struct {
 	f        fs.Fs
 	opt      Options
 	vfs      *vfs.VFS
+	ctx      context.Context // for global config
 	config   *ssh.ServerConfig
 	listener net.Listener
 	waitChan chan struct{} // for waiting on the listener to close
 	proxy    *proxy.Proxy
 }
 
-func newServer(f fs.Fs, opt *Options) *server {
+func newServer(ctx context.Context, f fs.Fs, opt *Options) *server {
 	s := &server{
 		f:        f,
+		ctx:      ctx,
 		opt:      *opt,
 		waitChan: make(chan struct{}),
 	}
 	if proxyflags.Opt.AuthProxy != "" {
-		s.proxy = proxy.New(&proxyflags.Opt)
+		s.proxy = proxy.New(ctx, &proxyflags.Opt)
 	} else {
 		s.vfs = vfs.New(f, &vfsflags.Opt)
 	}
@@ -75,6 +78,39 @@ func (s *server) getVFS(what string, sshConn *ssh.ServerConn) (VFS *vfs.VFS) {
 	return VFS
 }
 
+// Accept a single connection - run in a go routine as the ssh
+// authentication can block
+func (s *server) acceptConnection(nConn net.Conn) {
+	what := describeConn(nConn)
+
+	// Before use, a handshake must be performed on the incoming net.Conn.
+	sshConn, chans, reqs, err := ssh.NewServerConn(nConn, s.config)
+	if err != nil {
+		fs.Errorf(what, "SSH login failed: %v", err)
+		return
+	}
+
+	fs.Infof(what, "SSH login from %s using %s", sshConn.User(), sshConn.ClientVersion())
+
+	// Discard all global out-of-band Requests
+	go ssh.DiscardRequests(reqs)
+
+	c := &conn{
+		what: what,
+		vfs:  s.getVFS(what, sshConn),
+	}
+	if c.vfs == nil {
+		fs.Infof(what, "Closing unauthenticated connection (couldn't find VFS)")
+		_ = nConn.Close()
+		return
+	}
+	c.handlers = newVFSHandler(c.vfs)
+
+	// Accept all channels
+	go c.handleChannels(chans)
+}
+
+// Accept connections and call them in a go routine
 func (s *server) acceptConnections() {
 	for {
 		nConn, err := s.listener.Accept()
@@ -85,33 +121,7 @@ func (s *server) acceptConnections() {
 			fs.Errorf(nil, "Failed to accept incoming connection: %v", err)
 			continue
 		}
-		what := describeConn(nConn)
-
-		// Before use, a handshake must be performed on the incoming net.Conn.
-		sshConn, chans, reqs, err := ssh.NewServerConn(nConn, s.config)
-		if err != nil {
-			fs.Errorf(what, "SSH login failed: %v", err)
-			continue
-		}
-
-		fs.Infof(what, "SSH login from %s using %s", sshConn.User(), sshConn.ClientVersion())
-
-		// Discard all global out-of-band Requests
-		go ssh.DiscardRequests(reqs)
-
-		c := &conn{
-			what: what,
-			vfs:  s.getVFS(what, sshConn),
-		}
-		if c.vfs == nil {
-			fs.Infof(what, "Closing unauthenticated connection (couldn't find VFS)")
-			_ = nConn.Close()
-			continue
-		}
-		c.handlers = newVFSHandler(c.vfs)
-
-		// Accept all channels
-		go c.handleChannels(chans)
+		go s.acceptConnection(nConn)
 	}
 }
 
@@ -142,7 +152,7 @@ func (s *server) serve() (err error) {
 	// An SSH server is represented by a ServerConfig, which holds
 	// certificate details and handles authentication of ServerConns.
 	s.config = &ssh.ServerConfig{
-		ServerVersion: "SSH-2.0-" + fs.Config.UserAgent,
+		ServerVersion: "SSH-2.0-" + fs.GetConfig(s.ctx).UserAgent,
 		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
 			fs.Debugf(describeConn(c), "Password login attempt for %s", c.User())
 			if s.proxy != nil {

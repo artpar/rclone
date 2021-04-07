@@ -1,11 +1,15 @@
 package rcd
 
 import (
+	"context"
 	"log"
+	"sync"
 
+	sysdnotify "github.com/iguanesolutions/go-systemd/v5/notify"
 	"github.com/artpar/rclone/cmd"
 	"github.com/artpar/rclone/fs/rc/rcflags"
 	"github.com/artpar/rclone/fs/rc/rcserver"
+	"github.com/artpar/rclone/lib/atexit"
 	"github.com/spf13/cobra"
 )
 
@@ -30,7 +34,7 @@ See the [rc documentation](/rc/) for more info on the rc flags.
 	Run: func(command *cobra.Command, args []string) {
 		cmd.CheckArgs(0, 1, command, args)
 		if rcflags.Opt.Enabled {
-			log.Printf("Don't supply --rc flag when using rcd")
+			log.Fatalf("Don't supply --rc flag when using rcd")
 		}
 
 		// Start the rc
@@ -39,14 +43,30 @@ See the [rc documentation](/rc/) for more info on the rc flags.
 			rcflags.Opt.Files = args[0]
 		}
 
-		s, err := rcserver.Start(&rcflags.Opt)
+		s, err := rcserver.Start(context.Background(), &rcflags.Opt)
 		if err != nil {
-			log.Printf("Failed to start remote control: %v", err)
+			log.Fatalf("Failed to start remote control: %v", err)
 		}
 		if s == nil {
-			log.Print("rc server not configured")
+			log.Fatal("rc server not configured")
+		}
+
+		// Notify stopping on exit
+		var finaliseOnce sync.Once
+		finalise := func() {
+			finaliseOnce.Do(func() {
+				_ = sysdnotify.Stopping()
+			})
+		}
+		fnHandle := atexit.Register(finalise)
+		defer atexit.Unregister(fnHandle)
+
+		// Notify ready to systemd
+		if err := sysdnotify.Ready(); err != nil {
+			log.Fatalf("failed to notify ready to systemd: %v", err)
 		}
 
 		s.Wait()
+		finalise()
 	},
 }

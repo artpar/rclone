@@ -1,4 +1,4 @@
-// +build go1.13,!plan9
+// +build !plan9
 
 // Package tardigrade provides an interface to Tardigrade decentralized object storage.
 package tardigrade
@@ -42,7 +42,7 @@ func init() {
 		Name:        "tardigrade",
 		Description: "Tardigrade Decentralized Cloud Storage",
 		NewFs:       NewFs,
-		Config: func(name string, configMapper configmap.Mapper) {
+		Config: func(ctx context.Context, name string, configMapper configmap.Mapper) {
 			provider, _ := configMapper.Get(fs.ConfigProvider)
 
 			config.FileDeleteKey(name, fs.ConfigProvider)
@@ -68,13 +68,13 @@ func init() {
 					return
 				}
 
-				serialziedAccess, err := access.Serialize()
+				serializedAccess, err := access.Serialize()
 				if err != nil {
 					log.Printf("Couldn't serialize access grant: %v", err)
 					return
 				}
 				configMapper.Set("satellite_address", satellite)
-				configMapper.Set("access_grant", serialziedAccess)
+				configMapper.Set("access_grant", serializedAccess)
 			} else if provider == existingProvider {
 				config.FileDeleteKey(name, "satellite_address")
 				config.FileDeleteKey(name, "api_key")
@@ -168,9 +168,7 @@ var (
 )
 
 // NewFs creates a filesystem backed by Tardigrade.
-func NewFs(name, root string, m configmap.Mapper) (_ fs.Fs, err error) {
-	ctx := context.Background()
-
+func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (_ fs.Fs, err error) {
 	// Setup filesystem and connection to Tardigrade
 	root = norm.NFC.String(root)
 	root = strings.Trim(root, "/")
@@ -222,7 +220,7 @@ func NewFs(name, root string, m configmap.Mapper) (_ fs.Fs, err error) {
 	f.features = (&fs.Features{
 		BucketBased:       true,
 		BucketBasedRootOK: true,
-	}).Fill(f)
+	}).Fill(ctx, f)
 
 	project, err := f.connect(ctx)
 	if err != nil {

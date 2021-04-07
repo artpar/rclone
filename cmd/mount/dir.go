@@ -1,9 +1,10 @@
-// +build linux,go1.13 darwin,go1.13 freebsd,go1.13
+// +build linux freebsd
 
 package mount
 
 import (
 	"context"
+	"io"
 	"os"
 	"time"
 
@@ -89,7 +90,7 @@ func (d *Dir) Lookup(ctx context.Context, req *fuse.LookupRequest, resp *fuse.Lo
 	case *vfs.Dir:
 		node = &Dir{x, d.fsys}
 	default:
-		panic("bad type")
+		return nil, errors.new("panic(\"bad type\")")
 	}
 	// Cache the node for later
 	mnode.SetSys(node)
@@ -107,6 +108,13 @@ func (d *Dir) ReadDirAll(ctx context.Context) (dirents []fuse.Dirent, err error)
 	if err != nil {
 		return nil, translateError(err)
 	}
+	dirents = append(dirents, fuse.Dirent{
+		Type: fuse.DT_Dir,
+		Name: ".",
+	}, fuse.Dirent{
+		Type: fuse.DT_Dir,
+		Name: "..",
+	})
 	for _, node := range items {
 		name := node.Name()
 		if len(name) > mountlib.MaxLeafSize {
@@ -173,6 +181,15 @@ func (d *Dir) Remove(ctx context.Context, req *fuse.RemoveRequest) (err error) {
 	return nil
 }
 
+// Invalidate a leaf in a directory
+func (d *Dir) invalidateEntry(dirNode fusefs.Node, leaf string) {
+	fs.Debugf(dirNode, "Invalidating %q", leaf)
+	err := d.fsys.server.InvalidateEntry(dirNode, leaf)
+	if err != nil {
+		fs.Debugf(dirNode, "Failed to invalidate %q: %v", leaf, err)
+	}
+}
+
 // Check interface satisfied
 var _ fusefs.NodeRenamer = (*Dir)(nil)
 
@@ -188,6 +205,13 @@ func (d *Dir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir fusefs
 	if err != nil {
 		return translateError(err)
 	}
+
+	// Invalidate the new directory entry so it gets re-read (in
+	// the background otherwise we cause a deadlock)
+	//
+	// See https://github.com/artpar/rclone/issues/4977 for why
+	go d.invalidateEntry(newDir, req.NewName)
+	//go d.invalidateEntry(d, req.OldName)
 
 	return nil
 }
@@ -213,4 +237,34 @@ var _ fusefs.NodeLinker = (*Dir)(nil)
 func (d *Dir) Link(ctx context.Context, req *fuse.LinkRequest, old fusefs.Node) (newNode fusefs.Node, err error) {
 	defer log.Trace(d, "req=%v, old=%v", req, old)("new=%v, err=%v", &newNode, &err)
 	return nil, fuse.ENOSYS
+}
+
+// Check interface satisfied
+var _ fusefs.NodeMknoder = (*Dir)(nil)
+
+// Mknod is called to create a file. Since we define create this will
+// be called in preference, however NFS likes to call it for some
+// reason. We don't actually create a file here just the Node.
+func (d *Dir) Mknod(ctx context.Context, req *fuse.MknodRequest) (node fusefs.Node, err error) {
+	defer log.Trace(d, "name=%v, mode=%d, rdev=%d", req.Name, req.Mode, req.Rdev)("node=%v, err=%v", &node, &err)
+	if req.Rdev != 0 {
+		fs.Errorf(d, "Can't create device node %q", req.Name)
+		return nil, fuse.EIO
+	}
+	var cReq = fuse.CreateRequest{
+		Name:  req.Name,
+		Flags: fuse.OpenFlags(os.O_CREATE | os.O_WRONLY),
+		Mode:  req.Mode,
+		Umask: req.Umask,
+	}
+	var cResp fuse.CreateResponse
+	node, handle, err := d.Create(ctx, &cReq, &cResp)
+	if err != nil {
+		return nil, err
+	}
+	err = handle.(io.Closer).Close()
+	if err != nil {
+		return nil, err
+	}
+	return node, nil
 }

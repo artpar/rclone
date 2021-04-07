@@ -263,11 +263,12 @@ func TestRcList(t *testing.T) {
 
 // operations/mkdir: Make a destination directory or container
 func TestRcMkdir(t *testing.T) {
+	ctx := context.Background()
 	r, call := rcNewRun(t, "operations/mkdir")
 	defer r.Finalise()
 	r.Mkdir(context.Background(), r.Fremote)
 
-	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{}, fs.GetModifyWindow(r.Fremote))
+	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{}, fs.GetModifyWindow(ctx, r.Fremote))
 
 	in := rc.Params{
 		"fs":     r.FremoteName,
@@ -277,7 +278,7 @@ func TestRcMkdir(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, rc.Params(nil), out)
 
-	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{"subdir"}, fs.GetModifyWindow(r.Fremote))
+	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{"subdir"}, fs.GetModifyWindow(ctx, r.Fremote))
 }
 
 // operations/movefile: Move a file from source remote to destination remote
@@ -306,11 +307,12 @@ func TestRcMovefile(t *testing.T) {
 
 // operations/purge: Remove a directory or container and all of its contents
 func TestRcPurge(t *testing.T) {
+	ctx := context.Background()
 	r, call := rcNewRun(t, "operations/purge")
 	defer r.Finalise()
 	file1 := r.WriteObject(context.Background(), "subdir/file1", "subdir/file1 contents", t1)
 
-	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{file1}, []string{"subdir"}, fs.GetModifyWindow(r.Fremote))
+	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{file1}, []string{"subdir"}, fs.GetModifyWindow(ctx, r.Fremote))
 
 	in := rc.Params{
 		"fs":     r.FremoteName,
@@ -320,17 +322,18 @@ func TestRcPurge(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, rc.Params(nil), out)
 
-	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{}, fs.GetModifyWindow(r.Fremote))
+	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{}, fs.GetModifyWindow(ctx, r.Fremote))
 }
 
 // operations/rmdir: Remove an empty directory or container
 func TestRcRmdir(t *testing.T) {
+	ctx := context.Background()
 	r, call := rcNewRun(t, "operations/rmdir")
 	defer r.Finalise()
 	r.Mkdir(context.Background(), r.Fremote)
 	assert.NoError(t, r.Fremote.Mkdir(context.Background(), "subdir"))
 
-	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{"subdir"}, fs.GetModifyWindow(r.Fremote))
+	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{"subdir"}, fs.GetModifyWindow(ctx, r.Fremote))
 
 	in := rc.Params{
 		"fs":     r.FremoteName,
@@ -340,18 +343,19 @@ func TestRcRmdir(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, rc.Params(nil), out)
 
-	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{}, fs.GetModifyWindow(r.Fremote))
+	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{}, fs.GetModifyWindow(ctx, r.Fremote))
 }
 
 // operations/rmdirs: Remove all the empty directories in the path
 func TestRcRmdirs(t *testing.T) {
+	ctx := context.Background()
 	r, call := rcNewRun(t, "operations/rmdirs")
 	defer r.Finalise()
 	r.Mkdir(context.Background(), r.Fremote)
 	assert.NoError(t, r.Fremote.Mkdir(context.Background(), "subdir"))
 	assert.NoError(t, r.Fremote.Mkdir(context.Background(), "subdir/subsubdir"))
 
-	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{"subdir", "subdir/subsubdir"}, fs.GetModifyWindow(r.Fremote))
+	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{"subdir", "subdir/subsubdir"}, fs.GetModifyWindow(ctx, r.Fremote))
 
 	in := rc.Params{
 		"fs":     r.FremoteName,
@@ -361,7 +365,7 @@ func TestRcRmdirs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, rc.Params(nil), out)
 
-	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{}, fs.GetModifyWindow(r.Fremote))
+	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{}, fs.GetModifyWindow(ctx, r.Fremote))
 
 	assert.NoError(t, r.Fremote.Mkdir(context.Background(), "subdir"))
 	assert.NoError(t, r.Fremote.Mkdir(context.Background(), "subdir/subsubdir"))
@@ -375,7 +379,7 @@ func TestRcRmdirs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, rc.Params(nil), out)
 
-	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{"subdir"}, fs.GetModifyWindow(r.Fremote))
+	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{}, []string{"subdir"}, fs.GetModifyWindow(ctx, r.Fremote))
 
 }
 
@@ -446,6 +450,7 @@ func TestRcFsInfo(t *testing.T) {
 func TestUploadFile(t *testing.T) {
 	r, call := rcNewRun(t, "operations/uploadfile")
 	defer r.Finalise()
+	ctx := context.Background()
 
 	testFileName := "test.txt"
 	testFileContent := "Hello World"
@@ -456,7 +461,7 @@ func TestUploadFile(t *testing.T) {
 	currentFile, err := os.Open(path.Join(r.LocalName, testFileName))
 	require.NoError(t, err)
 
-	formReader, contentType, _, err := rest.MultipartUpload(currentFile, url.Values{}, "file", testFileName)
+	formReader, contentType, _, err := rest.MultipartUpload(ctx, currentFile, url.Values{}, "file", testFileName)
 	require.NoError(t, err)
 
 	httpReq := httptest.NewRequest("POST", "/", formReader)
@@ -478,7 +483,7 @@ func TestUploadFile(t *testing.T) {
 	currentFile, err = os.Open(path.Join(r.LocalName, testFileName))
 	require.NoError(t, err)
 
-	formReader, contentType, _, err = rest.MultipartUpload(currentFile, url.Values{}, "file", testFileName)
+	formReader, contentType, _, err = rest.MultipartUpload(ctx, currentFile, url.Values{}, "file", testFileName)
 	require.NoError(t, err)
 
 	httpReq = httptest.NewRequest("POST", "/", formReader)

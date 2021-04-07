@@ -2,6 +2,7 @@
 package log
 
 import (
+	"context"
 	"io"
 	"log"
 	"os"
@@ -9,16 +10,18 @@ import (
 	"runtime"
 	"strings"
 
+	systemd "github.com/iguanesolutions/go-systemd/v5"
 	"github.com/artpar/rclone/fs"
 	"github.com/sirupsen/logrus"
 )
 
-// Options contains options for the remote control server
+// Options contains options for controlling the logging
 type Options struct {
-	File           string // Log everything to this file
-	Format         string // Comma separated list of log format options
-	UseSyslog      bool   // Use Syslog for logging
-	SyslogFacility string // Facility for syslog, eg KERN,USER,...
+	File              string // Log everything to this file
+	Format            string // Comma separated list of log format options
+	UseSyslog         bool   // Use Syslog for logging
+	SyslogFacility    string // Facility for syslog, e.g. KERN,USER,...
+	LogSystemdSupport bool   // set if using systemd logging
 }
 
 // DefaultOpt is the default values used for Opt
@@ -51,7 +54,7 @@ func fnName() string {
 //
 // Any pointers in the exit function will be dereferenced
 func Trace(o interface{}, format string, a ...interface{}) func(string, ...interface{}) {
-	if fs.Config.LogLevel < fs.LogLevelDebug {
+	if fs.GetConfig(context.Background()).LogLevel < fs.LogLevelDebug {
 		return func(format string, a ...interface{}) {}
 	}
 	name := fnName()
@@ -76,7 +79,7 @@ func Trace(o interface{}, format string, a ...interface{}) func(string, ...inter
 
 // Stack logs a stack trace of callers with the o and info passed in
 func Stack(o interface{}, info string) {
-	if fs.Config.LogLevel < fs.LogLevelDebug {
+	if fs.GetConfig(context.Background()).LogLevel < fs.LogLevelDebug {
 		return
 	}
 	arr := [16 * 1024]byte{}
@@ -99,14 +102,14 @@ func InitLogging() {
 	if strings.Contains(flagsStr, ",microseconds,") {
 		flags |= log.Lmicroseconds
 	}
+	if strings.Contains(flagsStr, ",UTC,") {
+		flags |= log.LUTC
+	}
 	if strings.Contains(flagsStr, ",longfile,") {
 		flags |= log.Llongfile
 	}
 	if strings.Contains(flagsStr, ",shortfile,") {
 		flags |= log.Lshortfile
-	}
-	if strings.Contains(flagsStr, ",UTC,") {
-		flags |= log.LUTC
 	}
 	log.SetFlags(flags)
 
@@ -114,8 +117,7 @@ func InitLogging() {
 	if Opt.File != "" {
 		f, err := os.OpenFile(Opt.File, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 		if err != nil {
-			log.Printf("Failed to open log file: %v", err)
-			return 
+			log.Fatalf("Failed to open log file: %v", err)
 		}
 		_, err = f.Seek(0, io.SeekEnd)
 		if err != nil {
@@ -129,10 +131,22 @@ func InitLogging() {
 	// Syslog output
 	if Opt.UseSyslog {
 		if Opt.File != "" {
-			log.Printf("Can't use --syslog and --log-file together")
-			return
+			log.Fatalf("Can't use --syslog and --log-file together")
 		}
 		startSysLog()
+	}
+
+	// Activate systemd logger support if systemd invocation ID is
+	// detected and output is going to stderr (not logging to a file or syslog)
+	if !Redirected() {
+		if _, usingSystemd := systemd.GetInvocationID(); usingSystemd {
+			Opt.LogSystemdSupport = true
+		}
+	}
+
+	// Systemd logging output
+	if Opt.LogSystemdSupport {
+		startSystemdLog()
 	}
 }
 

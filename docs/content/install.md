@@ -18,6 +18,9 @@ See below for some expanded Linux / macOS instructions.
 See the [Usage section](/docs/#usage) of the docs for how to use rclone, or
 run `rclone -h`.
 
+Already installed rclone can be easily updated to the latest version
+using the [rclone selfupdate](/commands/rclone_selfupdate/) command.
+
 ## Script installation ##
 
 To install rclone on Linux/macOS/BSD systems, run:
@@ -108,7 +111,7 @@ on a minimal Alpine linux image.
 
 The `:latest` tag will always point to the latest stable release.  You
 can use the `:beta` tag to get the latest build from master.  You can
-also use version tags, eg `:1.49.1`, `:1.49` or `:1`.
+also use version tags, e.g. `:1.49.1`, `:1.49` or `:1`.
 
 ```
 $ docker pull artpar/rclone:latest
@@ -181,7 +184,7 @@ kill %1
 
 ## Install from source ##
 
-Make sure you have at least [Go](https://golang.org/) 1.11
+Make sure you have at least [Go](https://golang.org/) go1.13
 installed.  [Download go](https://golang.org/dl/) if necessary.  The
 latest release is recommended. Then
 
@@ -205,7 +208,7 @@ or the latest version (equivalent to the beta) with
 These will build the binary in `$(go env GOPATH)/bin`
 (`~/go/bin/rclone` by default) after downloading the source to the go
 module cache. Note - do **not** use the `-u` flag here. This causes go
-to try to update the depencencies that rclone uses and sometimes these
+to try to update the dependencies that rclone uses and sometimes these
 don't work with the current version of rclone.
 
 ## Installation with Ansible ##

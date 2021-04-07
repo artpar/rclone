@@ -111,6 +111,7 @@ func TestInternalParseExtensions(t *testing.T) {
 }
 
 func TestInternalFindExportFormat(t *testing.T) {
+	ctx := context.Background()
 	item := &drive.File{
 		Name:     "file",
 		MimeType: "application/vnd.google-apps.document",
@@ -128,7 +129,7 @@ func TestInternalFindExportFormat(t *testing.T) {
 	} {
 		f := new(Fs)
 		f.exportExtensions = test.extensions
-		gotExtension, gotFilename, gotMimeType, gotIsDocument := f.findExportFormat(item)
+		gotExtension, gotFilename, gotMimeType, gotIsDocument := f.findExportFormat(ctx, item)
 		assert.Equal(t, test.wantExtension, gotExtension)
 		if test.wantExtension != "" {
 			assert.Equal(t, item.Name+gotExtension, gotFilename)
@@ -196,7 +197,7 @@ func (f *Fs) InternalTestDocumentImport(t *testing.T) {
 	testFilesPath, err := filepath.Abs(filepath.FromSlash("test/files"))
 	require.NoError(t, err)
 
-	testFilesFs, err := fs.NewFs(testFilesPath)
+	testFilesFs, err := fs.NewFs(context.Background(), testFilesPath)
 	require.NoError(t, err)
 
 	_, f.importMimeTypes, err = parseExtensions("odt,ods,doc")
@@ -210,7 +211,7 @@ func (f *Fs) InternalTestDocumentUpdate(t *testing.T) {
 	testFilesPath, err := filepath.Abs(filepath.FromSlash("test/files"))
 	require.NoError(t, err)
 
-	testFilesFs, err := fs.NewFs(testFilesPath)
+	testFilesFs, err := fs.NewFs(context.Background(), testFilesPath)
 	require.NoError(t, err)
 
 	_, f.importMimeTypes, err = parseExtensions("odt,ods,doc")

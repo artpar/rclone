@@ -7,6 +7,7 @@ import (
 	_ "github.com/artpar/rclone/backend/local"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configfile"
 	"github.com/artpar/rclone/fs/config/obscure"
 	"github.com/artpar/rclone/fs/rc"
 	"github.com/stretchr/testify/assert"
@@ -16,6 +17,8 @@ import (
 const testName = "configTestNameForRc"
 
 func TestRc(t *testing.T) {
+	ctx := context.Background()
+	configfile.LoadConfig(ctx)
 	// Create the test remote
 	call := rc.Calls.Get("config/create")
 	assert.NotNil(t, call)
@@ -26,7 +29,7 @@ func TestRc(t *testing.T) {
 			"test_key": "sausage",
 		},
 	}
-	out, err := call.Fn(context.Background(), in)
+	out, err := call.Fn(ctx, in)
 	require.NoError(t, err)
 	require.Nil(t, out)
 	assert.Equal(t, "local", config.FileGet(testName, "type"))

@@ -14,7 +14,7 @@
 //
 // The vfs package returns Error values to signal precisely which
 // error conditions have ocurred.  It may also return general errors
-// it receives.  It tries to use os Error values (eg os.ErrExist)
+// it receives.  It tries to use os Error values (e.g. os.ErrExist)
 // where possible.
 
 //go:generate sh -c "go run make_open_tests.go | gofmt > open_test.go"
@@ -36,6 +36,7 @@ import (
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/cache"
 	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/fs/walk"
 	"github.com/artpar/rclone/vfs/vfscache"
 	"github.com/artpar/rclone/vfs/vfscommon"
 )
@@ -108,7 +109,7 @@ type OsFiler interface {
 	WriteString(s string) (n int, err error)
 }
 
-// Handle is the interface statisified by open files or directories.
+// Handle is the interface satisfied by open files or directories.
 // It is the methods on *os.File, plus a few more useful for FUSE
 // filingsystems.  Not all of them are supported.
 type Handle interface {
@@ -556,9 +557,25 @@ func (vfs *VFS) Statfs() (total, used, free int64) {
 	defer vfs.usageMu.Unlock()
 	total, used, free = -1, -1, -1
 	doAbout := vfs.f.Features().About
-	if doAbout != nil && (vfs.usageTime.IsZero() || time.Since(vfs.usageTime) >= vfs.Opt.DirCacheTime) {
+	if (doAbout != nil || vfs.Opt.UsedIsSize) && (vfs.usageTime.IsZero() || time.Since(vfs.usageTime) >= vfs.Opt.DirCacheTime) {
 		var err error
-		vfs.usage, err = doAbout(context.TODO())
+		ctx := context.TODO()
+		if doAbout == nil {
+			vfs.usage = &fs.Usage{}
+		} else {
+			vfs.usage, err = doAbout(ctx)
+		}
+		if vfs.Opt.UsedIsSize {
+			var usedBySizeAlgorithm int64 = 0
+			// Algorithm from `rclone size`
+			err = walk.ListR(ctx, vfs.f, "", true, -1, walk.ListObjects, func(entries fs.DirEntries) error {
+				entries.ForObject(func(o fs.Object) {
+					usedBySizeAlgorithm += o.Size()
+				})
+				return nil
+			})
+			vfs.usage.Used = &usedBySizeAlgorithm
+		}
 		vfs.usageTime = time.Now()
 		if err != nil {
 			fs.Errorf(vfs.f, "Statfs failed: %v", err)

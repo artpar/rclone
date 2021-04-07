@@ -26,6 +26,9 @@ const (
 	backgroundKickerInterval = 5 * time.Second
 	// maximum number of errors before declaring dead
 	maxErrorCount = 10
+	// If a downloader is within this range or --buffer-size
+	// whichever is the larger, we will reuse the downloader
+	minWindow = 1024 * 1024
 )
 
 // Item is the interface that an item to download must obey
@@ -230,7 +233,11 @@ func (dls *Downloaders) Close(inErr error) (err error) {
 		}
 	}
 	dls.cancel()
+	// dls may have entered the periodical (every 5 seconds) kickWaiters() call
+	// unlock the mutex to allow it to finish so that we can get its dls.wg.Done()
+	dls.mu.Unlock()
 	dls.wg.Wait()
+	dls.mu.Lock()
 	dls.dls = nil
 	dls._dispatchWaiters()
 	dls._closeWaiters(inErr)
@@ -279,7 +286,7 @@ func (dls *Downloaders) _ensureDownloader(r ranges.Range) (err error) {
 	// defer log.Trace(dls.src, "r=%v", r)("err=%v", &err)
 
 	// The window includes potentially unread data in the buffer
-	window := int64(fs.Config.BufferSize)
+	window := int64(fs.GetConfig(context.TODO()).BufferSize)
 
 	// Increase the read range by the read ahead if set
 	if dls.opt.ReadAhead > 0 {
@@ -294,7 +301,7 @@ func (dls *Downloaders) _ensureDownloader(r ranges.Range) (err error) {
 	r = dls.item.FindMissing(r)
 
 	// If the range is entirely present then we only need to start a
-	// dowloader if the window isn't full.
+	// downloader if the window isn't full.
 	startNew := true
 	if r.IsEmpty() {
 		// Make a new range which includes the window
@@ -321,6 +328,11 @@ func (dls *Downloaders) _ensureDownloader(r ranges.Range) (err error) {
 		}
 		// But don't write anything for the moment
 		r.Size = 0
+	}
+
+	// If buffer size is less than minWindow then make it that
+	if window < minWindow {
+		window = minWindow
 	}
 
 	var dl *downloader
@@ -517,7 +529,7 @@ func (dl *downloader) open(offset int64) (err error) {
 	// if offset > 0 {
 	// 	rangeOption = &fs.RangeOption{Start: offset, End: size - 1}
 	// }
-	// in0, err := operations.NewReOpen(dl.dls.ctx, dl.dls.src, fs.Config.LowLevelRetries, dl.dls.item.c.hashOption, rangeOption)
+	// in0, err := operations.NewReOpen(dl.dls.ctx, dl.dls.src, ci.LowLevelRetries, dl.dls.item.c.hashOption, rangeOption)
 
 	in0 := chunkedreader.New(context.TODO(), dl.dls.src, int64(dl.dls.opt.ChunkSize), int64(dl.dls.opt.ChunkSizeLimit))
 	_, err = in0.Seek(offset, 0)
@@ -549,7 +561,7 @@ func (dl *downloader) close(inErr error) (err error) {
 		dl.in = nil
 	}
 	if dl.tr != nil {
-		dl.tr.Done(inErr)
+		dl.tr.Done(dl.dls.ctx, inErr)
 		dl.tr = nil
 	}
 	dl._closed = true
@@ -557,7 +569,7 @@ func (dl *downloader) close(inErr error) (err error) {
 	return nil
 }
 
-// closed returns true if the downloader has been closed alread
+// closed returns true if the downloader has been closed already
 func (dl *downloader) closed() bool {
 	dl.mu.Lock()
 	defer dl.mu.Unlock()

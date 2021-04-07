@@ -68,7 +68,7 @@ func parsePath(path string) (root string) {
 }
 
 // NewFs constructs an Fs from the path, container:path
-func NewFs(name, root string, m configmap.Mapper) (f fs.Fs, err error) {
+func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (f fs.Fs, err error) {
 	// defer log.Trace(name, "root=%v", root)("f=%+v, err=%v", &f, &err)
 	// Parse config into Options struct
 	opt := new(Options)
@@ -77,8 +77,8 @@ func NewFs(name, root string, m configmap.Mapper) (f fs.Fs, err error) {
 		return nil, err
 	}
 	root = parsePath(root)
-	httpClient := fshttp.NewClient(fs.Config)
-	oAuthClient, _, err := oauthutil.NewClientWithBaseClient(name, m, putioConfig, httpClient)
+	httpClient := fshttp.NewClient(ctx)
+	oAuthClient, _, err := oauthutil.NewClientWithBaseClient(ctx, name, m, putioConfig, httpClient)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to configure putio")
 	}
@@ -86,7 +86,7 @@ func NewFs(name, root string, m configmap.Mapper) (f fs.Fs, err error) {
 		name:        name,
 		root:        root,
 		opt:         *opt,
-		pacer:       fs.NewPacer(pacer.NewDefault(pacer.MinSleep(minSleep), pacer.MaxSleep(maxSleep), pacer.DecayConstant(decayConstant))),
+		pacer:       fs.NewPacer(ctx, pacer.NewDefault(pacer.MinSleep(minSleep), pacer.MaxSleep(maxSleep), pacer.DecayConstant(decayConstant))),
 		client:      putio.NewClient(oAuthClient),
 		httpClient:  httpClient,
 		oAuthClient: oAuthClient,
@@ -95,9 +95,8 @@ func NewFs(name, root string, m configmap.Mapper) (f fs.Fs, err error) {
 		DuplicateFiles:          true,
 		ReadMimeType:            true,
 		CanHaveEmptyDirectories: true,
-	}).Fill(p)
+	}).Fill(ctx, p)
 	p.dirCache = dircache.New(root, "0", p)
-	ctx := context.Background()
 	// Find the current root
 	err = p.dirCache.FindRoot(ctx, false)
 	if err != nil {
@@ -148,7 +147,7 @@ func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, 
 	err = f.pacer.Call(func() (bool, error) {
 		// fs.Debugf(f, "creating folder. part: %s, parentID: %d", leaf, parentID)
 		entry, err = f.client.Files.CreateFolder(ctx, f.opt.Enc.FromStandardName(leaf), parentID)
-		return shouldRetry(err)
+		return shouldRetry(ctx, err)
 	})
 	return itoa(entry.ID), err
 }
@@ -165,7 +164,7 @@ func (f *Fs) FindLeaf(ctx context.Context, pathID, leaf string) (pathIDOut strin
 	err = f.pacer.Call(func() (bool, error) {
 		// fs.Debugf(f, "listing file: %d", fileID)
 		children, _, err = f.client.Files.List(ctx, fileID)
-		return shouldRetry(err)
+		return shouldRetry(ctx, err)
 	})
 	if err != nil {
 		if perr, ok := err.(*putio.ErrorResponse); ok && perr.Response.StatusCode == 404 {
@@ -206,7 +205,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 	err = f.pacer.Call(func() (bool, error) {
 		// fs.Debugf(f, "listing files inside List: %d", parentID)
 		children, _, err = f.client.Files.List(ctx, parentID)
-		return shouldRetry(err)
+		return shouldRetry(ctx, err)
 	})
 	if err != nil {
 		return
@@ -236,10 +235,10 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 // The new object may have been created if an error is returned
 func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (o fs.Object, err error) {
 	// defer log.Trace(f, "src=%+v", src)("o=%+v, err=%v", &o, &err)
-	exisitingObj, err := f.NewObject(ctx, src.Remote())
+	existingObj, err := f.NewObject(ctx, src.Remote())
 	switch err {
 	case nil:
-		return exisitingObj, exisitingObj.Update(ctx, in, src, options...)
+		return existingObj, existingObj.Update(ctx, in, src, options...)
 	case fs.ErrorObjectNotFound:
 		// Not found so create it
 		return f.PutUnchecked(ctx, in, src, options...)
@@ -272,7 +271,7 @@ func (f *Fs) PutUnchecked(ctx context.Context, in io.Reader, src fs.ObjectInfo, 
 	err = f.pacer.Call(func() (bool, error) {
 		// fs.Debugf(f, "getting file: %d", fileID)
 		entry, err = f.client.Files.Get(ctx, fileID)
-		return shouldRetry(err)
+		return shouldRetry(ctx, err)
 	})
 	if err != nil {
 		return nil, err
@@ -283,11 +282,10 @@ func (f *Fs) PutUnchecked(ctx context.Context, in io.Reader, src fs.ObjectInfo, 
 func (f *Fs) createUpload(ctx context.Context, name string, size int64, parentID string, modTime time.Time, options []fs.OpenOption) (location string, err error) {
 	// defer log.Trace(f, "name=%v, size=%v, parentID=%v, modTime=%v", name, size, parentID, modTime.String())("location=%v, err=%v", location, &err)
 	err = f.pacer.Call(func() (bool, error) {
-		req, err := http.NewRequest("POST", "https://upload.put.io/files/", nil)
+		req, err := http.NewRequestWithContext(ctx, "POST", "https://upload.put.io/files/", nil)
 		if err != nil {
 			return false, err
 		}
-		req = req.WithContext(ctx) // go1.13 can use NewRequestWithContext
 		req.Header.Set("tus-resumable", "1.0.0")
 		req.Header.Set("upload-length", strconv.FormatInt(size, 10))
 		b64name := base64.StdEncoding.EncodeToString([]byte(f.opt.Enc.FromStandardName(name)))
@@ -297,7 +295,7 @@ func (f *Fs) createUpload(ctx context.Context, name string, size int64, parentID
 		req.Header.Set("upload-metadata", fmt.Sprintf("name %s,no-torrent %s,parent_id %s,updated-at %s", b64name, b64true, b64parentID, b64modifiedAt))
 		fs.OpenOptionAddHTTPHeaders(req.Header, options)
 		resp, err := f.oAuthClient.Do(req)
-		retry, err := shouldRetry(err)
+		retry, err := shouldRetry(ctx, err)
 		if retry {
 			return true, err
 		}
@@ -322,7 +320,7 @@ func (f *Fs) sendUpload(ctx context.Context, location string, size int64, in io.
 		err = f.pacer.Call(func() (bool, error) {
 			fs.Debugf(f, "Sending zero length chunk")
 			_, fileID, err = f.transferChunk(ctx, location, 0, bytes.NewReader([]byte{}), 0)
-			return shouldRetry(err)
+			return shouldRetry(ctx, err)
 		})
 		return
 	}
@@ -346,13 +344,13 @@ func (f *Fs) sendUpload(ctx context.Context, location string, size int64, in io.
 				// Get file offset and seek to the position
 				offset, err := f.getServerOffset(ctx, location)
 				if err != nil {
-					return shouldRetry(err)
+					return shouldRetry(ctx, err)
 				}
 				sentBytes := offset - chunkStart
 				fs.Debugf(f, "sentBytes: %d", sentBytes)
 				_, err = chunk.Seek(sentBytes, io.SeekStart)
 				if err != nil {
-					return shouldRetry(err)
+					return shouldRetry(ctx, err)
 				}
 				transferOffset = offset
 				reqSize = chunkSize - sentBytes
@@ -369,7 +367,7 @@ func (f *Fs) sendUpload(ctx context.Context, location string, size int64, in io.
 				offsetMismatch = true
 				return true, errors.New("connection broken")
 			}
-			return shouldRetry(err)
+			return shouldRetry(ctx, err)
 		})
 		if err != nil {
 			return
@@ -429,21 +427,19 @@ func (f *Fs) transferChunk(ctx context.Context, location string, start int64, ch
 }
 
 func (f *Fs) makeUploadHeadRequest(ctx context.Context, location string) (*http.Request, error) {
-	req, err := http.NewRequest("HEAD", location, nil)
+	req, err := http.NewRequestWithContext(ctx, "HEAD", location, nil)
 	if err != nil {
 		return nil, err
 	}
-	req = req.WithContext(ctx) // go1.13 can use NewRequestWithContext
 	req.Header.Set("tus-resumable", "1.0.0")
 	return req, nil
 }
 
 func (f *Fs) makeUploadPatchRequest(ctx context.Context, location string, in io.Reader, offset, length int64) (*http.Request, error) {
-	req, err := http.NewRequest("PATCH", location, in)
+	req, err := http.NewRequestWithContext(ctx, "PATCH", location, in)
 	if err != nil {
 		return nil, err
 	}
-	req = req.WithContext(ctx) // go1.13 can use NewRequestWithContext
 	req.Header.Set("tus-resumable", "1.0.0")
 	req.Header.Set("upload-offset", strconv.FormatInt(offset, 10))
 	req.Header.Set("content-length", strconv.FormatInt(length, 10))
@@ -483,7 +479,7 @@ func (f *Fs) purgeCheck(ctx context.Context, dir string, check bool) (err error)
 		err = f.pacer.Call(func() (bool, error) {
 			// fs.Debugf(f, "listing files: %d", dirID)
 			children, _, err = f.client.Files.List(ctx, dirID)
-			return shouldRetry(err)
+			return shouldRetry(ctx, err)
 		})
 		if err != nil {
 			return errors.Wrap(err, "Rmdir")
@@ -497,7 +493,7 @@ func (f *Fs) purgeCheck(ctx context.Context, dir string, check bool) (err error)
 	err = f.pacer.Call(func() (bool, error) {
 		// fs.Debugf(f, "deleting file: %d", dirID)
 		err = f.client.Files.Delete(ctx, dirID)
-		return shouldRetry(err)
+		return shouldRetry(ctx, err)
 	})
 	f.dirCache.FlushDir(dir)
 	return err
@@ -525,7 +521,7 @@ func (f *Fs) Purge(ctx context.Context, dir string) (err error) {
 	return f.purgeCheck(ctx, dir, false)
 }
 
-// Copy src to this remote using server side copy operations.
+// Copy src to this remote using server-side copy operations.
 //
 // This is stored with the remote path given
 //
@@ -556,7 +552,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (o fs.Objec
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		// fs.Debugf(f, "copying file (%d) to parent_id: %s", srcObj.file.ID, directoryID)
 		_, err = f.client.Do(req, nil)
-		return shouldRetry(err)
+		return shouldRetry(ctx, err)
 	})
 	if err != nil {
 		return nil, err
@@ -564,7 +560,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (o fs.Objec
 	return f.NewObject(ctx, remote)
 }
 
-// Move src to this remote using server side move operations.
+// Move src to this remote using server-side move operations.
 //
 // This is stored with the remote path given
 //
@@ -595,7 +591,7 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (o fs.Objec
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		// fs.Debugf(f, "moving file (%d) to parent_id: %s", srcObj.file.ID, directoryID)
 		_, err = f.client.Do(req, nil)
-		return shouldRetry(err)
+		return shouldRetry(ctx, err)
 	})
 	if err != nil {
 		return nil, err
@@ -604,7 +600,7 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (o fs.Objec
 }
 
 // DirMove moves src, srcRemote to this remote at dstRemote
-// using server side move operations.
+// using server-side move operations.
 //
 // Will only be called if src.Fs().Name() == f.Name()
 //
@@ -635,7 +631,7 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		// fs.Debugf(f, "moving file (%s) to parent_id: %s", srcID, dstDirectoryID)
 		_, err = f.client.Do(req, nil)
-		return shouldRetry(err)
+		return shouldRetry(ctx, err)
 	})
 	srcFs.dirCache.FlushDir(srcRemote)
 	return err
@@ -648,7 +644,7 @@ func (f *Fs) About(ctx context.Context) (usage *fs.Usage, err error) {
 	err = f.pacer.Call(func() (bool, error) {
 		// fs.Debugf(f, "getting account info")
 		ai, err = f.client.Account.Info(ctx)
-		return shouldRetry(err)
+		return shouldRetry(ctx, err)
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "about failed")
@@ -682,6 +678,6 @@ func (f *Fs) CleanUp(ctx context.Context) (err error) {
 		}
 		// fs.Debugf(f, "emptying trash")
 		_, err = f.client.Do(req, nil)
-		return shouldRetry(err)
+		return shouldRetry(ctx, err)
 	})
 }

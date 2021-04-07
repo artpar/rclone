@@ -135,7 +135,7 @@ func (f *File) Inode() uint64 {
 	return f.inode
 }
 
-// Node returns the Node assocuated with this - satisfies Noder interface
+// Node returns the Node associated with this - satisfies Noder interface
 func (f *File) Node() Node {
 	return f
 }
@@ -166,7 +166,7 @@ func (f *File) rename(ctx context.Context, destDir *Dir, newName string) error {
 	f.mu.RUnlock()
 
 	if features := d.Fs().Features(); features.Move == nil && features.Copy == nil {
-		err := errors.Errorf("Fs %q can't rename files (no server side Move or Copy)", d.Fs())
+		err := errors.Errorf("Fs %q can't rename files (no server-side Move or Copy)", d.Fs())
 		fs.Errorf(f.Path(), "Dir.Rename error: %v", err)
 		return err
 	}
@@ -289,6 +289,15 @@ func (f *File) activeWriters() int {
 	return int(atomic.LoadInt32(&f.nwriters))
 }
 
+// _roundModTime rounds the time passed in to the Precision of the
+// underlying Fs
+//
+// It should be called with the lock held
+func (f *File) _roundModTime(modTime time.Time) time.Time {
+	precision := f.d.f.Precision()
+	return modTime.Truncate(precision)
+}
+
 // ModTime returns the modified time of the file
 //
 // if NoModTime is set then it returns the mod time of the directory
@@ -300,8 +309,19 @@ func (f *File) ModTime() (modTime time.Time) {
 	if d.vfs.Opt.NoModTime {
 		return d.ModTime()
 	}
+	// Read the modtime from a dirty item if it exists
+	if f.d.vfs.Opt.CacheMode >= vfscommon.CacheModeMinimal {
+		if item := f.d.vfs.cache.DirtyItem(f._path()); item != nil {
+			modTime, err := item.GetModTime()
+			if err != nil {
+				fs.Errorf(f._path(), "ModTime: Item GetModTime failed: %v", err)
+			} else {
+				return f._roundModTime(modTime)
+			}
+		}
+	}
 	if !pendingModTime.IsZero() {
-		return pendingModTime
+		return f._roundModTime(pendingModTime)
 	}
 	if o == nil {
 		return time.Now()
@@ -342,9 +362,14 @@ func (f *File) Size() int64 {
 }
 
 // SetModTime sets the modtime for the file
+//
+// if NoModTime is set then it does nothing
 func (f *File) SetModTime(modTime time.Time) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.d.vfs.Opt.NoModTime {
+		return nil
+	}
 	if f.d.vfs.Opt.ReadOnly {
 		return EROFS
 	}
@@ -377,6 +402,13 @@ func (f *File) _applyPendingModTime() error {
 		return errors.New("Cannot apply ModTime, file object is not available")
 	}
 
+	dt := f.pendingModTime.Sub(f.o.ModTime(context.Background()))
+	modifyWindow := f.o.Fs().Precision()
+	if dt < modifyWindow && dt > -modifyWindow {
+		fs.Debugf(f.o, "Not setting pending mod time %v as it is already set", f.pendingModTime)
+		return nil
+	}
+
 	// set the time of the object
 	err := f.o.SetModTime(context.TODO(), f.pendingModTime)
 	switch err {
@@ -392,9 +424,23 @@ func (f *File) _applyPendingModTime() error {
 	return nil
 }
 
+// Apply a pending mod time
+func (f *File) applyPendingModTime() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f._applyPendingModTime()
+}
+
 // _writingInProgress returns true of there are any open writers
 // Call with read lock held
 func (f *File) _writingInProgress() bool {
+	return f.o == nil || len(f.writers) != 0
+}
+
+// writingInProgress returns true of there are any open writers
+func (f *File) writingInProgress() bool {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	return f.o == nil || len(f.writers) != 0
 }
 
@@ -494,7 +540,7 @@ func (f *File) openWrite(flags int) (fh *WriteFileHandle, err error) {
 	return fh, nil
 }
 
-// openRW open the file for read and write using a temporay file
+// openRW open the file for read and write using a temporary file
 //
 // It uses the open flags passed in.
 func (f *File) openRW(flags int) (fh *RWFileHandle, err error) {
@@ -606,7 +652,7 @@ func (f *File) Fs() fs.Fs {
 //   O_CREATE create a new file if none exists.
 //   O_EXCL   used with O_CREATE, file must not exist
 //   O_SYNC   open for synchronous I/O.
-//   O_TRUNC  if possible, truncate file when opene
+//   O_TRUNC  if possible, truncate file when opened
 //
 // We ignore O_SYNC and O_EXCL
 func (f *File) Open(flags int) (fd Handle, err error) {

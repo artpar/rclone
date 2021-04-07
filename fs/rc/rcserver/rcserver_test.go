@@ -2,11 +2,13 @@ package rcserver
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -16,7 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	_ "github.com/artpar/rclone/backend/local"
+	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/config/configfile"
 	"github.com/artpar/rclone/fs/rc"
 )
 
@@ -26,6 +30,21 @@ const (
 	testFs          = "testdata/files"
 	remoteURL       = "[" + testFs + "]/" // initial URL path to fetch from that remote
 )
+
+func TestMain(m *testing.M) {
+	// Pretend to be rclone version if we have a version string parameter
+	if os.Args[len(os.Args)-1] == "version" {
+		fmt.Printf("rclone %s\n", fs.Version)
+		os.Exit(0)
+	}
+	// Pretend to error if we have an unknown command
+	if os.Args[len(os.Args)-1] == "unknown_command" {
+		fmt.Printf("rclone %s\n", fs.Version)
+		fmt.Fprintf(os.Stderr, "Unknown command\n")
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
+}
 
 // Test the RC server runs and we can do HTTP fetches from it.
 // We'll do the majority of the testing with the httptest framework
@@ -37,7 +56,7 @@ func TestRcServer(t *testing.T) {
 	opt.Serve = true
 	opt.Files = testFs
 	mux := http.NewServeMux()
-	rcServer := newServer(&opt, mux)
+	rcServer := newServer(context.Background(), &opt, mux)
 	assert.NoError(t, rcServer.Serve())
 	defer func() {
 		rcServer.Close()
@@ -83,9 +102,11 @@ type testRun struct {
 
 // Run a suite of tests
 func testServer(t *testing.T, tests []testRun, opt *rc.Options) {
+	ctx := context.Background()
+	configfile.LoadConfig(ctx)
 	mux := http.NewServeMux()
 	opt.HTTPOptions.Template = testTemplate
-	rcServer := newServer(opt, mux)
+	rcServer := newServer(ctx, opt, mux)
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			method := test.Method
@@ -452,6 +473,73 @@ func TestRC(t *testing.T) {
 	opt := newTestOpt()
 	opt.Serve = true
 	opt.Files = testFs
+	testServer(t, tests, &opt)
+}
+
+func TestRCWithAuth(t *testing.T) {
+	tests := []testRun{{
+		Name:        "core-command",
+		URL:         "core/command",
+		Method:      "POST",
+		Body:        `command=version`,
+		ContentType: "application/x-www-form-urlencoded",
+		Status:      http.StatusOK,
+		Expected: fmt.Sprintf(`{
+	"error": false,
+	"result": "rclone %s\n"
+}
+`, fs.Version),
+	}, {
+		Name:        "core-command-bad-returnType",
+		URL:         "core/command",
+		Method:      "POST",
+		Body:        `command=version&returnType=POTATO`,
+		ContentType: "application/x-www-form-urlencoded",
+		Status:      http.StatusInternalServerError,
+		Expected: `{
+	"error": "Unknown returnType \"POTATO\"",
+	"input": {
+		"command": "version",
+		"returnType": "POTATO"
+	},
+	"path": "core/command",
+	"status": 500
+}
+`,
+	}, {
+		Name:        "core-command-stream",
+		URL:         "core/command",
+		Method:      "POST",
+		Body:        `command=version&returnType=STREAM`,
+		ContentType: "application/x-www-form-urlencoded",
+		Status:      http.StatusOK,
+		Expected: fmt.Sprintf(`rclone %s
+{}
+`, fs.Version),
+	}, {
+		Name:        "core-command-stream-error",
+		URL:         "core/command",
+		Method:      "POST",
+		Body:        `command=unknown_command&returnType=STREAM`,
+		ContentType: "application/x-www-form-urlencoded",
+		Status:      http.StatusOK,
+		Expected: fmt.Sprintf(`rclone %s
+Unknown command
+{
+	"error": "exit status 1",
+	"input": {
+		"command": "unknown_command",
+		"returnType": "STREAM"
+	},
+	"path": "core/command",
+	"status": 500
+}
+`, fs.Version),
+	}}
+	opt := newTestOpt()
+	opt.Serve = true
+	opt.Files = testFs
+	opt.NoAuth = true
 	testServer(t, tests, &opt)
 }
 

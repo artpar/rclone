@@ -24,6 +24,7 @@ import (
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/walk"
 	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/lib/file"
 	"github.com/artpar/rclone/vfs"
 	"github.com/artpar/rclone/vfs/vfscommon"
 	"github.com/artpar/rclone/vfs/vfsflags"
@@ -128,14 +129,12 @@ func newRun(useVFS bool) *Run {
 	var err error
 	r.fremote, r.fremoteName, r.cleanRemote, err = fstest.RandomRemote()
 	if err != nil {
-		log.Printf("Failed to open remote %q: %v", *fstest.RemoteName, err)
-		return nil
+		log.Fatalf("Failed to open remote %q: %v", *fstest.RemoteName, err)
 	}
 
 	err = r.fremote.Mkdir(context.Background(), "")
 	if err != nil {
-		log.Printf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
-		return nil
+		log.Fatalf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
 	}
 
 	if !r.useVFS {
@@ -151,24 +150,19 @@ func findMountPath() string {
 	if runtime.GOOS != "windows" {
 		mountPath, err := ioutil.TempDir("", "rclonefs-mount")
 		if err != nil {
-			log.Printf("Failed to create mount dir: %v", err)
-			return ""
+			log.Fatalf("Failed to create mount dir: %v", err)
 		}
 		return mountPath
 	}
 
 	// Find a free drive letter
+	letter := file.FindUnusedDriveLetter()
 	drive := ""
-	for letter := 'E'; letter <= 'Z'; letter++ {
+	if letter == 0 {
+		log.Fatalf("Couldn't find free drive letter for test")
+	} else {
 		drive = string(letter) + ":"
-		_, err := os.Stat(drive + "\\")
-		if os.IsNotExist(err) {
-			goto found
-		}
 	}
-	log.Printf("Couldn't find free drive letter for test")
-	return ""
-found:
 	return drive
 }
 
@@ -211,14 +205,12 @@ func (r *Run) umount() {
 		err = r.umountFn()
 	}
 	if err != nil {
-		log.Printf("signal to umount failed: %v", err)
-		return
+		log.Fatalf("signal to umount failed: %v", err)
 	}
 	log.Printf("Waiting for umount")
 	err = <-r.umountResult
 	if err != nil {
-		log.Printf("umount failed: %v", err)
-		return
+		log.Fatalf("umount failed: %v", err)
 	}
 
 	// Cleanup the VFS cache - umount has called Shutdown
@@ -240,8 +232,7 @@ func (r *Run) cacheMode(cacheMode vfscommon.CacheMode, writeBack time.Duration) 
 	r.cleanRemote()
 	err := r.fremote.Mkdir(context.Background(), "")
 	if err != nil {
-		log.Printf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
-		return
+		log.Fatalf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
 	}
 	// Empty the cache
 	err = r.vfs.CleanUp()

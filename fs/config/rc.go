@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/rc"
@@ -72,7 +73,7 @@ See the [listremotes command](/commands/rclone_listremotes/) command for more in
 // Return the a list of remotes in the config file
 func rcListRemotes(ctx context.Context, in rc.Params) (out rc.Params, err error) {
 	var remotes = []string{}
-	for _, remote := range getConfigData().GetSectionList() {
+	for _, remote := range Data.GetSectionList() {
 		remotes = append(remotes, remote)
 	}
 	out = rc.Params{
@@ -152,13 +153,13 @@ func rcConfig(ctx context.Context, in rc.Params, what string) (out rc.Params, er
 		if err != nil {
 			return nil, err
 		}
-		return nil, CreateRemote(name, remoteType, parameters, doObscure, noObscure)
+		return nil, CreateRemote(ctx, name, remoteType, parameters, doObscure, noObscure)
 	case "update":
-		return nil, UpdateRemote(name, parameters, doObscure, noObscure)
+		return nil, UpdateRemote(ctx, name, parameters, doObscure, noObscure)
 	case "password":
-		return nil, PasswordRemote(name, parameters)
+		return nil, PasswordRemote(ctx, name, parameters)
 	}
-	panic("unknown rcConfig type")
+	return nil, fmt.Errorf("%v", "panic(\"unknown rcConfig type\")")
 }
 
 func init() {

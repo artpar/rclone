@@ -30,6 +30,10 @@ Eg
 }
 
 func rcListTestPlugins(_ context.Context, _ rc.Params) (out rc.Params, err error) {
+	err = initPluginsOrError()
+	if err != nil {
+		return nil, err
+	}
 	return rc.Params{
 		"loadedTestPlugins": filterPlugins(loadedPlugins, func(json *PackageJSON) bool { return json.isTesting() }),
 	}, nil
@@ -54,6 +58,10 @@ Eg
 	})
 }
 func rcRemoveTestPlugin(_ context.Context, in rc.Params) (out rc.Params, err error) {
+	err = initPluginsOrError()
+	if err != nil {
+		return nil, err
+	}
 	name, err := in.GetString("name")
 	if err != nil {
 		return nil, err
@@ -85,6 +93,10 @@ Eg
 }
 
 func rcAddPlugin(_ context.Context, in rc.Params) (out rc.Params, err error) {
+	err = initPluginsOrError()
+	if err != nil {
+		return nil, err
+	}
 	pluginURL, err := in.GetString("url")
 	if err != nil {
 		return nil, err
@@ -192,6 +204,10 @@ Eg
 }
 
 func rcGetPlugins(_ context.Context, _ rc.Params) (out rc.Params, err error) {
+	err = initPluginsOrError()
+	if err != nil {
+		return nil, err
+	}
 	err = loadedPlugins.readFromFile()
 	if err != nil {
 		return nil, err
@@ -222,6 +238,10 @@ Eg
 }
 
 func rcRemovePlugin(_ context.Context, in rc.Params) (out rc.Params, err error) {
+	err = initPluginsOrError()
+	if err != nil {
+		return nil, err
+	}
 	name, err := in.GetString("name")
 	if err != nil {
 		return nil, err
@@ -244,8 +264,8 @@ func init() {
 
 This takes the following parameters
 
-- type: supported mime type by a loaded plugin eg (video/mp4, audio/mp3)
-- pluginType: filter plugins based on their type eg (DASHBOARD, FILE_HANDLER, TERMINAL) 
+- type: supported mime type by a loaded plugin e.g. (video/mp4, audio/mp3)
+- pluginType: filter plugins based on their type e.g. (DASHBOARD, FILE_HANDLER, TERMINAL) 
 
 and returns
 
@@ -260,6 +280,10 @@ Eg
 }
 
 func rcGetPluginsForType(_ context.Context, in rc.Params) (out rc.Params, err error) {
+	err = initPluginsOrError()
+	if err != nil {
+		return nil, err
+	}
 	handlesType, err := in.GetString("type")
 	if err != nil {
 		handlesType = ""

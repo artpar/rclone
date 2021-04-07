@@ -35,7 +35,7 @@ func init() {
 	fs.Register(&fs.RegInfo{
 		Name:        "fichier",
 		Description: "1Fichier",
-		Config: func(name string, config configmap.Mapper) {
+		Config: func(ctx context.Context, name string, config configmap.Mapper) {
 		},
 		NewFs: NewFs,
 		Options: []fs.Option{{
@@ -167,7 +167,7 @@ func (f *Fs) Features() *fs.Features {
 //
 // On Windows avoid single character remote names as they can be mixed
 // up with drive letters.
-func NewFs(name string, root string, config configmap.Mapper) (fs.Fs, error) {
+func NewFs(ctx context.Context, name string, root string, config configmap.Mapper) (fs.Fs, error) {
 	opt := new(Options)
 	err := configstruct.Set(config, opt)
 	if err != nil {
@@ -186,24 +186,23 @@ func NewFs(name string, root string, config configmap.Mapper) (fs.Fs, error) {
 		name:       name,
 		root:       root,
 		opt:        *opt,
-		pacer:      fs.NewPacer(pacer.NewDefault(pacer.MinSleep(minSleep), pacer.MaxSleep(maxSleep), pacer.DecayConstant(decayConstant), pacer.AttackConstant(attackConstant))),
+		pacer:      fs.NewPacer(ctx, pacer.NewDefault(pacer.MinSleep(minSleep), pacer.MaxSleep(maxSleep), pacer.DecayConstant(decayConstant), pacer.AttackConstant(attackConstant))),
 		baseClient: &http.Client{},
 	}
 
 	f.features = (&fs.Features{
 		DuplicateFiles:          true,
 		CanHaveEmptyDirectories: true,
-	}).Fill(f)
+		ReadMimeType:            true,
+	}).Fill(ctx, f)
 
-	client := fshttp.NewClient(fs.Config)
+	client := fshttp.NewClient(ctx)
 
 	f.rest = rest.NewClient(client).SetRoot(apiBaseURL)
 
 	f.rest.SetHeader("Authorization", "Bearer "+f.opt.APIKey)
 
 	f.dirCache = dircache.New(root, rootID, f)
-
-	ctx := context.Background()
 
 	// Find the current root
 	err = f.dirCache.FindRoot(ctx, false)
@@ -227,7 +226,7 @@ func NewFs(name string, root string, config configmap.Mapper) (fs.Fs, error) {
 			}
 			return nil, err
 		}
-		f.features.Fill(&tempF)
+		f.features.Fill(ctx, &tempF)
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
 		// See https://github.com/artpar/rclone/issues/2182
@@ -306,10 +305,10 @@ func (f *Fs) NewObject(ctx context.Context, remote string) (fs.Object, error) {
 // will return the object and the error, otherwise will return
 // nil and the error
 func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
-	exisitingObj, err := f.NewObject(ctx, src.Remote())
+	existingObj, err := f.NewObject(ctx, src.Remote())
 	switch err {
 	case nil:
-		return exisitingObj, exisitingObj.Update(ctx, in, src, options...)
+		return existingObj, existingObj.Update(ctx, in, src, options...)
 	case fs.ErrorObjectNotFound:
 		// Not found so create it
 		return f.PutUnchecked(ctx, in, src, options...)
@@ -323,7 +322,7 @@ func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options .
 // This will create a duplicate if we upload a new file without
 // checking to see if there is one already - use Put() for that.
 func (f *Fs) putUnchecked(ctx context.Context, in io.Reader, remote string, size int64, options ...fs.OpenOption) (fs.Object, error) {
-	if size > int64(100e9) {
+	if size > int64(300e9) {
 		return nil, errors.New("File too big, cant upload")
 	} else if size == 0 {
 		return nil, fs.ErrorCantUploadEmptyFiles
@@ -349,8 +348,10 @@ func (f *Fs) putUnchecked(ctx context.Context, in io.Reader, remote string, size
 		return nil, err
 	}
 
-	if len(fileUploadResponse.Links) != 1 {
-		return nil, errors.New("unexpected amount of files")
+	if len(fileUploadResponse.Links) == 0 {
+		return nil, errors.New("upload response not found")
+	} else if len(fileUploadResponse.Links) > 1 {
+		fs.Debugf(remote, "Multiple upload responses found, using the first")
 	}
 
 	link := fileUploadResponse.Links[0]
@@ -364,7 +365,6 @@ func (f *Fs) putUnchecked(ctx context.Context, in io.Reader, remote string, size
 		fs:     f,
 		remote: remote,
 		file: File{
-			ACL:         0,
 			CDN:         0,
 			Checksum:    link.Whirlpool,
 			ContentType: "",
@@ -417,9 +417,89 @@ func (f *Fs) Rmdir(ctx context.Context, dir string) error {
 	return nil
 }
 
+// Move src to this remote using server side move operations.
+func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object, error) {
+	srcObj, ok := src.(*Object)
+	if !ok {
+		fs.Debugf(src, "Can't move - not same remote type")
+		return nil, fs.ErrorCantMove
+	}
+
+	// Create temporary object
+	dstObj, leaf, directoryID, err := f.createObject(ctx, remote)
+	if err != nil {
+		return nil, err
+	}
+
+	folderID, err := strconv.Atoi(directoryID)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := f.moveFile(ctx, srcObj.file.URL, folderID, leaf)
+	if err != nil {
+		return nil, errors.Wrap(err, "couldn't move file")
+	}
+	if resp.Status != "OK" {
+		return nil, errors.New("couldn't move file")
+	}
+
+	file, err := f.readFileInfo(ctx, resp.URLs[0])
+	if err != nil {
+		return nil, errors.New("couldn't read file data")
+	}
+	dstObj.setMetaData(*file)
+	return dstObj, nil
+}
+
+// Copy src to this remote using server side move operations.
+func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object, error) {
+	srcObj, ok := src.(*Object)
+	if !ok {
+		fs.Debugf(src, "Can't move - not same remote type")
+		return nil, fs.ErrorCantMove
+	}
+
+	// Create temporary object
+	dstObj, leaf, directoryID, err := f.createObject(ctx, remote)
+	if err != nil {
+		return nil, err
+	}
+
+	folderID, err := strconv.Atoi(directoryID)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := f.copyFile(ctx, srcObj.file.URL, folderID, leaf)
+	if err != nil {
+		return nil, errors.Wrap(err, "couldn't move file")
+	}
+	if resp.Status != "OK" {
+		return nil, errors.New("couldn't move file")
+	}
+
+	file, err := f.readFileInfo(ctx, resp.URLs[0].ToURL)
+	if err != nil {
+		return nil, errors.New("couldn't read file data")
+	}
+	dstObj.setMetaData(*file)
+	return dstObj, nil
+}
+
+// PublicLink adds a "readable by anyone with link" permission on the given file or folder.
+func (f *Fs) PublicLink(ctx context.Context, remote string, expire fs.Duration, unlink bool) (string, error) {
+	o, err := f.NewObject(ctx, remote)
+	if err != nil {
+		return "", err
+	}
+	return o.(*Object).file.URL, nil
+}
+
 // Check the interfaces are satisfied
 var (
 	_ fs.Fs              = (*Fs)(nil)
+	_ fs.Mover           = (*Fs)(nil)
+	_ fs.Copier          = (*Fs)(nil)
+	_ fs.PublicLinker    = (*Fs)(nil)
 	_ fs.PutUncheckeder  = (*Fs)(nil)
 	_ dircache.DirCacher = (*Fs)(nil)
 )

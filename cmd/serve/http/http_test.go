@@ -12,7 +12,7 @@ import (
 	_ "github.com/artpar/rclone/backend/local"
 	"github.com/artpar/rclone/cmd/serve/httplib"
 	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configfile"
 	"github.com/artpar/rclone/fs/filter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,18 +59,20 @@ var (
 )
 
 func TestInit(t *testing.T) {
+	ctx := context.Background()
 	// Configure the remote
-	config.LoadConfig()
+	configfile.LoadConfig(context.Background())
 	// fs.Config.LogLevel = fs.LogLevelDebug
 	// fs.Config.DumpHeaders = true
 	// fs.Config.DumpBodies = true
 
 	// exclude files called hidden.txt and directories called hidden
-	require.NoError(t, filter.Active.AddRule("- hidden.txt"))
-	require.NoError(t, filter.Active.AddRule("- hidden/**"))
+	fi := filter.GetConfig(ctx)
+	require.NoError(t, fi.AddRule("- hidden.txt"))
+	require.NoError(t, fi.AddRule("- hidden/**"))
 
 	// Create a test Fs
-	f, err := fs.NewFs("testdata/files")
+	f, err := fs.NewFs(context.Background(), "testdata/files")
 	require.NoError(t, err)
 
 	// set date of datedObject to expectedTime
@@ -208,7 +210,7 @@ func TestGET(t *testing.T) {
 		body, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 
-		// Check we got a Last-Modifed header and that it is a valid date
+		// Check we got a Last-Modified header and that it is a valid date
 		if test.Status == http.StatusOK || test.Status == http.StatusPartialContent {
 			lastModified := resp.Header.Get("Last-Modified")
 			assert.NotEqual(t, "", lastModified, test.Golden)

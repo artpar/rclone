@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -15,16 +16,16 @@ var (
 	errSentinel = errors.New("an error")
 )
 
-func mockNewFs(t *testing.T) (func(), func(path string) (fs.Fs, error)) {
+func mockNewFs(t *testing.T) (func(), func(ctx context.Context, path string) (fs.Fs, error)) {
 	called = 0
-	create := func(path string) (f fs.Fs, err error) {
+	create := func(ctx context.Context, path string) (f fs.Fs, err error) {
 		assert.Equal(t, 0, called)
 		called++
 		switch path {
 		case "mock:/":
-			return mockfs.NewFs("mock", "/"), nil
+			return mockfs.NewFs(ctx, "mock", "/"), nil
 		case "mock:/file.txt", "mock:file.txt":
-			return mockfs.NewFs("mock", "/"), fs.ErrorIsFile
+			return mockfs.NewFs(ctx, "mock", "/"), fs.ErrorIsFile
 		case "mock:/error":
 			return nil, errSentinel
 		}
@@ -32,7 +33,7 @@ func mockNewFs(t *testing.T) (func(), func(path string) (fs.Fs, error)) {
 		panic("unreachable")
 	}
 	cleanup := func() {
-		c.Clear()
+		Clear()
 	}
 	return cleanup, create
 }
@@ -41,14 +42,14 @@ func TestGet(t *testing.T) {
 	cleanup, create := mockNewFs(t)
 	defer cleanup()
 
-	assert.Equal(t, 0, c.Entries())
+	assert.Equal(t, 0, Entries())
 
-	f, err := GetFn("mock:/", create)
+	f, err := GetFn(context.Background(), "mock:/", create)
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, c.Entries())
+	assert.Equal(t, 1, Entries())
 
-	f2, err := GetFn("mock:/", create)
+	f2, err := GetFn(context.Background(), "mock:/", create)
 	require.NoError(t, err)
 
 	assert.Equal(t, f, f2)
@@ -58,22 +59,22 @@ func TestGetFile(t *testing.T) {
 	cleanup, create := mockNewFs(t)
 	defer cleanup()
 
-	assert.Equal(t, 0, c.Entries())
+	assert.Equal(t, 0, Entries())
 
-	f, err := GetFn("mock:/file.txt", create)
+	f, err := GetFn(context.Background(), "mock:/file.txt", create)
 	require.Equal(t, fs.ErrorIsFile, err)
 	require.NotNil(t, f)
 
-	assert.Equal(t, 2, c.Entries())
+	assert.Equal(t, 2, Entries())
 
-	f2, err := GetFn("mock:/file.txt", create)
+	f2, err := GetFn(context.Background(), "mock:/file.txt", create)
 	require.Equal(t, fs.ErrorIsFile, err)
 	require.NotNil(t, f2)
 
 	assert.Equal(t, f, f2)
 
 	// check parent is there too
-	f2, err = GetFn("mock:/", create)
+	f2, err = GetFn(context.Background(), "mock:/", create)
 	require.Nil(t, err)
 	require.NotNil(t, f2)
 
@@ -84,22 +85,22 @@ func TestGetFile2(t *testing.T) {
 	cleanup, create := mockNewFs(t)
 	defer cleanup()
 
-	assert.Equal(t, 0, c.Entries())
+	assert.Equal(t, 0, Entries())
 
-	f, err := GetFn("mock:file.txt", create)
+	f, err := GetFn(context.Background(), "mock:file.txt", create)
 	require.Equal(t, fs.ErrorIsFile, err)
 	require.NotNil(t, f)
 
-	assert.Equal(t, 2, c.Entries())
+	assert.Equal(t, 2, Entries())
 
-	f2, err := GetFn("mock:file.txt", create)
+	f2, err := GetFn(context.Background(), "mock:file.txt", create)
 	require.Equal(t, fs.ErrorIsFile, err)
 	require.NotNil(t, f2)
 
 	assert.Equal(t, f, f2)
 
 	// check parent is there too
-	f2, err = GetFn("mock:/", create)
+	f2, err = GetFn(context.Background(), "mock:/", create)
 	require.Nil(t, err)
 	require.NotNil(t, f2)
 
@@ -110,42 +111,42 @@ func TestGetError(t *testing.T) {
 	cleanup, create := mockNewFs(t)
 	defer cleanup()
 
-	assert.Equal(t, 0, c.Entries())
+	assert.Equal(t, 0, Entries())
 
-	f, err := GetFn("mock:/error", create)
+	f, err := GetFn(context.Background(), "mock:/error", create)
 	require.Equal(t, errSentinel, err)
 	require.Equal(t, nil, f)
 
-	assert.Equal(t, 0, c.Entries())
+	assert.Equal(t, 0, Entries())
 }
 
 func TestPut(t *testing.T) {
 	cleanup, create := mockNewFs(t)
 	defer cleanup()
 
-	f := mockfs.NewFs("mock", "/alien")
+	f := mockfs.NewFs(context.Background(), "mock", "/alien")
 
-	assert.Equal(t, 0, c.Entries())
+	assert.Equal(t, 0, Entries())
 
 	Put("mock:/alien", f)
 
-	assert.Equal(t, 1, c.Entries())
+	assert.Equal(t, 1, Entries())
 
-	fNew, err := GetFn("mock:/alien", create)
+	fNew, err := GetFn(context.Background(), "mock:/alien", create)
 	require.NoError(t, err)
 	require.Equal(t, f, fNew)
 
-	assert.Equal(t, 1, c.Entries())
+	assert.Equal(t, 1, Entries())
 
 	// Check canonicalisation
 
 	Put("mock:/alien/", f)
 
-	fNew, err = GetFn("mock:/alien/", create)
+	fNew, err = GetFn(context.Background(), "mock:/alien/", create)
 	require.NoError(t, err)
 	require.Equal(t, f, fNew)
 
-	assert.Equal(t, 1, c.Entries())
+	assert.Equal(t, 1, Entries())
 
 }
 
@@ -154,15 +155,31 @@ func TestPin(t *testing.T) {
 	defer cleanup()
 
 	// Test pinning and unpinning non existent
-	f := mockfs.NewFs("mock", "/alien")
+	f := mockfs.NewFs(context.Background(), "mock", "/alien")
 	Pin(f)
 	Unpin(f)
 
 	// Now test pinning an existing
-	f2, err := GetFn("mock:/", create)
+	f2, err := GetFn(context.Background(), "mock:/", create)
 	require.NoError(t, err)
 	Pin(f2)
 	Unpin(f2)
+}
+
+func TestClearConfig(t *testing.T) {
+	cleanup, create := mockNewFs(t)
+	defer cleanup()
+
+	assert.Equal(t, 0, Entries())
+
+	_, err := GetFn(context.Background(), "mock:/file.txt", create)
+	require.Equal(t, fs.ErrorIsFile, err)
+
+	assert.Equal(t, 2, Entries()) // file + parent
+
+	assert.Equal(t, 2, ClearConfig("mock"))
+
+	assert.Equal(t, 0, Entries())
 }
 
 func TestClear(t *testing.T) {
@@ -170,12 +187,25 @@ func TestClear(t *testing.T) {
 	defer cleanup()
 
 	// Create something
-	_, err := GetFn("mock:/", create)
+	_, err := GetFn(context.Background(), "mock:/", create)
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, c.Entries())
+	assert.Equal(t, 1, Entries())
 
 	Clear()
 
-	assert.Equal(t, 0, c.Entries())
+	assert.Equal(t, 0, Entries())
+}
+
+func TestEntries(t *testing.T) {
+	cleanup, create := mockNewFs(t)
+	defer cleanup()
+
+	assert.Equal(t, 0, Entries())
+
+	// Create something
+	_, err := GetFn(context.Background(), "mock:/", create)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, Entries())
 }

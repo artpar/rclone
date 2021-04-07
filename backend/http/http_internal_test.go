@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configfile"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fstest"
 	"github.com/artpar/rclone/lib/rest"
@@ -47,7 +47,7 @@ func prepareServer(t *testing.T) (configmap.Simple, func()) {
 	ts := httptest.NewServer(handler)
 
 	// Configure the remote
-	config.LoadConfig()
+	configfile.LoadConfig(context.Background())
 	// fs.Config.LogLevel = fs.LogLevelDebug
 	// fs.Config.DumpHeaders = true
 	// fs.Config.DumpBodies = true
@@ -69,7 +69,7 @@ func prepare(t *testing.T) (fs.Fs, func()) {
 	m, tidy := prepareServer(t)
 
 	// Instantiate it
-	f, err := NewFs(remoteName, "", m)
+	f, err := NewFs(context.Background(), remoteName, "", m)
 	require.NoError(t, err)
 
 	return f, tidy
@@ -214,7 +214,7 @@ func TestIsAFileRoot(t *testing.T) {
 	m, tidy := prepareServer(t)
 	defer tidy()
 
-	f, err := NewFs(remoteName, "one%.txt", m)
+	f, err := NewFs(context.Background(), remoteName, "one%.txt", m)
 	assert.Equal(t, err, fs.ErrorIsFile)
 
 	testListRoot(t, f, false)
@@ -224,7 +224,7 @@ func TestIsAFileSubDir(t *testing.T) {
 	m, tidy := prepareServer(t)
 	defer tidy()
 
-	f, err := NewFs(remoteName, "three/underthree.txt", m)
+	f, err := NewFs(context.Background(), remoteName, "three/underthree.txt", m)
 	assert.Equal(t, err, fs.ErrorIsFile)
 
 	entries, err := f.List(context.Background(), "")

@@ -3,6 +3,7 @@ package vfscommon
 import (
 	"fmt"
 
+	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/lib/errors"
 )
 
@@ -12,7 +13,7 @@ type CacheMode byte
 // CacheMode options
 const (
 	CacheModeOff     CacheMode = iota // cache nothing - return errors for writes which can't be satisfied
-	CacheModeMinimal                  // cache only the minimum, eg read/write opens
+	CacheModeMinimal                  // cache only the minimum, e.g. read/write opens
 	CacheModeWrites                   // cache all files opened with write intent
 	CacheModeFull                     // cache all files opened in any mode
 )
@@ -46,4 +47,15 @@ func (l *CacheMode) Set(s string) error {
 // Type of the value
 func (l *CacheMode) Type() string {
 	return "CacheMode"
+}
+
+// UnmarshalJSON makes sure the value can be parsed as a string or integer in JSON
+func (l *CacheMode) UnmarshalJSON(in []byte) error {
+	return fs.UnmarshalJSONFlag(in, l, func(i int64) error {
+		if i < 0 || i >= int64(len(cacheModeToString)) {
+			return errors.Errorf("Unknown cache mode level %d", i)
+		}
+		*l = CacheMode(i)
+		return nil
+	})
 }

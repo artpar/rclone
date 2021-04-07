@@ -13,12 +13,12 @@ import (
 
 	"github.com/anacrolix/dms/soap"
 
+	"github.com/artpar/rclone/fs/config/configfile"
 	"github.com/artpar/rclone/vfs"
 
 	_ "github.com/artpar/rclone/backend/local"
 	"github.com/artpar/rclone/cmd/serve/dlna/dlnaflags"
 	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,9 +41,9 @@ func startServer(t *testing.T, f fs.Fs) {
 }
 
 func TestInit(t *testing.T) {
-	config.LoadConfig()
+	configfile.LoadConfig(context.Background())
 
-	f, err := fs.NewFs("testdata/files")
+	f, err := fs.NewFs(context.Background(), "testdata/files")
 	l, _ := f.List(context.Background(), "")
 	fmt.Println(l)
 	require.NoError(t, err)

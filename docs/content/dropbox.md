@@ -8,7 +8,7 @@ description: "Rclone docs for Dropbox"
 
 Paths are specified as `remote:path`
 
-Dropbox paths may be as deep as required, eg
+Dropbox paths may be as deep as required, e.g.
 `remote:directory/subdirectory`.
 
 The initial setup for dropbox involves getting a token from Dropbox
@@ -196,6 +196,21 @@ memory.  It can be set smaller if you are tight on memory.
 #### --dropbox-impersonate
 
 Impersonate this user when using a business account.
+
+Note that if you want to use impersonate, you should make sure this
+flag is set when running "rclone config" as this will cause rclone to
+request the "members.read" scope which it won't normally. This is
+needed to lookup a members email address into the internal ID that
+dropbox uses in the API.
+
+Using the "members.read" scope will require a Dropbox Team Admin
+to approve during the OAuth flow.
+
+You will have to use your own App (setting your own client_id and
+client_secret) to use this option as currently rclone's default set of
+permissions doesn't include "members.read". This can be added once
+v1.55 or later is in use everywhere.
+
 
 - Config:      impersonate
 - Env Var:     RCLONE_DROPBOX_IMPERSONATE

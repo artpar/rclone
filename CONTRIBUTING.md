@@ -12,10 +12,10 @@ When filing an issue, please include the following information if
 possible as well as a description of the problem.  Make sure you test
 with the [latest beta of rclone](https://beta.rclone.org/):
 
-  * Rclone version (eg output from `rclone -V`)
-  * Which OS you are using and how many bits (eg Windows 7, 64 bit)
-  * The command you were trying to run (eg `rclone copy /tmp remote:tmp`)
-  * A log of the command with the `-vv` flag (eg output from `rclone -vv copy /tmp remote:tmp`)
+  * Rclone version (e.g. output from `rclone -V`)
+  * Which OS you are using and how many bits (e.g. Windows 7, 64 bit)
+  * The command you were trying to run (e.g. `rclone copy /tmp remote:tmp`)
+  * A log of the command with the `-vv` flag (e.g. output from `rclone -vv copy /tmp remote:tmp`)
     * if the log contains secrets then edit the file with a text editor first to obscure them
 
 ## Submitting a pull request ##
@@ -33,10 +33,11 @@ page](https://github.com/artpar/rclone).
 
 Now in your terminal
 
-    go get -u github.com/artpar/rclone
-    cd $GOPATH/src/github.com/artpar/rclone
+    git clone https://github.com/artpar/rclone.git
+    cd rclone
     git remote rename origin upstream
     git remote add origin git@github.com:YOURUSER/rclone.git
+    go build
 
 Make a branch to add your new feature
 
@@ -48,7 +49,7 @@ When ready - run the unit tests for the code you changed
 
     go test -v
 
-Note that you may need to make a test remote, eg `TestSwift` for some
+Note that you may need to make a test remote, e.g. `TestSwift` for some
 of the unit tests.
 
 Note the top level Makefile targets
@@ -72,7 +73,7 @@ Make sure you
 
 When you are done with that
 
-    git push origin my-new-feature
+    git push -u origin my-new-feature
 
 Go to the GitHub website and click [Create pull
 request](https://help.github.com/articles/creating-a-pull-request/).
@@ -86,7 +87,7 @@ git reset --soft HEAD~2 # This squashes the 2 latest commits together.
 git status # Check what will happen, if you made a mistake resetting, you can run git reset 'HEAD@{1}' to undo.
 git commit # Add a new commit message.
 git push --force # Push the squashed commit to your GitHub repo.
-# For more, see Stack Overflow, Git docs, or generally Duck around the web. jtagcat also reccommends wizardzines.com
+# For more, see Stack Overflow, Git docs, or generally Duck around the web. jtagcat also recommends wizardzines.com
 ```
 
 ## CI for your fork ##
@@ -99,7 +100,7 @@ rclone's tests are run from the go testing framework, so at the top
 level you can run this to run all the tests.
 
     go test -v ./...
-    
+
 rclone contains a mixture of unit tests and integration tests.
 Because it is difficult (and in some respects pointless) to test cloud
 storage systems by mocking all their interfaces, rclone unit tests can
@@ -115,8 +116,8 @@ are skipped if `TestDrive:` isn't defined.
     cd backend/drive
     go test -v
 
-You can then run the integration tests which tests all of rclone's
-operations.  Normally these get run against the local filing system,
+You can then run the integration tests which test all of rclone's
+operations.  Normally these get run against the local file system,
 but they can be run against any of the remotes.
 
     cd fs/sync
@@ -127,7 +128,7 @@ but they can be run against any of the remotes.
     go test -v -remote TestDrive:
 
 If you want to use the integration test framework to run these tests
-all together with an HTML report and test retries then from the
+altogether with an HTML report and test retries then from the
 project root:
 
     go install github.com/artpar/rclone/fstest/test_all
@@ -170,7 +171,7 @@ with modules beneath.
     * log - logging facilities
     * march - iterates directories in lock step
     * object - in memory Fs objects
-    * operations - primitives for sync, eg Copy, Move
+    * operations - primitives for sync, e.g. Copy, Move
     * sync - sync directories
     * walk - walk a directory
   * fstest - provides integration test framework
@@ -178,7 +179,7 @@ with modules beneath.
     * mockdir - mocks an fs.Directory
     * mockobject - mocks an fs.Object
     * test_all - Runs integration tests for everything
-  * graphics - the images used in the website etc
+  * graphics - the images used in the website, etc.
   * lib - libraries used by the backend
     * atexit - register functions to run when rclone exits
     * dircache - directory ID to name caching
@@ -202,12 +203,12 @@ for the flag help, the remainder is shown to the user in `rclone
 config` and is added to the docs with `make backenddocs`.
 
 The only documentation you need to edit are the `docs/content/*.md`
-files.  The MANUAL.*, rclone.1, web site etc are all auto generated
+files.  The `MANUAL.*`, `rclone.1`, web site, etc. are all auto generated
 from those during the release process.  See the `make doc` and `make
 website` targets in the Makefile if you are interested in how.  You
 don't need to run these when adding a feature.
 
-Documentation for rclone sub commands is with their code, eg
+Documentation for rclone sub commands is with their code, e.g.
 `cmd/ls/ls.go`.
 
 Note that you can use [GitHub's online editor](https://help.github.com/en/github/managing-files-in-a-repository/editing-files-in-another-users-repository)
@@ -265,7 +266,7 @@ rclone uses the [go
 modules](https://tip.golang.org/cmd/go/#hdr-Modules__module_versions__and_more)
 support in go1.11 and later to manage its dependencies.
 
-rclone can be built with modules outside of the GOPATH
+rclone can be built with modules outside of the `GOPATH`.
 
 To add a dependency `github.com/ncw/new_dependency` see the
 instructions below.  These will fetch the dependency and add it to
@@ -333,8 +334,8 @@ Getting going
   * Try to implement as many optional methods as possible as it makes the remote more usable.
   * Use lib/encoder to make sure we can encode any path name and `rclone info` to help determine the encodings needed
     * `rclone purge -v TestRemote:rclone-info`
-    * `rclone info --remote-encoding None -vv --write-json remote.json TestRemote:rclone-info`
-    * `go run cmd/info/internal/build_csv/main.go -o remote.csv remote.json`
+    * `rclone test info --all --remote-encoding None -vv --write-json remote.json TestRemote:rclone-info`
+    * `go run cmd/test/info/internal/build_csv/main.go -o remote.csv remote.json`
     * open `remote.csv` in a spreadsheet and examine
 
 Unit tests
@@ -364,7 +365,7 @@ See the [testing](#testing) section for more information on integration tests.
 
 Add your fs to the docs - you'll need to pick an icon for it from
 [fontawesome](http://fontawesome.io/icons/).  Keep lists of remotes in
-alphabetical order of full name of remote (eg `drive` is ordered as
+alphabetical order of full name of remote (e.g. `drive` is ordered as
 `Google Drive`) but with the local file system last.
 
   * `README.md` - main GitHub page
@@ -400,7 +401,7 @@ Usage
    - If this variable doesn't exist, plugin support is disabled.
    - Plugins must be compiled against the exact version of rclone to work.
      (The rclone used during building the plugin must be the same as the source of rclone)
-     
+
 Building
 
 To turn your existing additions into a Go plugin, move them to an external repository

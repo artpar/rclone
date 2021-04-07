@@ -11,8 +11,8 @@ import (
 
 	"github.com/Unknwon/goconfig"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
 )
 
 // Special value indicating in memory config file. Empty string works also.

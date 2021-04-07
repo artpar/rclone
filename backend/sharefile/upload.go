@@ -32,7 +32,7 @@ type largeUpload struct {
 	wrap     accounting.WrapFn        // account parts being transferred
 	size     int64                    // total size
 	parts    int64                    // calculated number of parts, if known
-	info     *api.UploadSpecification // where to post chunks etc
+	info     *api.UploadSpecification // where to post chunks, etc.
 	threads  int                      // number of threads to use in upload
 	streamed bool                     // set if using streamed upload
 }
@@ -58,7 +58,7 @@ func (f *Fs) newLargeUpload(ctx context.Context, o *Object, in io.Reader, src fs
 		return nil, errors.Errorf("can't use method %q with newLargeUpload", info.Method)
 	}
 
-	threads := fs.Config.Transfers
+	threads := f.ci.Transfers
 	if threads > info.MaxNumberOfThreads {
 		threads = info.MaxNumberOfThreads
 	}
@@ -155,7 +155,7 @@ func (up *largeUpload) finish(ctx context.Context) error {
 	err := up.f.pacer.Call(func() (bool, error) {
 		resp, err := up.f.srv.Call(ctx, &opts)
 		if err != nil {
-			return shouldRetry(resp, err)
+			return shouldRetry(ctx, resp, err)
 		}
 		respBody, err = rest.ReadBody(resp)
 		// retry all errors now that the multipart upload has started

@@ -2,6 +2,7 @@
 package rcserver
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -41,7 +42,7 @@ var promHandler http.Handler
 var onlyOnceWarningAllowOrigin sync.Once
 
 func init() {
-	rcloneCollector := accounting.NewRcloneCollector()
+	rcloneCollector := accounting.NewRcloneCollector(context.Background())
 	prometheus.MustRegister(rcloneCollector)
 	promHandler = promhttp.Handler()
 }
@@ -49,11 +50,11 @@ func init() {
 // Start the remote control server if configured
 //
 // If the server wasn't configured the *Server returned may be nil
-func Start(opt *rc.Options) (*Server, error) {
+func Start(ctx context.Context, opt *rc.Options) (*Server, error) {
 	jobs.SetOpt(opt) // set the defaults for jobs
 	if opt.Enabled {
 		// Serve on the DefaultServeMux so can have global registrations appear
-		s := newServer(opt, http.DefaultServeMux)
+		s := newServer(ctx, opt, http.DefaultServeMux)
 		return s, s.Serve()
 	}
 	return nil, nil
@@ -62,12 +63,13 @@ func Start(opt *rc.Options) (*Server, error) {
 // Server contains everything to run the rc server
 type Server struct {
 	*httplib.Server
+	ctx            context.Context // for global config
 	files          http.Handler
 	pluginsHandler http.Handler
 	opt            *rc.Options
 }
 
-func newServer(opt *rc.Options, mux *http.ServeMux) *Server {
+func newServer(ctx context.Context, opt *rc.Options, mux *http.ServeMux) *Server {
 	fileHandler := http.Handler(nil)
 	pluginsHandler := http.Handler(nil)
 	// Add some more mime types which are often missing
@@ -113,6 +115,7 @@ func newServer(opt *rc.Options, mux *http.ServeMux) *Server {
 
 	s := &Server{
 		Server:         httplib.NewServer(mux, &opt.HTTPOptions),
+		ctx:            ctx,
 		opt:            opt,
 		files:          fileHandler,
 		pluginsHandler: pluginsHandler,
@@ -166,24 +169,12 @@ func (s *Server) Serve() error {
 // writeError writes a formatted error to the output
 func writeError(path string, in rc.Params, w http.ResponseWriter, err error, status int) {
 	fs.Errorf(nil, "rc: %q: error: %v", path, err)
-	// Adjust the error return for some well known errors
-	errOrig := errors.Cause(err)
-	switch {
-	case errOrig == fs.ErrorDirNotFound || errOrig == fs.ErrorObjectNotFound:
-		status = http.StatusNotFound
-	case rc.IsErrParamInvalid(err) || rc.IsErrParamNotFound(err):
-		status = http.StatusBadRequest
-	}
+	params, status := rc.Error(path, in, err, status)
 	w.WriteHeader(status)
-	err = rc.WriteJSON(w, rc.Params{
-		"status": status,
-		"error":  err.Error(),
-		"input":  in,
-		"path":   path,
-	})
+	err = rc.WriteJSON(w, params)
 	if err != nil {
 		// can't return the error at this point
-		fs.Errorf(nil, "rc: failed to write JSON output: %v", err)
+		fs.Errorf(nil, "rc: writeError: failed to write JSON output from %#v: %v", in, err)
 	}
 }
 
@@ -226,6 +217,7 @@ func (s *Server) handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePost(w http.ResponseWriter, r *http.Request, path string) {
+	ctx := r.Context()
 	contentType := r.Header.Get("Content-Type")
 
 	values := r.URL.Query()
@@ -267,6 +259,9 @@ func (s *Server) handlePost(w http.ResponseWriter, r *http.Request, path string)
 		writeError(path, in, w, errors.Errorf("authentication must be set up on the rc server to use %q or the --rc-no-auth flag must be in use", path), http.StatusForbidden)
 		return
 	}
+
+	inOrig := in.Copy()
+
 	if call.NeedsRequest {
 		// Add the request to RC
 		in["_request"] = r
@@ -276,25 +271,13 @@ func (s *Server) handlePost(w http.ResponseWriter, r *http.Request, path string)
 		in["_response"] = w
 	}
 
-	// Check to see if it is async or not
-	isAsync, err := in.GetBool("_async")
-	if rc.NotErrParamNotFound(err) {
-		writeError(path, in, w, err, http.StatusBadRequest)
-		return
-	}
-	delete(in, "_async") // remove the async parameter after parsing so vfs operations don't get confused
-
 	fs.Debugf(nil, "rc: %q: with parameters %+v", path, in)
-	var out rc.Params
-	if isAsync {
-		out, err = jobs.StartAsyncJob(call.Fn, in)
-	} else {
-		var jobID int64
-		out, jobID, err = jobs.ExecuteJob(r.Context(), call.Fn, in)
-		w.Header().Add("x-rclone-jobid", fmt.Sprintf("%d", jobID))
+	job, out, err := jobs.NewJob(ctx, call.Fn, in)
+	if job != nil {
+		w.Header().Add("x-rclone-jobid", fmt.Sprintf("%d", job.ID))
 	}
 	if err != nil {
-		writeError(path, in, w, err, http.StatusInternalServerError)
+		writeError(path, inOrig, w, err, http.StatusInternalServerError)
 		return
 	}
 	if out == nil {
@@ -305,8 +288,8 @@ func (s *Server) handlePost(w http.ResponseWriter, r *http.Request, path string)
 	err = rc.WriteJSON(w, out)
 	if err != nil {
 		// can't return the error at this point - but have a go anyway
-		writeError(path, in, w, err, http.StatusInternalServerError)
-		fs.Errorf(nil, "rc: failed to write JSON output: %v", err)
+		writeError(path, inOrig, w, err, http.StatusInternalServerError)
+		fs.Errorf(nil, "rc: handlePost: failed to write JSON output: %v", err)
 	}
 }
 
@@ -332,7 +315,7 @@ func (s *Server) serveRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveRemote(w http.ResponseWriter, r *http.Request, path string, fsName string) {
-	f, err := cache.Get(fsName)
+	f, err := cache.Get(s.ctx, fsName)
 	if err != nil {
 		writeError(path, nil, w, errors.Wrap(err, "failed to make Fs"), http.StatusInternalServerError)
 		return
@@ -387,18 +370,20 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, path string) 
 		s.serveRoot(w, r)
 		return
 	case s.files != nil:
-		pluginsMatchResult := webgui.PluginsMatch.FindStringSubmatch(path)
+		if s.opt.WebUI {
+			pluginsMatchResult := webgui.PluginsMatch.FindStringSubmatch(path)
 
-		if s.opt.WebUI && pluginsMatchResult != nil && len(pluginsMatchResult) > 2 {
-			ok := webgui.ServePluginOK(w, r, pluginsMatchResult)
-			if !ok {
-				r.URL.Path = fmt.Sprintf("/%s/%s/app/build/%s", pluginsMatchResult[1], pluginsMatchResult[2], pluginsMatchResult[3])
-				s.pluginsHandler.ServeHTTP(w, r)
+			if pluginsMatchResult != nil && len(pluginsMatchResult) > 2 {
+				ok := webgui.ServePluginOK(w, r, pluginsMatchResult)
+				if !ok {
+					r.URL.Path = fmt.Sprintf("/%s/%s/app/build/%s", pluginsMatchResult[1], pluginsMatchResult[2], pluginsMatchResult[3])
+					s.pluginsHandler.ServeHTTP(w, r)
+					return
+				}
+				return
+			} else if webgui.ServePluginWithReferrerOK(w, r, path) {
 				return
 			}
-			return
-		} else if s.opt.WebUI && webgui.ServePluginWithReferrerOK(w, r, path) {
-			return
 		}
 		// Serve the files
 		r.URL.Path = "/" + path

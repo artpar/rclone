@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest"
 	"github.com/artpar/rclone/fstest/fstests"
 )
 
@@ -12,6 +13,20 @@ import (
 func TestIntegration(t *testing.T) {
 	fstests.Run(t, &fstests.Opt{
 		RemoteName: "TestOneDrive:",
+		NilObject:  (*Object)(nil),
+		ChunkedUpload: fstests.ChunkedUploadConfig{
+			CeilChunkSize: fstests.NextMultipleOf(chunkSizeMultiple),
+		},
+	})
+}
+
+// TestIntegrationCn runs integration tests against the remote
+func TestIntegrationCn(t *testing.T) {
+	if *fstest.RemoteName != "" {
+		t.Skip("skipping as -remote is set")
+	}
+	fstests.Run(t, &fstests.Opt{
+		RemoteName: "TestOneDriveCn:",
 		NilObject:  (*Object)(nil),
 		ChunkedUpload: fstests.ChunkedUploadConfig{
 			CeilChunkSize: fstests.NextMultipleOf(chunkSizeMultiple),

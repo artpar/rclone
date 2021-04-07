@@ -1,6 +1,7 @@
 package http
 
 import (
+	"io"
 	"net/http"
 	"os"
 	"path"
@@ -32,7 +33,7 @@ var Command = &cobra.Command{
 over HTTP.  This can be viewed in a web browser or you can make a
 remote of type http read from it.
 
-You can use the filter flags (eg --include, --exclude) to control what
+You can use the filter flags (e.g. --include, --exclude) to control what
 is served.
 
 The server will log errors.  Use -v to see access logs.
@@ -172,8 +173,11 @@ func (s *server) serveFile(w http.ResponseWriter, r *http.Request, remote string
 	obj := entry.(fs.Object)
 	file := node.(*vfs.File)
 
-	// Set content length since we know how long the object is
-	w.Header().Set("Content-Length", strconv.FormatInt(node.Size(), 10))
+	// Set content length if we know how long the object is
+	knownSize := obj.Size() >= 0
+	if knownSize {
+		w.Header().Set("Content-Length", strconv.FormatInt(node.Size(), 10))
+	}
 
 	// Set content type
 	mimeType := fs.MimeType(r.Context(), obj)
@@ -206,9 +210,23 @@ func (s *server) serveFile(w http.ResponseWriter, r *http.Request, remote string
 
 	// Account the transfer
 	tr := accounting.Stats(r.Context()).NewTransfer(obj)
-	defer tr.Done(nil)
+	defer tr.Done(r.Context(), nil)
 	// FIXME in = fs.NewAccount(in, obj).WithBuffer() // account the transfer
 
 	// Serve the file
-	http.ServeContent(w, r, remote, node.ModTime(), in)
+	if knownSize {
+		http.ServeContent(w, r, remote, node.ModTime(), in)
+	} else {
+		// http.ServeContent can't serve unknown length files
+		if rangeRequest := r.Header.Get("Range"); rangeRequest != "" {
+			http.Error(w, "Can't use Range: on files of unknown length", http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
+		n, err := io.Copy(w, in)
+		if err != nil {
+			fs.Errorf(obj, "Didn't finish writing GET request (wrote %d/unknown bytes): %v", n, err)
+			return
+		}
+	}
+
 }

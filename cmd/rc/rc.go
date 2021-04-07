@@ -16,6 +16,7 @@ import (
 	"github.com/artpar/rclone/fs/config/flags"
 	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/artpar/rclone/fs/rc"
+	"github.com/artpar/rclone/fs/rc/jobs"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -34,7 +35,7 @@ var (
 func init() {
 	cmd.Root.AddCommand(commandDefinition)
 	cmdFlags := commandDefinition.Flags()
-	flags.BoolVarP(cmdFlags, &noOutput, "no-output", "", noOutput, "If set don't output the JSON result.")
+	flags.BoolVarP(cmdFlags, &noOutput, "no-output", "", noOutput, "If set, don't output the JSON result.")
 	flags.StringVarP(cmdFlags, &url, "url", "", url, "URL to connect to rclone remote control.")
 	flags.StringVarP(cmdFlags, &jsonInput, "json", "", jsonInput, "Input JSON - use instead of key=value args.")
 	flags.StringVarP(cmdFlags, &authUser, "user", "", "", "Username to use to rclone remote control.")
@@ -92,7 +93,7 @@ Will place this in the "arg" value
 
 Use --loopback to connect to the rclone instance running "rclone rc".
 This is very useful for testing commands without having to run an
-rclone rc server, eg:
+rclone rc server, e.g.:
 
     rclone rc --loopback operations/about fs=/
 
@@ -164,7 +165,7 @@ func doCall(ctx context.Context, path string, in rc.Params) (out rc.Params, err 
 		if call == nil {
 			return nil, errors.Errorf("method %q not found", path)
 		}
-		out, err = call.Fn(context.Background(), in)
+		_, out, err := jobs.NewJob(ctx, call.Fn, in)
 		if err != nil {
 			return nil, errors.Wrap(err, "loopback call failed")
 		}
@@ -177,18 +178,17 @@ func doCall(ctx context.Context, path string, in rc.Params) (out rc.Params, err 
 	}
 
 	// Do HTTP request
-	client := fshttp.NewClient(fs.Config)
+	client := fshttp.NewClient(ctx)
 	url += path
 	data, err := json.Marshal(in)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to encode JSON")
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(data))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make request")
 	}
-	req = req.WithContext(ctx) // go1.13 can use NewRequestWithContext
 
 	req.Header.Set("Content-Type", "application/json")
 	if authUser != "" || authPass != "" {
