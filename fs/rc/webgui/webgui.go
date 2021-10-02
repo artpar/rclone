@@ -16,7 +16,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/artpar/rclone/fs"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/lib/file"
 )
 
 // GetLatestReleaseURL returns the latest release details of the rclone-webui-react
@@ -95,7 +96,7 @@ func CheckAndDownloadWebGUIRelease(checkUpdate bool, forceUpdate bool, fetchURL 
 
 		cachePathExist, cachePathStat, _ := exists(cachePath)
 		if !cachePathExist {
-			if err := os.MkdirAll(cachePath, 0755); err != nil {
+			if err := file.MkdirAll(cachePath, 0755); err != nil {
 				return errors.New("Error creating cache directory: " + cachePath)
 			}
 		}
@@ -174,14 +175,14 @@ func Unzip(src, dest string) (err error) {
 	}
 	defer fs.CheckClose(r, &err)
 
-	if err := os.MkdirAll(dest, 0755); err != nil {
+	if err := file.MkdirAll(dest, 0755); err != nil {
 		return err
 	}
 
 	// Closure to address file descriptors issue with all the deferred .Close() methods
 	extractAndWriteFile := func(f *zip.File) error {
 		path := filepath.Join(dest, f.Name)
-		// Check for Zip Slip: https://github.com/artpar/rclone/issues/3529
+		// Check for Zip Slip: https://github.com/rclone/rclone/issues/3529
 		if !strings.HasPrefix(path, dest) {
 			return fmt.Errorf("%s: illegal file path", path)
 		}
@@ -193,14 +194,14 @@ func Unzip(src, dest string) (err error) {
 		defer fs.CheckClose(rc, &err)
 
 		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(path, 0755); err != nil {
+			if err := file.MkdirAll(path, 0755); err != nil {
 				return err
 			}
 		} else {
-			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			if err := file.MkdirAll(filepath.Dir(path), 0755); err != nil {
 				return err
 			}
-			f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+			f, err := file.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 			if err != nil {
 				return err
 			}
@@ -239,7 +240,7 @@ func exists(path string) (existence bool, stat os.FileInfo, err error) {
 func CreatePathIfNotExist(path string) (err error) {
 	exists, stat, _ := exists(path)
 	if !exists {
-		if err := os.MkdirAll(path, 0755); err != nil {
+		if err := file.MkdirAll(path, 0755); err != nil {
 			return errors.New("Error creating : " + path)
 		}
 	}

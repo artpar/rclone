@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -20,19 +19,19 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/artpar/rclone/backend/pcloud/api"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/encoder"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/rclone/rclone/backend/pcloud/api"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/dircache"
+	"github.com/rclone/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/rest"
 	"golang.org/x/oauth2"
 )
 
@@ -72,7 +71,7 @@ func init() {
 		Name:        "pcloud",
 		Description: "Pcloud",
 		NewFs:       NewFs,
-		Config: func(ctx context.Context, name string, m configmap.Mapper) {
+		Config: func(ctx context.Context, name string, m configmap.Mapper, config fs.ConfigIn) (*fs.ConfigOut, error) {
 			optc := new(Options)
 			err := configstruct.Set(m, optc)
 			if err != nil {
@@ -94,14 +93,11 @@ func init() {
 				fs.Debugf(nil, "pcloud: got hostname %q", hostname)
 				return nil
 			}
-			opt := oauthutil.Options{
+			return oauthutil.ConfigOut("", &oauthutil.Options{
+				OAuth2Config: oauthConfig,
 				CheckAuth:    checkAuth,
 				StateBlankOK: true, // pCloud seems to drop the state parameter now - see #4210
-			}
-			err = oauthutil.Config(ctx, "pcloud", name, m, oauthConfig, &opt)
-			if err != nil {
-				log.Printf("Failed to configure token: %v", err)
-			}
+			})
 		},
 		Options: append(oauthutil.SharedOptions, []fs.Option{{
 			Name:     config.ConfigEncoding,
@@ -170,6 +166,7 @@ type Object struct {
 	id          string    // ID of the object
 	md5         string    // MD5 if known
 	sha1        string    // SHA1 if known
+	sha256      string    // SHA256 if known
 	link        *api.GetFileLinkResult
 }
 
@@ -344,7 +341,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		}
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
-		// See https://github.com/artpar/rclone/issues/2182
+		// See https://github.com/rclone/rclone/issues/2182
 		f.dirCache = tempF.dirCache
 		f.root = tempF.root
 		// return an error with an fs which points to the parent
@@ -892,7 +889,7 @@ func (f *Fs) Hashes() hash.Set {
 	//
 	// https://forum.rclone.org/t/pcloud-to-local-no-hashes-in-common/19440
 	if f.opt.Hostname == "eapi.pcloud.com" {
-		return hash.Set(hash.SHA1)
+		return hash.Set(hash.SHA1 | hash.SHA256)
 	}
 	return hash.Set(hash.MD5 | hash.SHA1)
 }
@@ -941,19 +938,24 @@ func (o *Object) getHashes(ctx context.Context) (err error) {
 
 // Hash returns the SHA-1 of an object returning a lowercase hex string
 func (o *Object) Hash(ctx context.Context, t hash.Type) (string, error) {
-	if t != hash.MD5 && t != hash.SHA1 {
+	var pHash *string
+	switch t {
+	case hash.MD5:
+		pHash = &o.md5
+	case hash.SHA1:
+		pHash = &o.sha1
+	case hash.SHA256:
+		pHash = &o.sha256
+	default:
 		return "", hash.ErrUnsupported
 	}
-	if o.md5 == "" && o.sha1 == "" {
+	if o.md5 == "" && o.sha1 == "" && o.sha256 == "" {
 		err := o.getHashes(ctx)
 		if err != nil {
 			return "", errors.Wrap(err, "failed to get hash")
 		}
 	}
-	if t == hash.MD5 {
-		return o.md5, nil
-	}
-	return o.sha1, nil
+	return *pHash, nil
 }
 
 // Size returns the size of an object in bytes
@@ -982,6 +984,7 @@ func (o *Object) setMetaData(info *api.Item) (err error) {
 func (o *Object) setHashes(hashes *api.Hashes) {
 	o.sha1 = hashes.SHA1
 	o.md5 = hashes.MD5
+	o.sha256 = hashes.SHA256
 }
 
 // readMetaData gets the metadata if it hasn't already been fetched
@@ -1096,6 +1099,10 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 	modTime := src.ModTime(ctx)
 	remote := o.Remote()
 
+	if size < 0 {
+		return errors.New("can't upload unknown sizes objects")
+	}
+
 	// Create the directory for the object if it doesn't exist
 	leaf, directoryID, err := o.fs.dirCache.FindPath(ctx, remote, true)
 	if err != nil {
@@ -1158,10 +1165,14 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 	})
 	if err != nil {
 		// sometimes pcloud leaves a half complete file on
-		// error, so delete it if it exists
-		delObj, delErr := o.fs.NewObject(ctx, o.remote)
-		if delErr == nil && delObj != nil {
-			_ = delObj.Remove(ctx)
+		// error, so delete it if it exists, trying a few times
+		for i := 0; i < 5; i++ {
+			delObj, delErr := o.fs.NewObject(ctx, o.remote)
+			if delErr == nil && delObj != nil {
+				_ = delObj.Remove(ctx)
+				break
+			}
+			time.Sleep(time.Second)
 		}
 		return err
 	}

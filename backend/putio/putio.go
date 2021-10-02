@@ -2,17 +2,16 @@ package putio
 
 import (
 	"context"
-	"log"
 	"regexp"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/encoder"
-	"github.com/artpar/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/lib/dircache"
+	"github.com/rclone/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/oauthutil"
 	"golang.org/x/oauth2"
 )
 
@@ -35,7 +34,7 @@ const (
 	minSleep                   = 10 * time.Millisecond
 	maxSleep                   = 2 * time.Second
 	decayConstant              = 2 // bigger for slower decay, exponential
-	defaultChunkSize           = 48 * fs.MebiByte
+	defaultChunkSize           = 48 * fs.Mebi
 )
 
 var (
@@ -60,14 +59,11 @@ func init() {
 		Name:        "putio",
 		Description: "Put.io",
 		NewFs:       NewFs,
-		Config: func(ctx context.Context, name string, m configmap.Mapper) {
-			opt := oauthutil.Options{
-				NoOffline: true,
-			}
-			err := oauthutil.Config(ctx, "putio", name, m, putioConfig, &opt)
-			if err != nil {
-				log.Printf("Failed to configure token: %v", err)
-			}
+		Config: func(ctx context.Context, name string, m configmap.Mapper, config fs.ConfigIn) (*fs.ConfigOut, error) {
+			return oauthutil.ConfigOut("", &oauthutil.Options{
+				OAuth2Config: putioConfig,
+				NoOffline:    true,
+			})
 		},
 		Options: []fs.Option{{
 			Name:     config.ConfigEncoding,

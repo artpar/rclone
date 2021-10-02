@@ -22,6 +22,7 @@ package operations_test
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -33,16 +34,15 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/artpar/rclone/backend/all" // import all backends
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/filter"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/operations"
-	"github.com/artpar/rclone/fstest"
-	"github.com/artpar/rclone/lib/random"
+	_ "github.com/rclone/rclone/backend/all" // import all backends
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/filter"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/operations"
+	"github.com/rclone/rclone/fstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -713,7 +713,7 @@ func TestCopyURL(t *testing.T) {
 	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{file1}, nil, fs.ModTimeNotSupported)
 
 	// Check file clobbering
-	o, err = operations.CopyURL(ctx, r.Fremote, "file1", ts.URL, false, true)
+	_, err = operations.CopyURL(ctx, r.Fremote, "file1", ts.URL, false, true)
 	require.Error(t, err)
 
 	// Check auto file naming
@@ -725,7 +725,7 @@ func TestCopyURL(t *testing.T) {
 	assert.Equal(t, urlFileName, o.Remote())
 
 	// Check auto file naming when url without file name
-	o, err = operations.CopyURL(ctx, r.Fremote, "file1", ts.URL, true, false)
+	_, err = operations.CopyURL(ctx, r.Fremote, "file1", ts.URL, true, false)
 	require.Error(t, err)
 
 	// Check an error is returned for a 404
@@ -809,6 +809,32 @@ func TestMoveFile(t *testing.T) {
 	require.NoError(t, err)
 	fstest.CheckItems(t, r.Flocal)
 	fstest.CheckItems(t, r.Fremote, file2)
+}
+
+func TestMoveFileWithIgnoreExisting(t *testing.T) {
+	ctx := context.Background()
+	ctx, ci := fs.AddConfig(ctx)
+	r := fstest.NewRun(t)
+	defer r.Finalise()
+	file1 := r.WriteFile("file1", "file1 contents", t1)
+	fstest.CheckItems(t, r.Flocal, file1)
+
+	ci.IgnoreExisting = true
+
+	err := operations.MoveFile(ctx, r.Fremote, r.Flocal, file1.Path, file1.Path)
+	require.NoError(t, err)
+	fstest.CheckItems(t, r.Flocal)
+	fstest.CheckItems(t, r.Fremote, file1)
+
+	// Recreate file with updated content
+	file1b := r.WriteFile("file1", "file1 modified", t2)
+	fstest.CheckItems(t, r.Flocal, file1b)
+
+	// Ensure modified file did not transfer and was not deleted
+	err = operations.MoveFile(ctx, r.Fremote, r.Flocal, file1.Path, file1b.Path)
+	require.NoError(t, err)
+	fstest.CheckItems(t, r.Flocal, file1b)
+	fstest.CheckItems(t, r.Fremote, file1)
 }
 
 func TestCaseInsensitiveMoveFile(t *testing.T) {
@@ -1206,10 +1232,10 @@ func TestListFormat(t *testing.T) {
 			Format: "2006-01-02T15:04:05.000000000Z07:00"},
 		IsDir: false,
 		Hashes: map[string]string{
-			"MD5":          "0cc175b9c0f1b6a831c399e269772661",
-			"SHA-1":        "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8",
-			"DropboxHash":  "bf5d3affb73efd2ec6c36ad3112dd933efed63c4e1cbffcfa88e2759c144f2d8",
-			"QuickXorHash": "6100000000000000000000000100000000000000"},
+			"md5":      "0cc175b9c0f1b6a831c399e269772661",
+			"sha1":     "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8",
+			"dropbox":  "bf5d3affb73efd2ec6c36ad3112dd933efed63c4e1cbffcfa88e2759c144f2d8",
+			"quickxor": "6100000000000000000000000100000000000000"},
 		ID:     "fileID",
 		OrigID: "fileOrigID",
 	}
@@ -1503,10 +1529,17 @@ func TestCopyFileMaxTransfer(t *testing.T) {
 	defer accounting.Stats(ctx).ResetCounters()
 
 	const sizeCutoff = 2048
+
+	// Make random incompressible data
+	randomData := make([]byte, sizeCutoff)
+	_, err := rand.Read(randomData)
+	require.NoError(t, err)
+	randomString := string(randomData)
+
 	file1 := r.WriteFile("TestCopyFileMaxTransfer/file1", "file1 contents", t1)
-	file2 := r.WriteFile("TestCopyFileMaxTransfer/file2", "file2 contents"+random.String(sizeCutoff), t2)
-	file3 := r.WriteFile("TestCopyFileMaxTransfer/file3", "file3 contents"+random.String(sizeCutoff), t2)
-	file4 := r.WriteFile("TestCopyFileMaxTransfer/file4", "file4 contents"+random.String(sizeCutoff), t2)
+	file2 := r.WriteFile("TestCopyFileMaxTransfer/file2", "file2 contents"+randomString, t2)
+	file3 := r.WriteFile("TestCopyFileMaxTransfer/file3", "file3 contents"+randomString, t2)
+	file4 := r.WriteFile("TestCopyFileMaxTransfer/file4", "file4 contents"+randomString, t2)
 
 	// Cutoff mode: Hard
 	ci.MaxTransfer = sizeCutoff
@@ -1514,7 +1547,7 @@ func TestCopyFileMaxTransfer(t *testing.T) {
 
 	// file1: Show a small file gets transferred OK
 	accounting.Stats(ctx).ResetCounters()
-	err := operations.CopyFile(ctx, r.Fremote, r.Flocal, file1.Path, file1.Path)
+	err = operations.CopyFile(ctx, r.Fremote, r.Flocal, file1.Path, file1.Path)
 	require.NoError(t, err)
 	fstest.CheckItems(t, r.Flocal, file1, file2, file3, file4)
 	fstest.CheckItems(t, r.Fremote, file1)

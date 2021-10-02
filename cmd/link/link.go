@@ -3,7 +3,6 @@ package link
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/artpar/rclone/cmd"
 	"github.com/artpar/rclone/fs"
@@ -13,7 +12,7 @@ import (
 )
 
 var (
-	expire = fs.Duration(time.Hour * 24 * 365 * 100)
+	expire = fs.DurationOff
 	unlink = false
 )
 

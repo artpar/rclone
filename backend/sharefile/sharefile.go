@@ -77,7 +77,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -85,20 +84,20 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/artpar/rclone/backend/sharefile/api"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/encoder"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/random"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/rclone/rclone/backend/sharefile/api"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/dircache"
+	"github.com/rclone/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/random"
+	"github.com/rclone/rclone/lib/rest"
 	"golang.org/x/oauth2"
 )
 
@@ -110,10 +109,10 @@ const (
 	decayConstant               = 2              // bigger for slower decay, exponential
 	apiPath                     = "/sf/v3"       // add to endpoint to get API path
 	tokenPath                   = "/oauth/token" // add to endpoint to get Token path
-	minChunkSize                = 256 * fs.KibiByte
-	maxChunkSize                = 2 * fs.GibiByte
-	defaultChunkSize            = 64 * fs.MebiByte
-	defaultUploadCutoff         = 128 * fs.MebiByte
+	minChunkSize                = 256 * fs.Kibi
+	maxChunkSize                = 2 * fs.Gibi
+	defaultChunkSize            = 64 * fs.Mebi
+	defaultUploadCutoff         = 128 * fs.Mebi
 )
 
 // Generate a new oauth2 config which we will update when we know the TokenURL
@@ -136,7 +135,7 @@ func init() {
 		Name:        "sharefile",
 		Description: "Citrix Sharefile",
 		NewFs:       NewFs,
-		Config: func(ctx context.Context, name string, m configmap.Mapper) {
+		Config: func(ctx context.Context, name string, m configmap.Mapper, config fs.ConfigIn) (*fs.ConfigOut, error) {
 			oauthConfig := newOauthConfig("")
 			checkAuth := func(oauthConfig *oauth2.Config, auth *oauthutil.AuthResult) error {
 				if auth == nil || auth.Form == nil {
@@ -152,13 +151,10 @@ func init() {
 				oauthConfig.Endpoint.TokenURL = endpoint + tokenPath
 				return nil
 			}
-			opt := oauthutil.Options{
-				CheckAuth: checkAuth,
-			}
-			err := oauthutil.Config(ctx, "sharefile", name, m, oauthConfig, &opt)
-			if err != nil {
-				log.Printf("Failed to configure token: %v", err)
-			}
+			return oauthutil.ConfigOut("", &oauthutil.Options{
+				OAuth2Config: oauthConfig,
+				CheckAuth:    checkAuth,
+			})
 		},
 		Options: []fs.Option{{
 			Name:     "upload_cutoff",
@@ -526,7 +522,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		f.features.Fill(ctx, &tempF)
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
-		// See https://github.com/artpar/rclone/issues/2182
+		// See https://github.com/rclone/rclone/issues/2182
 		f.dirCache = tempF.dirCache
 		f.root = tempF.root
 		// return an error with an fs which points to the parent

@@ -3,13 +3,14 @@ package serve
 import (
 	"errors"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/cmd/serve/dlna"
-	"github.com/artpar/rclone/cmd/serve/ftp"
-	"github.com/artpar/rclone/cmd/serve/http"
-	"github.com/artpar/rclone/cmd/serve/restic"
-	"github.com/artpar/rclone/cmd/serve/sftp"
-	"github.com/artpar/rclone/cmd/serve/webdav"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/cmd/serve/dlna"
+	"github.com/rclone/rclone/cmd/serve/docker"
+	"github.com/rclone/rclone/cmd/serve/ftp"
+	"github.com/rclone/rclone/cmd/serve/http"
+	"github.com/rclone/rclone/cmd/serve/restic"
+	"github.com/rclone/rclone/cmd/serve/sftp"
+	"github.com/rclone/rclone/cmd/serve/webdav"
 	"github.com/spf13/cobra"
 )
 
@@ -29,6 +30,9 @@ func init() {
 	}
 	if sftp.Command != nil {
 		Command.AddCommand(sftp.Command)
+	}
+	if docker.Command != nil {
+		Command.AddCommand(docker.Command)
 	}
 	cmd.Root.AddCommand(Command)
 }

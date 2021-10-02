@@ -18,24 +18,24 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/fs/rc/webgui"
+	"github.com/rclone/rclone/fs/rc/webgui"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/skratchdot/open-golang/open"
 
-	"github.com/artpar/rclone/cmd/serve/httplib"
-	"github.com/artpar/rclone/cmd/serve/httplib/serve"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/cache"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/list"
-	"github.com/artpar/rclone/fs/rc"
-	"github.com/artpar/rclone/fs/rc/jobs"
-	"github.com/artpar/rclone/fs/rc/rcflags"
-	"github.com/artpar/rclone/lib/random"
+	"github.com/rclone/rclone/cmd/serve/httplib"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/cache"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/list"
+	"github.com/rclone/rclone/fs/rc"
+	"github.com/rclone/rclone/fs/rc/jobs"
+	"github.com/rclone/rclone/fs/rc/rcflags"
+	"github.com/rclone/rclone/lib/http/serve"
+	"github.com/rclone/rclone/lib/random"
 )
 
 var promHandler http.Handler

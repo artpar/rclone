@@ -1,4 +1,6 @@
 // Package httplib provides common functionality for http servers
+//
+// Deprecated: httplib has been replaced with lib/http
 package httplib
 
 import (
@@ -16,9 +18,9 @@ import (
 	"time"
 
 	auth "github.com/abbot/go-http-auth"
-	"github.com/artpar/rclone/cmd/serve/httplib/serve/data"
-	"github.com/artpar/rclone/fs"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/cmd/serve/http/data"
+	"github.com/rclone/rclone/fs"
 )
 
 // Globals
@@ -266,7 +268,7 @@ func NewServer(handler http.Handler, opt *Options) *Server {
 
 	s.useSSL = s.Opt.SslKey != ""
 	if (s.Opt.SslCert != "") != s.useSSL {
-		log.Printf("Need both -cert and -key to use SSL")
+		log.Fatalf("Need both -cert and -key to use SSL")
 	}
 
 	// If a Base URL is set then serve from there
@@ -291,15 +293,15 @@ func NewServer(handler http.Handler, opt *Options) *Server {
 
 	if s.Opt.ClientCA != "" {
 		if !s.useSSL {
-			log.Printf("Can't use --client-ca without --cert and --key")
+			log.Fatalf("Can't use --client-ca without --cert and --key")
 		}
 		certpool := x509.NewCertPool()
 		pem, err := ioutil.ReadFile(s.Opt.ClientCA)
 		if err != nil {
-			log.Printf("Failed to read client certificate authority: %v", err)
+			log.Fatalf("Failed to read client certificate authority: %v", err)
 		}
 		if !certpool.AppendCertsFromPEM(pem) {
-			log.Printf("Can't parse client certificate authority")
+			log.Fatalf("Can't parse client certificate authority")
 		}
 		s.httpServer.TLSConfig.ClientCAs = certpool
 		s.httpServer.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
@@ -307,7 +309,7 @@ func NewServer(handler http.Handler, opt *Options) *Server {
 
 	htmlTemplate, templateErr := data.GetTemplate(s.Opt.Template)
 	if templateErr != nil {
-		log.Printf(templateErr.Error())
+		log.Fatalf(templateErr.Error())
 	}
 	s.HTMLTemplate = htmlTemplate
 

@@ -11,20 +11,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	swiftLib "github.com/ncw/swift/v2"
 	"github.com/pkg/errors"
-	"github.com/artpar/rclone/backend/swift"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/backend/swift"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/lib/oauthutil"
 	"golang.org/x/oauth2"
 )
 
@@ -56,12 +55,10 @@ func init() {
 		Name:        "hubic",
 		Description: "Hubic",
 		NewFs:       NewFs,
-		Config: func(ctx context.Context, name string, m configmap.Mapper) {
-			err := oauthutil.Config(ctx, "hubic", name, m, oauthConfig, nil)
-			if err != nil {
-				log.Printf("Failed to configure token: %v", err)
-				return
-			}
+		Config: func(ctx context.Context, name string, m configmap.Mapper, config fs.ConfigIn) (*fs.ConfigOut, error) {
+			return oauthutil.ConfigOut("", &oauthutil.Options{
+				OAuth2Config: oauthConfig,
+			})
 		},
 		Options: append(oauthutil.SharedOptions, swift.SharedOptions...),
 	})

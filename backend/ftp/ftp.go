@@ -120,13 +120,20 @@ Set to 0 to keep connections indefinitely.
 			Name:     config.ConfigEncoding,
 			Help:     config.ConfigEncodingHelp,
 			Advanced: true,
-			// The FTP protocol can't handle trailing spaces (for instance
-			// pureftpd turns them into _)
-			//
-			// proftpd can't handle '*' in file names
-			// pureftpd can't handle '[', ']' or '*'
+			// The FTP protocol can't handle trailing spaces
+			// (for instance, pureftpd turns them into '_')
 			Default: (encoder.Display |
 				encoder.EncodeRightSpace),
+			Examples: []fs.OptionExample{{
+				Value: "Asterisk,Ctl,Dot,Slash",
+				Help:  "ProFTPd can't handle '*' in file names",
+			}, {
+				Value: "BackSlash,Ctl,Del,Dot,RightSpace,Slash,SquareBracket",
+				Help:  "PureFTPd can't handle '[]' or '*' in file names",
+			}, {
+				Value: "Ctl,LeftPeriod,Slash",
+				Help:  "VsFTPd can't handle file names starting with dot",
+			}},
 		}},
 	})
 }
@@ -241,23 +248,6 @@ func (dl *debugLog) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-type dialCtx struct {
-	f   *Fs
-	ctx context.Context
-}
-
-// dial a new connection with fshttp dialer
-func (d *dialCtx) dial(network, address string) (net.Conn, error) {
-	conn, err := fshttp.NewDialer(d.ctx).Dial(network, address)
-	if err != nil {
-		return nil, err
-	}
-	if d.f.tlsConf != nil {
-		conn = tls.Client(conn, d.f.tlsConf)
-	}
-	return conn, err
-}
-
 // shouldRetry returns a boolean as to whether this err deserve to be
 // retried.  It returns the err as a convenience
 func shouldRetry(ctx context.Context, err error) (bool, error) {
@@ -277,9 +267,22 @@ func shouldRetry(ctx context.Context, err error) (bool, error) {
 // Open a new connection to the FTP server.
 func (f *Fs) ftpConnection(ctx context.Context) (c *ftp.ServerConn, err error) {
 	fs.Debugf(f, "Connecting to FTP server")
-	dCtx := dialCtx{f, ctx}
-	ftpConfig := []ftp.DialOption{ftp.DialWithDialFunc(dCtx.dial)}
-	if f.opt.ExplicitTLS {
+
+	// Make ftp library dial with fshttp dialer optionally using TLS
+	dial := func(network, address string) (conn net.Conn, err error) {
+		conn, err = fshttp.NewDialer(ctx).Dial(network, address)
+		if f.tlsConf != nil && err == nil {
+			conn = tls.Client(conn, f.tlsConf)
+		}
+		return
+	}
+	ftpConfig := []ftp.DialOption{ftp.DialWithDialFunc(dial)}
+
+	if f.opt.TLS {
+		// Our dialer takes care of TLS but ftp library also needs tlsConf
+		// as a trigger for sending PSBZ and PROT options to server.
+		ftpConfig = append(ftpConfig, ftp.DialWithTLS(f.tlsConf))
+	} else if f.opt.ExplicitTLS {
 		ftpConfig = append(ftpConfig, ftp.DialWithExplicitTLS(f.tlsConf))
 		// Initial connection needs to be cleartext for explicit TLS
 		conn, err := fshttp.NewDialer(ctx).Dial("tcp", f.dialAddr)
@@ -1054,10 +1057,21 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 		return errors.Wrap(err, "Update")
 	}
 	err = c.Stor(o.fs.opt.Enc.FromStandardPath(path), in)
+	// Ignore error 250 here - send by some servers
+	if err != nil {
+		switch errX := err.(type) {
+		case *textproto.Error:
+			switch errX.Code {
+			case ftp.StatusRequestedFileActionOK:
+				err = nil
+			}
+		}
+	}
 	if err != nil {
 		_ = c.Quit() // toss this connection to avoid sync errors
-		remove()
+		// recycle connection in advance to let remove() find free token
 		o.fs.putFtpConnection(nil, err)
+		remove()
 		return errors.Wrap(err, "update stor")
 	}
 	o.fs.putFtpConnection(&c, nil)

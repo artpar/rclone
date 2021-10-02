@@ -12,7 +12,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/artpar/rclone/cmd"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/lib/file"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 	"github.com/spf13/pflag"
@@ -55,7 +56,7 @@ rclone.org website.`,
 		// Create the directory structure
 		root := args[0]
 		out := filepath.Join(root, "commands")
-		err := os.MkdirAll(out, 0777)
+		err := file.MkdirAll(out, 0777)
 		if err != nil {
 			return err
 		}

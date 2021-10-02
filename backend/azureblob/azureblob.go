@@ -1,6 +1,7 @@
 // Package azureblob provides an interface to the Microsoft Azure blob object storage system
 
-// +build !plan9,!solaris,!js,go1.14
+//go:build !plan9 && !solaris && !js
+// +build !plan9,!solaris,!js
 
 package azureblob
 
@@ -47,8 +48,8 @@ const (
 	timeFormatIn          = time.RFC3339
 	timeFormatOut         = "2006-01-02T15:04:05.000000000Z07:00"
 	storageDefaultBaseURL = "blob.core.windows.net"
-	defaultChunkSize      = 4 * fs.MebiByte
-	maxChunkSize          = 100 * fs.MebiByte
+	defaultChunkSize      = 4 * fs.Mebi
+	maxChunkSize          = 100 * fs.Mebi
 	uploadConcurrency     = 4
 	defaultAccessTier     = azblob.AccessTierNone
 	maxTryTimeout         = time.Hour * 24 * 365 //max time of an azure web request response window (whether or not data is flowing)
@@ -80,13 +81,12 @@ func init() {
 
 Leave blank normally. Needed only if you want to use a service principal instead of interactive login.
 
-    $ az sp create-for-rbac --name "<name>" \
+    $ az ad sp create-for-rbac --name "<name>" \
       --role "Storage Blob Data Owner" \
       --scopes "/subscriptions/<subscription>/resourceGroups/<resource-group>/providers/Microsoft.Storage/storageAccounts/<storage-account>/blobServices/default/containers/<container>" \
       > azure-principal.json
 
-See [Use Azure CLI to assign an Azure role for access to blob and queue data](https://docs.microsoft.com/en-us/azure/storage/common/storage-auth-aad-rbac-cli)
-for more details.
+See ["Create an Azure service principal"](https://docs.microsoft.com/en-us/cli/azure/create-an-azure-service-principal-azure-cli) and ["Assign an Azure role for access to blob data"](https://docs.microsoft.com/en-us/azure/storage/common/storage-auth-aad-rbac-cli) pages for more details.
 `,
 		}, {
 			Name: "key",
@@ -129,11 +129,11 @@ msi_client_id, or msi_mi_res_id parameters.`,
 			Advanced: true,
 		}, {
 			Name:     "upload_cutoff",
-			Help:     "Cutoff for switching to chunked upload (<= 256MB). (Deprecated)",
+			Help:     "Cutoff for switching to chunked upload (<= 256 MiB). (Deprecated)",
 			Advanced: true,
 		}, {
 			Name: "chunk_size",
-			Help: `Upload chunk size (<= 100MB).
+			Help: `Upload chunk size (<= 100 MiB).
 
 Note that this is stored in memory and there may be up to
 "--transfers" chunks stored at once in memory.`,
@@ -234,6 +234,11 @@ This option controls how often unused buffers will be removed from the pool.`,
 				},
 			},
 			Advanced: true,
+		}, {
+			Name:     "no_head_object",
+			Help:     `If set, do not do HEAD before GET when getting objects.`,
+			Default:  false,
+			Advanced: true,
 		}},
 	})
 }
@@ -259,6 +264,7 @@ type Options struct {
 	MemoryPoolUseMmap    bool                 `config:"memory_pool_use_mmap"`
 	Enc                  encoder.MultiEncoder `config:"encoding"`
 	PublicAccess         string               `config:"public_access"`
+	NoHeadObject         bool                 `config:"no_head_object"`
 }
 
 // Fs represents a remote azure server
@@ -404,7 +410,7 @@ func (f *Fs) shouldRetry(ctx context.Context, err error) (bool, error) {
 }
 
 func checkUploadChunkSize(cs fs.SizeSuffix) error {
-	const minChunkSize = fs.Byte
+	const minChunkSize = fs.SizeSuffixBase
 	if cs < minChunkSize {
 		return errors.Errorf("%s is less than %s", cs, minChunkSize)
 	}
@@ -757,7 +763,7 @@ func (f *Fs) newObjectWithInfo(remote string, info *azblob.BlobItemInternal) (fs
 		if err != nil {
 			return nil, err
 		}
-	} else {
+	} else if !o.fs.opt.NoHeadObject {
 		err := o.readMetaData() // reads info and headers, returning an error
 		if err != nil {
 			return nil, err
@@ -1367,6 +1373,24 @@ func (o *Object) decodeMetaDataFromPropertiesResponse(info *azblob.BlobGetProper
 	return nil
 }
 
+func (o *Object) decodeMetaDataFromDownloadResponse(info *azblob.DownloadResponse) (err error) {
+	metadata := info.NewMetadata()
+	size := info.ContentLength()
+	if isDirectoryMarker(size, metadata, o.remote) {
+		return fs.ErrorNotAFile
+	}
+	// NOTE - Client library always returns MD5 as base64 decoded string, Object needs to maintain
+	// this as base64 encoded string.
+	o.md5 = base64.StdEncoding.EncodeToString(info.ContentMD5())
+	o.mimeType = info.ContentType()
+	o.size = size
+	o.modTime = info.LastModified()
+	o.accessTier = o.AccessTier()
+	o.setMetadata(metadata)
+
+	return nil
+}
+
 func (o *Object) decodeMetaDataFromBlob(info *azblob.BlobItemInternal) (err error) {
 	metadata := info.Metadata
 	size := *info.Properties.ContentLength
@@ -1496,6 +1520,10 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open for download")
+	}
+	err = o.decodeMetaDataFromDownloadResponse(downloadResponse)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decode metadata for download")
 	}
 	in = downloadResponse.Body(azblob.RetryReaderOptions{})
 	return in, nil

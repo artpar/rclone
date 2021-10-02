@@ -1,3 +1,4 @@
+//go:build !plan9
 // +build !plan9
 
 // Package tardigrade provides an interface to Tardigrade decentralized object storage.
@@ -7,19 +8,18 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"path"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/bucket"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/bucket"
 	"golang.org/x/text/unicode/norm"
 
 	"storj.io/uplink"
@@ -42,19 +42,19 @@ func init() {
 		Name:        "tardigrade",
 		Description: "Tardigrade Decentralized Cloud Storage",
 		NewFs:       NewFs,
-		Config: func(ctx context.Context, name string, configMapper configmap.Mapper) {
-			provider, _ := configMapper.Get(fs.ConfigProvider)
+		Config: func(ctx context.Context, name string, m configmap.Mapper, configIn fs.ConfigIn) (*fs.ConfigOut, error) {
+			provider, _ := m.Get(fs.ConfigProvider)
 
 			config.FileDeleteKey(name, fs.ConfigProvider)
 
 			if provider == newProvider {
-				satelliteString, _ := configMapper.Get("satellite_address")
-				apiKey, _ := configMapper.Get("api_key")
-				passphrase, _ := configMapper.Get("passphrase")
+				satelliteString, _ := m.Get("satellite_address")
+				apiKey, _ := m.Get("api_key")
+				passphrase, _ := m.Get("passphrase")
 
 				// satelliteString contains always default and passphrase can be empty
 				if apiKey == "" {
-					return
+					return nil, nil
 				}
 
 				satellite, found := satMap[satelliteString]
@@ -64,25 +64,23 @@ func init() {
 
 				access, err := uplink.RequestAccessWithPassphrase(context.TODO(), satellite, apiKey, passphrase)
 				if err != nil {
-					log.Printf("Couldn't create access grant: %v", err)
-					return
+					return nil, errors.Wrap(err, "couldn't create access grant")
 				}
 
 				serializedAccess, err := access.Serialize()
 				if err != nil {
-					log.Printf("Couldn't serialize access grant: %v", err)
-					return
+					return nil, errors.Wrap(err, "couldn't serialize access grant")
 				}
-				configMapper.Set("satellite_address", satellite)
-				configMapper.Set("access_grant", serializedAccess)
+				m.Set("satellite_address", satellite)
+				m.Set("access_grant", serializedAccess)
 			} else if provider == existingProvider {
 				config.FileDeleteKey(name, "satellite_address")
 				config.FileDeleteKey(name, "api_key")
 				config.FileDeleteKey(name, "passphrase")
 			} else {
-				log.Printf("Invalid provider type: %s", provider)
-				return
+				return nil, errors.Errorf("invalid provider type: %s", provider)
 			}
+			return nil, nil
 		},
 		Options: []fs.Option{
 			{

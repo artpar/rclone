@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	golog "log"
 	"net/http"
 	"net/url"
 	"path"
@@ -19,19 +18,21 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/artpar/rclone/backend/googlephotos/api"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/dirtree"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/log"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/rclone/rclone/backend/googlephotos/api"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/dirtree"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/log"
+	"github.com/rclone/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/rest"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -54,6 +55,7 @@ const (
 	minSleep                    = 10 * time.Millisecond
 	scopeReadOnly               = "https://www.googleapis.com/auth/photoslibrary.readonly"
 	scopeReadWrite              = "https://www.googleapis.com/auth/photoslibrary"
+	scopeAccess                 = 2 // position of access scope in list
 )
 
 var (
@@ -62,7 +64,7 @@ var (
 		Scopes: []string{
 			"openid",
 			"profile",
-			scopeReadWrite,
+			scopeReadWrite, // this must be at position scopeAccess
 		},
 		Endpoint:     google.Endpoint,
 		ClientID:     rcloneClientID,
@@ -78,37 +80,36 @@ func init() {
 		Prefix:      "gphotos",
 		Description: "Google Photos",
 		NewFs:       NewFs,
-		Config: func(ctx context.Context, name string, m configmap.Mapper) {
+		Config: func(ctx context.Context, name string, m configmap.Mapper, config fs.ConfigIn) (*fs.ConfigOut, error) {
 			// Parse config into Options struct
 			opt := new(Options)
 			err := configstruct.Set(m, opt)
 			if err != nil {
-				fs.Errorf(nil, "Couldn't parse config into struct: %v", err)
-				return
+				return nil, errors.Wrap(err, "couldn't parse config into struct")
 			}
 
-			// Fill in the scopes
-			if opt.ReadOnly {
-				oauthConfig.Scopes[0] = scopeReadOnly
-			} else {
-				oauthConfig.Scopes[0] = scopeReadWrite
+			switch config.State {
+			case "":
+				// Fill in the scopes
+				if opt.ReadOnly {
+					oauthConfig.Scopes[scopeAccess] = scopeReadOnly
+				} else {
+					oauthConfig.Scopes[scopeAccess] = scopeReadWrite
+				}
+				return oauthutil.ConfigOut("warning", &oauthutil.Options{
+					OAuth2Config: oauthConfig,
+				})
+			case "warning":
+				// Warn the user as required by google photos integration
+				return fs.ConfigConfirm("warning_done", true, "config_warning", `Warning
+
+IMPORTANT: All media items uploaded to Google Photos with rclone
+are stored in full resolution at original quality.  These uploads
+will count towards storage in your Google Account.`)
+			case "warning_done":
+				return nil, nil
 			}
-
-			// Do the oauth
-			err = oauthutil.Config(ctx, "google photos", name, m, oauthConfig, nil)
-			if err != nil {
-				golog.Printf("Failed to configure token: %v", err)
-				return
-			}
-
-			// Warn the user
-			fmt.Print(`
-*** IMPORTANT: All media items uploaded to Google Photos with rclone
-*** are stored in full resolution at original quality.  These uploads
-*** will count towards storage in your Google Account.
-
-`)
-
+			return nil, fmt.Errorf("unknown state %q", config.State)
 		},
 		Options: append(oauthutil.SharedOptions, []fs.Option{{
 			Name:    "read_only",
@@ -150,16 +151,24 @@ listings and transferred.
 Without this flag, archived media will not be visible in directory
 listings and won't be transferred.`,
 			Advanced: true,
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			Default: (encoder.Base |
+				encoder.EncodeCrLf |
+				encoder.EncodeInvalidUtf8),
 		}}...),
 	})
 }
 
 // Options defines the configuration for this backend
 type Options struct {
-	ReadOnly        bool `config:"read_only"`
-	ReadSize        bool `config:"read_size"`
-	StartYear       int  `config:"start_year"`
-	IncludeArchived bool `config:"include_archived"`
+	ReadOnly        bool                 `config:"read_only"`
+	ReadSize        bool                 `config:"read_size"`
+	StartYear       int                  `config:"start_year"`
+	IncludeArchived bool                 `config:"include_archived"`
+	Enc             encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote storage server
@@ -497,7 +506,9 @@ func (f *Fs) listAlbums(ctx context.Context, shared bool) (all *albums, err erro
 			lastID = newAlbums[len(newAlbums)-1].ID
 		}
 		for i := range newAlbums {
-			all.add(&newAlbums[i])
+			anAlbum := newAlbums[i]
+			anAlbum.Title = f.opt.Enc.FromStandardPath(anAlbum.Title)
+			all.add(&anAlbum)
 		}
 		if result.NextPageToken == "" {
 			break

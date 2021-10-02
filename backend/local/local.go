@@ -17,16 +17,17 @@ import (
 	"unicode/utf8"
 
 	"github.com/pkg/errors"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/encoder"
-	"github.com/artpar/rclone/lib/file"
-	"github.com/artpar/rclone/lib/readers"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/file"
+	"github.com/rclone/rclone/lib/readers"
+	"golang.org/x/text/unicode/norm"
 )
 
 // Constants
@@ -73,25 +74,34 @@ points, as you explicitly acknowledge that they should be skipped.`,
 			Advanced: true,
 		}, {
 			Name: "zero_size_links",
-			Help: `Assume the Stat size of links is zero (and read them instead)
+			Help: `Assume the Stat size of links is zero (and read them instead) (Deprecated)
 
-On some virtual filesystems (such ash LucidLink), reading a link size via a Stat call always returns 0.
-However, on unix it reads as the length of the text in the link. This may cause errors like this when
-syncing:
+Rclone used to use the Stat size of links as the link size, but this fails in quite a few places
 
-    Failed to copy: corrupted on transfer: sizes differ 0 vs 13
+- Windows
+- On some virtual filesystems (such ash LucidLink)
+- Android
 
-Setting this flag causes rclone to read the link and use that as the size of the link
-instead of 0 which in most cases fixes the problem.`,
+So rclone now always reads the link
+`,
 			Default:  false,
 			Advanced: true,
 		}, {
-			Name: "no_unicode_normalization",
-			Help: `Don't apply unicode normalization to paths and filenames (Deprecated)
+			Name: "unicode_normalization",
+			Help: `Apply unicode NFC normalization to paths and filenames
 
-This flag is deprecated now.  Rclone no longer normalizes unicode file
-names, but it compares them with unicode normalization in the sync
-routine instead.`,
+This flag can be used to normalize file names into unicode NFC form
+that are read from the local filesystem.
+
+Rclone does not normally touch the encoding of file names it reads from
+the file system.
+
+This can be useful when using macOS as it normally provides decomposed (NFD)
+unicode which in some language (eg Korean) doesn't display properly on
+some OSes.
+
+Note that rclone compares filenames with unicode normalization in the sync
+routine so this flag shouldn't normally be used.`,
 			Default:  false,
 			Advanced: true,
 		}, {
@@ -103,7 +113,7 @@ are being uploaded and aborts with a message which starts "can't copy
 - source file is being updated" if the file changes during upload.
 
 However on some file systems this modification time check may fail (e.g.
-[Glusterfs #2206](https://github.com/artpar/rclone/issues/2206)) so this
+[Glusterfs #2206](https://github.com/rclone/rclone/issues/2206)) so this
 check can be disabled with this flag.
 
 If this flag is set, rclone will use its best efforts to transfer a
@@ -185,7 +195,7 @@ enabled, rclone will no longer update the modtime after copying a file.`,
 			Name:     config.ConfigEncoding,
 			Help:     config.ConfigEncodingHelp,
 			Advanced: true,
-			Default:  defaultEnc,
+			Default:  encoder.OS,
 		}},
 	}
 	fs.Register(fsi)
@@ -196,8 +206,7 @@ type Options struct {
 	FollowSymlinks    bool                 `config:"copy_links"`
 	TranslateSymlinks bool                 `config:"links"`
 	SkipSymlinks      bool                 `config:"skip_links"`
-	ZeroSizeLinks     bool                 `config:"zero_size_links"`
-	NoUTFNorm         bool                 `config:"no_unicode_normalization"`
+	UTFNorm           bool                 `config:"unicode_normalization"`
 	NoCheckUpdated    bool                 `config:"no_check_updated"`
 	NoUNC             bool                 `config:"nounc"`
 	OneFileSystem     bool                 `config:"one_file_system"`
@@ -254,10 +263,6 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	}
 	if opt.TranslateSymlinks && opt.FollowSymlinks {
 		return nil, errLinksAndCopyLinks
-	}
-
-	if opt.NoUTFNorm {
-		fs.Errorf(nil, "The --local-no-unicode-normalization flag is deprecated and will be removed")
 	}
 
 	f := &Fs{
@@ -462,6 +467,10 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 				for _, name := range names {
 					namepath := filepath.Join(fsDirPath, name)
 					fi, fierr := os.Lstat(namepath)
+					if os.IsNotExist(fierr) {
+						// skip entry removed by a concurrent goroutine
+						continue
+					}
 					if fierr != nil {
 						err = errors.Wrapf(err, "failed to read directory %q", namepath)
 						fs.Errorf(dir, "%v", fierr)
@@ -522,6 +531,9 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 }
 
 func (f *Fs) cleanRemote(dir, filename string) (remote string) {
+	if f.opt.UTFNorm {
+		filename = norm.NFC.String(filename)
+	}
 	remote = path.Join(dir, f.opt.Enc.ToStandardName(filename))
 
 	if !utf8.ValidString(filename) {
@@ -557,9 +569,8 @@ func (f *Fs) PutStream(ctx context.Context, in io.Reader, src fs.ObjectInfo, opt
 
 // Mkdir creates the directory if it doesn't exist
 func (f *Fs) Mkdir(ctx context.Context, dir string) error {
-	// FIXME: https://github.com/syncthing/syncthing/blob/master/lib/osutil/mkdirall_windows.go
 	localPath := f.localPath(dir)
-	err := os.MkdirAll(localPath, 0777)
+	err := file.MkdirAll(localPath, 0777)
 	if err != nil {
 		return err
 	}
@@ -753,7 +764,7 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 
 	// Create parent of destination
 	dstParentPath := filepath.Dir(dstPath)
-	err = os.MkdirAll(dstParentPath, 0777)
+	err = file.MkdirAll(dstParentPath, 0777)
 	if err != nil {
 		return err
 	}
@@ -1087,7 +1098,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 // mkdirAll makes all the directories needed to store the object
 func (o *Object) mkdirAll() error {
 	dir := filepath.Dir(o.path)
-	return os.MkdirAll(dir, 0777)
+	return file.MkdirAll(dir, 0777)
 }
 
 type nopWriterCloser struct {
@@ -1267,9 +1278,13 @@ func (o *Object) setMetadata(info os.FileInfo) {
 	o.modTime = info.ModTime()
 	o.mode = info.Mode()
 	o.fs.objectMetaMu.Unlock()
-	// On Windows links read as 0 size so set the correct size here
-	// Optionally, users can turn this feature on with the zero_size_links flag
-	if (runtime.GOOS == "windows" || o.fs.opt.ZeroSizeLinks) && o.translatedLink {
+	// Read the size of the link.
+	//
+	// The value in info.Size() is not always correct
+	// - Windows links read as 0 size
+	// - Some virtual filesystems (such ash LucidLink) links read as 0 size
+	// - Android - some versions the links are larger than readlink suggests
+	if o.translatedLink {
 		linkdst, err := os.Readlink(o.path)
 		if err != nil {
 			fs.Errorf(o, "Failed to read link size: %v", err)

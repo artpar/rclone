@@ -3,8 +3,7 @@ title: "Swift"
 description: "Swift"
 ---
 
-{{< icon "fa fa-space-shuttle" >}}Swift
-----------------------------------------
+# {{< icon "fa fa-space-shuttle" >}}Swift
 
 Swift refers to [OpenStack Object Storage](https://docs.openstack.org/swift/latest/).
 Commercial implementations of that being:
@@ -444,12 +443,12 @@ If true avoid calling abort upload on a failure. It should be set to true for re
 Above this size files will be chunked into a _segments container.
 
 Above this size files will be chunked into a _segments container.  The
-default for this is 5GB which is its maximum value.
+default for this is 5 GiB which is its maximum value.
 
 - Config:      chunk_size
 - Env Var:     RCLONE_SWIFT_CHUNK_SIZE
 - Type:        SizeSuffix
-- Default:     5G
+- Default:     5Gi
 
 #### --swift-no-chunk
 
@@ -458,7 +457,7 @@ Don't chunk files during streaming upload.
 When doing streaming uploads (e.g. using rcat or mount) setting this
 flag will cause the swift backend to not upload chunked files.
 
-This will limit the maximum upload size to 5GB. However non chunked
+This will limit the maximum upload size to 5 GiB. However non chunked
 files are easier to deal with and have an MD5SUM.
 
 Rclone will still chunk files bigger than chunk_size when doing normal
@@ -525,3 +524,18 @@ have (e.g. OVH).
 
 This is most likely caused by forgetting to specify your tenant when
 setting up a swift remote.
+
+### OVH Cloud Archive ###
+To use rclone with OVH cloud archive, first use `rclone config` to set up a `swift` backend with OVH, choosing `pca` as the `storage_policy`.
+
+#### Uploading Objects ####
+
+Uploading objects to OVH cloud archive is no different to object storage, you just simply run the command you like (move, copy or sync) to upload the objects. Once uploaded the objects will show in a "Frozen" state within the OVH control panel.
+
+#### Retrieving Objects ####
+
+To retrieve objects use `rclone copy` as normal. If the objects are in a frozen state then rclone will ask for them all to be unfrozen and it will wait at the end of the output with a message like the following:
+
+`2019/03/23 13:06:33 NOTICE: Received retry after error - sleeping until 2019-03-23T13:16:33.481657164+01:00 (9m59.99985121s)`
+
+Rclone will wait for the time specified then retry the copy.

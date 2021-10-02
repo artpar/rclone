@@ -14,7 +14,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/artpar/rclone/fs"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/lib/file"
 	"github.com/skratchdot/open-golang/open"
 )
 
@@ -75,9 +76,9 @@ func NewReport() *Report {
 
 	// Create output directory for logs and report
 	r.LogDir = path.Join(*outputDir, r.DateTime)
-	err = os.MkdirAll(r.LogDir, 0777)
+	err = file.MkdirAll(r.LogDir, 0777)
 	if err != nil {
-		log.Printf("Failed to make log directory: %v", err)
+		log.Fatalf("Failed to make log directory: %v", err)
 	}
 
 	// Online version
@@ -149,11 +150,11 @@ func (r *Report) LogSummary() {
 func (r *Report) LogJSON() {
 	out, err := json.MarshalIndent(r, "", "\t")
 	if err != nil {
-		log.Printf("Failed to marshal data for index.json: %v", err)
+		log.Fatalf("Failed to marshal data for index.json: %v", err)
 	}
 	err = ioutil.WriteFile(path.Join(r.LogDir, "index.json"), out, 0666)
 	if err != nil {
-		log.Printf("Failed to write index.json: %v", err)
+		log.Fatalf("Failed to write index.json: %v", err)
 	}
 }
 
@@ -162,17 +163,17 @@ func (r *Report) LogHTML() {
 	r.IndexHTML = path.Join(r.LogDir, "index.html")
 	out, err := os.Create(r.IndexHTML)
 	if err != nil {
-		log.Printf("Failed to open index.html: %v", err)
+		log.Fatalf("Failed to open index.html: %v", err)
 	}
 	defer func() {
 		err := out.Close()
 		if err != nil {
-			log.Printf("Failed to close index.html: %v", err)
+			log.Fatalf("Failed to close index.html: %v", err)
 		}
 	}()
 	err = reportTemplate.Execute(out, r)
 	if err != nil {
-		log.Printf("Failed to execute template: %v", err)
+		log.Fatalf("Failed to execute template: %v", err)
 	}
 	_ = open.Start("file://" + r.IndexHTML)
 }
@@ -236,8 +237,8 @@ a:focus {
 <table>
 <tr><th>Version</th><td>{{ .Version }}</td></tr>
 <tr><th>Test</th><td><a href="{{ .URL }}">{{ .DateTime}}</a></td></tr>
-<tr><th>Branch</th><td><a href="https://github.com/artpar/rclone/tree/{{ .Branch }}">{{ .Branch }}</a></td></tr>
-{{ if .Commit}}<tr><th>Commit</th><td><a href="https://github.com/artpar/rclone/commit/{{ .Commit }}">{{ .Commit }}</a></td></tr>{{ end }}
+<tr><th>Branch</th><td><a href="https://github.com/rclone/rclone/tree/{{ .Branch }}">{{ .Branch }}</a></td></tr>
+{{ if .Commit}}<tr><th>Commit</th><td><a href="https://github.com/rclone/rclone/commit/{{ .Commit }}">{{ .Commit }}</a></td></tr>{{ end }}
 <tr><th>Go</th><td>{{ .GoVersion }} {{ .GOOS }}/{{ .GOARCH }}</td></tr>
 <tr><th>Duration</th><td>{{ .Duration }}</td></tr>
 {{ if .Previous}}<tr><th>Previous</th><td><a href="../{{ .Previous }}/index.html">{{ .Previous }}</a></td></tr>{{ end }}
@@ -287,14 +288,14 @@ func (r *Report) EmailHTML() {
 	cmd := exec.Command(cmdLine[0], cmdLine[1:]...)
 	in, err := os.Open(r.IndexHTML)
 	if err != nil {
-		log.Printf("Failed to open index.html: %v", err)
+		log.Fatalf("Failed to open index.html: %v", err)
 	}
 	cmd.Stdin = in
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	if err != nil {
-		log.Printf("Failed to send email: %v", err)
+		log.Fatalf("Failed to send email: %v", err)
 	}
 	_ = in.Close()
 }
@@ -309,7 +310,7 @@ func (r *Report) uploadTo(uploadDir string) {
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err != nil {
-		log.Printf("Failed to upload results: %v", err)
+		log.Fatalf("Failed to upload results: %v", err)
 	}
 }
 

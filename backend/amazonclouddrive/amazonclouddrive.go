@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"path"
 	"strings"
@@ -24,17 +23,17 @@ import (
 
 	acd "github.com/ncw/go-acd"
 	"github.com/pkg/errors"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/encoder"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/dircache"
+	"github.com/rclone/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/lib/pacer"
 	"golang.org/x/oauth2"
 )
 
@@ -70,11 +69,10 @@ func init() {
 		Prefix:      "acd",
 		Description: "Amazon Drive",
 		NewFs:       NewFs,
-		Config: func(ctx context.Context, name string, m configmap.Mapper) {
-			err := oauthutil.Config(ctx, "amazon cloud drive", name, m, acdConfig, nil)
-			if err != nil {
-				log.Printf("Failed to configure token: %v", err)
-			}
+		Config: func(ctx context.Context, name string, m configmap.Mapper, config fs.ConfigIn) (*fs.ConfigOut, error) {
+			return oauthutil.ConfigOut("", &oauthutil.Options{
+				OAuth2Config: acdConfig,
+			})
 		},
 		Options: append(oauthutil.SharedOptions, []fs.Option{{
 			Name:     "checkpoint",
@@ -83,16 +81,16 @@ func init() {
 			Advanced: true,
 		}, {
 			Name: "upload_wait_per_gb",
-			Help: `Additional time per GB to wait after a failed complete upload to see if it appears.
+			Help: `Additional time per GiB to wait after a failed complete upload to see if it appears.
 
 Sometimes Amazon Drive gives an error when a file has been fully
 uploaded but the file appears anyway after a little while.  This
-happens sometimes for files over 1GB in size and nearly every time for
-files bigger than 10GB. This parameter controls the time rclone waits
+happens sometimes for files over 1 GiB in size and nearly every time for
+files bigger than 10 GiB. This parameter controls the time rclone waits
 for the file to appear.
 
-The default value for this parameter is 3 minutes per GB, so by
-default it will wait 3 minutes for every GB uploaded to see if the
+The default value for this parameter is 3 minutes per GiB, so by
+default it will wait 3 minutes for every GiB uploaded to see if the
 file appears.
 
 You can disable this feature by setting it to 0. This may cause
@@ -112,7 +110,7 @@ in this situation.`,
 
 Files this size or more will be downloaded via their "tempLink". This
 is to work around a problem with Amazon Drive which blocks downloads
-of files bigger than about 10GB.  The default for this is 9GB which
+of files bigger than about 10 GiB. The default for this is 9 GiB which
 shouldn't need to be changed.
 
 To download files above this threshold, rclone requests a "tempLink"
@@ -330,7 +328,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		}
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
-		// See https://github.com/artpar/rclone/issues/2182
+		// See https://github.com/rclone/rclone/issues/2182
 		f.dirCache = tempF.dirCache
 		f.root = tempF.root
 		// return an error with an fs which points to the parent

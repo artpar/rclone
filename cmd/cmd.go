@@ -38,6 +38,24 @@ import (
 	"github.com/artpar/rclone/lib/random"
 	"github.com/artpar/rclone/lib/terminal"
 	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/cache"
+	"github.com/rclone/rclone/fs/config/configfile"
+	"github.com/rclone/rclone/fs/config/configflags"
+	"github.com/rclone/rclone/fs/config/flags"
+	"github.com/rclone/rclone/fs/filter"
+	"github.com/rclone/rclone/fs/filter/filterflags"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fspath"
+	fslog "github.com/rclone/rclone/fs/log"
+	"github.com/rclone/rclone/fs/rc/rcflags"
+	"github.com/rclone/rclone/fs/rc/rcserver"
+	"github.com/rclone/rclone/lib/atexit"
+	"github.com/rclone/rclone/lib/buildinfo"
+	"github.com/rclone/rclone/lib/exitcode"
+	"github.com/rclone/rclone/lib/random"
+	"github.com/rclone/rclone/lib/terminal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -48,7 +66,7 @@ var (
 	cpuProfile      = flags.StringP("cpuprofile", "", "", "Write cpu profile to file")
 	memProfile      = flags.StringP("memprofile", "", "", "Write memory profile to file")
 	statsInterval   = flags.DurationP("stats", "", time.Minute*1, "Interval between printing stats, e.g 500ms, 60s, 5m. (0 to disable)")
-	dataRateUnit    = flags.StringP("stats-unit", "", "bytes", "Show data rate in stats as either 'bits' or 'bytes'/s")
+	dataRateUnit    = flags.StringP("stats-unit", "", "bytes", "Show data rate in stats as either 'bits' or 'bytes' per second")
 	version         bool
 	retries         = flags.IntP("retries", "", 3, "Retry operations this many times if they fail")
 	retriesInterval = flags.DurationP("retries-sleep", "", 0, "Interval between retrying operations if they fail, e.g 500ms, 60s, 5m. (0 to disable)")
@@ -57,19 +75,6 @@ var (
 	errorUncategorized      = errors.New("uncategorized error")
 	errorNotEnoughArguments = errors.New("not enough arguments")
 	errorTooManyArguments   = errors.New("too many arguments")
-)
-
-const (
-	exitCodeSuccess = iota
-	exitCodeUsageError
-	exitCodeUncategorizedError
-	exitCodeDirNotFound
-	exitCodeFileNotFound
-	exitCodeRetryError
-	exitCodeNoRetryError
-	exitCodeFatalError
-	exitCodeTransferExceeded
-	exitCodeNoFilesTransferred
 )
 
 // ShowVersion prints the version to stdout
@@ -399,7 +404,7 @@ func initConfig() {
 	configflags.SetFlags(ci)
 
 	// Load the config
-	configfile.LoadConfig(ctx)
+	configfile.Install()
 
 	// Start accounting
 	accounting.Start(ctx)
@@ -508,7 +513,8 @@ func AddBackendFlags() {
 				if opt.IsPassword {
 					help += " (obscured)"
 				}
-				flag := flags.VarPF(pflag.CommandLine, opt, name, opt.ShortOpt, help)
+				flag := pflag.CommandLine.VarPF(opt, name, opt.ShortOpt, help)
+				flags.SetDefaultFromEnv(pflag.CommandLine, name)
 				if _, isBool := opt.Default.(bool); isBool {
 					flag.NoOptDefVal = "true"
 				}
