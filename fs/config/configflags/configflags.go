@@ -140,7 +140,7 @@ func ParseHeaders(headers []string) []*fs.HTTPOption {
 	for _, header := range headers {
 		parts := strings.SplitN(header, ":", 2)
 		if len(parts) == 1 {
-			log.Fatalf("Failed to parse '%s' as an HTTP header. Expecting a string like: 'Content-Encoding: gzip'", header)
+			log.Printf("Failed to parse '%s' as an HTTP header. Expecting a string like: 'Content-Encoding: gzip'", header)
 		}
 		option := &fs.HTTPOption{
 			Key:   strings.TrimSpace(parts[0]),
@@ -176,17 +176,17 @@ func SetFlags(ci *fs.ConfigInfo) {
 	}
 	if quiet {
 		if verbose > 0 {
-			log.Fatalf("Can't set -v and -q")
+			log.Printf("Can't set -v and -q")
 		}
 		ci.LogLevel = fs.LogLevelError
 	}
 	logLevelFlag := pflag.Lookup("log-level")
 	if logLevelFlag != nil && logLevelFlag.Changed {
 		if verbose > 0 {
-			log.Fatalf("Can't set -v and --log-level")
+			log.Printf("Can't set -v and --log-level")
 		}
 		if quiet {
-			log.Fatalf("Can't set -q and --log-level")
+			log.Printf("Can't set -q and --log-level")
 		}
 	}
 	if ci.UseJSONLog {
@@ -214,7 +214,7 @@ func SetFlags(ci *fs.ConfigInfo) {
 	switch {
 	case deleteBefore && (deleteDuring || deleteAfter),
 		deleteDuring && deleteAfter:
-		log.Fatalf(`Only one of --delete-before, --delete-during or --delete-after can be used.`)
+		log.Printf(`Only one of --delete-before, --delete-during or --delete-after can be used.`)
 	case deleteBefore:
 		ci.DeleteMode = fs.DeleteModeBefore
 	case deleteDuring:
@@ -226,7 +226,7 @@ func SetFlags(ci *fs.ConfigInfo) {
 	}
 
 	if len(ci.CompareDest) > 0 && len(ci.CopyDest) > 0 {
-		log.Fatalf(`Can't use --compare-dest with --copy-dest.`)
+		log.Printf(`Can't use --compare-dest with --copy-dest.`)
 	}
 
 	switch {
@@ -241,17 +241,17 @@ func SetFlags(ci *fs.ConfigInfo) {
 	if bindAddr != "" {
 		addrs, err := net.LookupIP(bindAddr)
 		if err != nil {
-			log.Fatalf("--bind: Failed to parse %q as IP address: %v", bindAddr, err)
+			log.Printf("--bind: Failed to parse %q as IP address: %v", bindAddr, err)
 		}
 		if len(addrs) != 1 {
-			log.Fatalf("--bind: Expecting 1 IP address for %q but got %d", bindAddr, len(addrs))
+			log.Printf("--bind: Expecting 1 IP address for %q but got %d", bindAddr, len(addrs))
 		}
 		ci.BindAddr = addrs[0]
 	}
 
 	if disableFeatures != "" {
 		if disableFeatures == "help" {
-			log.Fatalf("Possible backend features are: %s\n", strings.Join(new(fs.Features).List(), ", "))
+			log.Printf("Possible backend features are: %s\n", strings.Join(new(fs.Features).List(), ", "))
 		}
 		ci.DisableFeatures = strings.Split(disableFeatures, ",")
 	}
@@ -269,13 +269,13 @@ func SetFlags(ci *fs.ConfigInfo) {
 		if value, ok := parseDSCP(dscp); ok {
 			ci.TrafficClass = value << 2
 		} else {
-			log.Fatalf("--dscp: Invalid DSCP name: %v", dscp)
+			log.Printf("--dscp: Invalid DSCP name: %v", dscp)
 		}
 	}
 
 	// Set path to configuration file
 	if err := config.SetConfigPath(configPath); err != nil {
-		log.Fatalf("--config: Failed to set %q as config path: %v", configPath, err)
+		log.Printf("--config: Failed to set %q as config path: %v", configPath, err)
 	}
 
 	// Set whether multi-thread-streams was set

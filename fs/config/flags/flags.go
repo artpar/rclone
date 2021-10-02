@@ -22,11 +22,11 @@ func setValueFromEnv(flags *pflag.FlagSet, name string) {
 	if found {
 		flag := flags.Lookup(name)
 		if flag == nil {
-			log.Fatalf("Couldn't find flag --%q", name)
+			log.Printf("Couldn't find flag --%q", name)
 		}
 		err := flags.Set(name, envValue)
 		if err != nil {
-			log.Fatalf("Invalid value when setting --%s from environment variable %s=%q: %v", name, envKey, envValue, err)
+			log.Printf("Invalid value when setting --%s from environment variable %s=%q: %v", name, envKey, envValue, err)
 		}
 		fs.Debugf(nil, "Setting --%s %q from environment variable %s=%q", name, flag.Value, envKey, envValue)
 		flag.DefValue = envValue
@@ -43,7 +43,7 @@ func SetDefaultFromEnv(flags *pflag.FlagSet, name string) {
 	if found {
 		flag := flags.Lookup(name)
 		if flag == nil {
-			log.Fatalf("Couldn't find flag --%q", name)
+			log.Printf("Couldn't find flag --%q", name)
 		}
 		fs.Debugf(nil, "Setting default for %s=%q from environment variable %s", name, envValue, envKey)
 		//err = tempValue.Set()

@@ -29,7 +29,7 @@ var ReadLine = func() string {
 	buf := bufio.NewReader(os.Stdin)
 	line, err := buf.ReadString('\n')
 	if err != nil {
-		log.Fatalf("Failed to read line: %v", err)
+		log.Printf("Failed to read line: %v", err)
 	}
 	return strings.TrimSpace(line)
 }
@@ -196,7 +196,7 @@ func ChooseRemote() string {
 func mustFindByName(name string) *fs.RegInfo {
 	fsType := FileGet(name, "type")
 	if fsType == "" {
-		log.Fatalf("Couldn't find type of fs for %q", name)
+		log.Printf("Couldn't find type of fs for %q", name)
 	}
 	return fs.MustFind(fsType)
 }
@@ -336,7 +336,7 @@ func ChooseOption(o *fs.Option, name string) string {
 				bits := ChooseNumber("Bits", 64, 1024)
 				password, err = Password(bits)
 				if err != nil {
-					log.Fatalf("Failed to make password: %v", err)
+					log.Printf("Failed to make password: %v", err)
 				}
 				fmt.Printf("Your password is: %s\n", password)
 				fmt.Printf("Use this password? Please note that an obscured version of this \npassword (and not the " +
@@ -527,7 +527,7 @@ func ShowConfigLocation() {
 func ShowConfig() {
 	str, err := LoadedData().Serialize()
 	if err != nil {
-		log.Fatalf("Failed to serialize config: %v", err)
+		log.Printf("Failed to serialize config: %v", err)
 	}
 	if str == "" {
 		str = "; empty config\n"

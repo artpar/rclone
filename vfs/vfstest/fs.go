@@ -129,12 +129,12 @@ func newRun(useVFS bool) *Run {
 	var err error
 	r.fremote, r.fremoteName, r.cleanRemote, err = fstest.RandomRemote()
 	if err != nil {
-		log.Fatalf("Failed to open remote %q: %v", *fstest.RemoteName, err)
+		log.Printf("Failed to open remote %q: %v", *fstest.RemoteName, err)
 	}
 
 	err = r.fremote.Mkdir(context.Background(), "")
 	if err != nil {
-		log.Fatalf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
+		log.Printf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
 	}
 
 	if !r.useVFS {
@@ -150,7 +150,7 @@ func findMountPath() string {
 	if runtime.GOOS != "windows" {
 		mountPath, err := ioutil.TempDir("", "rclonefs-mount")
 		if err != nil {
-			log.Fatalf("Failed to create mount dir: %v", err)
+			log.Printf("Failed to create mount dir: %v", err)
 		}
 		return mountPath
 	}
@@ -159,7 +159,7 @@ func findMountPath() string {
 	letter := file.FindUnusedDriveLetter()
 	drive := ""
 	if letter == 0 {
-		log.Fatalf("Couldn't find free drive letter for test")
+		log.Printf("Couldn't find free drive letter for test")
 	} else {
 		drive = string(letter) + ":"
 	}
@@ -205,12 +205,12 @@ func (r *Run) umount() {
 		err = r.umountFn()
 	}
 	if err != nil {
-		log.Fatalf("signal to umount failed: %v", err)
+		log.Printf("signal to umount failed: %v", err)
 	}
 	log.Printf("Waiting for umount")
 	err = <-r.umountResult
 	if err != nil {
-		log.Fatalf("umount failed: %v", err)
+		log.Printf("umount failed: %v", err)
 	}
 
 	// Cleanup the VFS cache - umount has called Shutdown
@@ -232,7 +232,7 @@ func (r *Run) cacheMode(cacheMode vfscommon.CacheMode, writeBack time.Duration) 
 	r.cleanRemote()
 	err := r.fremote.Mkdir(context.Background(), "")
 	if err != nil {
-		log.Fatalf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
+		log.Printf("Failed to open mkdir %q: %v", *fstest.RemoteName, err)
 	}
 	// Empty the cache
 	err = r.vfs.CleanUp()

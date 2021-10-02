@@ -129,7 +129,7 @@ func NewServer(listeners, tlsListeners []net.Listener, opt Options) (Server, err
 	useSSL := useSSL(opt)
 	if (opt.SslCert != "") != useSSL {
 		err := errors.New("Need both -cert and -key to use SSL")
-		log.Fatalf(err.Error())
+		log.Printf(err.Error())
 		return nil, err
 	}
 
@@ -144,18 +144,18 @@ func NewServer(listeners, tlsListeners []net.Listener, opt Options) (Server, err
 	if opt.ClientCA != "" {
 		if !useSSL {
 			err := errors.New("Can't use --client-ca without --cert and --key")
-			log.Fatalf(err.Error())
+			log.Printf(err.Error())
 			return nil, err
 		}
 		certpool := x509.NewCertPool()
 		pem, err := ioutil.ReadFile(opt.ClientCA)
 		if err != nil {
-			log.Fatalf("Failed to read client certificate authority: %v", err)
+			log.Printf("Failed to read client certificate authority: %v", err)
 			return nil, err
 		}
 		if !certpool.AppendCertsFromPEM(pem) {
 			err := errors.New("Can't parse client certificate authority")
-			log.Fatalf(err.Error())
+			log.Printf(err.Error())
 			return nil, err
 		}
 		tlsConfig.ClientCAs = certpool
@@ -214,7 +214,7 @@ func (s *server) Serve() {
 	serve := func(l net.Listener) {
 		defer s.closing.Done()
 		if err := s.httpServer.Serve(l); err != http.ErrServerClosed && err != nil {
-			log.Fatalf(err.Error())
+			log.Printf(err.Error())
 		}
 	}
 

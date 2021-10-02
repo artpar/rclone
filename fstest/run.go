@@ -86,7 +86,7 @@ var oneRun *Run
 func newRun() *Run {
 	r := &Run{
 		Logf:   log.Printf,
-		Fatalf: log.Fatalf,
+		Fatalf: log.Printf,
 		mkdir:  make(map[string]bool),
 	}
 

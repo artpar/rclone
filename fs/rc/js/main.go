@@ -15,9 +15,9 @@ import (
 	"runtime"
 	"syscall/js"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/rc"
+	"github.com/pkg/errors"
 
 	// Core functionality we need
 	_ "github.com/artpar/rclone/fs/operations"
@@ -37,7 +37,7 @@ var (
 func getElementById(name string) js.Value {
 	node := document.Call("getElementById", name)
 	if node.IsUndefined() {
-		log.Fatalf("Couldn't find element %q", name)
+		log.Printf("Couldn't find element %q", name)
 	}
 	return node
 }
@@ -119,16 +119,16 @@ func rcCallback(this js.Value, args []js.Value) interface{} {
 func main() {
 	log.Printf("Running on goos/goarch = %s/%s", runtime.GOOS, runtime.GOARCH)
 	if js.Global().IsUndefined() {
-		log.Fatalf("Didn't find Global - not running in browser")
+		log.Printf("Didn't find Global - not running in browser")
 	}
 	document = js.Global().Get("document")
 	if document.IsUndefined() {
-		log.Fatalf("Didn't find document - not running in browser")
+		log.Printf("Didn't find document - not running in browser")
 	}
 
 	jsJSON = js.Global().Get("JSON")
 	if jsJSON.IsUndefined() {
-		log.Fatalf("can't find JSON")
+		log.Printf("can't find JSON")
 	}
 
 	// Set rc
@@ -137,7 +137,7 @@ func main() {
 	// Signal that it is valid
 	rcValidResolve := js.Global().Get("rcValidResolve")
 	if rcValidResolve.IsUndefined() {
-		log.Fatalf("Didn't find rcValidResolve")
+		log.Printf("Didn't find rcValidResolve")
 	}
 	rcValidResolve.Invoke()
 
