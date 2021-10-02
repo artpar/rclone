@@ -77,7 +77,7 @@ func NewReport() *Report {
 	r.LogDir = path.Join(*outputDir, r.DateTime)
 	err = file.MkdirAll(r.LogDir, 0777)
 	if err != nil {
-		log.Fatalf("Failed to make log directory: %v", err)
+		log.Printf("Failed to make log directory: %v", err)
 	}
 
 	// Online version
@@ -149,11 +149,11 @@ func (r *Report) LogSummary() {
 func (r *Report) LogJSON() {
 	out, err := json.MarshalIndent(r, "", "\t")
 	if err != nil {
-		log.Fatalf("Failed to marshal data for index.json: %v", err)
+		log.Printf("Failed to marshal data for index.json: %v", err)
 	}
 	err = os.WriteFile(path.Join(r.LogDir, "index.json"), out, 0666)
 	if err != nil {
-		log.Fatalf("Failed to write index.json: %v", err)
+		log.Printf("Failed to write index.json: %v", err)
 	}
 }
 
@@ -162,17 +162,17 @@ func (r *Report) LogHTML() {
 	r.IndexHTML = path.Join(r.LogDir, "index.html")
 	out, err := os.Create(r.IndexHTML)
 	if err != nil {
-		log.Fatalf("Failed to open index.html: %v", err)
+		log.Printf("Failed to open index.html: %v", err)
 	}
 	defer func() {
 		err := out.Close()
 		if err != nil {
-			log.Fatalf("Failed to close index.html: %v", err)
+			log.Printf("Failed to close index.html: %v", err)
 		}
 	}()
 	err = reportTemplate.Execute(out, r)
 	if err != nil {
-		log.Fatalf("Failed to execute template: %v", err)
+		log.Printf("Failed to execute template: %v", err)
 	}
 	_ = open.Start("file://" + r.IndexHTML)
 }
@@ -287,14 +287,14 @@ func (r *Report) EmailHTML() {
 	cmd := exec.Command(cmdLine[0], cmdLine[1:]...)
 	in, err := os.Open(r.IndexHTML)
 	if err != nil {
-		log.Fatalf("Failed to open index.html: %v", err)
+		log.Printf("Failed to open index.html: %v", err)
 	}
 	cmd.Stdin = in
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	if err != nil {
-		log.Fatalf("Failed to send email: %v", err)
+		log.Printf("Failed to send email: %v", err)
 	}
 	_ = in.Close()
 }
@@ -309,7 +309,7 @@ func (r *Report) uploadTo(uploadDir string) {
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err != nil {
-		log.Fatalf("Failed to upload results: %v", err)
+		log.Printf("Failed to upload results: %v", err)
 	}
 }
 

@@ -12,7 +12,7 @@ import (
 
 // Enables systemd logs if configured or if auto-detected
 func startSystemdLog() bool {
-	log.Fatalf("--log-systemd not supported on %s platform", runtime.GOOS)
+	log.Printf("--log-systemd not supported on %s platform", runtime.GOOS)
 	return false
 }
 

@@ -369,7 +369,7 @@ func LoadedData() Storage {
 			}
 			dataLoaded = true
 		} else {
-			log.Fatalf("Failed to load config file %q: %v", configPath, err)
+			log.Printf("Failed to load config file %q: %v", configPath, err)
 		}
 	}
 	return data

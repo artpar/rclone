@@ -97,7 +97,7 @@ func NewItem(Path, Content string, modTime time.Time) Item {
 	buf := bytes.NewBufferString(Content)
 	_, err := io.Copy(hash, buf)
 	if err != nil {
-		log.Fatalf("Failed to create item: %v", err)
+		log.Printf("Failed to create item: %v", err)
 	}
 	i.Hashes = hash.Sums()
 	return i
@@ -396,7 +396,7 @@ func CompareItems(t *testing.T, entries fs.DirEntries, items []Item, expectedDir
 func Time(timeString string) time.Time {
 	t, err := time.Parse(time.RFC3339Nano, timeString)
 	if err != nil {
-		log.Fatalf("Failed to parse time %q: %v", timeString, err)
+		log.Printf("Failed to parse time %q: %v", timeString, err)
 	}
 	return t
 }
@@ -431,7 +431,7 @@ func RandomRemoteName(remoteName string) (string, string, error) {
 		}
 		leafName = "rclone-test-" + random.String(24)
 		if !MatchTestRemote.MatchString(leafName) {
-			log.Fatalf("%q didn't match the test remote name regexp", leafName)
+			log.Printf("%q didn't match the test remote name regexp", leafName)
 		}
 		remoteName += leafName
 	}

@@ -91,7 +91,7 @@ func main() {
 	if *clean {
 		err := cleanRemotes(conf)
 		if err != nil {
-			log.Fatalf("Failed to clean: %v", err)
+			log.Printf("Failed to clean: %v", err)
 		}
 		return
 	}
