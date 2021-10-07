@@ -8,7 +8,7 @@ ctest.o: ctest.c librclone.h
 	$(CC) $(CFLAGS) -c $^ $(LDFLAGS)
 
 librclone.a librclone.h:
-	go build --buildmode=c-archive -o librclone.a github.com/rclone/rclone/librclone
+	go build --buildmode=c-archive -o librclone.a github.com/artpar/rclone/librclone
 
 test:	ctest
 	./ctest

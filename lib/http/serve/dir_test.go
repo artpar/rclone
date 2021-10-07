@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/rclone/rclone/cmd/serve/http/data"
+	"github.com/artpar/rclone/cmd/serve/http/data"
 )
 
 func GetTemplate(t *testing.T) *template.Template {

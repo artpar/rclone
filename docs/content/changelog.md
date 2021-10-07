@@ -7,7 +7,7 @@ description: "Rclone Changelog"
 
 ## v1.56.0 - 2021-07-20
 
-[See commits](https://github.com/rclone/rclone/compare/v1.55.0...v1.56.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.55.0...v1.56.0)
 
 * New backends
     * [Uptobox](/uptobox/) (buengese)
@@ -150,7 +150,7 @@ description: "Rclone Changelog"
 
 ## v1.55.1 - 2021-04-26
 
-[See commits](https://github.com/rclone/rclone/compare/v1.55.0...v1.55.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.55.0...v1.55.1)
 
 * Bug Fixes
     * selfupdate

@@ -16,12 +16,12 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/config/configfile"
-	"github.com/rclone/rclone/fs/log"
-	"github.com/rclone/rclone/fs/rc"
-	"github.com/rclone/rclone/fs/rc/jobs"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/config/configfile"
+	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/fs/rc"
+	"github.com/artpar/rclone/fs/rc/jobs"
 )
 
 // Initialize initializes rclone as a library

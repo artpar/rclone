@@ -20,7 +20,7 @@ on:
 
 jobs:
   build:
-    if: ${{ github.repository == 'rclone/rclone' || github.event.inputs.manual }}
+    if: ${{ github.repository == 'artpar/rclone' || github.event.inputs.manual }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -230,7 +230,7 @@ jobs:
         if: matrix.deploy && github.head_ref == '' && github.repository == 'artpar/rclone'
 
   android:
-     if: ${{ github.repository == 'rclone/rclone' || github.event.inputs.manual }}
+     if: ${{ github.repository == 'artpar/rclone' || github.event.inputs.manual }}
      timeout-minutes: 30
      name: "android-all"
      runs-on: ubuntu-latest
@@ -275,7 +275,7 @@ jobs:
            env PATH=$PATH:~/go/bin gomobile init
            
        - name: arm-v7a gomobile build
-         run: env PATH=$PATH:~/go/bin gomobile bind -v -target=android/arm -javapkg=org.rclone -ldflags '-s -X github.com/rclone/rclone/fs.Version='${VERSION} github.com/rclone/rclone/librclone/gomobile 
+         run: env PATH=$PATH:~/go/bin gomobile bind -v -target=android/arm -javapkg=org.rclone -ldflags '-s -X github.com/artpar/rclone/fs.Version='${VERSION} github.com/artpar/rclone/librclone/gomobile
            
        - name: arm-v7a Set environment variables
          shell: bash

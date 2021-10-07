@@ -336,7 +336,7 @@ into its own launcher service, as kind of "child services". This has the additio
 advantage that it also implements a network provider that integrates into
 Windows standard methods for managing network drives. This is currently not
 officially supported by Rclone, but with WinFsp version 2019.3 B2 / v1.5B2 or later
-it should be possible through path rewriting as described [here](https://github.com/rclone/rclone/issues/3340).
+it should be possible through path rewriting as described [here](https://github.com/artpar/rclone/issues/3340).
 
 ##### Third party service integration ####
 

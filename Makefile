@@ -263,7 +263,7 @@ PLUGIN_IMAGE_TAG ?= latest
 PLUGIN_IMAGE_NAME ?= docker-volume-rclone
 PLUGIN_IMAGE ?= $(PLUGIN_IMAGE_USER)/$(PLUGIN_IMAGE_NAME):$(PLUGIN_IMAGE_TAG)
 
-PLUGIN_BASE_IMAGE := rclone/rclone:latest
+PLUGIN_BASE_IMAGE := artpar/rclone:latest
 PLUGIN_BUILD_DIR := ./build/docker-plugin
 PLUGIN_CONTRIB_DIR := ./cmd/serve/docker/contrib/plugin
 PLUGIN_CONFIG := $(PLUGIN_CONTRIB_DIR)/config.json

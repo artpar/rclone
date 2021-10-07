@@ -13,11 +13,11 @@ The shims are a thin wrapper over the rclone RPC.
 
 Build a shared library like this:
 
-    go build --buildmode=c-shared -o librclone.so github.com/rclone/rclone/librclone
+    go build --buildmode=c-shared -o librclone.so github.com/artpar/rclone/librclone
 
 Build a static library like this:
 
-    go build --buildmode=c-archive -o librclone.a github.com/rclone/rclone/librclone
+    go build --buildmode=c-archive -o librclone.a github.com/artpar/rclone/librclone
 
 Both the above commands will also generate `librclone.h` which should
 be `#include`d in `C` programs wishing to use the library.
@@ -28,9 +28,9 @@ The library will depend on `libdl` and `libpthread`.
 
 For documentation see the Go documentation for:
 
-- [RcloneInitialize](https://pkg.go.dev/github.com/rclone/rclone/librclone#RcloneInitialize)
-- [RcloneFinalize](https://pkg.go.dev/github.com/rclone/rclone/librclone#RcloneFinalize)
-- [RcloneRPC](https://pkg.go.dev/github.com/rclone/rclone/librclone#RcloneRPC)
+- [RcloneInitialize](https://pkg.go.dev/github.com/artpar/rclone/librclone#RcloneInitialize)
+- [RcloneFinalize](https://pkg.go.dev/github.com/artpar/rclone/librclone#RcloneFinalize)
+- [RcloneRPC](https://pkg.go.dev/github.com/artpar/rclone/librclone#RcloneRPC)
 
 ### C Example
 
@@ -42,7 +42,7 @@ The `gomobile` subdirectory contains the equivalent of the C binding but
 suitable for using with [gomobile](https://pkg.go.dev/golang.org/x/mobile/cmd/gomobile)
 using something like this.
 
-    gomobile bind -v -target=android -javapkg=org.rclone github.com/rclone/rclone/librclone/gomobile
+    gomobile bind -v -target=android -javapkg=org.rclone github.com/artpar/rclone/librclone/gomobile
 
 The command generates an Android library (`aar`) that can be imported
 into an Android application project. Librclone will be contained

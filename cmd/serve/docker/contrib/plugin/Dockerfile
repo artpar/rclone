@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=rclone/rclone:latest
+ARG BASE_IMAGE=artpar/rclone:latest
 ARG BUILD_PLATFORM=linux/amd64
 ARG TARGET_PLATFORM=linux/amd64
 

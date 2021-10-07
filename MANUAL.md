@@ -161,7 +161,7 @@ WebDAV or S3, that work out of the box.)
 Links
 
   *  [Home page](https://rclone.org/)
-  *  [GitHub project page for source and bug tracker](https://github.com/rclone/rclone)
+  *  [GitHub project page for source and bug tracker](https://github.com/artpar/rclone)
   *  [Rclone Forum](https://forum.rclone.org)
   * [Downloads](https://rclone.org/downloads/)
 
@@ -268,7 +268,7 @@ The simplest fix is to run
 
 ## Install with docker ##
 
-The rclone maintains a [docker image for rclone](https://hub.docker.com/r/rclone/rclone).
+The rclone maintains a [docker image for rclone](https://hub.docker.com/r/artpar/rclone).
 These images are autobuilt by docker hub from the rclone source based
 on a minimal Alpine linux image.
 
@@ -277,11 +277,11 @@ can use the `:beta` tag to get the latest build from master.  You can
 also use version tags, e.g. `:1.49.1`, `:1.49` or `:1`.
 
 ```
-$ docker pull rclone/rclone:latest
-latest: Pulling from rclone/rclone
+$ docker pull artpar/rclone:latest
+latest: Pulling from artpar/rclone
 Digest: sha256:0e0ced72671989bb837fea8e88578b3fc48371aa45d209663683e24cfdaa0e11
 ...
-$ docker run --rm rclone/rclone:latest version
+$ docker run --rm artpar/rclone:latest version
 rclone v1.49.1
 - os/arch: linux/amd64
 - go version: go1.12.9
@@ -320,7 +320,7 @@ from the rclone image.
 Here are some commands tested on an Ubuntu 18.04.3 host:
 
 ```
-# config on host at ~/.config/rclone/rclone.conf
+# config on host at ~/.config/artpar/rclone.conf
 # data on host at ~/data
 
 # make sure the config is ok by listing the remotes
@@ -328,7 +328,7 @@ docker run --rm \
     --volume ~/.config/rclone:/config/rclone \
     --volume ~/data:/data:shared \
     --user $(id -u):$(id -g) \
-    rclone/rclone \
+    artpar/rclone \
     listremotes
 
 # perform mount inside Docker container, expose result to host
@@ -339,7 +339,7 @@ docker run --rm \
     --user $(id -u):$(id -g) \
     --volume /etc/passwd:/etc/passwd:ro --volume /etc/group:/etc/group:ro \
     --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined \
-    rclone/rclone \
+    artpar/rclone \
     mount dropbox:Photos /data/mount &
 ls ~/data/mount
 kill %1
@@ -351,7 +351,7 @@ Make sure you have at least [Go](https://golang.org/) go1.13
 installed.  [Download go](https://golang.org/dl/) if necessary.  The
 latest release is recommended. Then
 
-    git clone https://github.com/rclone/rclone.git
+    git clone https://github.com/artpar/rclone.git
     cd rclone
     go build
     ./rclone version
@@ -362,11 +362,11 @@ the rclone build will have the correct version information in it.
 
 You can also build the latest stable rclone with:
 
-    go get github.com/rclone/rclone
+    go get github.com/artpar/rclone
 
 or the latest version (equivalent to the beta) with
 
-    go get github.com/rclone/rclone@master
+    go get github.com/artpar/rclone@master
 
 These will build the binary in `$(go env GOPATH)/bin`
 (`~/go/bin/rclone` by default) after downloading the source to the go
@@ -498,7 +498,7 @@ into its own launcher service, as kind of "child services". This has the additio
 advantage that it also implements a network provider that integrates into
 Windows standard methods for managing network drives. This is currently not
 officially supported by Rclone, but with WinFsp version 2019.3 B2 / v1.5B2 or later
-it should be possible through path rewriting as described [here](https://github.com/rclone/rclone/issues/3340).
+it should be possible through path rewriting as described [here](https://github.com/artpar/rclone/issues/3340).
 
 #### Third party service integration ####
 
@@ -3407,9 +3407,9 @@ too many callbacks to rclone from the kernel.
 In theory 0s should be the correct value for filesystems which can
 change outside the control of the kernel. However this causes quite a
 few problems such as
-[rclone using too much memory](https://github.com/rclone/rclone/issues/2157),
+[rclone using too much memory](https://github.com/artpar/rclone/issues/2157),
 [rclone not serving files to samba](https://forum.rclone.org/t/rclone-1-39-vs-1-40-mount-issue/5112)
-and [excessive time listing directories](https://github.com/rclone/rclone/issues/2095#issuecomment-371141147).
+and [excessive time listing directories](https://github.com/artpar/rclone/issues/2095#issuecomment-371141147).
 
 The kernel can cache the info about a file for the time given by
 `--attr-timeout`. You may see corruption if the remote file changes
@@ -5270,7 +5270,7 @@ together, if `--auth-proxy` is set the authorized keys option will be
 ignored.
 
 There is an example program
-[bin/test_proxy.py](https://github.com/rclone/rclone/blob/master/test_proxy.py)
+[bin/test_proxy.py](https://github.com/artpar/rclone/blob/master/test_proxy.py)
 in the rclone source code.
 
 The program's job is to take a `user` and `pass` on the input and turn
@@ -6324,7 +6324,7 @@ together, if `--auth-proxy` is set the authorized keys option will be
 ignored.
 
 There is an example program
-[bin/test_proxy.py](https://github.com/rclone/rclone/blob/master/test_proxy.py)
+[bin/test_proxy.py](https://github.com/artpar/rclone/blob/master/test_proxy.py)
 in the rclone source code.
 
 The program's job is to take a `user` and `pass` on the input and turn
@@ -6824,7 +6824,7 @@ together, if `--auth-proxy` is set the authorized keys option will be
 ignored.
 
 There is an example program
-[bin/test_proxy.py](https://github.com/rclone/rclone/blob/master/test_proxy.py)
+[bin/test_proxy.py](https://github.com/artpar/rclone/blob/master/test_proxy.py)
 in the rclone source code.
 
 The program's job is to take a `user` and `pass` on the input and turn
@@ -7504,7 +7504,7 @@ If your names have spaces in you need to put them in `"`, e.g.
     rclone copy "E:\folder name\folder name\folder name" remote:backup
 
 If you are using the root directory on its own then don't quote it
-(see [#464](https://github.com/rclone/rclone/issues/464) for why), e.g.
+(see [#464](https://github.com/artpar/rclone/issues/464) for why), e.g.
 
     rclone copy E:\ remote:backup
 
@@ -7804,16 +7804,16 @@ The exact default is a bit complex to describe, due to changes
 introduced through different versions of rclone while preserving
 backwards compatibility, but in most cases it is as simple as:
 
- - `%APPDATA%/rclone/rclone.conf` on Windows
- - `~/.config/rclone/rclone.conf` on other
+ - `%APPDATA%/artpar/rclone.conf` on Windows
+ - `~/.config/artpar/rclone.conf` on other
 
 The complete logic is as follows: Rclone will look for an existing
 configuration file in any of the following locations, in priority order:
 
   1. `rclone.conf` (in program directory, where rclone executable is)
-  2. `%APPDATA%/rclone/rclone.conf` (only on Windows)
-  3. `$XDG_CONFIG_HOME/rclone/rclone.conf` (on all systems, including Windows)
-  4. `~/.config/rclone/rclone.conf` (see below for explanation of ~ symbol)
+  2. `%APPDATA%/artpar/rclone.conf` (only on Windows)
+  3. `$XDG_CONFIG_HOME/artpar/rclone.conf` (on all systems, including Windows)
+  4. `~/.config/artpar/rclone.conf` (see below for explanation of ~ symbol)
   5. `~/.rclone.conf`
 
 If no existing configuration file is found, then a new one will be created
@@ -8022,7 +8022,7 @@ add multiple headers.
 rclone sync -i s3:test/src ~/dst --header-download "X-Amz-Meta-Test: Foo" --header-download "X-Amz-Meta-Test2: Bar"
 ```
 
-See the GitHub issue [here](https://github.com/rclone/rclone/issues/59) for
+See the GitHub issue [here](https://github.com/artpar/rclone/issues/59) for
 currently supported backends.
 
 ### --header-upload ###
@@ -8034,7 +8034,7 @@ multiple headers.
 rclone sync -i ~/src s3:test/dst --header-upload "Content-Disposition: attachment; filename='cool.html'" --header-upload "X-Amz-Meta-Test: FooBar"
 ```
 
-See the GitHub issue [here](https://github.com/rclone/rclone/issues/59) for
+See the GitHub issue [here](https://github.com/artpar/rclone/issues/59) for
 currently supported backends.
 
 ### --ignore-case-sync ###
@@ -8073,7 +8073,7 @@ after transfer.
 
 This can be useful for transferring files to and from OneDrive which
 occasionally misreports the size of image files (see
-[#399](https://github.com/rclone/rclone/issues/399) for more info).
+[#399](https://github.com/artpar/rclone/issues/399) for more info).
 
 ### -I, --ignore-times ###
 
@@ -8487,7 +8487,7 @@ Eg
 
 See the [Configuration Encryption](#configuration-encryption) for more info.
 
-See a [Windows PowerShell example on the Wiki](https://github.com/rclone/rclone/wiki/Windows-Powershell-use-rclone-password-command-for-Config-file-password).
+See a [Windows PowerShell example on the Wiki](https://github.com/artpar/rclone/wiki/Windows-Powershell-use-rclone-password-command-for-Config-file-password).
 
 ### -P, --progress ###
 
@@ -10153,7 +10153,7 @@ rclone rcd --rc-web-gui
 This will produce logs like this and rclone needs to continue to run to serve the GUI:
     
 ```
-2019/08/25 11:40:14 NOTICE: A new release for gui is present at https://github.com/rclone/rclone-webui-react/releases/download/v0.0.6/currentbuild.zip
+2019/08/25 11:40:14 NOTICE: A new release for gui is present at https://github.com/artpar/rclone-webui-react/releases/download/v0.0.6/currentbuild.zip
 2019/08/25 11:40:14 NOTICE: Downloading webgui binary. Please wait. [Size: 3813937, Path :  /home/USER/.cache/rclone/webgui/v0.0.6.zip]
 2019/08/25 11:40:16 NOTICE: Unzipping
 2019/08/25 11:40:16 NOTICE: Serving remote control on http://127.0.0.1:5572/
@@ -10235,7 +10235,7 @@ Or instead of htpasswd if you just want a single user and password:
 
 ## Project
 
-The GUI is being developed in the: [rclone/rclone-webui-react repository](https://github.com/rclone/rclone-webui-react).
+The GUI is being developed in the: [artpar/rclone-webui-react repository](https://github.com/artpar/rclone-webui-react).
 
 Bug reports and contributions are very welcome :-)
 
@@ -10347,7 +10347,7 @@ Default is IP address on which rc is running.
 
 Set the URL to fetch the rclone-web-gui files from.
 
-Default https://api.github.com/repos/rclone/rclone-webui-react/releases/latest.
+Default https://api.github.com/repos/artpar/rclone-webui-react/releases/latest.
 
 ### --rc-web-gui-update
 
@@ -11603,7 +11603,7 @@ used for adding a plugin to the webgui
 
 This takes the following parameters
 
-- url: http url of the github repo where the plugin is hosted (http://github.com/rclone/rclone-webui-react)
+- url: http url of the github repo where the plugin is hosted (http://github.com/artpar/rclone-webui-react)
 
 Eg
 
@@ -11684,7 +11684,7 @@ This takes the following parameters
 
 Eg
 
-    rclone rc pluginsctl/removeTestPlugin name=rclone/rclone-webui-react
+    rclone rc pluginsctl/removeTestPlugin name=artpar/rclone-webui-react
 
 **Authentication is required for this call.**
 
@@ -12003,14 +12003,14 @@ You can also use the `-text` flag to produce a textual summary
 $ go tool pprof -text http://localhost:5572/debug/pprof/heap
 Showing nodes accounting for 1537.03kB, 100% of 1537.03kB total
       flat  flat%   sum%        cum   cum%
- 1024.03kB 66.62% 66.62%  1024.03kB 66.62%  github.com/rclone/rclone/vendor/golang.org/x/net/http2/hpack.addDecoderNode
+ 1024.03kB 66.62% 66.62%  1024.03kB 66.62%  github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.addDecoderNode
      513kB 33.38%   100%      513kB 33.38%  net/http.newBufioWriterSize
-         0     0%   100%  1024.03kB 66.62%  github.com/rclone/rclone/cmd/all.init
-         0     0%   100%  1024.03kB 66.62%  github.com/rclone/rclone/cmd/serve.init
-         0     0%   100%  1024.03kB 66.62%  github.com/rclone/rclone/cmd/serve/restic.init
-         0     0%   100%  1024.03kB 66.62%  github.com/rclone/rclone/vendor/golang.org/x/net/http2.init
-         0     0%   100%  1024.03kB 66.62%  github.com/rclone/rclone/vendor/golang.org/x/net/http2/hpack.init
-         0     0%   100%  1024.03kB 66.62%  github.com/rclone/rclone/vendor/golang.org/x/net/http2/hpack.init.0
+         0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/cmd/all.init
+         0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/cmd/serve.init
+         0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/cmd/serve/restic.init
+         0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/vendor/golang.org/x/net/http2.init
+         0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.init
+         0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.init.0
          0     0%   100%  1024.03kB 66.62%  main.init
          0     0%   100%      513kB 33.38%  net/http.(*conn).readRequest
          0     0%   100%      513kB 33.38%  net/http.(*conn).serve
@@ -12524,7 +12524,7 @@ These flags are available for every command.
       --client-cert string                   Client SSL certificate (PEM) for mutual TLS auth
       --client-key string                    Client SSL private key (PEM) for mutual TLS auth
       --compare-dest stringArray             Include additional comma separated server-side paths during comparison.
-      --config string                        Config file. (default "$HOME/.config/rclone/rclone.conf")
+      --config string                        Config file. (default "$HOME/.config/artpar/rclone.conf")
       --contimeout duration                  Connect timeout (default 1m0s)
       --copy-dest stringArray                Implies --compare-dest but also copies files from paths into destination.
       --cpuprofile string                    Write cpu profile to file
@@ -12618,7 +12618,7 @@ These flags are available for every command.
       --rc-server-write-timeout duration     Timeout for server writing data (default 1h0m0s)
       --rc-template string                   User Specified Template.
       --rc-user string                       User name for authentication.
-      --rc-web-fetch-url string              URL to fetch the releases for webgui. (default "https://api.github.com/repos/rclone/rclone-webui-react/releases/latest")
+      --rc-web-fetch-url string              URL to fetch the releases for webgui. (default "https://api.github.com/repos/artpar/rclone-webui-react/releases/latest")
       --rc-web-gui                           Launch WebGUI on localhost
       --rc-web-gui-force-update              Force update to latest version of web gui
       --rc-web-gui-no-open-browser           Don't open the browser automatically
@@ -13517,8 +13517,8 @@ sudo apt-get -y install fuse
 ```
 
 Download two systemd configuration files:
-[docker-volume-rclone.service](https://raw.githubusercontent.com/rclone/rclone/master/cmd/serve/docker/contrib/systemd/docker-volume-rclone.service)
-and [docker-volume-rclone.socket](https://raw.githubusercontent.com/rclone/rclone/master/cmd/serve/docker/contrib/systemd/docker-volume-rclone.socket).
+[docker-volume-rclone.service](https://raw.githubusercontent.com/artpar/rclone/master/cmd/serve/docker/contrib/systemd/docker-volume-rclone.service)
+and [docker-volume-rclone.socket](https://raw.githubusercontent.com/artpar/rclone/master/cmd/serve/docker/contrib/systemd/docker-volume-rclone.socket).
 
 Put them to the `/etc/systemd/system/` directory:
 ```
@@ -15946,7 +15946,7 @@ There is currently an unsolved issue with the s3 (specifically minio) backend
 and HTTP/2.  HTTP/2 is enabled by default for the s3 backend but can be
 disabled here.  When the issue is solved this flag will be removed.
 
-See: https://github.com/rclone/rclone/issues/4673, https://github.com/rclone/rclone/issues/3631
+See: https://github.com/artpar/rclone/issues/4673, https://github.com/artpar/rclone/issues/3631
 
 
 
@@ -17051,7 +17051,7 @@ support SHA1.
 
 Sources which don't support SHA1, in particular `crypt` will upload
 large files without SHA1 checksums.  This may be fixed in the future
-(see [#1767](https://github.com/rclone/rclone/issues/1767)).
+(see [#1767](https://github.com/artpar/rclone/issues/1767)).
 
 Files sizes below `--b2-upload-cutoff` will always have an SHA1
 regardless of the source.
@@ -17151,7 +17151,7 @@ All copy commands send the following 4 requests:
 The `b2_list_file_names` request will be sent once for every 1k files
 in the remote path, providing the checksum and modification time of
 the listed files. As of version 1.33 issue
-[#818](https://github.com/rclone/rclone/issues/818) causes extra requests
+[#818](https://github.com/artpar/rclone/issues/818) causes extra requests
 to be sent when using B2 with Crypt. When a copy operation does not
 require any files to be uploaded, no more requests will be sent.
 
@@ -17852,7 +17852,7 @@ and its data for long running tasks like `rclone mount`.
 ## Status
 
 The cache backend code is working but it currently doesn't
-have a maintainer so there are [outstanding bugs](https://github.com/rclone/rclone/issues?q=is%3Aopen+is%3Aissue+label%3Abug+label%3A%22Remote%3A+Cache%22) which aren't getting fixed.
+have a maintainer so there are [outstanding bugs](https://github.com/artpar/rclone/issues?q=is%3Aopen+is%3Aissue+label%3Abug+label%3A%22Remote%3A+Cache%22) which aren't getting fixed.
 
 The cache backend is due to be phased out in favour of the VFS caching
 layer eventually which is more tightly integrated into rclone.
@@ -18081,9 +18081,9 @@ on Linux flavors and Windows as cache is heavily dependent on them.
 
 Any reports or feedback on how cache behaves on this OS is greatly appreciated.
  
-- https://github.com/rclone/rclone/issues/1935
-- https://github.com/rclone/rclone/issues/1907
-- https://github.com/rclone/rclone/issues/1834 
+- https://github.com/artpar/rclone/issues/1935
+- https://github.com/artpar/rclone/issues/1907
+- https://github.com/artpar/rclone/issues/1834 
 
 #### Risk of throttling ####
 
@@ -18102,8 +18102,8 @@ of adding the file in the cache at the same time if configured to do so.
 
 Future enhancements:
 
-- https://github.com/rclone/rclone/issues/1937
-- https://github.com/rclone/rclone/issues/1936 
+- https://github.com/artpar/rclone/issues/1937
+- https://github.com/artpar/rclone/issues/1936 
 
 #### cache and crypt ####
 
@@ -19416,7 +19416,7 @@ by rclone config in version 1.49.0 (released 2019-08-26) to 1.53.2
 (released 2020-10-26) are not considered secure and should be changed.
 If you made up your own password, or used rclone version older than 1.49.0 or
 newer than 1.53.2 to generate it, you are *not* affected by this issue.
-See [issue #4783](https://github.com/rclone/rclone/issues/4783) for more
+See [issue #4783](https://github.com/artpar/rclone/issues/4783) for more
 details, and a tool you can use to check if you are affected.
 
 ### Example
@@ -22510,7 +22510,7 @@ HTTP/2.  HTTP/2 is therefore disabled by default for the drive backend
 but can be re-enabled here.  When the issue is solved this flag will
 be removed.
 
-See: https://github.com/rclone/rclone/issues/3631
+See: https://github.com/artpar/rclone/issues/3631
 
 
 
@@ -22532,7 +22532,7 @@ the in-progress sync.
 Note that this detection is relying on error message strings which
 Google don't document so it may break in the future.
 
-See: https://github.com/rclone/rclone/issues/3857
+See: https://github.com/artpar/rclone/issues/3857
 
 
 - Config:      stop_on_upload_limit
@@ -23401,7 +23401,7 @@ or use the docker image from the tests:
 If you want to build the docker image
 
 ```
-git clone https://github.com/rclone/rclone.git
+git clone https://github.com/artpar/rclone.git
 cd rclone/fstest/testserver/images/test-hdfs
 docker build --rm -t rclone/test-hdfs .
 ```
@@ -25837,7 +25837,7 @@ The entire path, including the file name, must contain fewer than 400 characters
 OneDrive seems to be OK with at least 50,000 files in a folder, but at
 100,000 rclone will get errors listing the directory like `couldn’t
 list files: UnknownError:`.  See
-[#2707](https://github.com/rclone/rclone/issues/2707) for more info.
+[#2707](https://github.com/artpar/rclone/issues/2707) for more info.
 
 An official document about the limitations for different types of OneDrive can be found [here](https://support.office.com/en-us/article/invalid-file-names-and-file-types-in-onedrive-onedrive-for-business-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa).
 
@@ -29587,7 +29587,7 @@ Rclone can be used with Sharepoint provided by OneDrive for Business
 or Office365 Education Accounts.
 This feature is only needed for a few of these Accounts,
 mostly Office365 Education ones. These accounts are sometimes not
-verified by the domain owner [github#1975](https://github.com/rclone/rclone/issues/1975)
+verified by the domain owner [github#1975](https://github.com/artpar/rclone/issues/1975)
 
 This means that these accounts can't be added using the official
 API (other Accounts should work with the "onedrive" option). However,
@@ -30279,7 +30279,7 @@ the `\\?\`. This is why you will see that your paths, for instance
 as `\\?\UNC\server\share`.
 
 However, in rare cases this may cause problems with buggy file
-system drivers like [EncFS](https://github.com/rclone/rclone/issues/261).
+system drivers like [EncFS](https://github.com/artpar/rclone/issues/261).
 To disable UNC conversion globally, add this to your `.rclone.conf` file:
 
 ```
@@ -30551,7 +30551,7 @@ are being uploaded and aborts with a message which starts "can't copy
 - source file is being updated" if the file changes during upload.
 
 However on some file systems this modification time check may fail (e.g.
-[Glusterfs #2206](https://github.com/rclone/rclone/issues/2206)) so this
+[Glusterfs #2206](https://github.com/artpar/rclone/issues/2206)) so this
 check can be disabled with this flag.
 
 If this flag is set, rclone will use its best efforts to transfer a
@@ -30702,7 +30702,7 @@ Options:
 
 ## v1.56.0 - 2021-07-20
 
-[See commits](https://github.com/rclone/rclone/compare/v1.55.0...v1.56.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.55.0...v1.56.0)
 
 * New backends
     * [Uptobox](https://rclone.org/uptobox/) (buengese)
@@ -30845,7 +30845,7 @@ Options:
 
 ## v1.55.1 - 2021-04-26
 
-[See commits](https://github.com/rclone/rclone/compare/v1.55.0...v1.55.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.55.0...v1.55.1)
 
 * Bug Fixes
     * selfupdate
@@ -30883,7 +30883,7 @@ Options:
 
 ## v1.55.0 - 2021-03-31
 
-[See commits](https://github.com/rclone/rclone/compare/v1.54.0...v1.55.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.54.0...v1.55.0)
 
 * New commands
     * [selfupdate](https://rclone.org/commands/rclone_selfupdate/) (Ivan Andreev)
@@ -31037,7 +31037,7 @@ Options:
 
 ## v1.54.1 - 2021-03-08
 
-[See commits](https://github.com/rclone/rclone/compare/v1.54.0...v1.54.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.54.0...v1.54.1)
 
 * Bug Fixes
     * accounting: Fix --bwlimit when up or down is off (Nick Craig-Wood)
@@ -31074,7 +31074,7 @@ Options:
 
 ## v1.54.0 - 2021-02-02
 
-[See commits](https://github.com/rclone/rclone/compare/v1.53.0...v1.54.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.53.0...v1.54.0)
 
 * New backends
     * Compression remote (experimental) (buengese)
@@ -31281,7 +31281,7 @@ Options:
 
 ## v1.53.4 - 2021-01-20
 
-[See commits](https://github.com/rclone/rclone/compare/v1.53.3...v1.53.4)
+[See commits](https://github.com/artpar/rclone/compare/v1.53.3...v1.53.4)
 
 * Bug Fixes
     * accounting: Fix data race in Transferred() (Maciej Zimnoch)
@@ -31325,12 +31325,12 @@ Options:
 
 ## v1.53.3 - 2020-11-19
 
-[See commits](https://github.com/rclone/rclone/compare/v1.53.2...v1.53.3)
+[See commits](https://github.com/artpar/rclone/compare/v1.53.2...v1.53.3)
 
 * Bug Fixes
     * random: Fix incorrect use of math/rand instead of crypto/rand CVE-2020-28924 (Nick Craig-Wood)
         * Passwords you have generated with `rclone config` may be insecure
-        * See [issue #4783](https://github.com/rclone/rclone/issues/4783) for more details and a checking tool
+        * See [issue #4783](https://github.com/artpar/rclone/issues/4783) for more details and a checking tool
     * random: Seed math/rand in one place with crypto strong seed (Nick Craig-Wood)
 * VFS
     * Fix vfs/refresh calls with fs= parameter (Nick Craig-Wood)
@@ -31339,7 +31339,7 @@ Options:
 
 ## v1.53.2 - 2020-10-26
 
-[See commits](https://github.com/rclone/rclone/compare/v1.53.1...v1.53.2)
+[See commits](https://github.com/artpar/rclone/compare/v1.53.1...v1.53.2)
 
 * Bug Fixes
     * acounting
@@ -31389,7 +31389,7 @@ Options:
 
 ## v1.53.1 - 2020-09-13
 
-[See commits](https://github.com/rclone/rclone/compare/v1.53.0...v1.53.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.53.0...v1.53.1)
 
 * Bug Fixes
     * accounting: Remove new line from end of --stats-one-line display (Nick Craig-Wood)
@@ -31419,7 +31419,7 @@ Options:
 
 ## v1.53.0 - 2020-09-02
 
-[See commits](https://github.com/rclone/rclone/compare/v1.52.0...v1.53.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.52.0...v1.53.0)
 
 * New Features
     * The [VFS layer](https://rclone.org/commands/rclone_mount/#vfs-virtual-file-system) was heavily reworked for this release - see below for more details
@@ -31596,7 +31596,7 @@ Options:
 
 ## v1.52.3 - 2020-08-07
 
-[See commits](https://github.com/rclone/rclone/compare/v1.52.2...v1.52.3)
+[See commits](https://github.com/artpar/rclone/compare/v1.52.2...v1.52.3)
 
 * Bug Fixes
     * docs
@@ -31626,7 +31626,7 @@ Options:
 
 ## v1.52.2 - 2020-06-24
 
-[See commits](https://github.com/rclone/rclone/compare/v1.52.1...v1.52.2)
+[See commits](https://github.com/artpar/rclone/compare/v1.52.1...v1.52.2)
 
 * Bug Fixes
     * build
@@ -31653,7 +31653,7 @@ Options:
 
 ## v1.52.1 - 2020-06-10
 
-[See commits](https://github.com/rclone/rclone/compare/v1.52.0...v1.52.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.52.0...v1.52.1)
 
 * Bug Fixes
     * lib/file: Fix SetSparse on Windows 7 which fixes downloads of files > 250MB (Nick Craig-Wood)
@@ -31689,7 +31689,7 @@ Options:
 Special thanks to Martin Michlmayr for proof reading and correcting
 all the docs and Edward Barker for helping re-write the front page.
 
-[See commits](https://github.com/rclone/rclone/compare/v1.51.0...v1.52.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.51.0...v1.52.0)
 
 * New backends
     * [Tardigrade](https://rclone.org/tardigrade/) backend for use with storj.io (Caleb Case)
@@ -32111,7 +32111,7 @@ all the docs and Edward Barker for helping re-write the front page.
         * Convert python scripts to python3 (Nick Craig-Wood)
         * Swap Azure/go-ansiterm for mattn/go-colorable (Nick Craig-Wood)
         * Dockerfile fixes (Matei David)
-        * Add [plugin support](https://github.com/rclone/rclone/blob/master/CONTRIBUTING.md#writing-a-plugin) for backends and commands (Richard Patel)
+        * Add [plugin support](https://github.com/artpar/rclone/blob/master/CONTRIBUTING.md#writing-a-plugin) for backends and commands (Richard Patel)
     * config
         * Use alternating Red/Green in config to make more obvious (Nick Craig-Wood)
     * contrib
@@ -34267,8 +34267,8 @@ flag/option).
 
 Bugs are stored in rclone's GitHub project:
 
-* [Reported bugs](https://github.com/rclone/rclone/issues?q=is%3Aopen+is%3Aissue+label%3Abug)
-* [Known issues](https://github.com/rclone/rclone/issues?q=is%3Aopen+is%3Aissue+milestone%3A%22Known+Problem%22)
+* [Reported bugs](https://github.com/artpar/rclone/issues?q=is%3Aopen+is%3Aissue+label%3Abug)
+* [Known issues](https://github.com/artpar/rclone/issues?q=is%3Aopen+is%3Aissue+milestone%3A%22Known+Problem%22)
 
 Frequently Asked Questions
 --------------------------
@@ -35027,7 +35027,7 @@ Forum for questions and general discussion:
 
 The project's repository is located at:
 
-  * https://github.com/rclone/rclone
+  * https://github.com/artpar/rclone
 
 There you can file bug reports or contribute with pull requests.
 

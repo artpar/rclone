@@ -3,13 +3,13 @@ package docker
 import (
 	"strings"
 
-	"github.com/rclone/rclone/cmd/mountlib"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/fspath"
-	"github.com/rclone/rclone/fs/rc"
-	"github.com/rclone/rclone/vfs/vfscommon"
-	"github.com/rclone/rclone/vfs/vfsflags"
+	"github.com/artpar/rclone/cmd/mountlib"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/fspath"
+	"github.com/artpar/rclone/fs/rc"
+	"github.com/artpar/rclone/vfs/vfscommon"
+	"github.com/artpar/rclone/vfs/vfsflags"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
