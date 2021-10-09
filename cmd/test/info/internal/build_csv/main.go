@@ -24,13 +24,13 @@ func main() {
 	for _, fn := range args {
 		f, err := os.Open(fn)
 		if err != nil {
-			log.Errorf("Unable to open %q: %s", fn, err)
+			log.Printf("Unable to open %q: %s", fn, err)
 		}
 		var remote internal.InfoReport
 		dec := json.NewDecoder(f)
 		err = dec.Decode(&remote)
 		if err != nil {
-			log.Errorf("Unable to decode %q: %s", fn, err)
+			log.Printf("Unable to decode %q: %s", fn, err)
 		}
 		if remote.ControlCharacters == nil {
 			log.Printf("Skipping remote %s: no ControlCharacters", remote.Remote)
@@ -38,7 +38,7 @@ func main() {
 			remotes = append(remotes, remote)
 		}
 		if err := f.Close(); err != nil {
-			log.Errorf("Closing %q failed: %s", fn, err)
+			log.Printf("Closing %q failed: %s", fn, err)
 		}
 	}
 
@@ -117,7 +117,7 @@ func main() {
 	} else {
 		f, err := os.Create(*fOut)
 		if err != nil {
-			log.Errorf("Unable to create %q: %s", *fOut, err)
+			log.Printf("Unable to create %q: %s", *fOut, err)
 		}
 		defer func() {
 			if err := f.Close(); err != nil {

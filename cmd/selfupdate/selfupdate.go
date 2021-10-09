@@ -84,19 +84,19 @@ var cmdSelfUpdate = &cobra.Command{
 		}
 		if Opt.Package != "zip" {
 			if Opt.Package != "deb" && Opt.Package != "rpm" {
-				log.Errorf("--package should be one of zip|deb|rpm")
+				log.Printf("--package should be one of zip|deb|rpm")
 			}
 			if runtime.GOOS != "linux" {
-				log.Errorf(".deb and .rpm packages are supported only on Linux")
+				log.Printf(".deb and .rpm packages are supported only on Linux")
 			} else if os.Geteuid() != 0 && !Opt.Check {
-				log.Errorf(".deb and .rpm must be installed by root")
+				log.Printf(".deb and .rpm must be installed by root")
 			}
 			if Opt.Output != "" && !Opt.Check {
 				fmt.Println("Warning: --output is ignored with --package deb|rpm")
 			}
 		}
 		if err := InstallUpdate(context.Background(), &Opt); err != nil {
-			log.Errorf("Error: %v", err)
+			log.Printf("Error: %v", err)
 		}
 	},
 }
