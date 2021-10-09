@@ -66,7 +66,7 @@ destination which can use retries.`,
 
 		stat, _ := os.Stdin.Stat()
 		if (stat.Mode() & os.ModeCharDevice) != 0 {
-			log.Fatalf("nothing to read from standard input (stdin).")
+			log.Errorf("nothing to read from standard input (stdin).")
 		}
 
 		fdst, dstFileName := cmd.NewFsDstFile(args)

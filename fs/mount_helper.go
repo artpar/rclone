@@ -16,7 +16,7 @@ func init() {
 		if args, err := convertMountHelperArgs(os.Args); err == nil {
 			os.Args = args
 		} else {
-			log.Fatalf("Failed to parse command line: %v", err)
+			log.Errorf("Failed to parse command line: %v", err)
 		}
 	}
 }
