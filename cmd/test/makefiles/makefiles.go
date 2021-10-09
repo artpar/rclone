@@ -137,21 +137,21 @@ func (d *dir) list(path string, output []string) []string {
 func writeFile(dir, name string) int64 {
 	err := file.MkdirAll(dir, 0777)
 	if err != nil {
-		log.Errorf("Failed to make directory %q: %v", dir, err)
+		log.Printf("Failed to make directory %q: %v", dir, err)
 	}
 	path := filepath.Join(dir, name)
 	fd, err := os.Create(path)
 	if err != nil {
-		log.Errorf("Failed to open file %q: %v", path, err)
+		log.Printf("Failed to open file %q: %v", path, err)
 	}
 	size := randSource.Int63n(int64(maxFileSize-minFileSize)) + int64(minFileSize)
 	_, err = io.CopyN(fd, randSource, size)
 	if err != nil {
-		log.Errorf("Failed to write %v bytes to file %q: %v", size, path, err)
+		log.Printf("Failed to write %v bytes to file %q: %v", size, path, err)
 	}
 	err = fd.Close()
 	if err != nil {
-		log.Errorf("Failed to close file %q: %v", path, err)
+		log.Printf("Failed to close file %q: %v", path, err)
 	}
 	fs.Infof(path, "Written file size %v", fs.SizeSuffix(size))
 	return size
