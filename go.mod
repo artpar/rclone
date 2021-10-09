@@ -14,6 +14,8 @@ require (
 	github.com/aalpar/deheap v0.0.0-20200318053559-9a0c2883bd56
 	github.com/abbot/go-http-auth v0.4.0
 	github.com/anacrolix/dms v1.2.2
+	github.com/artpar/go-httpclient v1.0.0
+	github.com/artpar/go-koofrclient v1.0.1
 	github.com/artyom/mtab v0.0.0-20141107123140-74b6fd01d416
 	github.com/atotto/clipboard v0.1.4
 	github.com/aws/aws-sdk-go v1.40.27
@@ -38,8 +40,6 @@ require (
 	github.com/jlaffaye/ftp v0.0.0-20210307004419-5d4190119067
 	github.com/jzelinskie/whirlpool v0.0.0-20201016144138-0675e54bb004
 	github.com/klauspost/compress v1.13.4
-	github.com/koofr/go-httpclient v0.0.0-20200420163713-93aa7c75b348
-	github.com/koofr/go-koofrclient v0.0.0-20190724113126-8e5366da203a
 	github.com/mattn/go-colorable v0.1.8
 	github.com/mattn/go-isatty v0.0.13 // indirect
 	github.com/mattn/go-runewidth v0.0.13

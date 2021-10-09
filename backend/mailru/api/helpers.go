@@ -6,8 +6,8 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"io"
+	"log"
 	"time"
 
 	"github.com/artpar/rclone/lib/readers"
