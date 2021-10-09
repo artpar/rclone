@@ -111,7 +111,7 @@ func runEnv(args, env []string) error {
 func run(args ...string) {
 	err := runEnv(args, nil)
 	if err != nil {
-		log.Fatalf("Exiting after error: %v", err)
+		log.Errorf("Exiting after error: %v", err)
 	}
 }
 
@@ -119,7 +119,7 @@ func run(args ...string) {
 func chdir(dir string) {
 	err := os.Chdir(dir)
 	if err != nil {
-		log.Fatalf("Couldn't cd into %q: %v", dir, err)
+		log.Errorf("Couldn't cd into %q: %v", dir, err)
 	}
 }
 
@@ -127,21 +127,21 @@ func chdir(dir string) {
 func substitute(inFile, outFile string, data interface{}) {
 	t, err := template.ParseFiles(inFile)
 	if err != nil {
-		log.Fatalf("Failed to read template file %q: %v %v", inFile, err)
+		log.Errorf("Failed to read template file %q: %v %v", inFile, err)
 	}
 	out, err := os.Create(outFile)
 	if err != nil {
-		log.Fatalf("Failed to create output file %q: %v %v", outFile, err)
+		log.Errorf("Failed to create output file %q: %v %v", outFile, err)
 	}
 	defer func() {
 		err := out.Close()
 		if err != nil {
-			log.Fatalf("Failed to close output file %q: %v %v", outFile, err)
+			log.Errorf("Failed to close output file %q: %v %v", outFile, err)
 		}
 	}()
 	err = t.Execute(out, data)
 	if err != nil {
-		log.Fatalf("Failed to substitute template file %q: %v %v", inFile, err)
+		log.Errorf("Failed to substitute template file %q: %v %v", inFile, err)
 	}
 }
 
@@ -290,7 +290,7 @@ func stripVersion(goarch string) string {
 func runOut(command ...string) string {
 	out, err := exec.Command(command[0], command[1:]...).Output()
 	if err != nil {
-		log.Fatalf("Failed to run %q: %v", command, err)
+		log.Errorf("Failed to run %q: %v", command, err)
 	}
 	return strings.TrimSpace(string(out))
 }
@@ -309,7 +309,7 @@ func compileArch(version, goos, goarch, dir string) bool {
 	}
 	err := os.MkdirAll(dir, 0777)
 	if err != nil {
-		log.Fatalf("Failed to mkdir: %v", err)
+		log.Errorf("Failed to mkdir: %v", err)
 	}
 	args := []string{
 		"go", "build",
@@ -407,11 +407,11 @@ func compile(version string) {
 	}
 	includeRe, err := regexp.Compile(*include)
 	if err != nil {
-		log.Fatalf("Bad -include regexp: %v", err)
+		log.Errorf("Bad -include regexp: %v", err)
 	}
 	excludeRe, err := regexp.Compile(*exclude)
 	if err != nil {
-		log.Fatalf("Bad -exclude regexp: %v", err)
+		log.Errorf("Bad -exclude regexp: %v", err)
 	}
 	compiled := 0
 	var failuresMu sync.Mutex
@@ -422,7 +422,7 @@ func compile(version string) {
 		}
 		parts := strings.Split(osarch, "/")
 		if len(parts) != 2 {
-			log.Fatalf("Bad osarch %q", osarch)
+			log.Errorf("Bad osarch %q", osarch)
 		}
 		goos, goarch := parts[0], parts[1]
 		userGoos := goos
@@ -453,7 +453,7 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 	if len(args) != 1 {
-		log.Fatalf("Syntax: %s <version>", os.Args[0])
+		log.Errorf("Syntax: %s <version>", os.Args[0])
 	}
 	version := args[0]
 	if !*noClean {
@@ -463,7 +463,7 @@ func main() {
 	chdir("build")
 	err := ioutil.WriteFile("version.txt", []byte(fmt.Sprintf("rclone %s\n", version)), 0666)
 	if err != nil {
-		log.Fatalf("Couldn't write version.txt: %v", err)
+		log.Errorf("Couldn't write version.txt: %v", err)
 	}
 	compile(version)
 }

@@ -268,7 +268,7 @@ func NewServer(handler http.Handler, opt *Options) *Server {
 
 	s.useSSL = s.Opt.SslKey != ""
 	if (s.Opt.SslCert != "") != s.useSSL {
-		log.Fatalf("Need both -cert and -key to use SSL")
+		log.Errorf("Need both -cert and -key to use SSL")
 	}
 
 	// If a Base URL is set then serve from there
@@ -293,15 +293,15 @@ func NewServer(handler http.Handler, opt *Options) *Server {
 
 	if s.Opt.ClientCA != "" {
 		if !s.useSSL {
-			log.Fatalf("Can't use --client-ca without --cert and --key")
+			log.Errorf("Can't use --client-ca without --cert and --key")
 		}
 		certpool := x509.NewCertPool()
 		pem, err := ioutil.ReadFile(s.Opt.ClientCA)
 		if err != nil {
-			log.Fatalf("Failed to read client certificate authority: %v", err)
+			log.Errorf("Failed to read client certificate authority: %v", err)
 		}
 		if !certpool.AppendCertsFromPEM(pem) {
-			log.Fatalf("Can't parse client certificate authority")
+			log.Errorf("Can't parse client certificate authority")
 		}
 		s.httpServer.TLSConfig.ClientCAs = certpool
 		s.httpServer.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
@@ -309,7 +309,7 @@ func NewServer(handler http.Handler, opt *Options) *Server {
 
 	htmlTemplate, templateErr := data.GetTemplate(s.Opt.Template)
 	if templateErr != nil {
-		log.Fatalf(templateErr.Error())
+		log.Errorf(templateErr.Error())
 	}
 	s.HTMLTemplate = htmlTemplate
 

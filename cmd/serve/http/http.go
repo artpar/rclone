@@ -85,7 +85,7 @@ type server struct {
 func newServer(f fs.Fs, templatePath string) *server {
 	htmlTemplate, templateErr := data.GetTemplate(templatePath)
 	if templateErr != nil {
-		log.Fatalf(templateErr.Error())
+		log.Errorf(templateErr.Error())
 	}
 	s := &server{
 		f:            f,

@@ -34,7 +34,7 @@ See the [rc documentation](/rc/) for more info on the rc flags.
 	Run: func(command *cobra.Command, args []string) {
 		cmd.CheckArgs(0, 1, command, args)
 		if rcflags.Opt.Enabled {
-			log.Fatalf("Don't supply --rc flag when using rcd")
+			log.Errorf("Don't supply --rc flag when using rcd")
 		}
 
 		// Start the rc
@@ -45,7 +45,7 @@ See the [rc documentation](/rc/) for more info on the rc flags.
 
 		s, err := rcserver.Start(context.Background(), &rcflags.Opt)
 		if err != nil {
-			log.Fatalf("Failed to start remote control: %v", err)
+			log.Errorf("Failed to start remote control: %v", err)
 		}
 		if s == nil {
 			log.Fatal("rc server not configured")
@@ -63,7 +63,7 @@ See the [rc documentation](/rc/) for more info on the rc flags.
 
 		// Notify ready to systemd
 		if err := sysdnotify.Ready(); err != nil {
-			log.Fatalf("failed to notify ready to systemd: %v", err)
+			log.Errorf("failed to notify ready to systemd: %v", err)
 		}
 
 		s.Wait()

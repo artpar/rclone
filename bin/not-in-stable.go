@@ -30,7 +30,7 @@ func readCommits(from, to string) (logMap map[string]string, logs []string) {
 	cmd := exec.Command("git", "log", "--oneline", from+".."+to)
 	out, err := cmd.Output()
 	if err != nil {
-		log.Fatalf("failed to run git log %s: %v", from+".."+to, err)
+		log.Errorf("failed to run git log %s: %v", from+".."+to, err)
 	}
 	logMap = map[string]string{}
 	logs = []string{}
@@ -40,7 +40,7 @@ func readCommits(from, to string) (logMap map[string]string, logs []string) {
 		}
 		match := logRe.FindSubmatch(line)
 		if match == nil {
-			log.Fatalf("failed to parse line: %q", line)
+			log.Errorf("failed to parse line: %q", line)
 		}
 		var hash, logMessage = string(match[1]), string(match[2])
 		logMap[logMessage] = hash
@@ -53,12 +53,12 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 	if len(args) != 0 {
-		log.Fatalf("Syntax: %s", os.Args[0])
+		log.Errorf("Syntax: %s", os.Args[0])
 	}
 	// v1.54.0
 	versionBytes, err := ioutil.ReadFile("VERSION")
 	if err != nil {
-		log.Fatalf("Failed to read version: %v", err)
+		log.Errorf("Failed to read version: %v", err)
 	}
 	if versionBytes[0] == 'v' {
 		versionBytes = versionBytes[1:]

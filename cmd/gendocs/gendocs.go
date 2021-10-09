@@ -102,7 +102,7 @@ rclone.org website.`,
 			var buf bytes.Buffer
 			err := frontmatterTemplate.Execute(&buf, data)
 			if err != nil {
-				log.Fatalf("Failed to render frontmatter template: %v", err)
+				log.Errorf("Failed to render frontmatter template: %v", err)
 			}
 			return buf.String()
 		}
