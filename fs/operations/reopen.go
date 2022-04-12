@@ -2,10 +2,10 @@ package operations
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/fserrors"
 )

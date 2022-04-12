@@ -3,13 +3,13 @@ package writeback
 import (
 	"container/heap"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/vfs/vfscommon"
 	"github.com/stretchr/testify/assert"

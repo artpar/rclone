@@ -3,12 +3,12 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/cmd"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/config"
@@ -23,6 +23,7 @@ func init() {
 	configCommand.AddCommand(configEditCommand)
 	configCommand.AddCommand(configFileCommand)
 	configCommand.AddCommand(configTouchCommand)
+	configCommand.AddCommand(configPathsCommand)
 	configCommand.AddCommand(configShowCommand)
 	configCommand.AddCommand(configDumpCommand)
 	configCommand.AddCommand(configProvidersCommand)
@@ -70,6 +71,17 @@ var configTouchCommand = &cobra.Command{
 	Run: func(command *cobra.Command, args []string) {
 		cmd.CheckArgs(0, 0, command, args)
 		config.SaveConfig()
+	},
+}
+
+var configPathsCommand = &cobra.Command{
+	Use:   "paths",
+	Short: `Show paths used for configuration, cache, temp etc.`,
+	Run: func(command *cobra.Command, args []string) {
+		cmd.CheckArgs(0, 0, command, args)
+		fmt.Printf("Config file: %s\n", config.GetConfigPath())
+		fmt.Printf("Cache dir:   %s\n", config.GetCacheDir())
+		fmt.Printf("Temp dir:    %s\n", os.TempDir())
 	},
 }
 
@@ -202,7 +214,7 @@ var configCreateCommand = &cobra.Command{
 Create a new remote of |name| with |type| and options.  The options
 should be passed in pairs of |key| |value| or as |key=value|.
 
-For example to make a swift remote of name myremote using auto config
+For example, to make a swift remote of name myremote using auto config
 you would do:
 
     rclone config create myremote swift env_auth true
@@ -248,13 +260,13 @@ func doConfig(name string, in rc.Params, do func(config.UpdateRemoteOpt) (*fs.Co
 
 func init() {
 	for _, cmdFlags := range []*pflag.FlagSet{configCreateCommand.Flags(), configUpdateCommand.Flags()} {
-		flags.BoolVarP(cmdFlags, &updateRemoteOpt.Obscure, "obscure", "", false, "Force any passwords to be obscured.")
-		flags.BoolVarP(cmdFlags, &updateRemoteOpt.NoObscure, "no-obscure", "", false, "Force any passwords not to be obscured.")
-		flags.BoolVarP(cmdFlags, &updateRemoteOpt.NonInteractive, "non-interactive", "", false, "Don't interact with user and return questions.")
-		flags.BoolVarP(cmdFlags, &updateRemoteOpt.Continue, "continue", "", false, "Continue the configuration process with an answer.")
-		flags.BoolVarP(cmdFlags, &updateRemoteOpt.All, "all", "", false, "Ask the full set of config questions.")
-		flags.StringVarP(cmdFlags, &updateRemoteOpt.State, "state", "", "", "State - use with --continue.")
-		flags.StringVarP(cmdFlags, &updateRemoteOpt.Result, "result", "", "", "Result - use with --continue.")
+		flags.BoolVarP(cmdFlags, &updateRemoteOpt.Obscure, "obscure", "", false, "Force any passwords to be obscured")
+		flags.BoolVarP(cmdFlags, &updateRemoteOpt.NoObscure, "no-obscure", "", false, "Force any passwords not to be obscured")
+		flags.BoolVarP(cmdFlags, &updateRemoteOpt.NonInteractive, "non-interactive", "", false, "Don't interact with user and return questions")
+		flags.BoolVarP(cmdFlags, &updateRemoteOpt.Continue, "continue", "", false, "Continue the configuration process with an answer")
+		flags.BoolVarP(cmdFlags, &updateRemoteOpt.All, "all", "", false, "Ask the full set of config questions")
+		flags.StringVarP(cmdFlags, &updateRemoteOpt.State, "state", "", "", "State - use with --continue")
+		flags.StringVarP(cmdFlags, &updateRemoteOpt.Result, "result", "", "", "Result - use with --continue")
 	}
 }
 
@@ -265,7 +277,7 @@ var configUpdateCommand = &cobra.Command{
 Update an existing remote's options. The options should be passed in
 pairs of |key| |value| or as |key=value|.
 
-For example to update the env_auth field of a remote of name myremote
+For example, to update the env_auth field of a remote of name myremote
 you would do:
 
     rclone config update myremote env_auth true
@@ -305,7 +317,7 @@ Update an existing remote's password. The password
 should be passed in pairs of |key| |password| or as |key=password|.
 The |password| should be passed in in clear (unobscured).
 
-For example to set password of a remote of name myremote you would do:
+For example, to set password of a remote of name myremote you would do:
 
     rclone config password myremote fieldname mypassword
     rclone config password myremote fieldname=mypassword
@@ -386,11 +398,11 @@ To reconnect use "rclone config reconnect".
 		f := cmd.NewFsSrc(args)
 		doDisconnect := f.Features().Disconnect
 		if doDisconnect == nil {
-			return errors.Errorf("%v doesn't support Disconnect", f)
+			return fmt.Errorf("%v doesn't support Disconnect", f)
 		}
 		err := doDisconnect(context.Background())
 		if err != nil {
-			return errors.Wrap(err, "Disconnect call failed")
+			return fmt.Errorf("Disconnect call failed: %w", err)
 		}
 		return nil
 	},
@@ -416,11 +428,11 @@ system.
 		f := cmd.NewFsSrc(args)
 		doUserInfo := f.Features().UserInfo
 		if doUserInfo == nil {
-			return errors.Errorf("%v doesn't support UserInfo", f)
+			return fmt.Errorf("%v doesn't support UserInfo", f)
 		}
 		u, err := doUserInfo(context.Background())
 		if err != nil {
-			return errors.Wrap(err, "UserInfo call failed")
+			return fmt.Errorf("UserInfo call failed: %w", err)
 		}
 		if jsonOutput {
 			out := json.NewEncoder(os.Stdout)

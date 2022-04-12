@@ -3,12 +3,12 @@ package list
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/filter"
-	"github.com/pkg/errors"
 )
 
 // DirSorted reads Object and *Dir into entries for the given Fs.
@@ -67,7 +67,7 @@ func filterAndSortDir(ctx context.Context, entries fs.DirEntries, includeAll boo
 				}
 			}
 		default:
-			return nil, errors.Errorf("unknown object type %T", entry)
+			return nil, fmt.Errorf("unknown object type %T", entry)
 		}
 		// check remote name belongs in this directory
 		remote := entry.Remote()

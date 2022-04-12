@@ -10,9 +10,9 @@ import (
 	"syscall"
 
 	"github.com/hanwen/go-fuse/v2/fuse"
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/cmd/mountlib"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/log"
 	"github.com/artpar/rclone/vfs"
 )
@@ -104,7 +104,8 @@ func translateError(err error) syscall.Errno {
 	if err == nil {
 		return 0
 	}
-	switch errors.Cause(err) {
+	_, uErr := fserrors.Cause(err)
+	switch uErr {
 	case vfs.OK:
 		return 0
 	case vfs.ENOENT, fs.ErrorDirNotFound, fs.ErrorObjectNotFound:

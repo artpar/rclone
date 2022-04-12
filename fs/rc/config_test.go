@@ -3,12 +3,12 @@ package rc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/artpar/rclone/cmd/serve/httplib"
 	"github.com/artpar/rclone/fs"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -4,6 +4,7 @@ package asyncreader
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/lib/pool"
 	"github.com/artpar/rclone/lib/readers"
-	"github.com/pkg/errors"
 )
 
 const (

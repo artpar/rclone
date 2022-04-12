@@ -2,6 +2,7 @@ package mountlib
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
@@ -21,7 +22,6 @@ import (
 	"github.com/artpar/rclone/vfs/vfsflags"
 
 	sysdnotify "github.com/iguanesolutions/go-systemd/v5/notify"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -40,6 +40,7 @@ type Options struct {
 	ExtraOptions       []string
 	ExtraFlags         []string
 	AttrTimeout        time.Duration // how long the kernel caches attribute for
+	DeviceName         string
 	VolumeName         string
 	NoAppleDouble      bool
 	NoAppleXattr       bool
@@ -111,29 +112,30 @@ var Opt Options
 // AddFlags adds the non filing system specific flags to the command
 func AddFlags(flagSet *pflag.FlagSet) {
 	rc.AddOption("mount", &Opt)
-	flags.BoolVarP(flagSet, &Opt.DebugFUSE, "debug-fuse", "", Opt.DebugFUSE, "Debug the FUSE internals - needs -v.")
-	flags.DurationVarP(flagSet, &Opt.AttrTimeout, "attr-timeout", "", Opt.AttrTimeout, "Time for which file/directory attributes are cached.")
-	flags.StringArrayVarP(flagSet, &Opt.ExtraOptions, "option", "o", []string{}, "Option for libfuse/WinFsp. Repeat if required.")
-	flags.StringArrayVarP(flagSet, &Opt.ExtraFlags, "fuse-flag", "", []string{}, "Flags or arguments to be passed direct to libfuse/WinFsp. Repeat if required.")
+	flags.BoolVarP(flagSet, &Opt.DebugFUSE, "debug-fuse", "", Opt.DebugFUSE, "Debug the FUSE internals - needs -v")
+	flags.DurationVarP(flagSet, &Opt.AttrTimeout, "attr-timeout", "", Opt.AttrTimeout, "Time for which file/directory attributes are cached")
+	flags.StringArrayVarP(flagSet, &Opt.ExtraOptions, "option", "o", []string{}, "Option for libfuse/WinFsp (repeat if required)")
+	flags.StringArrayVarP(flagSet, &Opt.ExtraFlags, "fuse-flag", "", []string{}, "Flags or arguments to be passed direct to libfuse/WinFsp (repeat if required)")
 	// Non-Windows only
-	flags.BoolVarP(flagSet, &Opt.Daemon, "daemon", "", Opt.Daemon, "Run mount in background and exit parent process. Not supported on Windows. As background output is suppressed, use --log-file with --log-format=pid,... to monitor.")
-	flags.DurationVarP(flagSet, &Opt.DaemonTimeout, "daemon-timeout", "", Opt.DaemonTimeout, "Time limit for rclone to respond to kernel. Not supported on Windows.")
-	flags.BoolVarP(flagSet, &Opt.DefaultPermissions, "default-permissions", "", Opt.DefaultPermissions, "Makes kernel enforce access control based on the file mode. Not supported on Windows.")
-	flags.BoolVarP(flagSet, &Opt.AllowNonEmpty, "allow-non-empty", "", Opt.AllowNonEmpty, "Allow mounting over a non-empty directory. Not supported on Windows.")
-	flags.BoolVarP(flagSet, &Opt.AllowRoot, "allow-root", "", Opt.AllowRoot, "Allow access to root user. Not supported on Windows.")
-	flags.BoolVarP(flagSet, &Opt.AllowOther, "allow-other", "", Opt.AllowOther, "Allow access to other users. Not supported on Windows.")
-	flags.BoolVarP(flagSet, &Opt.AsyncRead, "async-read", "", Opt.AsyncRead, "Use asynchronous reads. Not supported on Windows.")
-	flags.FVarP(flagSet, &Opt.MaxReadAhead, "max-read-ahead", "", "The number of bytes that can be prefetched for sequential reads. Not supported on Windows.")
-	flags.BoolVarP(flagSet, &Opt.WritebackCache, "write-back-cache", "", Opt.WritebackCache, "Makes kernel buffer writes before sending them to rclone. Without this, writethrough caching is used. Not supported on Windows.")
+	flags.BoolVarP(flagSet, &Opt.Daemon, "daemon", "", Opt.Daemon, "Run mount in background and exit parent process (as background output is suppressed, use --log-file with --log-format=pid,... to monitor) (not supported on Windows)")
+	flags.DurationVarP(flagSet, &Opt.DaemonTimeout, "daemon-timeout", "", Opt.DaemonTimeout, "Time limit for rclone to respond to kernel (not supported on Windows)")
+	flags.BoolVarP(flagSet, &Opt.DefaultPermissions, "default-permissions", "", Opt.DefaultPermissions, "Makes kernel enforce access control based on the file mode (not supported on Windows)")
+	flags.BoolVarP(flagSet, &Opt.AllowNonEmpty, "allow-non-empty", "", Opt.AllowNonEmpty, "Allow mounting over a non-empty directory (not supported on Windows)")
+	flags.BoolVarP(flagSet, &Opt.AllowRoot, "allow-root", "", Opt.AllowRoot, "Allow access to root user (not supported on Windows)")
+	flags.BoolVarP(flagSet, &Opt.AllowOther, "allow-other", "", Opt.AllowOther, "Allow access to other users (not supported on Windows)")
+	flags.BoolVarP(flagSet, &Opt.AsyncRead, "async-read", "", Opt.AsyncRead, "Use asynchronous reads (not supported on Windows)")
+	flags.FVarP(flagSet, &Opt.MaxReadAhead, "max-read-ahead", "", "The number of bytes that can be prefetched for sequential reads (not supported on Windows)")
+	flags.BoolVarP(flagSet, &Opt.WritebackCache, "write-back-cache", "", Opt.WritebackCache, "Makes kernel buffer writes before sending them to rclone (without this, writethrough caching is used) (not supported on Windows)")
+	flags.StringVarP(flagSet, &Opt.DeviceName, "devname", "", Opt.DeviceName, "Set the device name - default is remote:path")
 	// Windows and OSX
-	flags.StringVarP(flagSet, &Opt.VolumeName, "volname", "", Opt.VolumeName, "Set the volume name. Supported on Windows and OSX only.")
+	flags.StringVarP(flagSet, &Opt.VolumeName, "volname", "", Opt.VolumeName, "Set the volume name (supported on Windows and OSX only)")
 	// OSX only
-	flags.BoolVarP(flagSet, &Opt.NoAppleDouble, "noappledouble", "", Opt.NoAppleDouble, "Ignore Apple Double (._) and .DS_Store files. Supported on OSX only.")
-	flags.BoolVarP(flagSet, &Opt.NoAppleXattr, "noapplexattr", "", Opt.NoAppleXattr, "Ignore all \"com.apple.*\" extended attributes. Supported on OSX only.")
+	flags.BoolVarP(flagSet, &Opt.NoAppleDouble, "noappledouble", "", Opt.NoAppleDouble, "Ignore Apple Double (._) and .DS_Store files (supported on OSX only)")
+	flags.BoolVarP(flagSet, &Opt.NoAppleXattr, "noapplexattr", "", Opt.NoAppleXattr, "Ignore all \"com.apple.*\" extended attributes (supported on OSX only)")
 	// Windows only
-	flags.BoolVarP(flagSet, &Opt.NetworkMode, "network-mode", "", Opt.NetworkMode, "Mount as remote network drive, instead of fixed disk drive. Supported on Windows only")
+	flags.BoolVarP(flagSet, &Opt.NetworkMode, "network-mode", "", Opt.NetworkMode, "Mount as remote network drive, instead of fixed disk drive (supported on Windows only)")
 	// Unix only
-	flags.DurationVarP(flagSet, &Opt.DaemonWait, "daemon-wait", "", Opt.DaemonWait, "Time to wait for ready mount from daemon (maximum time on Linux, constant sleep time on OSX/BSD). Ignored on Windows.")
+	flags.DurationVarP(flagSet, &Opt.DaemonWait, "daemon-wait", "", Opt.DaemonWait, "Time to wait for ready mount from daemon (maximum time on Linux, constant sleep time on OSX/BSD) (not supported on Windows)")
 }
 
 // NewMountCommand makes a mount command with the given name and Mount function
@@ -235,6 +237,7 @@ func (m *MountPoint) Mount() (daemon *os.Process, err error) {
 		return nil, err
 	}
 	m.SetVolumeName(m.MountOpt.VolumeName)
+	m.SetDeviceName(m.MountOpt.DeviceName)
 
 	// Start background task if --daemon is specified
 	if m.MountOpt.Daemon {
@@ -248,7 +251,7 @@ func (m *MountPoint) Mount() (daemon *os.Process, err error) {
 
 	m.ErrChan, m.UnmountFn, err = m.MountFn(m.VFS, m.MountPoint, &m.MountOpt)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to mount FUSE fs")
+		return nil, fmt.Errorf("failed to mount FUSE fs: %w", err)
 	}
 	return nil, nil
 }
@@ -277,7 +280,7 @@ func (m *MountPoint) Wait() error {
 
 	// Notify systemd
 	if err := sysdnotify.Ready(); err != nil {
-		return errors.Wrap(err, "failed to notify systemd")
+		return fmt.Errorf("failed to notify systemd: %w", err)
 	}
 
 	// Reload VFS cache on SIGHUP
@@ -305,7 +308,7 @@ func (m *MountPoint) Wait() error {
 	finalise()
 
 	if err != nil {
-		return errors.Wrap(err, "failed to umount FUSE fs")
+		return fmt.Errorf("failed to umount FUSE fs: %w", err)
 	}
 	return nil
 }

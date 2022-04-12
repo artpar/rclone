@@ -1,3 +1,6 @@
+//go:build !race
+// +build !race
+
 package docker_test
 
 import (
@@ -20,6 +23,7 @@ import (
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/fstest/testy"
 	"github.com/artpar/rclone/lib/file"
 
 	"github.com/stretchr/testify/assert"
@@ -63,11 +67,12 @@ func assertVolumeInfo(t *testing.T, v *docker.VolInfo, name, path string) {
 
 func TestDockerPluginLogic(t *testing.T) {
 	ctx := context.Background()
-	oldCacheDir := config.CacheDir
+	oldCacheDir := config.GetCacheDir()
 	testDir, testFs := initialise(ctx, t)
-	config.CacheDir = testDir
+	err := config.SetCacheDir(testDir)
+	require.NoError(t, err)
 	defer func() {
-		config.CacheDir = oldCacheDir
+		_ = config.SetCacheDir(oldCacheDir)
 		if !t.Failed() {
 			fstest.Purge(testFs)
 			_ = os.RemoveAll(testDir)
@@ -299,16 +304,21 @@ func (a *APIClient) request(path string, in, out interface{}, wantErr bool) {
 }
 
 func testMountAPI(t *testing.T, sockAddr string) {
+	// Disable tests under macOS and linux in the CI since they are locking up
+	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
+		testy.SkipUnreliable(t)
+	}
 	if _, mountFn := mountlib.ResolveMountMethod(""); mountFn == nil {
 		t.Skip("Test requires working mount command")
 	}
 
 	ctx := context.Background()
-	oldCacheDir := config.CacheDir
+	oldCacheDir := config.GetCacheDir()
 	testDir, testFs := initialise(ctx, t)
-	config.CacheDir = testDir
+	err := config.SetCacheDir(testDir)
+	require.NoError(t, err)
 	defer func() {
-		config.CacheDir = oldCacheDir
+		_ = config.SetCacheDir(oldCacheDir)
 		if !t.Failed() {
 			fstest.Purge(testFs)
 			_ = os.RemoveAll(testDir)

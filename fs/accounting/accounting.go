@@ -3,6 +3,7 @@ package accounting
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/artpar/rclone/fs/rc"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/asyncreader"
 	"github.com/artpar/rclone/fs/fserrors"

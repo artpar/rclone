@@ -4,13 +4,13 @@
 package cache
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/fs"
 	cache "github.com/patrickmn/go-cache"
-	"github.com/pkg/errors"
+	"github.com/artpar/rclone/fs"
 )
 
 // Memory is a wrapper of transient storage for a go-cache store
@@ -53,7 +53,7 @@ func (m *Memory) GetChunk(cachedObject *Object, offset int64) ([]byte, error) {
 		return data, nil
 	}
 
-	return nil, errors.Errorf("couldn't get cached object data at offset %v", offset)
+	return nil, fmt.Errorf("couldn't get cached object data at offset %v", offset)
 }
 
 // AddChunk adds a new chunk of a cached object

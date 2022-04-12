@@ -2,6 +2,7 @@ package webgui
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/rc/rcflags"
-	"github.com/artpar/rclone/lib/errors"
 )
 
 // PackageJSON is the structure of package.json of a plugin
@@ -89,7 +89,7 @@ func initPluginsOrError() error {
 	initMutex.Lock()
 	defer initMutex.Unlock()
 	if !initSuccess {
-		cachePath = filepath.Join(config.CacheDir, "webgui")
+		cachePath = filepath.Join(config.GetCacheDir(), "webgui")
 		PluginsPath = filepath.Join(cachePath, "plugins")
 		pluginsConfigPath = filepath.Join(PluginsPath, "config")
 		loadedPlugins = newPlugins(availablePluginsJSONPath)

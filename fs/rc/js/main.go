@@ -10,6 +10,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"runtime"
@@ -17,7 +19,6 @@ import (
 
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/rc"
-	"github.com/pkg/errors"
 
 	// Core functionality we need
 	_ "github.com/artpar/rclone/fs/operations"
@@ -37,7 +38,7 @@ var (
 func getElementById(name string) js.Value {
 	node := document.Call("getElementById", name)
 	if node.IsUndefined() {
-		log.Printf("Couldn't find element %q", name)
+		log.Fatalf("Couldn't find element %q", name)
 	}
 	return node
 }
@@ -54,10 +55,9 @@ func paramToValue(in rc.Params) (out js.Value) {
 func errorValue(method string, in js.Value, err error) js.Value {
 	fs.Errorf(nil, "rc: %q: error: %v", method, err)
 	// Adjust the error return for some well known errors
-	errOrig := errors.Cause(err)
 	status := http.StatusInternalServerError
 	switch {
-	case errOrig == fs.ErrorDirNotFound || errOrig == fs.ErrorObjectNotFound:
+	case errors.Is(err, fs.ErrorDirNotFound) || errors.Is(err, fs.ErrorObjectNotFound):
 		status = http.StatusNotFound
 	case rc.IsErrParamInvalid(err) || rc.IsErrParamNotFound(err):
 		status = http.StatusBadRequest
@@ -89,7 +89,7 @@ func rcCallback(this js.Value, args []js.Value) interface{} {
 		inJSON := jsJSON.Call("stringify", inRaw).String()
 		err := json.Unmarshal([]byte(inJSON), &in)
 		if err != nil {
-			return errorValue(method, inRaw, errors.Wrap(err, "couldn't unmarshal input"))
+			return errorValue(method, inRaw, fmt.Errorf("couldn't unmarshal input: %w", err))
 		}
 	default:
 		return errorValue(method, inRaw, errors.New("in parameter must be null or object"))
@@ -97,12 +97,12 @@ func rcCallback(this js.Value, args []js.Value) interface{} {
 
 	call := rc.Calls.Get(method)
 	if call == nil {
-		return errorValue(method, inRaw, errors.Errorf("method %q not found", method))
+		return errorValue(method, inRaw, fmt.Errorf("method %q not found", method))
 	}
 
 	out, err := call.Fn(ctx, in)
 	if err != nil {
-		return errorValue(method, inRaw, errors.Wrap(err, "method call failed"))
+		return errorValue(method, inRaw, fmt.Errorf("method call failed: %w", err))
 	}
 	if out == nil {
 		return nil
@@ -110,7 +110,7 @@ func rcCallback(this js.Value, args []js.Value) interface{} {
 	var out2 map[string]interface{}
 	err = rc.Reshape(&out2, out)
 	if err != nil {
-		return errorValue(method, inRaw, errors.Wrap(err, "result reshape failed"))
+		return errorValue(method, inRaw, fmt.Errorf("result reshape failed: %w", err))
 	}
 
 	return js.ValueOf(out2)
@@ -119,16 +119,16 @@ func rcCallback(this js.Value, args []js.Value) interface{} {
 func main() {
 	log.Printf("Running on goos/goarch = %s/%s", runtime.GOOS, runtime.GOARCH)
 	if js.Global().IsUndefined() {
-		log.Printf("Didn't find Global - not running in browser")
+		log.Fatalf("Didn't find Global - not running in browser")
 	}
 	document = js.Global().Get("document")
 	if document.IsUndefined() {
-		log.Printf("Didn't find document - not running in browser")
+		log.Fatalf("Didn't find document - not running in browser")
 	}
 
 	jsJSON = js.Global().Get("JSON")
 	if jsJSON.IsUndefined() {
-		log.Printf("can't find JSON")
+		log.Fatalf("can't find JSON")
 	}
 
 	// Set rc
@@ -137,7 +137,7 @@ func main() {
 	// Signal that it is valid
 	rcValidResolve := js.Global().Get("rcValidResolve")
 	if rcValidResolve.IsUndefined() {
-		log.Printf("Didn't find rcValidResolve")
+		log.Fatalf("Didn't find rcValidResolve")
 	}
 	rcValidResolve.Invoke()
 

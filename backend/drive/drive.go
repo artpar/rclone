@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"mime"
 	"net/http"
 	"path"
@@ -942,7 +941,7 @@ func fixMimeType(mimeTypeIn string) string {
 		mimeTypeOut = mime.FormatMediaType(mediaType, param)
 	}
 	if mimeTypeOut == "" {
-		log.Printf("unable to fix MIME type %q", mimeTypeIn)
+		fmt.Printf("unable to fix MIME type %q", mimeTypeIn)
 	}
 	return mimeTypeOut
 }

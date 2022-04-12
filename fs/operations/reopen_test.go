@@ -2,11 +2,11 @@ package operations
 
 import (
 	"context"
+	"errors"
 	"io"
 	"io/ioutil"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/fstest/mockobject"

@@ -32,7 +32,7 @@ var (
 func init() {
 	cmd.Root.AddCommand(commandDefinition)
 	cmdFlags := commandDefinition.Flags()
-	flags.BoolVarP(cmdFlags, &download, "download", "", download, "Check by downloading rather than with hash.")
+	flags.BoolVarP(cmdFlags, &download, "download", "", download, "Check by downloading rather than with hash")
 	flags.StringVarP(cmdFlags, &checkFileHashType, "checkfile", "C", checkFileHashType, "Treat source:path as a SUM file with hashes of given type")
 	AddFlags(cmdFlags)
 }
@@ -136,7 +136,7 @@ var commandDefinition = &cobra.Command{
 	Short: `Checks the files in the source and destination match.`,
 	Long: strings.ReplaceAll(`
 Checks the files in the source and destination match.  It compares
-sizes and hashes (MD5 or SHA1) and logs a report of files which don't
+sizes and hashes (MD5 or SHA1) and logs a report of files that don't
 match.  It doesn't alter the source or destination.
 
 If you supply the |--size-only| flag, it will only compare the sizes not

@@ -7,7 +7,8 @@
 package cmount
 
 import (
-	"github.com/pkg/errors"
+	"errors"
+	
 	"github.com/artpar/rclone/cmd/mountlib"
 	"github.com/artpar/rclone/vfs"
 )

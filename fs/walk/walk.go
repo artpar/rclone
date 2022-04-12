@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/dirtree"
 	"github.com/artpar/rclone/fs/filter"
 	"github.com/artpar/rclone/fs/list"
-	"github.com/pkg/errors"
 )
 
 // ErrorSkipDir is used as a return value from Walk to indicate that the

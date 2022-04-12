@@ -16,7 +16,7 @@ Update an existing remote's password. The password
 should be passed in pairs of `key` `password` or as `key=password`.
 The `password` should be passed in in clear (unobscured).
 
-For example to set password of a remote of name myremote you would do:
+For example, to set password of a remote of name myremote you would do:
 
     rclone config password myremote fieldname mypassword
     rclone config password myremote fieldname=mypassword
@@ -26,7 +26,7 @@ both support obscuring passwords directly.
 
 
 ```
-rclone config password `name` [`key` `value`]+ [flags]
+rclone config password name [key value]+ [flags]
 ```
 
 ## Options

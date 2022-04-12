@@ -8,14 +8,15 @@ FUSE.
 
 First set up your remote using |rclone config|.  Check it works with |rclone ls| etc.
 
-On Linux and OSX, you can either run mount in foreground mode or background (daemon) mode.
-Mount runs in foreground mode by default, use the |--daemon| flag to specify background mode.
-You can only run mount in foreground mode on Windows.
+On Linux and macOS, you can run mount in either foreground or background (aka
+daemon) mode. Mount runs in foreground mode by default. Use the |--daemon| flag
+to force background mode. On Windows you can run mount in foreground only,
+the flag is ignored.
 
-In background mode rclone acts as a generic Unix mount program: the main program
-starts, spawns a background rclone process to setup and maintain the mount, waits
-until success or timeout, kills the child process if mount fails, and immediately
-exits with appropriate return code.
+In background mode rclone acts as a generic Unix mount program: the main
+program starts, spawns background rclone process to setup and maintain the
+mount, waits until success or timeout and exits with appropriate code
+(killing the child process if it fails).
 
 On Linux/macOS/FreeBSD start the mount like this, where |/path/to/local/mount|
 is an **empty** **existing** directory:
@@ -64,7 +65,7 @@ at all, then 1 PiB is set as both the total and the free size.
 To run rclone @ on Windows, you will need to
 download and install [WinFsp](http://www.secfs.net/winfsp/).
 
-[WinFsp](https://github.com/billziss-gh/winfsp) is an open source
+[WinFsp](https://github.com/billziss-gh/winfsp) is an open-source
 Windows File System Proxy which makes it easy to write user space file
 systems for Windows.  It provides a FUSE emulation layer which rclone
 uses combination with [cgofuse](https://github.com/billziss-gh/cgofuse).
@@ -157,11 +158,16 @@ By default, the owner and group will be taken from the current user, and the bui
 group "Everyone" will be used to represent others. The user/group can be customized
 with FUSE options "UserName" and "GroupName",
 e.g. |-o UserName=user123 -o GroupName="Authenticated Users"|.
+The permissions on each entry will be set according to [options](#options)
+|--dir-perms| and |--file-perms|, which takes a value in traditional
+[numeric notation](https://en.wikipedia.org/wiki/File-system_permissions#Numeric_notation).
 
-The permissions on each entry will be set according to
-[options](#options) |--dir-perms| and |--file-perms|,
-which takes a value in traditional [numeric notation](https://en.wikipedia.org/wiki/File-system_permissions#Numeric_notation),
-where the default corresponds to |--file-perms 0666 --dir-perms 0777|.
+The default permissions corresponds to |--file-perms 0666 --dir-perms 0777|,
+i.e. read and write permissions to everyone. This means you will not be able
+to start any programs from the the mount. To be able to do that you must add
+execute permissions, e.g. |--file-perms 0777 --dir-perms 0777| to add it
+to everyone. If the program needs to write files, chances are you will have
+to enable [VFS File Caching](#vfs-file-caching) as well (see also [limitations](#limitations)).
 
 Note that the mapping of permissions is not always trivial, and the result
 you see in Windows Explorer may not be exactly like you expected.
@@ -229,17 +235,17 @@ applications won't work with their files on an rclone mount without
 |--vfs-cache-mode writes| or |--vfs-cache-mode full|.
 See the [VFS File Caching](#vfs-file-caching) section for more info.
 
-The bucket based remotes (e.g. Swift, S3, Google Compute Storage, B2,
+The bucket-based remotes (e.g. Swift, S3, Google Compute Storage, B2,
 Hubic) do not support the concept of empty directories, so empty
 directories will have a tendency to disappear once they fall out of
 the directory cache.
 
-When mount is invoked on Unix with |--daemon|, the main rclone program
-will wait until the background mount is ready until timeout specified by
-the |--daemon-wait| flag. On Linux rclone will poll ProcFS to check status
-so the flag sets the **maximum time to wait**. On macOS/BSD the time to wait
-is constant and the check is performed only at the end of sleep so don't
-set it too high...
+When |rclone mount| is invoked on Unix with |--daemon| flag, the main rclone
+program will wait for the background mount to become ready or until the timeout
+specified by the |--daemon-wait| flag. On Linux it can check mount status using
+ProcFS so the flag in fact sets **maximum** time to wait, while the real wait
+can be less. On macOS / BSD the time to wait is constant and the check is
+performed only at the end. We advise you to set wait time on macOS reasonably.
 
 Only supported on Linux, FreeBSD, OS X and Windows at the moment.
 
@@ -300,20 +306,22 @@ will see all files and folders immediately in this mode.
 Note that systemd runs mount units without any environment variables including
 |PATH| or |HOME|. This means that tilde (|~|) expansion will not work
 and you should provide |--config| and |--cache-dir| explicitly as absolute
-paths via rclone arguments. Since mounting requires the |fusermount| program,
-rclone will use the fallback PATH of |/bin:/usr/bin| in this scenario.
-Please ensure that |fusermount| is present on this PATH.
+paths via rclone arguments.
+Since mounting requires the |fusermount| program, rclone will use the fallback
+PATH of |/bin:/usr/bin| in this scenario. Please ensure that |fusermount|
+is present on this PATH.
 
 ### Rclone as Unix mount helper
 
 The core Unix program |/bin/mount| normally takes the |-t FSTYPE| argument
 then runs the |/sbin/mount.FSTYPE| helper program passing it mount options
-as |-o key=val,...| or |--opt=...|. Automount (classic or systemd) follows
-the suit.
+as |-o key=val,...| or |--opt=...|. Automount (classic or systemd) behaves
+in a similar way.
 
-rclone by default expects GNU-style flags |--key val|. To run it as a
-mount helper you should symlink the rclone binary to |/sbin/mount.rclone|
-and optionally |/usr/bin/rclonefs|, e.g. |ln -s /usr/bin/rclone /sbin/mount.rclone|.
+rclone by default expects GNU-style flags |--key val|. To run it as a mount
+helper you should symlink rclone binary to |/sbin/mount.rclone| and optionally
+|/usr/bin/rclonefs|, e.g. |ln -s /usr/bin/rclone /sbin/mount.rclone|.
+rclone will detect it and translate command-line arguments appropriately.
 
 Now you can run classic mounts like this:
 |||
@@ -332,7 +340,7 @@ Where=/mnt/data
 Options=rw,allow_other,args2env,vfs-cache-mode=writes,config=/etc/rclone.conf,cache-dir=/var/rclone
 |||
 
-optionally augmented by systemd automount unit
+optionally accompanied by systemd automount unit
 |||
 # /etc/systemd/system/mnt-data.automount
 [Unit]
@@ -351,25 +359,26 @@ sftp1:subdir /mnt/data rclone rw,noauto,nofail,_netdev,x-systemd.automount,args2
 |||
 
 or use classic Automountd.
-Remember to provide explicit |config=...,cache-dir=...| as mount units
-run without |HOME|.
+Remember to provide explicit |config=...,cache-dir=...| as a workaround for
+mount units being run without |HOME|.
 
 Rclone in the mount helper mode will split |-o| argument(s) by comma, replace |_|
 by |-| and prepend |--| to get the command-line flags. Options containing commas
-or spaces can be wrapped in single or double quotes. Any quotes inside outer quotes
-should be doubled.
+or spaces can be wrapped in single or double quotes. Any inner quotes inside outer
+quotes of the same type should be doubled.
 
 Mount option syntax includes a few extra options treated specially:
 
-- |env.NAME=VALUE| will set an environment variable for.
-  This helps with Automountd and Systemd.mount which don't allow to set custom
-  environment for mount helpers.
+- |env.NAME=VALUE| will set an environment variable for the mount process.
+  This helps with Automountd and Systemd.mount which don't allow setting
+  custom environment for mount helpers.
   Typically you will use |env.HTTPS_PROXY=proxy.host:3128| or |env.HOME=/root|
-- |command=cmount| can be used to run any other command rather than default mount
-- |args2env| will pass mount options to the background mount helper via environment
-  variables instead of command line arguments. This allows to hide secrets from such
-  commands as |ps| or |pgrep|.
+- |command=cmount| can be used to run |cmount| or any other rclone command
+  rather than the default |mount|.
+- |args2env| will pass mount options to the mount helper running in background
+  via environment variables instead of command line arguments. This allows to
+  hide secrets from such commands as |ps| or |pgrep|.
 - |vv...| will be transformed into appropriate |--verbose=N|
 - standard mount options like |x-systemd.automount|, |_netdev|, |nosuid| and alike
-  are intended only for Automountd so ignored by rclone
+  are intended only for Automountd and ignored by rclone.
 `

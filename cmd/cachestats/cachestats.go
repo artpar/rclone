@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/backend/cache"
 	"github.com/artpar/rclone/cmd"
 	"github.com/artpar/rclone/fs"
@@ -39,7 +38,7 @@ Print cache stats for a remote in JSON format
 					fsCache, ok = unwrap().(*cache.Fs)
 				}
 				if !ok {
-					return errors.Errorf("%s: is not a cache remote", fsrc.Name())
+					return fmt.Errorf("%s: is not a cache remote", fsrc.Name())
 				}
 			}
 			m, err := fsCache.Stats()

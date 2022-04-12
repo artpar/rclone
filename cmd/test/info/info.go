@@ -19,7 +19,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/cmd"
 	"github.com/artpar/rclone/cmd/test"
 	"github.com/artpar/rclone/cmd/test/info/internal"
@@ -47,13 +46,13 @@ var (
 func init() {
 	test.Command.AddCommand(commandDefinition)
 	cmdFlags := commandDefinition.Flags()
-	flags.StringVarP(cmdFlags, &writeJSON, "write-json", "", "", "Write results to file.")
-	flags.BoolVarP(cmdFlags, &checkNormalization, "check-normalization", "", false, "Check UTF-8 Normalization.")
-	flags.BoolVarP(cmdFlags, &checkControl, "check-control", "", false, "Check control characters.")
-	flags.DurationVarP(cmdFlags, &uploadWait, "upload-wait", "", 0, "Wait after writing a file.")
-	flags.BoolVarP(cmdFlags, &checkLength, "check-length", "", false, "Check max filename length.")
-	flags.BoolVarP(cmdFlags, &checkStreaming, "check-streaming", "", false, "Check uploads with indeterminate file size.")
-	flags.BoolVarP(cmdFlags, &all, "all", "", false, "Run all tests.")
+	flags.StringVarP(cmdFlags, &writeJSON, "write-json", "", "", "Write results to file")
+	flags.BoolVarP(cmdFlags, &checkNormalization, "check-normalization", "", false, "Check UTF-8 Normalization")
+	flags.BoolVarP(cmdFlags, &checkControl, "check-control", "", false, "Check control characters")
+	flags.DurationVarP(cmdFlags, &uploadWait, "upload-wait", "", 0, "Wait after writing a file")
+	flags.BoolVarP(cmdFlags, &checkLength, "check-length", "", false, "Check max filename length")
+	flags.BoolVarP(cmdFlags, &checkStreaming, "check-streaming", "", false, "Check uploads with indeterminate file size")
+	flags.BoolVarP(cmdFlags, &all, "all", "", false, "Run all tests")
 }
 
 var commandDefinition = &cobra.Command{
@@ -69,7 +68,7 @@ a bit of go code for each one.
 	Run: func(command *cobra.Command, args []string) {
 		cmd.CheckArgs(1, 1e6, command, args)
 		if !checkNormalization && !checkControl && !checkLength && !checkStreaming && !all {
-			log.Printf("no tests selected - select a test or use -all")
+			log.Fatalf("no tests selected - select a test or use -all")
 		}
 		if all {
 			checkNormalization = true
@@ -228,7 +227,7 @@ func (r *results) checkStringPositions(k, s string) {
 		case internal.PositionRight:
 			path = fmt.Sprintf("position-right-%0X-%s", s, s)
 		default:
-			panic("invalid position: " + pos.String())
+			fmt.Printf("invalid position: " + pos.String())
 		}
 		_, writeError := r.writeFile(path)
 		if writeError != nil {
@@ -441,7 +440,7 @@ func (r *results) checkStreaming() {
 func readInfo(ctx context.Context, f fs.Fs) error {
 	err := f.Mkdir(ctx, "")
 	if err != nil {
-		return errors.Wrap(err, "couldn't mkdir")
+		return fmt.Errorf("couldn't mkdir: %w", err)
 	}
 	r := newResults(ctx, f)
 	if checkControl {

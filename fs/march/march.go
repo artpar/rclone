@@ -3,6 +3,7 @@ package march
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"sort"
 	"strings"
@@ -328,7 +329,7 @@ func matchListings(srcListEntries, dstListEntries fs.DirEntries, transforms []ma
 				continue
 			} else if srcName < prevName {
 				// this should never happen since we sort the listings
-				panic("Out of order listing in source")
+				fmt.Printf("Out of order listing in source")
 			}
 		}
 		if dst != nil && iDst > 0 {
@@ -340,7 +341,7 @@ func matchListings(srcListEntries, dstListEntries fs.DirEntries, transforms []ma
 				continue
 			} else if dstName < prevName {
 				// this should never happen since we sort the listings
-				panic("Out of order listing in destination")
+				fmt.Printf("Out of order listing in destination")
 			}
 		}
 		if src != nil && dst != nil {
@@ -404,6 +405,7 @@ func (m *March) processJob(job listDirJob) ([]listDirJob, error) {
 	// Wait for listings to complete and report errors
 	wg.Wait()
 	if srcListErr != nil {
+		fs.Errorf(job.srcRemote, "error reading source directory: %v", srcListErr)
 		if job.srcRemote != "" {
 			fs.Errorf(job.srcRemote, "error reading source directory: %v", srcListErr)
 		} else {
@@ -415,6 +417,7 @@ func (m *March) processJob(job listDirJob) ([]listDirJob, error) {
 	if dstListErr == fs.ErrorDirNotFound {
 		// Copy the stuff anyway
 	} else if dstListErr != nil {
+		fs.Errorf(job.dstRemote, "error reading destination directory: %v", dstListErr)
 		if job.dstRemote != "" {
 			fs.Errorf(job.dstRemote, "error reading destination directory: %v", dstListErr)
 		} else {
@@ -496,3 +499,4 @@ func (m *March) processJob(job listDirJob) ([]listDirJob, error) {
 	}
 	return jobs, nil
 }
+

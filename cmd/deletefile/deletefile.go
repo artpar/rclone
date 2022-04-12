@@ -2,10 +2,10 @@ package deletefile
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/artpar/rclone/cmd"
 	"github.com/artpar/rclone/fs/operations"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +26,7 @@ it will always be removed.
 		fs, fileName := cmd.NewFsFile(args[0])
 		cmd.Run(true, false, command, func() error {
 			if fileName == "" {
-				return errors.Errorf("%s is a directory or doesn't exist", args[0])
+				return fmt.Errorf("%s is a directory or doesn't exist", args[0])
 			}
 			fileObj, err := fs.NewObject(context.Background(), fileName)
 			if err != nil {

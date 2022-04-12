@@ -10,7 +10,7 @@ Rclone is a Go program and comes as a single binary file.
 ## Quickstart ##
 
   * [Download](/downloads/) the relevant binary.
-  * Extract the `rclone` or `rclone.exe` binary from the archive
+  * Extract the `rclone` executable, `rclone.exe` on Windows, from the archive.
   * Run `rclone config` to setup. See [rclone config docs](/docs/) for more details.
   * Optionally configure [automatic execution](#autostart).
 
@@ -48,12 +48,12 @@ Copy binary file
     sudo cp rclone /usr/bin/
     sudo chown root:root /usr/bin/rclone
     sudo chmod 755 /usr/bin/rclone
-    
+
 Install manpage
 
     sudo mkdir -p /usr/local/share/man/man1
     sudo cp rclone.1 /usr/local/share/man/man1/
-    sudo mandb 
+    sudo mandb
 
 Run `rclone config` to setup. See [rclone config docs](/docs/) for more details.
 
@@ -62,6 +62,11 @@ Run `rclone config` to setup. See [rclone config docs](/docs/) for more details.
 ## macOS installation with brew ##
 
     brew install rclone
+
+NOTE: This version of rclone will not support `mount` any more (see
+[#5373](https://github.com/artpar/rclone/issues/5373)). If mounting is wanted
+on macOS, either install a precompiled binary or enable the relevant option
+when [installing from source](#install-from-source).
 
 ## macOS installation from precompiled binary, using curl ##
 
@@ -185,14 +190,17 @@ kill %1
 
 ## Install from source ##
 
-Make sure you have at least [Go](https://golang.org/) go1.14
+Make sure you have at least [Go](https://golang.org/) go1.16
 installed.  [Download go](https://golang.org/dl/) if necessary.  The
 latest release is recommended. Then
 
-    git clone https://github.com/artpar/rclone.git
-    cd rclone
-    go build
-    ./rclone version
+```sh
+git clone https://github.com/artpar/rclone.git
+cd rclone
+go build
+# If on macOS and mount is wanted, instead run: make GOTAGS=cmount
+./rclone version
+```
 
 This will leave you a checked out version of rclone you can modify and
 send pull requests with. If you use `make` instead of `go build` then
@@ -221,12 +229,32 @@ Instructions
 
   1. `git clone https://github.com/stefangweichinger/ansible-rclone.git` into your local roles-directory
   2. add the role to the hosts you want rclone installed to:
-    
+
 ```
     - hosts: rclone-hosts
       roles:
           - rclone
 ```
+
+## Portable installation ##
+
+As mentioned [above](https://rclone.org/install/#quickstart), rclone is single
+executable (`rclone`, or `rclone.exe` on Windows) that you can download as a
+zip archive and extract into a location of your choosing. When executing different
+commands, it may create files in different locations, such as a configuration file
+and various temporary files. By default the locations for these are according to
+your operating system, e.g. configuration file in your user profile directory and
+temporary files in the standard temporary directory, but you can customize all of
+them, e.g. to make a completely self-contained, portable installation.
+
+Run the [config paths](/commands/rclone_config_paths/) command to see
+the locations that rclone will use.
+
+To override them set the corresponding options (as command-line arguments, or as
+[environment variables](https://rclone.org/docs/#environment-variables)):
+  - [--config](https://rclone.org/docs/#config-config-file)
+  - [--cache-dir](https://rclone.org/docs/#cache-dir-dir)
+  - [--temp-dir](https://rclone.org/docs/#temp-dir-dir)
 
 ## Autostart
 
@@ -318,7 +346,7 @@ your rclone command, as an alternative to scheduled task configured to run at st
 
 ##### Mount command built-in service integration ####
 
-For mount commands, Rclone has a built-in Windows service integration via the third party
+For mount commands, Rclone has a built-in Windows service integration via the third-party
 WinFsp library it uses. Registering as a regular Windows service easy, as you just have to
 execute the built-in PowerShell command `New-Service` (requires administrative privileges).
 
@@ -338,9 +366,9 @@ Windows standard methods for managing network drives. This is currently not
 officially supported by Rclone, but with WinFsp version 2019.3 B2 / v1.5B2 or later
 it should be possible through path rewriting as described [here](https://github.com/artpar/rclone/issues/3340).
 
-##### Third party service integration ####
+##### Third-party service integration #####
 
-To Windows service running any rclone command, the excellent third party utility
+To Windows service running any rclone command, the excellent third-party utility
 [NSSM](http://nssm.cc), the "Non-Sucking Service Manager", can be used.
 It includes some advanced features such as adjusting process periority, defining
 process environment variables, redirect to file anything written to stdout, and

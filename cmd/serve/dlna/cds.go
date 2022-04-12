@@ -3,9 +3,9 @@ package dlna
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"log"
-	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,45 +16,10 @@ import (
 
 	"github.com/anacrolix/dms/dlna"
 	"github.com/anacrolix/dms/upnp"
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/cmd/serve/dlna/upnpav"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/vfs"
 )
-
-// Add a minimal number of mime types to augment go's built in types
-// for environments which don't have access to a mime.types file (e.g.
-// Termux on android)
-func init() {
-	for _, t := range []struct {
-		mimeType   string
-		extensions string
-	}{
-		{"audio/flac", ".flac"},
-		{"audio/mpeg", ".mpga,.mpega,.mp2,.mp3,.m4a"},
-		{"audio/ogg", ".oga,.ogg,.opus,.spx"},
-		{"audio/x-wav", ".wav"},
-		{"image/tiff", ".tiff,.tif"},
-		{"video/dv", ".dif,.dv"},
-		{"video/fli", ".fli"},
-		{"video/mpeg", ".mpeg,.mpg,.mpe"},
-		{"video/MP2T", ".ts"},
-		{"video/mp4", ".mp4"},
-		{"video/quicktime", ".qt,.mov"},
-		{"video/ogg", ".ogv"},
-		{"video/webm", ".webm"},
-		{"video/x-msvideo", ".avi"},
-		{"video/x-matroska", ".mpv,.mkv"},
-		{"text/srt", ".srt"},
-	} {
-		for _, ext := range strings.Split(t.extensions, ",") {
-			err := mime.AddExtensionType(ext, t.mimeType)
-			if err != nil {
-				log.Print(err)
-			}
-		}
-	}
-}
 
 type contentDirectoryService struct {
 	*server

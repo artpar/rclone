@@ -29,12 +29,14 @@ import (
 	"github.com/artpar/rclone/fs/config/flags"
 	"github.com/artpar/rclone/fs/filter"
 	"github.com/artpar/rclone/fs/filter/filterflags"
+	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fspath"
 	fslog "github.com/artpar/rclone/fs/log"
 	"github.com/artpar/rclone/fs/rc/rcflags"
 	"github.com/artpar/rclone/fs/rc/rcserver"
 	"github.com/artpar/rclone/lib/atexit"
 	"github.com/artpar/rclone/lib/buildinfo"
+	"github.com/artpar/rclone/lib/exitcode"
 	"github.com/artpar/rclone/lib/random"
 	"github.com/artpar/rclone/lib/terminal"
 	"github.com/pkg/errors"
@@ -57,6 +59,19 @@ var (
 	errorUncategorized      = errors.New("uncategorized error")
 	errorNotEnoughArguments = errors.New("not enough arguments")
 	errorTooManyArguments   = errors.New("too many arguments")
+)
+
+const (
+	exitCodeSuccess = iota
+	exitCodeUsageError
+	exitCodeUncategorizedError
+	exitCodeDirNotFound
+	exitCodeFileNotFound
+	exitCodeRetryError
+	exitCodeNoRetryError
+	exitCodeFatalError
+	exitCodeTransferExceeded
+	exitCodeNoFilesTransferred
 )
 
 // ShowVersion prints the version to stdout
@@ -89,7 +104,7 @@ func NewFsFile(remote string) (fs.Fs, string) {
 	_, fsPath, err := fspath.SplitFs(remote)
 	if err != nil {
 		err = fs.CountError(err)
-		log.Printf("Failed to create file system for %q: %v", remote, err)
+		log.Fatalf("Failed to create file system for %q: %v", remote, err)
 	}
 	f, err := cache.Get(context.Background(), remote)
 	switch err {
@@ -101,7 +116,7 @@ func NewFsFile(remote string) (fs.Fs, string) {
 		return f, ""
 	default:
 		err = fs.CountError(err)
-		log.Printf("Failed to create file system for %q: %v", remote, err)
+		log.Fatalf("Failed to create file system for %q: %v", remote, err)
 	}
 	return nil, ""
 }
@@ -117,13 +132,13 @@ func newFsFileAddFilter(remote string) (fs.Fs, string) {
 		if !fi.InActive() {
 			err := errors.Errorf("Can't limit to single files when using filters: %v", remote)
 			err = fs.CountError(err)
-			log.Printf(err.Error())
+			log.Fatalf(err.Error())
 		}
 		// Limit transfers to this file
 		err := fi.AddFile(fileName)
 		if err != nil {
 			err = fs.CountError(err)
-			log.Printf("Failed to limit to single file %q: %v", remote, err)
+			log.Fatalf("Failed to limit to single file %q: %v", remote, err)
 		}
 	}
 	return f, fileName
@@ -145,7 +160,7 @@ func newFsDir(remote string) fs.Fs {
 	f, err := cache.Get(context.Background(), remote)
 	if err != nil {
 		err = fs.CountError(err)
-		log.Printf("Failed to create file system for %q: %v", remote, err)
+		log.Fatalf("Failed to create file system for %q: %v", remote, err)
 	}
 	cache.Pin(f) // pin indefinitely since it was on the CLI
 	return f
@@ -187,24 +202,24 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 		var err error
 		dstRemote, dstFileName, err = fspath.Split(dstRemote)
 		if err != nil {
-			log.Printf("Parsing %q failed: %v", args[1], err)
+			log.Fatalf("Parsing %q failed: %v", args[1], err)
 		}
 		if dstRemote == "" {
 			dstRemote = "."
 		}
 		if dstFileName == "" {
-			log.Printf("%q is a directory", args[1])
+			log.Fatalf("%q is a directory", args[1])
 		}
 	}
 	fdst, err := cache.Get(context.Background(), dstRemote)
 	switch err {
 	case fs.ErrorIsFile:
 		_ = fs.CountError(err)
-		log.Printf("Source doesn't exist or is a directory and destination is a file")
+		log.Fatalf("Source doesn't exist or is a directory and destination is a file")
 	case nil:
 	default:
 		_ = fs.CountError(err)
-		log.Printf("Failed to create file system for destination %q: %v", dstRemote, err)
+		log.Fatalf("Failed to create file system for destination %q: %v", dstRemote, err)
 	}
 	cache.Pin(fdst) // pin indefinitely since it was on the CLI
 	return
@@ -214,13 +229,13 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 func NewFsDstFile(args []string) (fdst fs.Fs, dstFileName string) {
 	dstRemote, dstFileName, err := fspath.Split(args[0])
 	if err != nil {
-		log.Printf("Parsing %q failed: %v", args[0], err)
+		log.Fatalf("Parsing %q failed: %v", args[0], err)
 	}
 	if dstRemote == "" {
 		dstRemote = "."
 	}
 	if dstFileName == "" {
-		log.Printf("%q is a directory", args[0])
+		log.Fatalf("%q is a directory", args[0])
 	}
 	fdst = newFsDir(dstRemote)
 	return
@@ -399,7 +414,7 @@ func initConfig() {
 	// Load filters
 	err := filterflags.Reload(ctx)
 	if err != nil {
-		log.Printf("Failed to load filters: %v", err)
+		log.Fatalf("Failed to load filters: %v", err)
 	}
 
 	// Write the args for debug purposes
@@ -413,7 +428,7 @@ func initConfig() {
 	// Start the remote control server if configured
 	_, err = rcserver.Start(context.Background(), &rcflags.Opt)
 	if err != nil {
-		log.Printf("Failed to start remote control: %v", err)
+		log.Fatalf("Failed to start remote control: %v", err)
 	}
 
 	// Setup CPU profiling if desired
@@ -465,7 +480,47 @@ func initConfig() {
 }
 
 func resolveExitCode(err error) {
-	return
+	ci := fs.GetConfig(context.Background())
+	atexit.Run()
+	if err == nil {
+		if ci.ErrorOnNoTransfer {
+			if accounting.GlobalStats().GetTransfers() == 0 {
+				os.Exit(exitCodeNoFilesTransferred)
+				os.Exit(exitcode.NoFilesTransferred)
+			}
+		}
+		os.Exit(exitCodeSuccess)
+		os.Exit(exitcode.Success)
+	}
+
+	_, unwrapped := fserrors.Cause(err)
+
+	switch {
+	case unwrapped == fs.ErrorDirNotFound:
+		os.Exit(exitCodeDirNotFound)
+		os.Exit(exitcode.DirNotFound)
+	case unwrapped == fs.ErrorObjectNotFound:
+		os.Exit(exitCodeFileNotFound)
+		os.Exit(exitcode.FileNotFound)
+	case unwrapped == errorUncategorized:
+		os.Exit(exitCodeUncategorizedError)
+		os.Exit(exitcode.UncategorizedError)
+	case unwrapped == accounting.ErrorMaxTransferLimitReached:
+		os.Exit(exitCodeTransferExceeded)
+		os.Exit(exitcode.TransferExceeded)
+	case fserrors.ShouldRetry(err):
+		os.Exit(exitCodeRetryError)
+		os.Exit(exitcode.RetryError)
+	case fserrors.IsNoRetryError(err):
+		os.Exit(exitCodeNoRetryError)
+		os.Exit(exitcode.NoRetryError)
+	case fserrors.IsFatalError(err):
+		os.Exit(exitCodeFatalError)
+		os.Exit(exitcode.FatalError)
+	default:
+		os.Exit(exitCodeUsageError)
+		os.Exit(exitcode.UsageError)
+	}
 }
 
 var backendFlags map[string]struct{}
@@ -516,7 +571,7 @@ func AddBackendFlags() {
 // Main runs rclone interpreting flags and commands out of os.Args
 func Main() {
 	if err := random.Seed(); err != nil {
-		log.Printf("Fatal error: %v", err)
+		log.Fatalf("Fatal error: %v", err)
 	}
 	setupRootCommand(Root)
 	AddBackendFlags()
@@ -524,6 +579,7 @@ func Main() {
 		if strings.HasPrefix(err.Error(), "unknown command") && selfupdateEnabled {
 			Root.PrintErrf("You could use '%s selfupdate' to get latest features.\n\n", Root.CommandPath())
 		}
-		log.Printf("Fatal error: %v", err)
+		log.Fatalf("Fatal error: %v", err)
 	}
 }
+

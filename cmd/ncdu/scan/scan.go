@@ -3,12 +3,12 @@ package scan
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"sync"
 
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/walk"
-	"github.com/pkg/errors"
 )
 
 // Dir represents a directory found in the remote
@@ -185,7 +185,7 @@ func Scan(ctx context.Context, f fs.Fs) (chan *Dir, chan error, chan struct{}) {
 				var ok bool
 				parent, ok = parents[parentPath]
 				if !ok {
-					errChan <- errors.Errorf("couldn't find parent for %q", dirPath)
+					errChan <- fmt.Errorf("couldn't find parent for %q", dirPath)
 				}
 			}
 			d := newDir(parent, dirPath, entries, err)
@@ -202,7 +202,7 @@ func Scan(ctx context.Context, f fs.Fs) (chan *Dir, chan error, chan struct{}) {
 			return nil
 		})
 		if err != nil {
-			errChan <- errors.Wrap(err, "ncdu listing failed")
+			errChan <- fmt.Errorf("ncdu listing failed: %w", err)
 		}
 		errChan <- nil
 	}()

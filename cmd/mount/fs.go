@@ -11,9 +11,9 @@ import (
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/cmd/mountlib"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/log"
 	"github.com/artpar/rclone/vfs"
 )
@@ -77,7 +77,8 @@ func translateError(err error) error {
 	if err == nil {
 		return nil
 	}
-	switch errors.Cause(err) {
+	_, uErr := fserrors.Cause(err)
+	switch uErr {
 	case vfs.OK:
 		return nil
 	case vfs.ENOENT, fs.ErrorDirNotFound, fs.ErrorObjectNotFound:

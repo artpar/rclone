@@ -53,7 +53,7 @@ func (fs vfsgen۰FS) Open(path string) (http.File, error) {
 		gr, err := gzip.NewReader(bytes.NewReader(f.compressedContent))
 		if err != nil {
 			// This should never happen because we generate the gzip bytes such that they are always valid.
-			panic("unexpected error reading own gzip compressed bytes: " + err.Error())
+			fmt.Printf("unexpected error reading own gzip compressed bytes: " + err.Error())
 		}
 		return &vfsgen۰CompressedFile{
 			vfsgen۰CompressedFileInfo: f,
@@ -65,7 +65,8 @@ func (fs vfsgen۰FS) Open(path string) (http.File, error) {
 		}, nil
 	default:
 		// This should never happen because we generate only the above types.
-		panic(fmt.Sprintf("unexpected type %T", f))
+		fmt.Printf(fmt.Sprintf("unexpected type %T", f))
+		return nil, nil
 	}
 }
 
@@ -132,7 +133,7 @@ func (f *vfsgen۰CompressedFile) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekEnd:
 		f.seekPos = f.uncompressedSize + offset
 	default:
-		panic(fmt.Errorf("invalid whence value: %v", whence))
+		fmt.Errorf("invalid whence value: %v", whence)
 	}
 	return f.seekPos, nil
 }

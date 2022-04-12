@@ -5,6 +5,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"path"
 	"sync"
@@ -13,7 +14,6 @@ import (
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/hash"
 	"github.com/artpar/rclone/lib/readers"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -178,10 +178,14 @@ func (o *Object) refreshFromSource(ctx context.Context, force bool) error {
 	}
 	if o.isTempFile() {
 		liveObject, err = o.ParentFs.NewObject(ctx, o.Remote())
-		err = errors.Wrapf(err, "in parent fs %v", o.ParentFs)
+		if err != nil {
+			err = fmt.Errorf("in parent fs %v: %w", o.ParentFs, err)
+		}
 	} else {
 		liveObject, err = o.CacheFs.Fs.NewObject(ctx, o.Remote())
-		err = errors.Wrapf(err, "in cache fs %v", o.CacheFs.Fs)
+		if err != nil {
+			err = fmt.Errorf("in cache fs %v: %w", o.CacheFs.Fs, err)
+		}
 	}
 	if err != nil {
 		fs.Errorf(o, "error refreshing object in : %v", err)
@@ -253,7 +257,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 		defer o.CacheFs.backgroundRunner.play()
 		// don't allow started uploads
 		if o.isTempFile() && o.tempFileStartedUpload() {
-			return errors.Errorf("%v is currently uploading, can't update", o)
+			return fmt.Errorf("%v is currently uploading, can't update", o)
 		}
 	}
 	fs.Debugf(o, "updating object contents with size %v", src.Size())
@@ -292,7 +296,7 @@ func (o *Object) Remove(ctx context.Context) error {
 		defer o.CacheFs.backgroundRunner.play()
 		// don't allow started uploads
 		if o.isTempFile() && o.tempFileStartedUpload() {
-			return errors.Errorf("%v is currently uploading, can't delete", o)
+			return fmt.Errorf("%v is currently uploading, can't delete", o)
 		}
 	}
 	err := o.Object.Remove(ctx)

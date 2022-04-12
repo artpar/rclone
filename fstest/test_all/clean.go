@@ -4,13 +4,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"regexp"
 
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/list"
 	"github.com/artpar/rclone/fs/operations"
-	"github.com/pkg/errors"
 )
 
 // MatchTestRemote matches the remote names used for testing (copied
@@ -48,14 +48,14 @@ func cleanFs(ctx context.Context, remote string, cleanup bool) error {
 			log.Printf("Purging %s", fullPath)
 			dir, err := fs.NewFs(context.Background(), fullPath)
 			if err != nil {
-				err = errors.Wrap(err, "NewFs failed")
+				err = fmt.Errorf("NewFs failed: %w", err)
 				lastErr = err
 				fs.Errorf(fullPath, "%v", err)
 				return nil
 			}
 			err = operations.Purge(ctx, dir, "")
 			if err != nil {
-				err = errors.Wrap(err, "Purge failed")
+				err = fmt.Errorf("Purge failed: %w", err)
 				lastErr = err
 				fs.Errorf(dir, "%v", err)
 				return nil

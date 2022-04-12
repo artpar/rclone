@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -15,7 +16,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs/config/flags"
 	"github.com/spf13/pflag"
 )
@@ -71,8 +71,10 @@ type Options struct {
 	ServerReadTimeout  time.Duration // Timeout for server reading data
 	ServerWriteTimeout time.Duration // Timeout for server writing data
 	MaxHeaderBytes     int           // Maximum size of request header
-	SslCert            string        // SSL PEM key (concatenation of certificate and CA certificate)
-	SslKey             string        // SSL PEM Private key
+	SslCert            string        // Path to SSL PEM key (concatenation of certificate and CA certificate)
+	SslKey             string        // Path to SSL PEM Private key
+	SslCertBody        []byte        // SSL PEM key (concatenation of certificate and CA certificate) body, ignores SslCert
+	SslKeyBody         []byte        // SSL PEM Private key body, ignores SslKey
 	ClientCA           string        // Client certificate authority to verify clients with
 }
 
@@ -110,7 +112,7 @@ var (
 )
 
 func useSSL(opt Options) bool {
-	return opt.SslKey != ""
+	return opt.SslKey != "" || len(opt.SslKeyBody) > 0
 }
 
 // NewServer instantiates a new http server using provided listeners and options
@@ -124,18 +126,34 @@ func NewServer(listeners, tlsListeners []net.Listener, opt Options) (Server, err
 	}
 
 	// Prepare TLS config
-	var tlsConfig *tls.Config = nil
+	var tlsConfig *tls.Config
 
 	useSSL := useSSL(opt)
-	if (opt.SslCert != "") != useSSL {
+	if (len(opt.SslCertBody) > 0) != (len(opt.SslKeyBody) > 0) {
+		err := errors.New("Need both SslCertBody and SslKeyBody to use SSL")
+		log.Fatalf(err.Error())
+		return nil, err
+	}
+	if (opt.SslCert != "") != (opt.SslKey != "") {
 		err := errors.New("Need both -cert and -key to use SSL")
-		log.Printf(err.Error())
+		log.Fatalf(err.Error())
 		return nil, err
 	}
 
 	if useSSL {
+		var cert tls.Certificate
+		var err error
+		if len(opt.SslCertBody) > 0 {
+			cert, err = tls.X509KeyPair(opt.SslCertBody, opt.SslKeyBody)
+		} else {
+			cert, err = tls.LoadX509KeyPair(opt.SslCert, opt.SslKey)
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
 		tlsConfig = &tls.Config{
-			MinVersion: tls.VersionTLS10, // disable SSL v3.0 and earlier
+			MinVersion:   tls.VersionTLS10, // disable SSL v3.0 and earlier
+			Certificates: []tls.Certificate{cert},
 		}
 	} else if len(listeners) == 0 && len(tlsListeners) != 0 {
 		return nil, errors.New("No SslKey or non-tlsListeners")
@@ -144,18 +162,18 @@ func NewServer(listeners, tlsListeners []net.Listener, opt Options) (Server, err
 	if opt.ClientCA != "" {
 		if !useSSL {
 			err := errors.New("Can't use --client-ca without --cert and --key")
-			log.Printf(err.Error())
+			log.Fatalf(err.Error())
 			return nil, err
 		}
 		certpool := x509.NewCertPool()
 		pem, err := ioutil.ReadFile(opt.ClientCA)
 		if err != nil {
-			log.Printf("Failed to read client certificate authority: %v", err)
+			log.Fatalf("Failed to read client certificate authority: %v", err)
 			return nil, err
 		}
 		if !certpool.AppendCertsFromPEM(pem) {
 			err := errors.New("Can't parse client certificate authority")
-			log.Printf(err.Error())
+			log.Fatalf(err.Error())
 			return nil, err
 		}
 		tlsConfig.ClientCAs = certpool
@@ -211,22 +229,28 @@ func NewServer(listeners, tlsListeners []net.Listener, opt Options) (Server, err
 }
 
 func (s *server) Serve() {
-	serve := func(l net.Listener) {
+	serve := func(l net.Listener, tls bool) {
 		defer s.closing.Done()
-		if err := s.httpServer.Serve(l); err != http.ErrServerClosed && err != nil {
-			log.Printf(err.Error())
+		var err error
+		if tls {
+			err = s.httpServer.ServeTLS(l, "", "")
+		} else {
+			err = s.httpServer.Serve(l)
+		}
+		if err != http.ErrServerClosed && err != nil {
+			log.Fatalf(err.Error())
 		}
 	}
 
 	s.closing.Add(len(s.listeners))
 	for _, l := range s.listeners {
-		go serve(l)
+		go serve(l, false)
 	}
 
 	if s.useSSL {
 		s.closing.Add(len(s.tlsListeners))
 		for _, l := range s.tlsListeners {
-			go serve(l)
+			go serve(l, true)
 		}
 	}
 }
@@ -378,14 +402,14 @@ func URL() string {
 
 // AddFlagsPrefix adds flags for the httplib
 func AddFlagsPrefix(flagSet *pflag.FlagSet, prefix string, Opt *Options) {
-	flags.StringVarP(flagSet, &Opt.ListenAddr, prefix+"addr", "", Opt.ListenAddr, "IPaddress:Port or :Port to bind server to.")
+	flags.StringVarP(flagSet, &Opt.ListenAddr, prefix+"addr", "", Opt.ListenAddr, "IPaddress:Port or :Port to bind server to")
 	flags.DurationVarP(flagSet, &Opt.ServerReadTimeout, prefix+"server-read-timeout", "", Opt.ServerReadTimeout, "Timeout for server reading data")
 	flags.DurationVarP(flagSet, &Opt.ServerWriteTimeout, prefix+"server-write-timeout", "", Opt.ServerWriteTimeout, "Timeout for server writing data")
 	flags.IntVarP(flagSet, &Opt.MaxHeaderBytes, prefix+"max-header-bytes", "", Opt.MaxHeaderBytes, "Maximum size of request header")
 	flags.StringVarP(flagSet, &Opt.SslCert, prefix+"cert", "", Opt.SslCert, "SSL PEM key (concatenation of certificate and CA certificate)")
 	flags.StringVarP(flagSet, &Opt.SslKey, prefix+"key", "", Opt.SslKey, "SSL PEM Private key")
 	flags.StringVarP(flagSet, &Opt.ClientCA, prefix+"client-ca", "", Opt.ClientCA, "Client certificate authority to verify clients with")
-	flags.StringVarP(flagSet, &Opt.BaseURL, prefix+"baseurl", "", Opt.BaseURL, "Prefix for URLs - leave blank for root.")
+	flags.StringVarP(flagSet, &Opt.BaseURL, prefix+"baseurl", "", Opt.BaseURL, "Prefix for URLs - leave blank for root")
 
 }
 

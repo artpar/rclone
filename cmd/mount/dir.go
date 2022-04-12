@@ -5,13 +5,13 @@ package mount
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"time"
 
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/cmd/mountlib"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/log"
@@ -91,7 +91,7 @@ func (d *Dir) Lookup(ctx context.Context, req *fuse.LookupRequest, resp *fuse.Lo
 	case *vfs.Dir:
 		node = &Dir{x, d.fsys}
 	default:
-		return nil, errors.new("panic(\"bad type\")")
+		fmt.Printf("bad type")
 	}
 	// Cache the node for later
 	mnode.SetSys(node)
@@ -199,7 +199,7 @@ func (d *Dir) Rename(ctx context.Context, req *fuse.RenameRequest, newDir fusefs
 	defer log.Trace(d, "oldName=%q, newName=%q, newDir=%+v", req.OldName, req.NewName, newDir)("err=%v", &err)
 	destDir, ok := newDir.(*Dir)
 	if !ok {
-		return errors.Errorf("Unknown Dir type %T", newDir)
+		return fmt.Errorf("Unknown Dir type %T", newDir)
 	}
 
 	err = d.Dir.Rename(req.OldName, req.NewName, destDir.Dir)

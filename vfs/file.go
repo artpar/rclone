@@ -2,13 +2,14 @@ package vfs
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/log"
 	"github.com/artpar/rclone/fs/operations"
@@ -166,7 +167,7 @@ func (f *File) rename(ctx context.Context, destDir *Dir, newName string) error {
 	f.mu.RUnlock()
 
 	if features := d.Fs().Features(); features.Move == nil && features.Copy == nil {
-		err := errors.Errorf("Fs %q can't rename files (no server-side Move or Copy)", d.Fs())
+		err := fmt.Errorf("Fs %q can't rename files (no server-side Move or Copy)", d.Fs())
 		fs.Errorf(f.Path(), "Dir.Rename error: %v", err)
 		return err
 	}

@@ -3,6 +3,7 @@ package operations_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -11,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/accounting"
 	"github.com/artpar/rclone/fs/hash"
@@ -99,8 +99,8 @@ func testCheck(t *testing.T, checkFunction func(ctx context.Context, opt *operat
 	}
 
 	file1 := r.WriteBoth(ctx, "rutabaga", "is tasty", t3)
-	fstest.CheckItems(t, r.Fremote, file1)
-	fstest.CheckItems(t, r.Flocal, file1)
+	r.CheckRemoteItems(t, file1)
+	r.CheckLocalItems(t, file1)
 	check(1, 0, 1, false, map[string]string{
 		"combined":     "= rutabaga\n",
 		"missingonsrc": "",
@@ -111,7 +111,7 @@ func testCheck(t *testing.T, checkFunction func(ctx context.Context, opt *operat
 	})
 
 	file2 := r.WriteFile("potato2", "------------------------------------------------------------", t1)
-	fstest.CheckItems(t, r.Flocal, file1, file2)
+	r.CheckLocalItems(t, file1, file2)
 	check(2, 1, 1, false, map[string]string{
 		"combined":     "+ potato2\n= rutabaga\n",
 		"missingonsrc": "",
@@ -122,7 +122,7 @@ func testCheck(t *testing.T, checkFunction func(ctx context.Context, opt *operat
 	})
 
 	file3 := r.WriteObject(ctx, "empty space", "-", t2)
-	fstest.CheckItems(t, r.Fremote, file1, file3)
+	r.CheckRemoteItems(t, file1, file3)
 	check(3, 2, 1, false, map[string]string{
 		"combined":     "- empty space\n+ potato2\n= rutabaga\n",
 		"missingonsrc": "empty space\n",
@@ -138,7 +138,7 @@ func testCheck(t *testing.T, checkFunction func(ctx context.Context, opt *operat
 	} else {
 		r.WriteObject(ctx, "potato2", "------------------------------------------------------------", t1)
 	}
-	fstest.CheckItems(t, r.Fremote, file1, file2r, file3)
+	r.CheckRemoteItems(t, file1, file2r, file3)
 	check(4, 1, 2, false, map[string]string{
 		"combined":     "- empty space\n= potato2\n= rutabaga\n",
 		"missingonsrc": "empty space\n",
@@ -150,7 +150,7 @@ func testCheck(t *testing.T, checkFunction func(ctx context.Context, opt *operat
 
 	file3r := file3
 	file3l := r.WriteFile("empty space", "DIFFER", t2)
-	fstest.CheckItems(t, r.Flocal, file1, file2, file3l)
+	r.CheckLocalItems(t, file1, file2, file3l)
 	check(5, 1, 3, false, map[string]string{
 		"combined":     "* empty space\n= potato2\n= rutabaga\n",
 		"missingonsrc": "",
@@ -161,7 +161,7 @@ func testCheck(t *testing.T, checkFunction func(ctx context.Context, opt *operat
 	})
 
 	file4 := r.WriteObject(ctx, "remotepotato", "------------------------------------------------------------", t1)
-	fstest.CheckItems(t, r.Fremote, file1, file2r, file3r, file4)
+	r.CheckRemoteItems(t, file1, file2r, file3r, file4)
 	check(6, 2, 3, false, map[string]string{
 		"combined":     "* empty space\n= potato2\n= rutabaga\n- remotepotato\n",
 		"missingonsrc": "remotepotato\n",
@@ -330,10 +330,12 @@ func testCheckSum(t *testing.T, download bool) {
 
 	hashType := hash.MD5
 	const (
-		testString1 = "Hello, World!"
-		testDigest1 = "65a8e27d8879283831b664bd8b7f0ad4"
-		testString2 = "I am the walrus"
-		testDigest2 = "87396e030ef3f5b35bbf85c0a09a4fb3"
+		testString1      = "Hello, World!"
+		testDigest1      = "65a8e27d8879283831b664bd8b7f0ad4"
+		testDigest1Upper = "65A8E27D8879283831B664BD8B7F0AD4"
+		testString2      = "I am the walrus"
+		testDigest2      = "87396e030ef3f5b35bbf85c0a09a4fb3"
+		testDigest2Mixed = "87396e030EF3f5b35BBf85c0a09a4FB3"
 	)
 
 	type wantType map[string]string
@@ -428,7 +430,7 @@ func testCheckSum(t *testing.T, download bool) {
 	}
 
 	check := func(runNo, wantChecks, wantErrors int, wantResults wantType) {
-		runName := fmt.Sprintf("move%d", runNo)
+		runName := fmt.Sprintf("subtest%d", runNo)
 		t.Run(runName, func(t *testing.T) {
 			checkRun(runNo, wantChecks, wantErrors, wantResults)
 		})
@@ -438,7 +440,7 @@ func testCheckSum(t *testing.T, download bool) {
 	fcsums := makeSums(operations.HashSums{
 		"banana": testDigest1,
 	})
-	fstest.CheckItems(t, r.Fremote, fcsums, file1)
+	r.CheckRemoteItems(t, fcsums, file1)
 	check(1, 1, 0, wantType{
 		"combined":     "= banana\n",
 		"missingonsrc": "",
@@ -452,7 +454,7 @@ func testCheckSum(t *testing.T, download bool) {
 	fcsums = makeSums(operations.HashSums{
 		"banana": testDigest1,
 	})
-	fstest.CheckItems(t, r.Fremote, fcsums, file1, file2)
+	r.CheckRemoteItems(t, fcsums, file1, file2)
 	check(2, 2, 1, wantType{
 		"combined":     "- potato\n= banana\n",
 		"missingonsrc": "potato\n",
@@ -466,7 +468,7 @@ func testCheckSum(t *testing.T, download bool) {
 		"banana": testDigest1,
 		"potato": testDigest2,
 	})
-	fstest.CheckItems(t, r.Fremote, fcsums, file1, file2)
+	r.CheckRemoteItems(t, fcsums, file1, file2)
 	check(3, 2, 0, wantType{
 		"combined":     "= potato\n= banana\n",
 		"missingonsrc": "",
@@ -480,7 +482,7 @@ func testCheckSum(t *testing.T, download bool) {
 		"banana": testDigest2,
 		"potato": testDigest2,
 	})
-	fstest.CheckItems(t, r.Fremote, fcsums, file1, file2)
+	r.CheckRemoteItems(t, fcsums, file1, file2)
 	check(4, 2, 1, wantType{
 		"combined":     "* banana\n= potato\n",
 		"missingonsrc": "",
@@ -495,7 +497,7 @@ func testCheckSum(t *testing.T, download bool) {
 		"potato": testDigest2,
 		"orange": testDigest2,
 	})
-	fstest.CheckItems(t, r.Fremote, fcsums, file1, file2)
+	r.CheckRemoteItems(t, fcsums, file1, file2)
 	check(5, 2, 1, wantType{
 		"combined":     "+ orange\n= potato\n= banana\n",
 		"missingonsrc": "",
@@ -510,13 +512,30 @@ func testCheckSum(t *testing.T, download bool) {
 		"potato": testDigest1,
 		"orange": testDigest2,
 	})
-	fstest.CheckItems(t, r.Fremote, fcsums, file1, file2)
+	r.CheckRemoteItems(t, fcsums, file1, file2)
 	check(6, 2, 2, wantType{
 		"combined":     "+ orange\n* potato\n= banana\n",
 		"missingonsrc": "",
 		"missingondst": "orange\n",
 		"match":        "banana\n",
 		"differ":       "potato\n",
+		"error":        "",
+	})
+
+	// test mixed-case checksums
+	file1 = makeFile("banana", testString1)
+	file2 = makeFile("potato", testString2)
+	fcsums = makeSums(operations.HashSums{
+		"banana": testDigest1Upper,
+		"potato": testDigest2Mixed,
+	})
+	r.CheckRemoteItems(t, fcsums, file1, file2)
+	check(7, 2, 0, wantType{
+		"combined":     "= banana\n= potato\n",
+		"missingonsrc": "",
+		"missingondst": "",
+		"match":        "banana\npotato\n",
+		"differ":       "",
 		"error":        "",
 	})
 }

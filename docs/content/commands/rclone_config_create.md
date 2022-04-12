@@ -15,7 +15,7 @@ Create a new remote with name, type and options.
 Create a new remote of `name` with `type` and options.  The options
 should be passed in pairs of `key` `value` or as `key=value`.
 
-For example to make a swift remote of name myremote using auto config
+For example, to make a swift remote of name myremote using auto config
 you would do:
 
     rclone config create myremote swift env_auth true
@@ -115,20 +115,20 @@ as a readable demonstration.
 
 
 ```
-rclone config create `name` `type` [`key` `value`]* [flags]
+rclone config create name type [key value]* [flags]
 ```
 
 ## Options
 
 ```
-      --all               Ask the full set of config questions.
-      --continue          Continue the configuration process with an answer.
+      --all               Ask the full set of config questions
+      --continue          Continue the configuration process with an answer
   -h, --help              help for create
-      --no-obscure        Force any passwords not to be obscured.
-      --non-interactive   Don't interact with user and return questions.
-      --obscure           Force any passwords to be obscured.
-      --result string     Result - use with --continue.
-      --state string      State - use with --continue.
+      --no-obscure        Force any passwords not to be obscured
+      --non-interactive   Don't interact with user and return questions
+      --obscure           Force any passwords to be obscured
+      --result string     Result - use with --continue
+      --state string      State - use with --continue
 ```
 
 See the [global flags page](/flags/) for global options not listed here.

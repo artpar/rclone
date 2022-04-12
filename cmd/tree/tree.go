@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/a8m/tree"
-	"github.com/pkg/errors"
 	"github.com/artpar/rclone/cmd"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/config/flags"
@@ -32,16 +31,16 @@ func init() {
 	cmd.Root.AddCommand(commandDefinition)
 	cmdFlags := commandDefinition.Flags()
 	// List
-	flags.BoolVarP(cmdFlags, &opts.All, "all", "a", false, "All files are listed (list . files too).")
-	flags.BoolVarP(cmdFlags, &opts.DirsOnly, "dirs-only", "d", false, "List directories only.")
-	flags.BoolVarP(cmdFlags, &opts.FullPath, "full-path", "", false, "Print the full path prefix for each file.")
-	//flags.BoolVarP(cmdFlags, &opts.IgnoreCase, "ignore-case", "", false, "Ignore case when pattern matching.")
-	flags.BoolVarP(cmdFlags, &noReport, "noreport", "", false, "Turn off file/directory count at end of tree listing.")
-	// flags.BoolVarP(cmdFlags, &opts.FollowLink, "follow", "l", false, "Follow symbolic links like directories.")
-	flags.IntVarP(cmdFlags, &opts.DeepLevel, "level", "", 0, "Descend only level directories deep.")
-	// flags.StringVarP(cmdFlags, &opts.Pattern, "pattern", "P", "", "List only those files that match the pattern given.")
-	// flags.StringVarP(cmdFlags, &opts.IPattern, "exclude", "", "", "Do not list files that match the given pattern.")
-	flags.StringVarP(cmdFlags, &outFileName, "output", "o", "", "Output to file instead of stdout.")
+	flags.BoolVarP(cmdFlags, &opts.All, "all", "a", false, "All files are listed (list . files too)")
+	flags.BoolVarP(cmdFlags, &opts.DirsOnly, "dirs-only", "d", false, "List directories only")
+	flags.BoolVarP(cmdFlags, &opts.FullPath, "full-path", "", false, "Print the full path prefix for each file")
+	//flags.BoolVarP(cmdFlags, &opts.IgnoreCase, "ignore-case", "", false, "Ignore case when pattern matching")
+	flags.BoolVarP(cmdFlags, &noReport, "noreport", "", false, "Turn off file/directory count at end of tree listing")
+	// flags.BoolVarP(cmdFlags, &opts.FollowLink, "follow", "l", false, "Follow symbolic links like directories")
+	flags.IntVarP(cmdFlags, &opts.DeepLevel, "level", "", 0, "Descend only level directories deep")
+	// flags.StringVarP(cmdFlags, &opts.Pattern, "pattern", "P", "", "List only those files that match the pattern given")
+	// flags.StringVarP(cmdFlags, &opts.IPattern, "exclude", "", "", "Do not list files that match the given pattern")
+	flags.StringVarP(cmdFlags, &outFileName, "output", "o", "", "Output to file instead of stdout")
 	// Files
 	flags.BoolVarP(cmdFlags, &opts.ByteSize, "size", "s", false, "Print the size in bytes of each file.")
 	flags.BoolVarP(cmdFlags, &opts.FileMode, "protections", "p", false, "Print the protections for each file.")
@@ -52,16 +51,16 @@ func init() {
 	// flags.BoolVarP(cmdFlags, &opts.Inodes, "inodes", "", false, "Print inode number of each file.")
 	// flags.BoolVarP(cmdFlags, &opts.Device, "device", "", false, "Print device ID number to which each file belongs.")
 	// Sort
-	flags.BoolVarP(cmdFlags, &opts.NoSort, "unsorted", "U", false, "Leave files unsorted.")
-	flags.BoolVarP(cmdFlags, &opts.VerSort, "version", "", false, "Sort files alphanumerically by version.")
-	flags.BoolVarP(cmdFlags, &opts.ModSort, "sort-modtime", "t", false, "Sort files by last modification time.")
-	flags.BoolVarP(cmdFlags, &opts.CTimeSort, "sort-ctime", "", false, "Sort files by last status change time.")
-	flags.BoolVarP(cmdFlags, &opts.ReverSort, "sort-reverse", "r", false, "Reverse the order of the sort.")
-	flags.BoolVarP(cmdFlags, &opts.DirSort, "dirsfirst", "", false, "List directories before files (-U disables).")
-	flags.StringVarP(cmdFlags, &sort, "sort", "", "", "Select sort: name,version,size,mtime,ctime.")
+	flags.BoolVarP(cmdFlags, &opts.NoSort, "unsorted", "U", false, "Leave files unsorted")
+	flags.BoolVarP(cmdFlags, &opts.VerSort, "version", "", false, "Sort files alphanumerically by version")
+	flags.BoolVarP(cmdFlags, &opts.ModSort, "sort-modtime", "t", false, "Sort files by last modification time")
+	flags.BoolVarP(cmdFlags, &opts.CTimeSort, "sort-ctime", "", false, "Sort files by last status change time")
+	flags.BoolVarP(cmdFlags, &opts.ReverSort, "sort-reverse", "r", false, "Reverse the order of the sort")
+	flags.BoolVarP(cmdFlags, &opts.DirSort, "dirsfirst", "", false, "List directories before files (-U disables)")
+	flags.StringVarP(cmdFlags, &sort, "sort", "", "", "Select sort: name,version,size,mtime,ctime")
 	// Graphics
-	flags.BoolVarP(cmdFlags, &opts.NoIndent, "noindent", "", false, "Don't print indentation lines.")
-	flags.BoolVarP(cmdFlags, &opts.Colorize, "color", "C", false, "Turn colorization on always.")
+	flags.BoolVarP(cmdFlags, &opts.NoIndent, "noindent", "", false, "Don't print indentation lines")
+	flags.BoolVarP(cmdFlags, &opts.Colorize, "color", "C", false, "Turn colorization on always")
 }
 
 var commandDefinition = &cobra.Command{
@@ -81,7 +80,7 @@ For example
     └── subdir
         ├── file4
         └── file5
-    
+
     1 directories, 5 files
 
 You can use any of the filtering options with the tree command (e.g.
@@ -99,7 +98,7 @@ short options as they conflict with rclone's short options.
 			var err error
 			outFile, err = os.Create(outFileName)
 			if err != nil {
-				return errors.Errorf("failed to create output file: %v", err)
+				return fmt.Errorf("failed to create output file: %v", err)
 			}
 		}
 		opts.VerSort = opts.VerSort || sort == "version"
@@ -206,7 +205,7 @@ func (dirs Fs) Stat(filePath string) (fi os.FileInfo, err error) {
 	}
 	_, entry := dirtree.DirTree(dirs).Find(filePath)
 	if entry == nil {
-		return nil, errors.Errorf("Couldn't find %q in directory cache", filePath)
+		return nil, fmt.Errorf("Couldn't find %q in directory cache", filePath)
 	}
 	return &FileInfo{entry}, nil
 }
@@ -218,7 +217,7 @@ func (dirs Fs) ReadDir(dir string) (names []string, err error) {
 	dir = strings.TrimLeft(dir, "/")
 	entries, ok := dirs[dir]
 	if !ok {
-		return nil, errors.Errorf("Couldn't find directory %q", dir)
+		return nil, fmt.Errorf("Couldn't find directory %q", dir)
 	}
 	for _, entry := range entries {
 		names = append(names, path.Base(entry.Remote()))
