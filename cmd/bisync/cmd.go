@@ -145,7 +145,7 @@ var commandDefinition = &cobra.Command{
 		cmd.Run(false, true, command, func() error {
 			err := Bisync(ctx, fs1, fs2, &opt)
 			if err == ErrBisyncAborted {
-				os.Exit(2)
+				//os.Exit(2)
 			}
 			return err
 		})

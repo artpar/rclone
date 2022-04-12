@@ -2250,7 +2250,7 @@ func skipDestructiveChoose(ctx context.Context, subject interface{}, action stri
 	case 'q':
 		fs.Logf(nil, "Quitting rclone now")
 		atexit.Run()
-		os.Exit(0)
+		//os.Exit(0)
 	default:
 		skip = true
 		fs.Errorf(nil, "Bad choice %c", i)
