@@ -4,6 +4,7 @@ package filter
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -12,8 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/pkg/errors"
+	"github.com/rclone/rclone/fs"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -242,7 +242,7 @@ func NewFilter(opt *Opt) (f *Filter, err error) {
 func mustNewFilter(opt *Opt) *Filter {
 	f, err := NewFilter(opt)
 	if err != nil {
-		fmt.Printf("%v", err)
+		panic(err)
 	}
 	return f
 }
@@ -318,7 +318,7 @@ func (f *Filter) AddRule(rule string) error {
 	case strings.HasPrefix(rule, "+ "):
 		return f.Add(true, rule[2:])
 	}
-	return errors.Errorf("malformed rule %q", rule)
+	return fmt.Errorf("malformed rule %q", rule)
 }
 
 // initAddFile creates f.files and f.dirs
@@ -598,9 +598,9 @@ func (f *Filter) UsesDirectoryFilters() bool {
 	return true
 }
 
+// Context key for config
 type configContextKeyType struct{}
 
-// Context key for config
 var configContextKey = configContextKeyType{}
 
 // GetConfig returns the global or context sensitive config
@@ -644,4 +644,30 @@ func AddConfig(ctx context.Context) (context.Context, *Filter) {
 func ReplaceConfig(ctx context.Context, f *Filter) context.Context {
 	newCtx := context.WithValue(ctx, configContextKey, f)
 	return newCtx
+}
+
+// Context key for the "use filter" flag
+type useFlagContextKeyType struct{}
+
+var useFlagContextKey = useFlagContextKeyType{}
+
+// GetUseFilter obtains the "use filter" flag from context
+// The flag tells filter-aware backends (Drive) to constrain List using filter
+func GetUseFilter(ctx context.Context) bool {
+	if ctx != nil {
+		if pVal := ctx.Value(useFlagContextKey); pVal != nil {
+			return *(pVal.(*bool))
+		}
+	}
+	return false
+}
+
+// SetUseFilter returns a context having (re)set the "use filter" flag
+func SetUseFilter(ctx context.Context, useFilter bool) context.Context {
+	if useFilter == GetUseFilter(ctx) {
+		return ctx // Minimize depth of nested contexts
+	}
+	pVal := new(bool)
+	*pVal = useFilter
+	return context.WithValue(ctx, useFlagContextKey, pVal)
 }
