@@ -437,12 +437,12 @@ func initConfig() {
 		f, err := os.Create(*cpuProfile)
 		if err != nil {
 			err = fs.CountError(err)
-			log.Fatal(err)
+			//log.Fatal(err)
 		}
 		err = pprof.StartCPUProfile(f)
 		if err != nil {
 			err = fs.CountError(err)
-			log.Fatal(err)
+			//log.Fatal(err)
 		}
 		atexit.Register(func() {
 			pprof.StopCPUProfile()
@@ -456,17 +456,17 @@ func initConfig() {
 			f, err := os.Create(*memProfile)
 			if err != nil {
 				err = fs.CountError(err)
-				log.Fatal(err)
+				//log.Fatal(err)
 			}
 			err = pprof.WriteHeapProfile(f)
 			if err != nil {
 				err = fs.CountError(err)
-				log.Fatal(err)
+				//log.Fatal(err)
 			}
 			err = f.Close()
 			if err != nil {
 				err = fs.CountError(err)
-				log.Fatal(err)
+				//log.Fatal(err)
 			}
 		})
 	}

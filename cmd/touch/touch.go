@@ -82,7 +82,8 @@ then add the ` + "`--localtime`" + ` flag.
 func newFsDst(args []string) (f fs.Fs, remote string) {
 	root, remote, err := fspath.Split(args[0])
 	if err != nil {
-		log.Fatalf("Parsing %q failed: %v", args[0], err)
+		log.Printf("Parsing %q failed: %v", args[0], err)
+		return
 	}
 	if root == "" {
 		root = "."

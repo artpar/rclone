@@ -137,7 +137,8 @@ func NewFilter(opt *Opt) (f *Filter, err error) {
 	if f.Opt.MaxAge.IsSet() {
 		f.ModTimeFrom = time.Now().Add(-time.Duration(f.Opt.MaxAge))
 		if !f.ModTimeTo.IsZero() && f.ModTimeTo.Before(f.ModTimeFrom) {
-			log.Fatal("filter: --min-age can't be larger than --max-age")
+			log.Printf("filter: --min-age can't be larger than --max-age")
+			return nil, errors.New("filter: --min-age can't be larger than --max-age")
 		}
 		fs.Debugf(nil, "--max-age %v to %v", f.Opt.MaxAge, f.ModTimeFrom)
 	}
