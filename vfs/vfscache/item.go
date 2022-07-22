@@ -779,7 +779,7 @@ func (item *Item) _checkObject(o fs.Object) error {
 			} else {
 				fs.Debugf(item.name, "vfs cache: remote object has gone but local object modified - keeping it")
 			}
-		} else {
+			//} else {
 			// no remote object && no local object
 			// OK
 		}
@@ -946,7 +946,7 @@ func (item *Item) Reset() (rr ResetResult, spaceFreed int64, err error) {
 
 	/* Do not need to reset an empty cache file unless it was being reset and the reset failed.
 	   Some thread(s) may be waiting on the reset's succesful completion in that case. */
-	if item.info.Rs.Size() == 0 && item.beingReset == false {
+	if item.info.Rs.Size() == 0 && !item.beingReset {
 		return SkippedEmpty, 0, nil
 	}
 
@@ -1131,6 +1131,17 @@ func (item *Item) _ensure(offset, size int64) (err error) {
 		// Downloaders can be nil here if the file has been
 		// renamed, so need to make some more downloaders
 		// OK to call downloaders constructor with item.mu held
+
+		// item.o can also be nil under some circumstances
+		// See: https://github.com/artpar/rclone/issues/6190
+		// See: https://github.com/artpar/rclone/issues/6235
+		if item.o == nil {
+			o, err := item.c.fremote.NewObject(context.Background(), item.name)
+			if err != nil {
+				return err
+			}
+			item.o = o
+		}
 		item.downloaders = downloaders.New(item, item.c.opt, item.name, item.o)
 	}
 	return item.downloaders.Download(r)

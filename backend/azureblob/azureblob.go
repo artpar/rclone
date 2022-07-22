@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest/adal"
 	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/chunksize"
 	"github.com/artpar/rclone/fs/config"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
@@ -372,15 +373,9 @@ func (o *Object) split() (container, containerPath string) {
 
 // validateAccessTier checks if azureblob supports user supplied tier
 func validateAccessTier(tier string) bool {
-	switch tier {
-	case string(azblob.AccessTierHot),
-		string(azblob.AccessTierCool),
-		string(azblob.AccessTierArchive):
-		// valid cases
-		return true
-	default:
-		return false
-	}
+	return strings.EqualFold(tier, string(azblob.AccessTierHot)) ||
+		strings.EqualFold(tier, string(azblob.AccessTierCool)) ||
+		strings.EqualFold(tier, string(azblob.AccessTierArchive))
 }
 
 // validatePublicAccess checks if azureblob supports use supplied public access level
@@ -497,7 +492,7 @@ func newServicePrincipalTokenRefresher(ctx context.Context, credentialsData []by
 	// Wrap token inside a refresher closure.
 	var tokenRefresher azblob.TokenRefresher = func(credential azblob.TokenCredential) time.Duration {
 		if err := servicePrincipalToken.Refresh(); err != nil {
-			return time.Duration(0)
+			panic(err)
 		}
 		refreshedToken := servicePrincipalToken.Token()
 		credential.SetToken(refreshedToken.AccessToken)
@@ -544,10 +539,10 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 
 	err = checkUploadChunkSize(opt.ChunkSize)
 	if err != nil {
-		return nil, fmt.Errorf("azure: chunk size: %w", err)
+		return nil, fmt.Errorf("chunk size: %w", err)
 	}
 	if opt.ListChunkSize > maxListChunkSize {
-		return nil, fmt.Errorf("azure: blob list size can't be greater than %v - was %v", maxListChunkSize, opt.ListChunkSize)
+		return nil, fmt.Errorf("blob list size can't be greater than %v - was %v", maxListChunkSize, opt.ListChunkSize)
 	}
 	if opt.Endpoint == "" {
 		opt.Endpoint = storageDefaultBaseURL
@@ -556,12 +551,12 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	if opt.AccessTier == "" {
 		opt.AccessTier = string(defaultAccessTier)
 	} else if !validateAccessTier(opt.AccessTier) {
-		return nil, fmt.Errorf("Azure Blob: Supported access tiers are %s, %s and %s",
+		return nil, fmt.Errorf("supported access tiers are %s, %s and %s",
 			string(azblob.AccessTierHot), string(azblob.AccessTierCool), string(azblob.AccessTierArchive))
 	}
 
 	if !validatePublicAccess((opt.PublicAccess)) {
-		return nil, fmt.Errorf("Azure Blob: Supported public access level are %s and %s",
+		return nil, fmt.Errorf("supported public access level are %s and %s",
 			string(azblob.PublicAccessBlob), string(azblob.PublicAccessContainer))
 	}
 
@@ -603,9 +598,13 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	case opt.UseEmulator:
 		credential, err := azblob.NewSharedKeyCredential(emulatorAccount, emulatorAccountKey)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to parse credentials: %w", err)
+			return nil, fmt.Errorf("failed to parse credentials: %w", err)
 		}
-		u, err = url.Parse(emulatorBlobEndpoint)
+		var actualEmulatorEndpoint = emulatorBlobEndpoint
+		if opt.Endpoint != "" {
+			actualEmulatorEndpoint = opt.Endpoint
+		}
+		u, err = url.Parse(actualEmulatorEndpoint)
 		if err != nil {
 			return nil, fmt.Errorf("failed to make azure storage url from account and endpoint: %w", err)
 		}
@@ -649,7 +648,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		})
 
 		if err != nil {
-			return nil, fmt.Errorf("Failed to acquire MSI token: %w", err)
+			return nil, fmt.Errorf("failed to acquire MSI token: %w", err)
 		}
 
 		u, err = url.Parse(fmt.Sprintf("https://%s.%s", opt.Account, opt.Endpoint))
@@ -684,7 +683,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	case opt.Account != "" && opt.Key != "":
 		credential, err := azblob.NewSharedKeyCredential(opt.Account, opt.Key)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to parse credentials: %w", err)
+			return nil, fmt.Errorf("failed to parse credentials: %w", err)
 		}
 
 		u, err = url.Parse(fmt.Sprintf("https://%s.%s", opt.Account, opt.Endpoint))
@@ -704,7 +703,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		parts := azblob.NewBlobURLParts(*u)
 		if parts.ContainerName != "" {
 			if f.rootContainer != "" && parts.ContainerName != f.rootContainer {
-				return nil, errors.New("Container name in SAS URL and container provided in command do not match")
+				return nil, errors.New("container name in SAS URL and container provided in command do not match")
 			}
 			containerURL := azblob.NewContainerURL(*u, pipeline)
 			f.cntURLcache[parts.ContainerName] = &containerURL
@@ -732,7 +731,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		pipe := f.newPipeline(azblob.NewTokenCredential("", tokenRefresher), options)
 		serviceURL = azblob.NewServiceURL(*u, pipe)
 	default:
-		return nil, errors.New("No authentication method configured")
+		return nil, errors.New("no authentication method configured")
 	}
 	f.svcURL = &serviceURL
 
@@ -1298,19 +1297,6 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	return f.NewObject(ctx, remote)
 }
 
-func (f *Fs) getMemoryPool(size int64) *pool.Pool {
-	if size == int64(f.opt.ChunkSize) {
-		return f.pool
-	}
-
-	return pool.New(
-		time.Duration(f.opt.MemoryPoolFlushTime),
-		int(size),
-		f.ci.Transfers,
-		f.opt.MemoryPoolUseMmap,
-	)
-}
-
 // ------------------------------------------------------------
 
 // Fs returns the parent Fs
@@ -1342,7 +1328,7 @@ func (o *Object) Hash(ctx context.Context, t hash.Type) (string, error) {
 	}
 	data, err := base64.StdEncoding.DecodeString(o.md5)
 	if err != nil {
-		return "", fmt.Errorf("Failed to decode Content-MD5: %q: %w", o.md5, err)
+		return "", fmt.Errorf("failed to decode Content-MD5: %q: %w", o.md5, err)
 	}
 	return hex.EncodeToString(data), nil
 }
@@ -1532,7 +1518,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 	var offset int64
 	var count int64
 	if o.AccessTier() == azblob.AccessTierArchive {
-		return nil, fmt.Errorf("Blob in archive tier, you need to set tier to hot or cool first")
+		return nil, fmt.Errorf("blob in archive tier, you need to set tier to hot or cool first")
 	}
 	fs.FixRangeOption(options, o.size)
 	for _, option := range options {
@@ -1690,25 +1676,17 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 		}
 	}
 
-	// calculate size of parts/blocks
-	partSize := int(o.fs.opt.ChunkSize)
-
 	uploadParts := int64(maxUploadParts)
 	if uploadParts < 1 {
 		uploadParts = 1
 	} else if uploadParts > maxUploadParts {
 		uploadParts = maxUploadParts
 	}
-
-	// Adjust partSize until the number of parts/blocks is small enough.
-	if o.size/int64(partSize) >= uploadParts {
-		// Calculate partition size rounded up to the nearest MiB
-		partSize = int((((o.size / uploadParts) >> 20) + 1) << 20)
-		fs.Debugf(o, "Adjust partSize to %q", partSize)
-	}
+	// calculate size of parts/blocks
+	partSize := chunksize.Calculator(o, int(uploadParts), o.fs.opt.ChunkSize)
 
 	putBlobOptions := azblob.UploadStreamToBlockBlobOptions{
-		BufferSize:      partSize,
+		BufferSize:      int(partSize),
 		MaxBuffers:      o.fs.opt.UploadConcurrency,
 		Metadata:        o.meta,
 		BlobHTTPHeaders: httpHeaders,
@@ -1765,7 +1743,7 @@ func (o *Object) AccessTier() azblob.AccessTierType {
 // SetTier performs changing object tier
 func (o *Object) SetTier(tier string) error {
 	if !validateAccessTier(tier) {
-		return fmt.Errorf("Tier %s not supported by Azure Blob Storage", tier)
+		return fmt.Errorf("tier %s not supported by Azure Blob Storage", tier)
 	}
 
 	// Check if current tier already matches with desired tier
@@ -1776,12 +1754,12 @@ func (o *Object) SetTier(tier string) error {
 	blob := o.getBlobReference()
 	ctx := context.Background()
 	err := o.fs.pacer.Call(func() (bool, error) {
-		_, err := blob.SetTier(ctx, desiredAccessTier, azblob.LeaseAccessConditions{})
+		_, err := blob.SetTier(ctx, desiredAccessTier, azblob.LeaseAccessConditions{}, azblob.RehydratePriorityStandard)
 		return o.fs.shouldRetry(ctx, err)
 	})
 
 	if err != nil {
-		return fmt.Errorf("Failed to set Blob Tier: %w", err)
+		return fmt.Errorf("failed to set Blob Tier: %w", err)
 	}
 
 	// Set access tier on local object also, this typically

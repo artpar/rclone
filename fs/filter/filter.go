@@ -86,7 +86,7 @@ type Opt struct {
 	FilterFrom     []string
 	ExcludeRule    []string
 	ExcludeFrom    []string
-	ExcludeFile    string
+	ExcludeFile    []string
 	IncludeRule    []string
 	IncludeFrom    []string
 	FilesFrom      []string
@@ -200,7 +200,7 @@ func NewFilter(opt *Opt) (f *Filter, err error) {
 
 	for _, rule := range f.Opt.FilesFrom {
 		if !inActive {
-			return nil, fmt.Errorf("The usage of --files-from overrides all other filters, it should be used alone or with --files-from-raw")
+			return nil, fmt.Errorf("the usage of --files-from overrides all other filters, it should be used alone or with --files-from-raw")
 		}
 		f.initAddFile() // init to show --files-from set even if no files within
 		err := forEachLine(rule, false, func(line string) error {
@@ -215,7 +215,7 @@ func NewFilter(opt *Opt) (f *Filter, err error) {
 		// --files-from-raw can be used with --files-from, hence we do
 		// not need to get the value of f.InActive again
 		if !inActive {
-			return nil, fmt.Errorf("The usage of --files-from-raw overrides all other filters, it should be used alone or with --files-from")
+			return nil, fmt.Errorf("the usage of --files-from-raw overrides all other filters, it should be used alone or with --files-from")
 		}
 		f.initAddFile() // init to show --files-from set even if no files within
 		err := forEachLine(rule, true, func(line string) error {
@@ -393,8 +393,10 @@ func (f *Filter) ListContainsExcludeFile(entries fs.DirEntries) bool {
 		obj, ok := entry.(fs.Object)
 		if ok {
 			basename := path.Base(obj.Remote())
-			if basename == f.Opt.ExcludeFile {
-				return true
+			for _, excludeFile := range f.Opt.ExcludeFile {
+				if basename == excludeFile {
+					return true
+				}
 			}
 		}
 	}
@@ -437,12 +439,14 @@ func (f *Filter) IncludeDirectory(ctx context.Context, fs fs.Fs) func(string) (b
 // empty string (for testing).
 func (f *Filter) DirContainsExcludeFile(ctx context.Context, fremote fs.Fs, remote string) (bool, error) {
 	if len(f.Opt.ExcludeFile) > 0 {
-		exists, err := fs.FileExists(ctx, fremote, path.Join(remote, f.Opt.ExcludeFile))
-		if err != nil {
-			return false, err
-		}
-		if exists {
-			return true, nil
+		for _, excludeFile := range f.Opt.ExcludeFile {
+			exists, err := fs.FileExists(ctx, fremote, path.Join(remote, excludeFile))
+			if err != nil {
+				return false, err
+			}
+			if exists {
+				return true, nil
+			}
 		}
 	}
 	return false, nil
@@ -593,7 +597,7 @@ func (f *Filter) UsesDirectoryFilters() bool {
 	}
 	rule := f.dirRules.rules[0]
 	re := rule.Regexp.String()
-	if rule.Include == true && re == "^.*$" {
+	if rule.Include && re == "^.*$" {
 		return false
 	}
 	return true

@@ -28,6 +28,7 @@ import (
 	"github.com/artpar/rclone/lib/bucket"
 	"github.com/artpar/rclone/lib/encoder"
 	"github.com/artpar/rclone/lib/pacer"
+	"github.com/artpar/rclone/lib/random"
 	"github.com/artpar/rclone/lib/rest"
 )
 
@@ -37,6 +38,100 @@ func init() {
 		Name:        "internetarchive",
 		Description: "Internet Archive",
 		NewFs:       NewFs,
+
+		MetadataInfo: &fs.MetadataInfo{
+			System: map[string]fs.MetadataHelp{
+				"name": {
+					Help:     "Full file path, without the bucket part",
+					Type:     "filename",
+					Example:  "backend/internetarchive/internetarchive.go",
+					ReadOnly: true,
+				},
+				"source": {
+					Help:     "The source of the file",
+					Type:     "string",
+					Example:  "original",
+					ReadOnly: true,
+				},
+				"mtime": {
+					Help:     "Time of last modification, managed by Rclone",
+					Type:     "RFC 3339",
+					Example:  "2006-01-02T15:04:05.999999999Z",
+					ReadOnly: true,
+				},
+				"size": {
+					Help:     "File size in bytes",
+					Type:     "decimal number",
+					Example:  "123456",
+					ReadOnly: true,
+				},
+				"md5": {
+					Help:     "MD5 hash calculated by Internet Archive",
+					Type:     "string",
+					Example:  "01234567012345670123456701234567",
+					ReadOnly: true,
+				},
+				"crc32": {
+					Help:     "CRC32 calculated by Internet Archive",
+					Type:     "string",
+					Example:  "01234567",
+					ReadOnly: true,
+				},
+				"sha1": {
+					Help:     "SHA1 hash calculated by Internet Archive",
+					Type:     "string",
+					Example:  "0123456701234567012345670123456701234567",
+					ReadOnly: true,
+				},
+				"format": {
+					Help:     "Name of format identified by Internet Archive",
+					Type:     "string",
+					Example:  "Comma-Separated Values",
+					ReadOnly: true,
+				},
+				"old_version": {
+					Help:     "Whether the file was replaced and moved by keep-old-version flag",
+					Type:     "boolean",
+					Example:  "true",
+					ReadOnly: true,
+				},
+				"viruscheck": {
+					Help:     "The last time viruscheck process was run for the file (?)",
+					Type:     "unixtime",
+					Example:  "1654191352",
+					ReadOnly: true,
+				},
+				"summation": {
+					Help:     "Check https://forum.rclone.org/t/31922 for how it is used",
+					Type:     "string",
+					Example:  "md5",
+					ReadOnly: true,
+				},
+
+				"rclone-ia-mtime": {
+					Help:    "Time of last modification, managed by Internet Archive",
+					Type:    "RFC 3339",
+					Example: "2006-01-02T15:04:05.999999999Z",
+				},
+				"rclone-mtime": {
+					Help:    "Time of last modification, managed by Rclone",
+					Type:    "RFC 3339",
+					Example: "2006-01-02T15:04:05.999999999Z",
+				},
+				"rclone-update-track": {
+					Help:    "Random value used by Rclone for tracking changes inside Internet Archive",
+					Type:    "string",
+					Example: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				},
+			},
+			Help: `Metadata fields provided by Internet Archive.
+If there are multiple values for a key, only the first one is returned.
+This is a limitation of Rclone, that supports one value per one key.
+
+Owner is able to add custom keys. Metadata feature grabs all the keys including them.
+`,
+		},
+
 		Options: []fs.Option{{
 			Name: "access_key_id",
 			Help: "IAS3 Access Key.\n\nLeave blank for anonymous access.\nYou can find one here: https://archive.org/account/s3.php",
@@ -89,6 +184,14 @@ Only enable if you need to be guaranteed to be reflected after write operations.
 // maximum size of an item. this is constant across all items
 const iaItemMaxSize int64 = 1099511627776
 
+// metadata keys that are not writeable
+var roMetadataKey = map[string]interface{}{
+	// do not add mtime here, it's a documented exception
+	"name": nil, "source": nil, "size": nil, "md5": nil,
+	"crc32": nil, "sha1": nil, "format": nil, "old_version": nil,
+	"viruscheck": nil, "summation": nil,
+}
+
 // Options defines the configuration for this backend
 type Options struct {
 	AccessKeyID     string               `config:"access_key_id"`
@@ -121,6 +224,7 @@ type Object struct {
 	md5     string    // md5 hash of the file presented by the server
 	sha1    string    // sha1 hash of the file presented by the server
 	crc32   string    // crc32 of the file presented by the server
+	rawData json.RawMessage
 }
 
 // IAFile reprensents a subset of object in MetadataResponse.Files
@@ -129,16 +233,26 @@ type IAFile struct {
 	// Source     string `json:"source"`
 	Mtime       string          `json:"mtime"`
 	RcloneMtime json.RawMessage `json:"rclone-mtime"`
+	UpdateTrack json.RawMessage `json:"rclone-update-track"`
 	Size        string          `json:"size"`
 	Md5         string          `json:"md5"`
 	Crc32       string          `json:"crc32"`
 	Sha1        string          `json:"sha1"`
+	Summation   string          `json:"summation"`
+
+	rawData json.RawMessage
 }
 
 // MetadataResponse reprensents subset of the JSON object returned by (frontend)/metadata/
 type MetadataResponse struct {
 	Files    []IAFile `json:"files"`
 	ItemSize int64    `json:"item_size"`
+}
+
+// MetadataResponseRaw is the form of MetadataResponse to deal with metadata
+type MetadataResponseRaw struct {
+	Files    []json.RawMessage `json:"files"`
+	ItemSize int64             `json:"item_size"`
 }
 
 // ModMetadataResponse represents response for amending metadata
@@ -224,7 +338,10 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	}
 	f.setRoot(root)
 	f.features = (&fs.Features{
-		BucketBased: true,
+		BucketBased:   true,
+		ReadMetadata:  true,
+		WriteMetadata: true,
+		UserMetadata:  true,
 	}).Fill(ctx, f)
 
 	f.srv = rest.NewClient(fshttp.NewClient(ctx))
@@ -294,7 +411,7 @@ func (o *Object) Storable() bool {
 	return true
 }
 
-// SetModTime is not supported
+// SetModTime sets modTime on a particular file
 func (o *Object) SetModTime(ctx context.Context, t time.Time) (err error) {
 	bucket, reqDir := o.split()
 	if bucket == "" {
@@ -305,18 +422,17 @@ func (o *Object) SetModTime(ctx context.Context, t time.Time) (err error) {
 	}
 
 	// https://archive.org/services/docs/api/md-write.html
-	var patch = []interface{}{
+	// the following code might be useful for modifying metadata of an uploaded file
+	patch := []map[string]string{
 		// we should drop it first to clear all rclone-provided mtimes
-		struct {
-			Op   string `json:"op"`
-			Path string `json:"path"`
-		}{"remove", "/rclone-mtime"},
-		struct {
-			Op    string `json:"op"`
-			Path  string `json:"path"`
-			Value string `json:"value"`
-		}{"add", "/rclone-mtime", t.Format(time.RFC3339Nano)},
-	}
+		{
+			"op":   "remove",
+			"path": "/rclone-mtime",
+		}, {
+			"op":    "add",
+			"path":  "/rclone-mtime",
+			"value": t.Format(time.RFC3339Nano),
+		}}
 	res, err := json.Marshal(patch)
 	if err != nil {
 		return err
@@ -456,7 +572,7 @@ func (f *Fs) PublicLink(ctx context.Context, remote string, expire fs.Duration, 
 		return "", err
 	}
 	bucket, bucketPath := f.split(remote)
-	return path.Join(f.opt.FrontEndpoint, "/download/", bucket, bucketPath), nil
+	return path.Join(f.opt.FrontEndpoint, "/download/", bucket, quotePath(bucketPath)), nil
 }
 
 // Copy src to this remote using server-side copy operations.
@@ -483,6 +599,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (_ fs.Objec
 		return nil, fs.ErrorCantCopy
 	}
 
+	updateTracker := random.String(32)
 	headers := map[string]string{
 		"x-archive-auto-make-bucket": "1",
 		"x-archive-queue-derive":     "0",
@@ -494,7 +611,8 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (_ fs.Objec
 		"x-archive-filemeta-crc32":   srcObj.crc32,
 		"x-archive-filemeta-size":    fmt.Sprint(srcObj.size),
 		// add this too for sure
-		"x-archive-filemeta-rclone-mtime": srcObj.modTime.Format(time.RFC3339Nano),
+		"x-archive-filemeta-rclone-mtime":        srcObj.modTime.Format(time.RFC3339Nano),
+		"x-archive-filemeta-rclone-update-track": updateTracker,
 	}
 
 	// make a PUT request at (IAS3)/:item/:path without body
@@ -515,7 +633,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (_ fs.Objec
 
 	// we can't update/find metadata here as IA will also
 	// queue server-side copy as well as upload/delete.
-	return f.waitFileUpload(ctx, trimPathPrefix(path.Join(dstBucket, dstPath), f.root, f.opt.Enc), f.getHashes(ctx, src), srcObj.size)
+	return f.waitFileUpload(ctx, trimPathPrefix(path.Join(dstBucket, dstPath), f.root, f.opt.Enc), updateTracker, srcObj.size)
 }
 
 // ListR lists the objects and directories of the Fs starting
@@ -642,7 +760,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 	// make a GET request to (frontend)/download/:item/:path
 	opts := rest.Opts{
 		Method:  "GET",
-		Path:    path.Join("/download/", o.fs.root, o.fs.opt.Enc.FromStandardPath(o.remote)),
+		Path:    path.Join("/download/", o.fs.root, quotePath(o.fs.opt.Enc.FromStandardPath(o.remote))),
 		Options: optionsFixed,
 	}
 	err = o.fs.pacer.Call(func() (bool, error) {
@@ -660,12 +778,14 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 	bucket, bucketPath := o.split()
 	modTime := src.ModTime(ctx)
 	size := src.Size()
+	updateTracker := random.String(32)
 
 	// Set the mtime in the metadata
 	// internetarchive backend builds at header level as IAS3 has extension outside X-Amz-
 	headers := map[string]string{
 		// https://github.com/jjjake/internetarchive/blob/2456376533251df9d05e0a14d796ec1ced4959f5/internetarchive/iarequest.py#L158
-		"x-amz-filemeta-rclone-mtime": modTime.Format(time.RFC3339Nano),
+		"x-amz-filemeta-rclone-mtime":        modTime.Format(time.RFC3339Nano),
+		"x-amz-filemeta-rclone-update-track": updateTracker,
 
 		// we add some more headers for intuitive actions
 		"x-amz-auto-make-bucket":     "1",    // create an item if does not exist, do nothing if already
@@ -678,6 +798,23 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 	if size >= 0 {
 		headers["Content-Length"] = fmt.Sprintf("%d", size)
 		headers["x-archive-size-hint"] = fmt.Sprintf("%d", size)
+	}
+	var mdata fs.Metadata
+	mdata, err = fs.GetMetadataOptions(ctx, src, options)
+	if err == nil && mdata != nil {
+		for mk, mv := range mdata {
+			mk = strings.ToLower(mk)
+			if strings.HasPrefix(mk, "rclone-") {
+				fs.LogPrintf(fs.LogLevelWarning, o, "reserved metadata key %s is about to set", mk)
+			} else if _, ok := roMetadataKey[mk]; ok {
+				fs.LogPrintf(fs.LogLevelWarning, o, "setting or modifying read-only key %s is requested, skipping", mk)
+				continue
+			} else if mk == "mtime" {
+				// redirect to make it work
+				mk = "rclone-mtime"
+			}
+			headers[fmt.Sprintf("x-amz-filemeta-%s", mk)] = mv
+		}
 	}
 
 	// read the md5sum if available
@@ -712,7 +849,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 	// or we have to wait for finish? (needs polling (frontend)/metadata/:item or scraping (frontend)/history/:item)
 	var newObj *Object
 	if err == nil {
-		newObj, err = o.fs.waitFileUpload(ctx, o.remote, o.fs.getHashes(ctx, src), size)
+		newObj, err = o.fs.waitFileUpload(ctx, o.remote, updateTracker, size)
 	} else {
 		newObj = &Object{}
 	}
@@ -756,6 +893,34 @@ func (o *Object) String() string {
 	return o.remote
 }
 
+// Metadata returns all file metadata provided by Internet Archive
+func (o *Object) Metadata(ctx context.Context) (m fs.Metadata, err error) {
+	if o.rawData == nil {
+		return nil, nil
+	}
+	raw := make(map[string]json.RawMessage)
+	err = json.Unmarshal(o.rawData, &raw)
+	if err != nil {
+		// fatal: json parsing failed
+		return
+	}
+	for k, v := range raw {
+		items, err := listOrString(v)
+		if len(items) == 0 || err != nil {
+			// skip: an entry failed to parse
+			continue
+		}
+		m.Set(k, items[0])
+	}
+	// move the old mtime to an another key
+	if v, ok := m["mtime"]; ok {
+		m["rclone-ia-mtime"] = v
+	}
+	// overwrite with a correct mtime
+	m["mtime"] = o.modTime.Format(time.RFC3339Nano)
+	return
+}
+
 func (f *Fs) shouldRetry(resp *http.Response, err error) (bool, error) {
 	if resp != nil {
 		for _, e := range retryErrorCodes {
@@ -782,19 +947,7 @@ func (o *Object) split() (bucket, bucketPath string) {
 	return o.fs.split(o.remote)
 }
 
-func (f *Fs) getHashes(ctx context.Context, src fs.ObjectInfo) map[hash.Type]string {
-	hashMap := map[hash.Type]string{}
-	for _, ty := range f.Hashes().Array() {
-		sum, err := src.Hash(ctx, ty)
-		if err != nil || sum == "" {
-			continue
-		}
-		hashMap[ty] = sum
-	}
-	return hashMap
-}
-
-func (f *Fs) requestMetadata(ctx context.Context, bucket string) (result MetadataResponse, err error) {
+func (f *Fs) requestMetadata(ctx context.Context, bucket string) (result *MetadataResponse, err error) {
 	var resp *http.Response
 	// make a GET request to (frontend)/metadata/:item/
 	opts := rest.Opts{
@@ -802,12 +955,15 @@ func (f *Fs) requestMetadata(ctx context.Context, bucket string) (result Metadat
 		Path:   path.Join("/metadata/", bucket),
 	}
 
+	var temp MetadataResponseRaw
 	err = f.pacer.Call(func() (bool, error) {
-		resp, err = f.front.CallJSON(ctx, &opts, nil, &result)
+		resp, err = f.front.CallJSON(ctx, &opts, nil, &temp)
 		return f.shouldRetry(resp, err)
 	})
-
-	return result, err
+	if err != nil {
+		return
+	}
+	return temp.unraw()
 }
 
 // list up all files/directories without any filters
@@ -852,7 +1008,7 @@ func (f *Fs) listAllUnconstrained(ctx context.Context, bucket string) (entries f
 	return entries, nil
 }
 
-func (f *Fs) waitFileUpload(ctx context.Context, reqPath string, newHashes map[hash.Type]string, newSize int64) (ret *Object, err error) {
+func (f *Fs) waitFileUpload(ctx context.Context, reqPath, tracker string, newSize int64) (ret *Object, err error) {
 	bucket, bucketPath := f.split(reqPath)
 
 	ret = &Object{
@@ -869,6 +1025,10 @@ func (f *Fs) waitFileUpload(ctx context.Context, reqPath string, newHashes map[h
 			ret2, ok := ret2.(*Object)
 			if ok {
 				ret = ret2
+				ret.crc32 = ""
+				ret.md5 = ""
+				ret.sha1 = ""
+				ret.size = -1
 			}
 		}
 		return ret, nil
@@ -881,9 +1041,6 @@ func (f *Fs) waitFileUpload(ctx context.Context, reqPath string, newHashes map[h
 	go func() {
 		isFirstTime := true
 		existed := false
-		oldMtime := ""
-		oldCrc32 := ""
-		unreliablePassCount := 0
 		for {
 			if !isFirstTime {
 				// depending on the queue, it takes time
@@ -908,10 +1065,6 @@ func (f *Fs) waitFileUpload(ctx context.Context, reqPath string, newHashes map[h
 			if isFirstTime {
 				isFirstTime = false
 				existed = iaFile != nil
-				if iaFile != nil {
-					oldMtime = iaFile.Mtime
-					oldCrc32 = iaFile.Crc32
-				}
 			}
 			if iaFile == nil {
 				continue
@@ -925,36 +1078,18 @@ func (f *Fs) waitFileUpload(ctx context.Context, reqPath string, newHashes map[h
 				return
 			}
 
-			hashMatched := true
-			for tt, sum := range newHashes {
-				if tt == hash.MD5 && !hash.Equals(iaFile.Md5, sum) {
-					hashMatched = false
-					break
-				}
-				if tt == hash.SHA1 && !hash.Equals(iaFile.Sha1, sum) {
-					hashMatched = false
-					break
-				}
-				if tt == hash.CRC32 && !hash.Equals(iaFile.Crc32, sum) {
-					hashMatched = false
+			fileTrackers, _ := listOrString(iaFile.UpdateTrack)
+			trackerMatch := false
+			for _, v := range fileTrackers {
+				if v == tracker {
+					trackerMatch = true
 					break
 				}
 			}
-			if !hashMatched {
+			if !trackerMatch {
 				continue
 			}
 			if !compareSize(parseSize(iaFile.Size), newSize) {
-				continue
-			}
-			if hash.Equals(oldCrc32, iaFile.Crc32) && unreliablePassCount < 60 {
-				// the following two are based on a sort of "bad" assumption;
-				// what if the file is updated immediately, before polling?
-				// by limiting hits of these tests, avoid infinite loop
-				unreliablePassCount++
-				continue
-			}
-			if hash.Equals(iaFile.Mtime, oldMtime) && unreliablePassCount < 60 {
-				unreliablePassCount++
 				continue
 			}
 
@@ -1017,15 +1152,21 @@ func (f *Fs) waitDelete(ctx context.Context, bucket, bucketPath string) (err err
 }
 
 func makeValidObject(f *Fs, remote string, file IAFile, mtime time.Time, size int64) *Object {
-	return &Object{
+	ret := &Object{
 		fs:      f,
 		remote:  remote,
 		modTime: mtime,
 		size:    size,
-		md5:     file.Md5,
-		crc32:   file.Crc32,
-		sha1:    file.Sha1,
+		rawData: file.rawData,
 	}
+	// hashes from _files.xml (where summation != "") is different from one in other files
+	// https://forum.rclone.org/t/internet-archive-md5-tag-in-id-files-xml-interpreted-incorrectly/31922
+	if file.Summation == "" {
+		ret.md5 = file.Md5
+		ret.crc32 = file.Crc32
+		ret.sha1 = file.Sha1
+	}
+	return ret
 }
 
 func makeValidObject2(f *Fs, file IAFile, bucket string) *Object {
@@ -1036,20 +1177,24 @@ func makeValidObject2(f *Fs, file IAFile, bucket string) *Object {
 	return makeValidObject(f, trimPathPrefix(path.Join(bucket, file.Name), f.root, f.opt.Enc), file, mtimeTime, size)
 }
 
-func (file IAFile) parseMtime() (mtime time.Time) {
-	// method 1: use metadata added by rclone
-	var rmArray []string
+func listOrString(jm json.RawMessage) (rmArray []string, err error) {
 	// rclone-metadata can be an array or string
 	// try to deserialize it as array first
-	err := json.Unmarshal(file.RcloneMtime, &rmArray)
+	err = json.Unmarshal(jm, &rmArray)
 	if err != nil {
 		// if not, it's a string
 		dst := new(string)
-		err = json.Unmarshal(file.RcloneMtime, dst)
+		err = json.Unmarshal(jm, dst)
 		if err == nil {
 			rmArray = []string{*dst}
 		}
 	}
+	return
+}
+
+func (file IAFile) parseMtime() (mtime time.Time) {
+	// method 1: use metadata added by rclone
+	rmArray, err := listOrString(file.RcloneMtime)
 	// let's take the first value we can deserialize
 	for _, value := range rmArray {
 		mtime, err = time.Parse(time.RFC3339Nano, value)
@@ -1066,6 +1211,23 @@ func (file IAFile) parseMtime() (mtime time.Time) {
 		mtime = time.Unix(0, 0)
 	}
 	return mtime
+}
+
+func (mrr *MetadataResponseRaw) unraw() (_ *MetadataResponse, err error) {
+	var files []IAFile
+	for _, raw := range mrr.Files {
+		var parsed IAFile
+		err = json.Unmarshal(raw, &parsed)
+		if err != nil {
+			return nil, err
+		}
+		parsed.rawData = raw
+		files = append(files, parsed)
+	}
+	return &MetadataResponse{
+		Files:    files,
+		ItemSize: mrr.ItemSize,
+	}, nil
 }
 
 func compareSize(a, b int64) bool {
@@ -1129,4 +1291,5 @@ var (
 	_ fs.PublicLinker = &Fs{}
 	_ fs.Abouter      = &Fs{}
 	_ fs.Object       = &Object{}
+	_ fs.Metadataer   = &Object{}
 )
