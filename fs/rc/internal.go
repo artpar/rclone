@@ -267,7 +267,7 @@ func rcQuit(ctx context.Context, in Params) (out Params, err error) {
 	go func(exitCode int) {
 		time.Sleep(time.Millisecond * 1500)
 		atexit.Run()
-		os.Exit(exitCode)
+		//os.Exit(exitCode)
 	}(exitCode)
 
 	return nil, nil
