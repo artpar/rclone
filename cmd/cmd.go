@@ -474,34 +474,35 @@ func initConfig() {
 
 func resolveExitCode(err error) {
 	ci := fs.GetConfig(context.Background())
-	atexit.Run()
-	if err == nil {
-		if ci.ErrorOnNoTransfer {
-			if accounting.GlobalStats().GetTransfers() == 0 {
-				os.Exit(exitcode.NoFilesTransferred)
-			}
-		}
-		os.Exit(exitcode.Success)
-	}
-
-	switch {
-	case errors.Is(err, fs.ErrorDirNotFound):
-		os.Exit(exitcode.DirNotFound)
-	case errors.Is(err, fs.ErrorObjectNotFound):
-		os.Exit(exitcode.FileNotFound)
-	case errors.Is(err, errorUncategorized):
-		os.Exit(exitcode.UncategorizedError)
-	case errors.Is(err, accounting.ErrorMaxTransferLimitReached):
-		os.Exit(exitcode.TransferExceeded)
-	case fserrors.ShouldRetry(err):
-		os.Exit(exitcode.RetryError)
-	case fserrors.IsNoRetryError(err), fserrors.IsNoLowLevelRetryError(err):
-		os.Exit(exitcode.NoRetryError)
-	case fserrors.IsFatalError(err):
-		os.Exit(exitcode.FatalError)
-	default:
-		os.Exit(exitcode.UsageError)
-	}
+	return;
+	//atexit.Run()
+	//if err == nil {
+	//	if ci.ErrorOnNoTransfer {
+	//		if accounting.GlobalStats().GetTransfers() == 0 {
+	//			os.Exit(exitcode.NoFilesTransferred)
+	//		}
+	//	}
+	//	os.Exit(exitcode.Success)
+	//}
+	//
+	//switch {
+	//case errors.Is(err, fs.ErrorDirNotFound):
+	//	os.Exit(exitcode.DirNotFound)
+	//case errors.Is(err, fs.ErrorObjectNotFound):
+	//	os.Exit(exitcode.FileNotFound)
+	//case errors.Is(err, errorUncategorized):
+	//	os.Exit(exitcode.UncategorizedError)
+	//case errors.Is(err, accounting.ErrorMaxTransferLimitReached):
+	//	os.Exit(exitcode.TransferExceeded)
+	//case fserrors.ShouldRetry(err):
+	//	os.Exit(exitcode.RetryError)
+	//case fserrors.IsNoRetryError(err), fserrors.IsNoLowLevelRetryError(err):
+	//	os.Exit(exitcode.NoRetryError)
+	//case fserrors.IsFatalError(err):
+	//	os.Exit(exitcode.FatalError)
+	//default:
+	//	os.Exit(exitcode.UsageError)
+	//}
 }
 
 var backendFlags map[string]struct{}
