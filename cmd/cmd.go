@@ -30,14 +30,14 @@ import (
 	"github.com/artpar/rclone/fs/config/flags"
 	"github.com/artpar/rclone/fs/filter"
 	"github.com/artpar/rclone/fs/filter/filterflags"
-	"github.com/artpar/rclone/fs/fserrors"
+	//"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fspath"
 	fslog "github.com/artpar/rclone/fs/log"
 	"github.com/artpar/rclone/fs/rc/rcflags"
 	"github.com/artpar/rclone/fs/rc/rcserver"
 	"github.com/artpar/rclone/lib/atexit"
 	"github.com/artpar/rclone/lib/buildinfo"
-	"github.com/artpar/rclone/lib/exitcode"
+	//"github.com/artpar/rclone/lib/exitcode"
 	"github.com/artpar/rclone/lib/random"
 	"github.com/artpar/rclone/lib/terminal"
 	"github.com/spf13/cobra"
@@ -473,7 +473,7 @@ func initConfig() {
 }
 
 func resolveExitCode(err error) {
-	ci := fs.GetConfig(context.Background())
+	//ci := fs.GetConfig(context.Background())
 	return;
 	//atexit.Run()
 	//if err == nil {
