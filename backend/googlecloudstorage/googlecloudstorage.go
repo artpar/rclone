@@ -19,8 +19,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -82,7 +82,8 @@ func init() {
 			saFile, _ := m.Get("service_account_file")
 			saCreds, _ := m.Get("service_account_credentials")
 			anonymous, _ := m.Get("anonymous")
-			if saFile != "" || saCreds != "" || anonymous == "true" {
+			envAuth, _ := m.Get("env_auth")
+			if saFile != "" || saCreds != "" || anonymous == "true" || envAuth == "true" {
 				return nil, nil
 			}
 			return oauthutil.ConfigOut("", &oauthutil.Options{
@@ -311,7 +312,7 @@ rclone does if you know the bucket exists already.
 			Help: `If set this will decompress gzip encoded objects.
 
 It is possible to upload objects to GCS with "Content-Encoding: gzip"
-set. Normally rclone will download these files files as compressed objects.
+set. Normally rclone will download these files as compressed objects.
 
 If this flag is set then rclone will decompress these files with
 "Content-Encoding: gzip" as they are received. This means that rclone
@@ -320,12 +321,27 @@ can't check the size and hash but the file contents will be decompressed.
 			Advanced: true,
 			Default:  false,
 		}, {
+			Name:     "endpoint",
+			Help:     "Endpoint for the service.\n\nLeave blank normally.",
+			Advanced: true,
+		}, {
 			Name:     config.ConfigEncoding,
 			Help:     config.ConfigEncodingHelp,
 			Advanced: true,
 			Default: (encoder.Base |
 				encoder.EncodeCrLf |
 				encoder.EncodeInvalidUtf8),
+		}, {
+			Name:    "env_auth",
+			Help:    "Get GCP IAM credentials from runtime (environment variables or instance meta data if no env vars).\n\nOnly applies if service_account_file and service_account_credentials is blank.",
+			Default: false,
+			Examples: []fs.OptionExample{{
+				Value: "false",
+				Help:  "Enter credentials in the next step.",
+			}, {
+				Value: "true",
+				Help:  "Get GCP IAM credentials from the environment (env vars or IAM).",
+			}},
 		}}...),
 	})
 }
@@ -343,7 +359,9 @@ type Options struct {
 	StorageClass              string               `config:"storage_class"`
 	NoCheckBucket             bool                 `config:"no_check_bucket"`
 	Decompress                bool                 `config:"decompress"`
+	Endpoint                  string               `config:"endpoint"`
 	Enc                       encoder.MultiEncoder `config:"encoding"`
+	EnvAuth                   bool                 `config:"env_auth"`
 }
 
 // Fs represents a remote storage server
@@ -482,7 +500,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 
 	// try loading service account credentials from env variable, then from a file
 	if opt.ServiceAccountCredentials == "" && opt.ServiceAccountFile != "" {
-		loadedCreds, err := ioutil.ReadFile(env.ShellExpand(opt.ServiceAccountFile))
+		loadedCreds, err := os.ReadFile(env.ShellExpand(opt.ServiceAccountFile))
 		if err != nil {
 			return nil, fmt.Errorf("error opening service account credentials file: %w", err)
 		}
@@ -494,6 +512,11 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		oAuthClient, err = getServiceAccountClient(ctx, []byte(opt.ServiceAccountCredentials))
 		if err != nil {
 			return nil, fmt.Errorf("failed configuring Google Cloud Storage Service Account: %w", err)
+		}
+	} else if opt.EnvAuth {
+		oAuthClient, err = google.DefaultClient(ctx, storage.DevstorageFullControlScope)
+		if err != nil {
+			return nil, fmt.Errorf("failed to configure Google Cloud Storage: %w", err)
 		}
 	} else {
 		oAuthClient, _, err = oauthutil.NewClient(ctx, name, m, storageConfig)
@@ -523,7 +546,11 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 
 	// Create a new authorized Drive client.
 	f.client = oAuthClient
-	f.svc, err = storage.NewService(context.Background(), option.WithHTTPClient(f.client))
+	gcsOpts := []option.ClientOption{option.WithHTTPClient(f.client)}
+	if opt.Endpoint != "" {
+		gcsOpts = append(gcsOpts, option.WithEndpoint(opt.Endpoint))
+	}
+	f.svc, err = storage.NewService(context.Background(), gcsOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create Google Cloud Storage client: %w", err)
 	}
@@ -580,7 +607,7 @@ type listFn func(remote string, object *storage.Object, isDirectory bool) error
 //
 // dir is the starting directory, "" for root
 //
-// Set recurse to read sub directories
+// Set recurse to read sub directories.
 //
 // The remote has prefix removed from it and if addBucket is set
 // then it adds the bucket to the start.
@@ -798,7 +825,7 @@ func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (
 
 // Put the object into the bucket
 //
-// Copy the reader in to the new object which is returned
+// Copy the reader in to the new object which is returned.
 //
 // The new object may have been created if an error is returned
 func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
@@ -900,9 +927,9 @@ func (f *Fs) Precision() time.Duration {
 
 // Copy src to this remote using server-side copy operations.
 //
-// This is stored with the remote path given
+// This is stored with the remote path given.
 //
-// It returns the destination Object and a possible error
+// It returns the destination Object and a possible error.
 //
 // Will only be called if src.Fs().Name() == f.Name()
 //

@@ -260,6 +260,48 @@ At the time of writing this only works with OneDrive personal paid accounts.
 `,
 			Advanced: true,
 		}, {
+			Name:    "hash_type",
+			Default: "auto",
+			Help: `Specify the hash in use for the backend.
+
+This specifies the hash type in use. If set to "auto" it will use the
+default hash which is is QuickXorHash.
+
+Before rclone 1.62 an SHA1 hash was used by default for Onedrive
+Personal. For 1.62 and later the default is to use a QuickXorHash for
+all onedrive types. If an SHA1 hash is desired then set this option
+accordingly.
+
+From July 2023 QuickXorHash will be the only available hash for
+both OneDrive for Business and OneDriver Personal.
+
+This can be set to "none" to not use any hashes.
+
+If the hash requested does not exist on the object, it will be
+returned as an empty string which is treated as a missing hash by
+rclone.
+`,
+			Examples: []fs.OptionExample{{
+				Value: "auto",
+				Help:  "Rclone chooses the best hash",
+			}, {
+				Value: "quickxor",
+				Help:  "QuickXor",
+			}, {
+				Value: "sha1",
+				Help:  "SHA1",
+			}, {
+				Value: "sha256",
+				Help:  "SHA256",
+			}, {
+				Value: "crc32",
+				Help:  "CRC32",
+			}, {
+				Value: "none",
+				Help:  "None - don't use any hashes",
+			}},
+			Advanced: true,
+		}, {
 			Name:     config.ConfigEncoding,
 			Help:     config.ConfigEncodingHelp,
 			Advanced: true,
@@ -511,7 +553,7 @@ Example: "https://contoso.sharepoint.com/sites/mysite" or "mysite"
 `)
 	case "url_end":
 		siteURL := config.Result
-		re := regexp.MustCompile(`https://.*\.sharepoint.com/sites/(.*)`)
+		re := regexp.MustCompile(`https://.*\.sharepoint\.com/sites/(.*)`)
 		match := re.FindStringSubmatch(siteURL)
 		if len(match) == 2 {
 			return chooseDrive(ctx, name, m, srv, chooseDriveOpt{
@@ -597,25 +639,27 @@ type Options struct {
 	LinkScope               string               `config:"link_scope"`
 	LinkType                string               `config:"link_type"`
 	LinkPassword            string               `config:"link_password"`
+	HashType                string               `config:"hash_type"`
 	Enc                     encoder.MultiEncoder `config:"encoding"`
 }
 
-// Fs represents a remote one drive
+// Fs represents a remote OneDrive
 type Fs struct {
 	name         string             // name of this remote
 	root         string             // the path we are working on
 	opt          Options            // parsed options
 	ci           *fs.ConfigInfo     // global config
 	features     *fs.Features       // optional features
-	srv          *rest.Client       // the connection to the one drive server
+	srv          *rest.Client       // the connection to the OneDrive server
 	dirCache     *dircache.DirCache // Map of directory path to directory id
 	pacer        *fs.Pacer          // pacer for API calls
 	tokenRenewer *oauthutil.Renew   // renew the token on expiry
 	driveID      string             // ID to use for querying Microsoft Graph
 	driveType    string             // https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/drive
+	hashType     hash.Type          // type of the hash we are using
 }
 
-// Object describes a one drive object
+// Object describes a OneDrive object
 //
 // Will definitely have info but maybe not meta
 type Object struct {
@@ -626,8 +670,7 @@ type Object struct {
 	size          int64     // size of the object
 	modTime       time.Time // modification time of the object
 	id            string    // ID of the object
-	sha1          string    // SHA-1 of the object content
-	quickxorhash  string    // QuickXorHash of the object content
+	hash          string    // Hash of the content, usually QuickXorHash but set as hash_type
 	mimeType      string    // Content-Type of object from server (may not be as uploaded)
 }
 
@@ -645,7 +688,7 @@ func (f *Fs) Root() string {
 
 // String converts this Fs to a string
 func (f *Fs) String() string {
-	return fmt.Sprintf("One drive root '%s'", f.root)
+	return fmt.Sprintf("OneDrive root '%s'", f.root)
 }
 
 // Features returns the optional features of this Fs
@@ -653,7 +696,7 @@ func (f *Fs) Features() *fs.Features {
 	return f.features
 }
 
-// parsePath parses a one drive 'url'
+// parsePath parses a OneDrive 'url'
 func parsePath(path string) (root string) {
 	root = strings.Trim(path, "/")
 	return
@@ -727,7 +770,7 @@ func shouldRetry(ctx context.Context, resp *http.Response, err error) (bool, err
 // "shared with me" folders in OneDrive Personal (See #2536, #2778)
 // This path pattern comes from https://github.com/OneDrive/onedrive-api-docs/issues/908#issuecomment-417488480
 //
-// If `relPath` == '', do not append the slash (See #3664)
+// If `relPath` == ”, do not append the slash (See #3664)
 func (f *Fs) readMetaDataForPathRelativeToID(ctx context.Context, normalizedID string, relPath string) (info *api.Item, resp *http.Response, err error) {
 	opts, _ := f.newOptsCallWithIDPath(normalizedID, relPath, true, "GET", "")
 
@@ -882,6 +925,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		driveType: opt.DriveType,
 		srv:       rest.NewClient(oAuthClient).SetRoot(rootURL),
 		pacer:     fs.NewPacer(ctx, pacer.NewDefault(pacer.MinSleep(minSleep), pacer.MaxSleep(maxSleep), pacer.DecayConstant(decayConstant))),
+		hashType:  QuickXorHashType,
 	}
 	f.features = (&fs.Features{
 		CaseInsensitive:         true,
@@ -890,6 +934,21 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		ServerSideAcrossConfigs: opt.ServerSideAcrossConfigs,
 	}).Fill(ctx, f)
 	f.srv.SetErrorHandler(errorHandler)
+
+	// Set the user defined hash
+	if opt.HashType == "auto" || opt.HashType == "" {
+		opt.HashType = QuickXorHashType.String()
+	}
+	err = f.hashType.Set(opt.HashType)
+	if err != nil {
+		return nil, err
+	}
+
+	// Disable change polling in China region
+	// See: https://github.com/rclone/rclone/issues/6444
+	if f.opt.Region == regionCN {
+		f.features.ChangeNotify = nil
+	}
 
 	// Renew the token in the background
 	f.tokenRenewer = oauthutil.NewRenew(f.String(), ts, func() error {
@@ -1137,7 +1196,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 // Creates from the parameters passed in a half finished Object which
 // must have setMetaData called on it
 //
-// Returns the object, leaf, directoryID and error
+// Returns the object, leaf, directoryID and error.
 //
 // Used to create new objects
 func (f *Fs) createObject(ctx context.Context, remote string, modTime time.Time, size int64) (o *Object, leaf string, directoryID string, err error) {
@@ -1156,7 +1215,7 @@ func (f *Fs) createObject(ctx context.Context, remote string, modTime time.Time,
 
 // Put the object into the container
 //
-// Copy the reader in to the new object which is returned
+// Copy the reader in to the new object which is returned.
 //
 // The new object may have been created if an error is returned
 func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
@@ -1280,9 +1339,9 @@ func (f *Fs) waitForJob(ctx context.Context, location string, o *Object) error {
 
 // Copy src to this remote using server-side copy operations.
 //
-// This is stored with the remote path given
+// This is stored with the remote path given.
 //
-// It returns the destination Object and a possible error
+// It returns the destination Object and a possible error.
 //
 // Will only be called if src.Fs().Name() == f.Name()
 //
@@ -1387,9 +1446,9 @@ func (f *Fs) Purge(ctx context.Context, dir string) error {
 
 // Move src to this remote using server-side move operations.
 //
-// This is stored with the remote path given
+// This is stored with the remote path given.
 //
-// It returns the destination Object and a possible error
+// It returns the destination Object and a possible error.
 //
 // Will only be called if src.Fs().Name() == f.Name()
 //
@@ -1550,10 +1609,7 @@ func (f *Fs) About(ctx context.Context) (usage *fs.Usage, err error) {
 
 // Hashes returns the supported hash sets.
 func (f *Fs) Hashes() hash.Set {
-	if f.driveType == driveTypePersonal {
-		return hash.Set(hash.SHA1)
-	}
-	return hash.Set(QuickXorHashType)
+	return hash.Set(f.hashType)
 }
 
 // PublicLink returns a link for downloading without account.
@@ -1762,14 +1818,8 @@ func (o *Object) rootPath() string {
 
 // Hash returns the SHA-1 of an object returning a lowercase hex string
 func (o *Object) Hash(ctx context.Context, t hash.Type) (string, error) {
-	if o.fs.driveType == driveTypePersonal {
-		if t == hash.SHA1 {
-			return o.sha1, nil
-		}
-	} else {
-		if t == QuickXorHashType {
-			return o.quickxorhash, nil
-		}
+	if t == o.fs.hashType {
+		return o.hash, nil
 	}
 	return "", hash.ErrUnsupported
 }
@@ -1800,16 +1850,23 @@ func (o *Object) setMetaData(info *api.Item) (err error) {
 	file := info.GetFile()
 	if file != nil {
 		o.mimeType = file.MimeType
-		if file.Hashes.Sha1Hash != "" {
-			o.sha1 = strings.ToLower(file.Hashes.Sha1Hash)
-		}
-		if file.Hashes.QuickXorHash != "" {
-			h, err := base64.StdEncoding.DecodeString(file.Hashes.QuickXorHash)
-			if err != nil {
-				fs.Errorf(o, "Failed to decode QuickXorHash %q: %v", file.Hashes.QuickXorHash, err)
-			} else {
-				o.quickxorhash = hex.EncodeToString(h)
+		o.hash = ""
+		switch o.fs.hashType {
+		case QuickXorHashType:
+			if file.Hashes.QuickXorHash != "" {
+				h, err := base64.StdEncoding.DecodeString(file.Hashes.QuickXorHash)
+				if err != nil {
+					fs.Errorf(o, "Failed to decode QuickXorHash %q: %v", file.Hashes.QuickXorHash, err)
+				} else {
+					o.hash = hex.EncodeToString(h)
+				}
 			}
+		case hash.SHA1:
+			o.hash = strings.ToLower(file.Hashes.Sha1Hash)
+		case hash.SHA256:
+			o.hash = strings.ToLower(file.Hashes.Sha256Hash)
+		case hash.CRC32:
+			o.hash = strings.ToLower(file.Hashes.Crc32Hash)
 		}
 	}
 	fileSystemInfo := info.GetFileSystemInfo()
@@ -1842,7 +1899,6 @@ func (o *Object) readMetaData(ctx context.Context) (err error) {
 }
 
 // ModTime returns the modification time of the object
-//
 //
 // It attempts to read the objects mtime and if that isn't present the
 // LastModified returned in the http headers

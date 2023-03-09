@@ -7,7 +7,6 @@ package config_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -37,7 +36,7 @@ func testConfigFile(t *testing.T, options []fs.Option, configFileName string) fu
 	_ = os.Unsetenv("_RCLONE_CONFIG_KEY_FILE")
 	_ = os.Unsetenv("RCLONE_CONFIG_PASS")
 	// create temp config file
-	tempFile, err := ioutil.TempFile("", configFileName)
+	tempFile, err := os.CreateTemp("", configFileName)
 	assert.NoError(t, err)
 	path := tempFile.Name()
 	assert.NoError(t, tempFile.Close())
@@ -184,7 +183,7 @@ func TestNewRemoteName(t *testing.T) {
 	config.ReadLine = makeReadLine([]string{
 		"test",           // already exists
 		"",               // empty string not allowed
-		"bad@characters", // bad characters
+		"bad^characters", // bad characters
 		"newname",        // OK
 	})
 

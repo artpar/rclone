@@ -1,6 +1,7 @@
 ---
 title: "Microsoft OneDrive"
 description: "Rclone docs for Microsoft OneDrive"
+versionIntroduced: "v1.24"
 ---
 
 # {{< icon "fab fa-windows" >}} Microsoft OneDrive
@@ -52,9 +53,10 @@ y) Yes
 n) No
 y/n> n
 Remote config
-Use auto config?
- * Say Y if not sure
- * Say N if you are working on a remote or headless machine
+Use web browser to automatically authenticate rclone with remote?
+ * Say Y if the machine running rclone has a web browser you can use
+ * Say N if running rclone on a (remote) machine without web browser access
+If not sure try Y. If Y failed, try N.
 y) Yes
 n) No
 y/n> y
@@ -124,7 +126,7 @@ rclone uses a default Client ID when talking to OneDrive, unless a custom `clien
 The default Client ID and Key are shared by all rclone users when performing requests.
 
 You may choose to create and use your own Client ID, in case the default one does not work well for you. 
-For example, you might see throtting.
+For example, you might see throttling.
 
 #### Creating Client ID for OneDrive Personal
 
@@ -152,7 +154,7 @@ A common error is that the publisher of the App is not verified.
 You may try to [verify you account](https://docs.microsoft.com/en-us/azure/active-directory/develop/publisher-verification-overview), or try to limit the App to your organization only, as shown below.
 
 1. Make sure to create the App with your business account.
-2. Follow the steps above to create an App. However, we need a different account type here: `Accounts in this organizational directory only (*** - Single tenant)`. Note that you can also change the account type aftering creating the App.
+2. Follow the steps above to create an App. However, we need a different account type here: `Accounts in this organizational directory only (*** - Single tenant)`. Note that you can also change the account type after creating the App.
 3. Find the [tenant ID](https://docs.microsoft.com/en-us/azure/active-directory/fundamentals/active-directory-how-to-find-tenant) of your organization.
 4. In the rclone config, set `auth_url` to `https://login.microsoftonline.com/YOUR_TENANT_ID/oauth2/v2.0/authorize`.
 5. In the rclone config, set `token_url` to `https://login.microsoftonline.com/YOUR_TENANT_ID/oauth2/v2.0/token`.
@@ -166,9 +168,18 @@ OneDrive allows modification times to be set on objects accurate to 1
 second.  These will be used to detect whether objects need syncing or
 not.
 
-OneDrive personal supports SHA1 type hashes. OneDrive for business and
-Sharepoint Server support
+OneDrive Personal, OneDrive for Business and Sharepoint Server support
 [QuickXorHash](https://docs.microsoft.com/en-us/onedrive/developer/code-snippets/quickxorhash).
+
+Before rclone 1.62 the default hash for Onedrive Personal was `SHA1`.
+For rclone 1.62 and above the default for all Onedrive backends is
+`QuickXorHash`.
+
+Starting from July 2023 `SHA1` support is being phased out in Onedrive
+Personal in favour of `QuickXorHash`. If necessary the
+`--onedrive-hash-type` flag (or `hash_type` config option) can be used
+to select `SHA1` during the transition period if this is important
+your workflow.
 
 For all types of OneDrive you can use the `--checksum` flag.
 
@@ -568,7 +579,7 @@ An official document about the limitations for different types of OneDrive can b
 ## Versions
 
 Every change in a file OneDrive causes the service to create a new
-version of the the file.  This counts against a users quota.  For
+version of the file.  This counts against a users quota.  For
 example changing the modification time of a file creates a second
 version, so the file apparently uses twice the space.
 
@@ -627,11 +638,11 @@ OneDrive supports `rclone cleanup` which causes rclone to look through
 every file under the path supplied and delete all version but the
 current version. Because this involves traversing all the files, then
 querying each file for versions it can be quite slow. Rclone does
-`--checkers` tests in parallel. The command also supports `-i` which
-is a great way to see what it would do.
+`--checkers` tests in parallel. The command also supports `--interactive`/`i`
+or `--dry-run` which is a great way to see what it would do.
 
-    rclone cleanup -i remote:path/subdir # interactively remove all old version for path/subdir
-    rclone cleanup remote:path/subdir    # unconditionally remove all old version for path/subdir
+    rclone cleanup --interactive remote:path/subdir # interactively remove all old version for path/subdir
+    rclone cleanup remote:path/subdir               # unconditionally remove all old version for path/subdir
 
 **NB** Onedrive personal can't currently delete versions
 
@@ -712,3 +723,49 @@ public links to be made for the organisation/sharepoint library. To fix the
 permissions as an admin, take a look at the docs:
 [1](https://docs.microsoft.com/en-us/sharepoint/turn-external-sharing-on-or-off),
 [2](https://support.microsoft.com/en-us/office/set-up-and-manage-access-requests-94b26e0b-2822-49d4-929a-8455698654b3).
+
+### Can not access `Shared` with me files
+
+Shared with me files is not supported by rclone [currently](https://github.com/rclone/rclone/issues/4062), but there is a workaround:
+
+1. Visit [https://onedrive.live.com](https://onedrive.live.com/)
+2. Right click a item in `Shared`, then click `Add shortcut to My files` in the context
+    ![make_shortcut](https://user-images.githubusercontent.com/60313789/206118040-7e762b3b-aa61-41a1-8649-cc18889f3572.png "Screenshot (Shared with me)")
+3. The shortcut will appear in `My files`, you can access it with rclone, it behaves like a normal folder/file.
+    ![in_my_files](https://i.imgur.com/0S8H3li.png "Screenshot (My Files)")
+    ![rclone_mount](https://i.imgur.com/2Iq66sW.png "Screenshot (rclone mount)")
+
+### Live Photos uploaded from iOS (small video clips in .heic files)
+
+The iOS OneDrive app introduced [upload and storage](https://techcommunity.microsoft.com/t5/microsoft-onedrive-blog/live-photos-come-to-onedrive/ba-p/1953452) 
+of [Live Photos](https://support.apple.com/en-gb/HT207310) in 2020. 
+The usage and download of these uploaded Live Photos is unfortunately still work-in-progress 
+and this introduces several issues when copying, synchronising and mounting – both in rclone and in the native OneDrive client on Windows.
+
+The root cause can easily be seen if you locate one of your Live Photos in the OneDrive web interface. 
+Then download the photo from the web interface. You will then see that the size of downloaded .heic file is smaller than the size displayed in the web interface. 
+The downloaded file is smaller because it only contains a single frame (still photo) extracted from the Live Photo (movie) stored in OneDrive.
+
+The different sizes will cause `rclone copy/sync` to repeatedly recopy unmodified photos something like this:
+
+    DEBUG : 20230203_123826234_iOS.heic: Sizes differ (src 4470314 vs dst 1298667)
+    DEBUG : 20230203_123826234_iOS.heic: sha1 = fc2edde7863b7a7c93ca6771498ac797f8460750 OK
+    INFO  : 20230203_123826234_iOS.heic: Copied (replaced existing)
+
+These recopies can be worked around by adding `--ignore-size`. Please note that this workaround only syncs the still-picture not the movie clip, 
+and relies on modification dates being correctly updated on all files in all situations.
+
+The different sizes will also cause `rclone check` to report size errors something like this:
+
+    ERROR : 20230203_123826234_iOS.heic: sizes differ
+
+These check errors can be suppressed by adding `--ignore-size`.
+
+The different sizes will also cause `rclone mount` to fail downloading with an error something like this:
+
+    ERROR : 20230203_123826234_iOS.heic: ReadFileHandle.Read error: low level retry 1/10: unexpected EOF
+
+or like this when using `--cache-mode=full`:
+
+    INFO  : 20230203_123826234_iOS.heic: vfs cache: downloader: error count now 1: vfs reader: failed to write to cache file: 416 Requested Range Not Satisfiable:
+    ERROR : 20230203_123826234_iOS.heic: vfs cache: failed to download: vfs reader: failed to write to cache file: 416 Requested Range Not Satisfiable:

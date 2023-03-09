@@ -7,11 +7,11 @@
 //
 // Build a shared library like this:
 //
-//     go build --buildmode=c-shared -o librclone.so github.com/artpar/rclone/librclone
+//	go build --buildmode=c-shared -o librclone.so github.com/rclone/rclone/librclone
 //
 // Build a static library like this:
 //
-//     go build --buildmode=c-archive -o librclone.a github.com/artpar/rclone/librclone
+//	go build --buildmode=c-archive -o librclone.a github.com/rclone/rclone/librclone
 //
 // Both the above commands will also generate `librclone.h` which should
 // be `#include`d in `C` programs wishing to use the library.
@@ -32,15 +32,15 @@ import "C"
 import (
 	"unsafe"
 
-	"github.com/artpar/rclone/librclone/librclone"
+	"github.com/rclone/rclone/librclone/librclone"
 
-	_ "github.com/artpar/rclone/backend/all"   // import all backends
-	_ "github.com/artpar/rclone/fs/operations" // import operations/* rc commands
-	_ "github.com/artpar/rclone/fs/sync"       // import sync/*
-	_ "github.com/artpar/rclone/lib/plugin"    // import plugins
-	_ "github.com/artpar/rclone/cmd/mount"     // import mount
-	_ "github.com/artpar/rclone/cmd/mount2"    // import mount2
-	_ "github.com/artpar/rclone/cmd/cmount"    // import cmount
+	_ "github.com/rclone/rclone/backend/all"   // import all backends
+	_ "github.com/rclone/rclone/cmd/cmount"    // import cmount
+	_ "github.com/rclone/rclone/cmd/mount"     // import mount
+	_ "github.com/rclone/rclone/cmd/mount2"    // import mount2
+	_ "github.com/rclone/rclone/fs/operations" // import operations/* rc commands
+	_ "github.com/rclone/rclone/fs/sync"       // import sync/*
+	_ "github.com/rclone/rclone/lib/plugin"    // import plugins
 )
 
 // RcloneInitialize initializes rclone as a library
@@ -59,8 +59,8 @@ func RcloneFinalize() {
 
 // RcloneRPCResult is returned from RcloneRPC
 //
-//   Output will be returned as a serialized JSON object
-//   Status is a HTTP status return (200=OK anything else fail)
+//	Output will be returned as a serialized JSON object
+//	Status is a HTTP status return (200=OK anything else fail)
 type RcloneRPCResult struct { //nolint:deadcode
 	Output *C.char
 	Status C.int
@@ -70,10 +70,10 @@ type RcloneRPCResult struct { //nolint:deadcode
 // and the output is (output, status). This is an exported interface
 // to the rclone API as described in https://rclone.org/rc/
 //
-//   method is a string, eg "operations/list"
-//   input should be a string with a serialized JSON object
-//   result.Output will be returned as a string with a serialized JSON object
-//   result.Status is a HTTP status return (200=OK anything else fail)
+//	method is a string, eg "operations/list"
+//	input should be a string with a serialized JSON object
+//	result.Output will be returned as a string with a serialized JSON object
+//	result.Status is a HTTP status return (200=OK anything else fail)
 //
 // All strings are UTF-8 encoded, on all platforms.
 //

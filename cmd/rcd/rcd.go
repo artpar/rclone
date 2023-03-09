@@ -1,3 +1,4 @@
+// Package rcd provides the rcd command.
 package rcd
 
 import (
@@ -6,10 +7,11 @@ import (
 	"sync"
 
 	sysdnotify "github.com/iguanesolutions/go-systemd/v5/notify"
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs/rc/rcflags"
-	"github.com/artpar/rclone/fs/rc/rcserver"
-	"github.com/artpar/rclone/lib/atexit"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/fs/rc/rcflags"
+	"github.com/rclone/rclone/fs/rc/rcserver"
+	"github.com/rclone/rclone/lib/atexit"
+	libhttp "github.com/rclone/rclone/lib/http"
 	"github.com/spf13/cobra"
 )
 
@@ -30,11 +32,14 @@ for GET requests on the URL passed in.  It will also open the URL in
 the browser when rclone is run.
 
 See the [rc documentation](/rc/) for more info on the rc flags.
-`,
+` + libhttp.Help + libhttp.TemplateHelp + libhttp.AuthHelp,
+	Annotations: map[string]string{
+		"versionIntroduced": "v1.45",
+	},
 	Run: func(command *cobra.Command, args []string) {
 		cmd.CheckArgs(0, 1, command, args)
 		if rcflags.Opt.Enabled {
-			log.Printf("Don't supply --rc flag when using rcd")
+			log.Fatalf("Don't supply --rc flag when using rcd")
 		}
 
 		// Start the rc
@@ -45,7 +50,7 @@ See the [rc documentation](/rc/) for more info on the rc flags.
 
 		s, err := rcserver.Start(context.Background(), &rcflags.Opt)
 		if err != nil {
-			log.Printf("Failed to start remote control: %v", err)
+			log.Fatalf("Failed to start remote control: %v", err)
 		}
 		if s == nil {
 			log.Fatal("rc server not configured")
@@ -63,7 +68,7 @@ See the [rc documentation](/rc/) for more info on the rc flags.
 
 		// Notify ready to systemd
 		if err := sysdnotify.Ready(); err != nil {
-			log.Printf("failed to notify ready to systemd: %v", err)
+			log.Fatalf("failed to notify ready to systemd: %v", err)
 		}
 
 		s.Wait()

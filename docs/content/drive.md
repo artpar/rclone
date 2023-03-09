@@ -1,6 +1,7 @@
 ---
 title: "Google drive"
 description: "Rclone docs for Google drive"
+versionIntroduced: "v0.91"
 ---
 
 # {{< icon "fab fa-google" >}} Google Drive
@@ -61,9 +62,10 @@ scope> 1
 Service Account Credentials JSON file path - needed only if you want use SA instead of interactive login.
 service_account_file>
 Remote config
-Use auto config?
- * Say Y if not sure
- * Say N if you are working on a remote or headless machine or Y didn't work
+Use web browser to automatically authenticate rclone with remote?
+ * Say Y if the machine running rclone has a web browser you can use
+ * Say N if running rclone on a (remote) machine without web browser access
+If not sure try Y. If Y failed, try N.
 y) Yes
 n) No
 y/n> y
@@ -90,8 +92,12 @@ d) Delete this remote
 y/e/d> y
 ```
 
+See the [remote setup docs](/remote_setup/) for how to set it up on a
+machine with no Internet browser available.
+
 Note that rclone runs a webserver on your local machine to collect the
-token as returned from Google if you use auto config mode. This only
+token as returned from Google if using web browser to automatically 
+authenticate. This only
 runs from the moment it opens your browser to the moment you get back
 the verification code.  This is on `http://127.0.0.1:53682/` and it
 may require you to unblock it temporarily if you are running a host
@@ -1335,7 +1341,7 @@ drives found and a combined drive.
     upstreams = "My Drive=My Drive:" "Test Drive=Test Drive:"
 
 Adding this to the rclone config file will cause those team drives to
-be accessible with the aliases shown. Any illegal charactes will be
+be accessible with the aliases shown. Any illegal characters will be
 substituted with "_" and duplicate names will have numbers suffixed.
 It will also add a remote called AllDrives which shows all the shared
 drives combined into one directory tree.
@@ -1502,9 +1508,15 @@ to the next step; if not, click on "CONFIGURE CONSENT SCREEN" button
 (near the top right corner of the right panel), then select "External"
 and click on "CREATE"; on the next screen, enter an "Application name"
 ("rclone" is OK); enter "User Support Email" (your own email is OK); 
-enter "Developer Contact Email" (your own email is OK); then click on "Save" (all other data is optional). 
-Click again on "Credentials" on the left panel to go back to the 
-"Credentials" screen.
+enter "Developer Contact Email" (your own email is OK); then click on
+"Save" (all other data is optional). You will also have to add some scopes,
+including `.../auth/docs` and `.../auth/drive` in order to be able to edit,
+create and delete files with RClone. You may also want to include the
+`../auth/drive.metadata.readonly` scope. After adding scopes, click
+"Save and continue" to add test users. Be sure to add your own account to
+the test users. Once you've added yourself as a test user and saved the
+changes, click again on "Credentials" on the left panel to go back to
+the "Credentials" screen.
 
    (PS: if you are a GSuite user, you could also select "Internal" instead
 of "External" above, but this will restrict API use to Google Workspace 
@@ -1517,16 +1529,14 @@ then select "OAuth client ID".
 
 8. It will show you a client ID and client secret. Make a note of these.
    
-   (If you selected "External" at Step 5 continue to "Publish App" in the Steps 9 and 10. 
+   (If you selected "External" at Step 5 continue to Step 9. 
    If you chose "Internal" you don't need to publish and can skip straight to
-   Step 11.)
+   Step 10 but your destination drive must be part of the same Google Workspace.)
 
-9. Go to "Oauth consent screen" and press "Publish App"
+9. Go to "Oauth consent screen" and then click "PUBLISH APP" button and confirm.
+   You will also want to add yourself as a test user.
 
-10. Click "OAuth consent screen", then click "PUBLISH APP" button and 
-confirm, or add your account under "Test users".
-
-11. Provide the noted client ID and client secret to rclone.
+10. Provide the noted client ID and client secret to rclone.
 
 Be aware that, due to the "enhanced security" recently introduced by
 Google, you are theoretically expected to "submit your app for verification"
@@ -1534,7 +1544,11 @@ and then wait a few weeks(!) for their response; in practice, you can go right
 ahead and use the client ID and client secret with rclone, the only issue will
 be a very scary confirmation screen shown when you connect via your browser 
 for rclone to be able to get its token-id (but as this only happens during 
-the remote configuration, it's not such a big deal). 
+the remote configuration, it's not such a big deal). Keeping the application in
+"Testing" will work as well, but the limitation is that any grants will expire
+after a week, which can be annoying to refresh constantly. If, for whatever
+reason, a short grant time is not a problem, then keeping the application in
+testing mode would also be sufficient.
 
 (Thanks to @balazer on github for these instructions.)
 

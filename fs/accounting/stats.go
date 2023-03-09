@@ -229,6 +229,11 @@ func (s *StatsInfo) totalDuration() time.Duration {
 	return s.oldDuration + timeRanges.total()
 }
 
+const (
+	etaMaxSeconds = (1<<63 - 1) / int64(time.Second)           // Largest possible ETA as number of seconds
+	etaMax        = time.Duration(etaMaxSeconds) * time.Second // Largest possible ETA, which is in second precision, representing "292y24w3d23h47m16s"
+)
+
 // eta returns the ETA of the current operation,
 // rounded to full seconds.
 // If the ETA cannot be determined 'ok' returns false.
@@ -240,11 +245,17 @@ func eta(size, total int64, rate float64) (eta time.Duration, ok bool) {
 	if remaining < 0 {
 		return 0, false
 	}
-	seconds := float64(remaining) / rate
+	seconds := int64(float64(remaining) / rate)
 	if seconds < 0 {
-		seconds = 0
+		// Got Int64 overflow
+		eta = etaMax
+	} else if seconds >= etaMaxSeconds {
+		// Would get Int64 overflow if converting from seconds to Duration (nanoseconds)
+		eta = etaMax
+	} else {
+		eta = time.Duration(seconds) * time.Second
 	}
-	return time.Second * time.Duration(seconds), true
+	return eta, true
 }
 
 // etaString returns the ETA of the current operation,
@@ -255,7 +266,10 @@ func etaString(done, total int64, rate float64) string {
 	if !ok {
 		return "-"
 	}
-	return fs.Duration(d).ReadableString()
+	if d == etaMax {
+		return "-"
+	}
+	return fs.Duration(d).ShortReadableString()
 }
 
 // percent returns a/b as a percentage rounded to the nearest integer
@@ -278,7 +292,7 @@ type transferStats struct {
 	speed          float64
 }
 
-// calculateTransferStats calculates some addtional transfer stats not
+// calculateTransferStats calculates some additional transfer stats not
 // stored directly in StatsInfo
 func (s *StatsInfo) calculateTransferStats() (ts transferStats) {
 	// checking and transferring have their own locking so read
@@ -439,7 +453,7 @@ func (s *StatsInfo) String() string {
 			_, _ = fmt.Fprintf(buf, "Transferred:   %10d / %d, %s\n",
 				s.transfers, ts.totalTransfers, percent(s.transfers, ts.totalTransfers))
 		}
-		_, _ = fmt.Fprintf(buf, "Elapsed time:  %10ss\n", strings.TrimRight(elapsedTime.Truncate(time.Minute).String(), "0s")+fmt.Sprintf("%.1f", elapsedTimeSecondsOnly.Seconds()))
+		_, _ = fmt.Fprintf(buf, "Elapsed time:  %10ss\n", strings.TrimRight(fs.Duration(elapsedTime.Truncate(time.Minute)).ReadableString(), "0s")+fmt.Sprintf("%.1f", elapsedTimeSecondsOnly.Seconds()))
 	}
 
 	// checking and transferring have their own locking so unlock
@@ -675,8 +689,8 @@ func (s *StatsInfo) RetryAfter() time.Time {
 }
 
 // NewCheckingTransfer adds a checking transfer to the stats, from the object.
-func (s *StatsInfo) NewCheckingTransfer(obj fs.Object) *Transfer {
-	tr := newCheckingTransfer(s, obj)
+func (s *StatsInfo) NewCheckingTransfer(obj fs.DirEntry, what string) *Transfer {
+	tr := newCheckingTransfer(s, obj, what)
 	s.checking.add(tr)
 	return tr
 }
@@ -697,7 +711,7 @@ func (s *StatsInfo) GetTransfers() int64 {
 }
 
 // NewTransfer adds a transfer to the stats from the object.
-func (s *StatsInfo) NewTransfer(obj fs.Object) *Transfer {
+func (s *StatsInfo) NewTransfer(obj fs.DirEntry) *Transfer {
 	tr := newTransfer(s, obj)
 	s.transferring.add(tr)
 	s.startAverageLoop()
@@ -706,7 +720,7 @@ func (s *StatsInfo) NewTransfer(obj fs.Object) *Transfer {
 
 // NewTransferRemoteSize adds a transfer to the stats based on remote and size.
 func (s *StatsInfo) NewTransferRemoteSize(remote string, size int64) *Transfer {
-	tr := newTransferRemoteSize(s, remote, size, false)
+	tr := newTransferRemoteSize(s, remote, size, false, "")
 	s.transferring.add(tr)
 	s.startAverageLoop()
 	return tr

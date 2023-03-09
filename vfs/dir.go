@@ -186,7 +186,7 @@ func (d *Dir) ForgetAll() (hasVirtual bool) {
 			}
 		}
 	}
-	// Purge any unecessary virtual entries
+	// Purge any unnecessary virtual entries
 	d._purgeVirtual()
 
 	d.read = time.Time{}
@@ -325,10 +325,15 @@ func (d *Dir) renameTree(dirPath string) {
 		d.entry = fs.NewDirCopy(context.TODO(), d.entry).SetRemote(dirPath)
 	}
 
-	// Do the same to any child directories
+	// Do the same to any child directories and files
 	for leaf, node := range d.items {
-		if dir, ok := node.(*Dir); ok {
-			dir.renameTree(path.Join(dirPath, leaf))
+		switch x := node.(type) {
+		case *Dir:
+			x.renameTree(path.Join(dirPath, leaf))
+		case *File:
+			x.renameDir(dirPath)
+		default:
+			panic("bad dir entry")
 		}
 	}
 }
@@ -555,7 +560,7 @@ func (d *Dir) _newManageVirtuals() manageVirtuals {
 
 // This should be called for every entry added to the directory
 //
-// It returns true if this entry should be skipped
+// It returns true if this entry should be skipped.
 //
 // must be called with the Dir lock held
 func (mv manageVirtuals) add(d *Dir, name string) bool {

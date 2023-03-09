@@ -1,6 +1,7 @@
 ---
 title: "HDFS Remote"
 description: "Remote for Hadoop Distributed Filesystem"
+versionIntroduced: "v1.54"
 ---
 
 # {{< icon "fa fa-globe" >}} HDFS
@@ -90,7 +91,7 @@ List the contents of a directory
 
 Sync the remote `directory` to `/home/local/directory`, deleting any excess files.
 
-    rclone sync -i remote:directory /home/local/directory
+    rclone sync --interactive remote:directory /home/local/directory
 
 ### Setting up your own HDFS instance for testing
 

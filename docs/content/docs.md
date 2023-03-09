@@ -51,7 +51,6 @@ See the following for detailed instructions for
   * [HDFS](/hdfs/)
   * [HiDrive](/hidrive/)
   * [HTTP](/http/)
-  * [Hubic](/hubic/)
   * [Internet Archive](/internetarchive/)
   * [Jottacloud](/jottacloud/)
   * [Koofr](/koofr/)
@@ -62,6 +61,7 @@ See the following for detailed instructions for
   * [Microsoft OneDrive](/onedrive/)
   * [OpenStack Swift / Rackspace Cloudfiles / Memset Memstore](/swift/)
   * [OpenDrive](/opendrive/)
+  * [Oracle Object Storage](/oracleobjectstorage/)
   * [Pcloud](/pcloud/)
   * [premiumize.me](/premiumizeme/)
   * [put.io](/putio/)
@@ -69,6 +69,7 @@ See the following for detailed instructions for
   * [Seafile](/seafile/)
   * [SFTP](/sftp/)
   * [Sia](/sia/)
+  * [SMB](/smb/)
   * [Storj](/storj/)
   * [SugarSync](/sugarsync/)
   * [Union](/union/)
@@ -93,7 +94,7 @@ storage system in the config file then the sub path, e.g.
 
 You can define as many storage paths as you like in the config file.
 
-Please use the [`-i` / `--interactive`](#interactive) flag while
+Please use the [`--interactive`/`-i`](#interactive) flag while
 learning rclone to avoid accidental data loss.
 
 Subcommands
@@ -103,7 +104,7 @@ rclone uses a system of subcommands.  For example
 
     rclone ls remote:path # lists a remote
     rclone copy /local/path remote:path # copies /local/path to the remote
-    rclone sync -i /local/path remote:path # syncs /local/path to the remote
+    rclone sync --interactive /local/path remote:path # syncs /local/path to the remote
 
 The main rclone commands with most used first
 
@@ -337,8 +338,17 @@ Will get their own names
 ### Valid remote names
 
 Remote names are case sensitive, and must adhere to the following rules:
- - May only contain `0`-`9`, `A`-`Z`, `a`-`z`, `_`, `-`, `.` and space.
+ - May contain number, letter, `_`, `-`, `.`, `+`, `@` and space.
  - May not start with `-` or space.
+ - May not end with space.
+
+Starting with rclone version 1.61, any Unicode numbers and letters are allowed,
+while in older versions it was limited to plain ASCII (0-9, A-Z, a-z). If you use
+the same rclone configuration from different shells, which may be configured with
+different character encoding, you must be cautious to use characters that are
+possible to write in all of them. This is mostly a problem on Windows, where
+the console traditionally uses a non-Unicode character set - defined
+by the so-called "code page".
 
 Quoting and the shell
 ---------------------
@@ -386,11 +396,11 @@ file or directory like this then use the full path starting with a
 
 So to sync a directory called `sync:me` to a remote called `remote:` use
 
-    rclone sync -i ./sync:me remote:path
+    rclone sync --interactive ./sync:me remote:path
 
 or
 
-    rclone sync -i /full/path/to/sync:me remote:path
+    rclone sync --interactive /full/path/to/sync:me remote:path
 
 Server Side Copy
 ----------------
@@ -423,8 +433,8 @@ same.
 
 This can be used when scripting to make aged backups efficiently, e.g.
 
-    rclone sync -i remote:current-backup remote:previous-backup
-    rclone sync -i /path/to/files remote:current-backup
+    rclone sync --interactive remote:current-backup remote:previous-backup
+    rclone sync --interactive /path/to/files remote:current-backup
 
 ## Metadata support {#metadata}
 
@@ -498,7 +508,7 @@ backends can also store arbitrary user metadata.
 
 Where possible the key names are standardized, so, for example, it is
 possible to copy object metadata from s3 to azureblob for example and
-metadata will be translated apropriately.
+metadata will be translated appropriately.
 
 Some backends have limits on the size of the metadata and rclone will
 give errors on upload if they are exceeded.
@@ -560,10 +570,34 @@ it to `false`.  It is also possible to specify `--boolean=false` or
 parsed as `--boolean` and the `false` is parsed as an extra command
 line argument for rclone.
 
-Options which use TIME use the go time parser.  A duration string is a
-possibly signed sequence of decimal numbers, each with optional
-fraction and a unit suffix, such as "300ms", "-1.5h" or "2h45m". Valid
-time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+### Time or duration options {#time-option}
+
+TIME or DURATION options can be specified as a duration string or a
+time string.
+
+A duration string is a possibly signed sequence of decimal numbers,
+each with optional fraction and a unit suffix, such as "300ms",
+"-1.5h" or "2h45m". Default units are seconds or the following
+abbreviations are valid:
+
+  * `ms` - Milliseconds
+  * `s`  - Seconds
+  * `m`  - Minutes
+  * `h`  - Hours
+  * `d`  - Days
+  * `w`  - Weeks
+  * `M`  - Months
+  * `y`  - Years
+
+These can also be specified as an absolute time in the following
+formats:
+
+- RFC3339 - e.g. `2006-01-02T15:04:05Z` or `2006-01-02T15:04:05+07:00`
+- ISO8601 Date and time, local timezone - `2006-01-02T15:04:05`
+- ISO8601 Date and time, local timezone - `2006-01-02 15:04:05`
+- ISO8601 Date - `2006-01-02` (YYYY-MM-DD)
+
+### Size options {#size-option}
 
 Options which use SIZE use KiB (multiples of 1024 bytes) by default.
 However, a suffix of `B` for Byte, `K` for KiB, `M` for MiB,
@@ -587,7 +621,7 @@ excluded by a filter rule.
 
 For example
 
-    rclone sync -i /path/to/local remote:current --backup-dir remote:old
+    rclone sync --interactive /path/to/local remote:current --backup-dir remote:old
 
 will sync `/path/to/local` to `remote:current`, but for any files
 which would have been updated or deleted will be stored in
@@ -617,7 +651,7 @@ would mean limit the upload and download bandwidth to 10 MiB/s.
 single limit, specify the desired bandwidth in KiB/s, or use a
 suffix B|K|M|G|T|P. The default is `0` which means to not limit bandwidth.
 
-The upload and download bandwidth can be specified seperately, as
+The upload and download bandwidth can be specified separately, as
 `--bwlimit UP:DOWN`, so
 
     --bwlimit 10M:100k
@@ -797,6 +831,16 @@ quicker than without the `--checksum` flag.
 
 When using this flag, rclone won't update mtimes of remote files if
 they are incorrect as it would normally.
+
+### --color WHEN ###
+
+Specifiy when colors (and other ANSI codes) should be added to the output.
+
+`AUTO` (default) only allows ANSI codes when the output is a terminal
+
+`NEVER` never allow ANSI codes
+
+`ALWAYS` always add ANSI codes, regardless of the output format (terminal or file)
 
 ### --compare-dest=DIR ###
 
@@ -1042,7 +1086,7 @@ Add an HTTP header for all download transactions. The flag can be repeated to
 add multiple headers.
 
 ```
-rclone sync -i s3:test/src ~/dst --header-download "X-Amz-Meta-Test: Foo" --header-download "X-Amz-Meta-Test2: Bar"
+rclone sync --interactive s3:test/src ~/dst --header-download "X-Amz-Meta-Test: Foo" --header-download "X-Amz-Meta-Test2: Bar"
 ```
 
 See the GitHub issue [here](https://github.com/artpar/rclone/issues/59) for
@@ -1054,7 +1098,7 @@ Add an HTTP header for all upload transactions. The flag can be repeated to add
 multiple headers.
 
 ```
-rclone sync -i ~/src s3:test/dst --header-upload "Content-Disposition: attachment; filename='cool.html'" --header-upload "X-Amz-Meta-Test: FooBar"
+rclone sync --interactive ~/src s3:test/dst --header-upload "Content-Disposition: attachment; filename='cool.html'" --header-upload "X-Amz-Meta-Test: FooBar"
 ```
 
 See the GitHub issue [here](https://github.com/artpar/rclone/issues/59) for
@@ -1164,7 +1208,7 @@ This can be useful as an additional layer of protection for immutable
 or append-only data sets (notably backup archives), where modification
 implies corruption and should not be propagated.
 
-### -i / --interactive {#interactive}
+### -i, --interactive {#interactive}
 
 This flag can be used to tell rclone that you wish a manual
 confirmation before destructive operations.
@@ -1175,7 +1219,7 @@ especially with `rclone sync`.
 For example
 
 ```
-$ rclone delete -i /tmp/dir
+$ rclone delete --interactive /tmp/dir
 rclone: delete "important-file.txt"?
 y) Yes, this is OK (default)
 n) No, skip this
@@ -1328,7 +1372,7 @@ When the limit is reached all transfers will stop immediately.
 
 Rclone will exit with exit code 8 if the transfer limit is reached.
 
-## --metadata / -M
+## -M, --metadata
 
 Setting this flag enables rclone to copy the metadata from the source
 to the destination. For local backends this is ownership, permissions,
@@ -1747,7 +1791,7 @@ or with `--backup-dir`. See `--backup-dir` for more info.
 
 For example
 
-    rclone copy -i /path/to/local/file remote:current --suffix .bak
+    rclone copy --interactive /path/to/local/file remote:current --suffix .bak
 
 will copy `/path/to/local` to `remote:current`, but for any files
 which would have been updated or deleted have .bak added.
@@ -1756,7 +1800,7 @@ If using `rclone sync` with `--suffix` and without `--backup-dir` then
 it is recommended to put a filter rule in excluding the suffix
 otherwise the `sync` will delete the backup files.
 
-    rclone sync -i /path/to/local/file remote:current --suffix .bak --exclude "*.bak"
+    rclone sync --interactive /path/to/local/file remote:current --suffix .bak --exclude "*.bak"
 
 ### --suffix-keep-extension ###
 
@@ -1844,13 +1888,22 @@ By default, rclone doesn't keep track of renamed files, so if you
 rename a file locally then sync it to a remote, rclone will delete the
 old file on the remote and upload a new copy.
 
-If you use this flag, and the remote supports server-side copy or
-server-side move, and the source and destination have a compatible
-hash, then this will track renames during `sync`
-operations and perform renaming server-side.
+An rclone sync with `--track-renames` runs like a normal sync, but keeps
+track of objects which exist in the destination but not in the source
+(which would normally be deleted), and which objects exist in the
+source but not the destination (which would normally be transferred).
+These objects are then candidates for renaming.
 
-Files will be matched by size and hash - if both match then a rename
-will be considered.
+After the sync, rclone matches up the source only and destination only
+objects using the `--track-renames-strategy` specified and either
+renames the destination object or transfers the source and deletes the
+destination object. `--track-renames` is stateless like all of
+rclone's syncs.
+
+To use this flag the destination must support server-side copy or
+server-side move, and to use a hash based `--track-renames-strategy`
+(the default) the source and the destination must have a compatible
+hash.
 
 If the destination does not support server-side copy or move, rclone
 will fall back to the default behaviour and log an error level message
@@ -1868,7 +1921,7 @@ Note also that `--track-renames` is incompatible with
 
 ### --track-renames-strategy (hash,modtime,leaf,size) ###
 
-This option changes the matching criteria for `--track-renames`.
+This option changes the file matching criteria for `--track-renames`.
 
 The matching is controlled by a comma separated selection of these tokens:
 
@@ -1877,14 +1930,14 @@ The matching is controlled by a comma separated selection of these tokens:
 - `leaf` - the name of the file not including its directory name
 - `size` - the size of the file (this is always enabled)
 
-So using `--track-renames-strategy modtime,leaf` would match files
+The default option is `hash`.
+
+Using `--track-renames-strategy modtime,leaf` would match files
 based on modification time, the leaf of the file name and the size
 only.
 
 Using `--track-renames-strategy modtime` or `leaf` can enable
 `--track-renames` support for encrypted destinations.
-
-If nothing is specified, the default option is matching by `hash`es.
 
 Note that the `hash` strategy is not supported with encrypted destinations.
 
@@ -1921,7 +1974,7 @@ quickly using the least amount of memory.
 
 However, some remotes have a way of listing all files beneath a
 directory in one (or a small number) of transactions.  These tend to
-be the bucket-based remotes (e.g. S3, B2, GCS, Swift, Hubic).
+be the bucket-based remotes (e.g. S3, B2, GCS, Swift).
 
 If you use the `--fast-list` flag then rclone will use this method for
 listing directories.  This will have the following consequences for
@@ -1987,7 +2040,7 @@ In all other cases the file will not be updated.
 Consider using the `--modify-window` flag to compensate for time skews
 between the source and the backend, for backends that do not support
 mod times, and instead use uploaded times. However, if the backend
-does not support checksums, note that sync'ing or copying within the
+does not support checksums, note that syncing or copying within the
 time skew window may still result in additional transfers for safety.
 
 ### --use-mmap ###
@@ -2046,9 +2099,9 @@ these options.  For example this can be very useful with the HTTP or
 WebDAV backends. Rclone HTTP servers have their own set of
 configuration for SSL/TLS which you can find in their documentation.
 
-### --ca-cert string
+### --ca-cert stringArray
 
-This loads the PEM encoded certificate authority certificate and uses
+This loads the PEM encoded certificate authority certificates and uses
 it to verify the certificates of the servers rclone connects to.
 
 If you have generated certificates signed with a local CA then you
@@ -2302,6 +2355,12 @@ For the filtering options
   * `--min-age`
   * `--max-age`
   * `--dump filters`
+  * `--metadata-include`
+  * `--metadata-include-from`
+  * `--metadata-exclude`
+  * `--metadata-exclude-from`
+  * `--metadata-filter`
+  * `--metadata-filter-from`
 
 See the [filtering section](/filtering/).
 

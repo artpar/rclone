@@ -29,6 +29,12 @@ var (
 		return errors.New("no config file set handler")
 	}
 
+	// Check if the config file has the named section
+	//
+	// This is a function pointer to decouple the config
+	// implementation from the fs
+	ConfigFileHasSection = func(section string) bool { return false }
+
 	// CountError counts an error.  If any errors have been
 	// counted then rclone will exit with a non zero error code.
 	//
@@ -114,9 +120,9 @@ type ConfigInfo struct {
 	ProgressTerminalTitle   bool
 	Cookie                  bool
 	UseMmap                 bool
-	CaCert                  string // Client Side CA
-	ClientCert              string // Client Side Cert
-	ClientKey               string // Client Side Key
+	CaCert                  []string // Client Side CA
+	ClientCert              string   // Client Side Cert
+	ClientKey               string   // Client Side Key
 	MultiThreadCutoff       SizeSuffix
 	MultiThreadStreams      int
 	MultiThreadSet          bool   // whether MultiThreadStreams was set (set in fs/config/configflags)
@@ -136,6 +142,7 @@ type ConfigInfo struct {
 	DisableHTTPKeepAlives   bool
 	Metadata                bool
 	ServerSideAcrossConfigs bool
+	TerminalColorMode       TerminalColorMode
 }
 
 // NewConfig creates a new config with everything set to the default

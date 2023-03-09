@@ -1,7 +1,10 @@
+// Package http provides common functionality for http servers
 package http
 
 import (
-	"html/template"
+	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -11,36 +14,43 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/cmd/serve/http/data"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	httplib "github.com/artpar/rclone/lib/http"
-	"github.com/artpar/rclone/lib/http/auth"
-	"github.com/artpar/rclone/lib/http/serve"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/cmd/serve/proxy"
+	"github.com/rclone/rclone/cmd/serve/proxy/proxyflags"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	libhttp "github.com/rclone/rclone/lib/http"
+	"github.com/rclone/rclone/lib/http/serve"
+	"github.com/rclone/rclone/vfs"
+	"github.com/rclone/rclone/vfs/vfsflags"
 	"github.com/spf13/cobra"
 )
 
 // Options required for http server
 type Options struct {
-	data.Options
+	Auth     libhttp.AuthConfig
+	HTTP     libhttp.Config
+	Template libhttp.TemplateConfig
 }
 
 // DefaultOpt is the default values used for Options
-var DefaultOpt = Options{}
+var DefaultOpt = Options{
+	Auth:     libhttp.DefaultAuthCfg(),
+	HTTP:     libhttp.DefaultCfg(),
+	Template: libhttp.DefaultTemplateCfg(),
+}
 
 // Opt is options set by command line flags
 var Opt = DefaultOpt
 
 func init() {
-	data.AddFlags(Command.Flags(), "", &Opt.Options)
-	httplib.AddFlags(Command.Flags())
-	auth.AddFlags(Command.Flags())
-	vfsflags.AddFlags(Command.Flags())
+	flagSet := Command.Flags()
+	libhttp.AddAuthFlagsPrefix(flagSet, "", &Opt.Auth)
+	libhttp.AddHTTPFlagsPrefix(flagSet, "", &Opt.HTTP)
+	libhttp.AddTemplateFlagsPrefix(flagSet, "", &Opt.Template)
+	vfsflags.AddFlags(flagSet)
+	proxyflags.AddFlags(flagSet)
 }
 
 // Command definition for cobra
@@ -58,57 +68,105 @@ The server will log errors.  Use ` + "`-v`" + ` to see access logs.
 
 ` + "`--bwlimit`" + ` will be respected for file transfers.  Use ` + "`--stats`" + ` to
 control the stats printing.
-` + httplib.Help + data.Help + auth.Help + vfs.Help,
+` + libhttp.Help + libhttp.TemplateHelp + libhttp.AuthHelp + vfs.Help + proxy.Help,
+	Annotations: map[string]string{
+		"versionIntroduced": "v1.39",
+	},
 	Run: func(command *cobra.Command, args []string) {
-		cmd.CheckArgs(1, 1, command, args)
-		f := cmd.NewFsSrc(args)
+		var f fs.Fs
+		if proxyflags.Opt.AuthProxy == "" {
+			cmd.CheckArgs(1, 1, command, args)
+			f = cmd.NewFsSrc(args)
+		} else {
+			cmd.CheckArgs(0, 0, command, args)
+		}
+
 		cmd.Run(false, true, command, func() error {
-			s := newServer(f, Opt.Template)
-			router, err := httplib.Router()
+			s, err := run(context.Background(), f, Opt)
 			if err != nil {
-				return err
+				log.Fatal(err)
 			}
-			s.Bind(router)
-			httplib.Wait()
+
+			s.server.Wait()
 			return nil
 		})
 	},
 }
 
-// server contains everything to run the server
-type server struct {
-	f            fs.Fs
-	vfs          *vfs.VFS
-	HTMLTemplate *template.Template // HTML template for web interface
+// HTTP contains everything to run the server
+type HTTP struct {
+	f      fs.Fs
+	_vfs   *vfs.VFS // don't use directly, use getVFS
+	server *libhttp.Server
+	opt    Options
+	proxy  *proxy.Proxy
+	ctx    context.Context // for global config
 }
 
-func newServer(f fs.Fs, templatePath string) *server {
-	htmlTemplate, templateErr := data.GetTemplate(templatePath)
-	if templateErr != nil {
-		log.Printf(templateErr.Error())
+// Gets the VFS in use for this request
+func (s *HTTP) getVFS(ctx context.Context) (VFS *vfs.VFS, err error) {
+	if s._vfs != nil {
+		return s._vfs, nil
 	}
-	s := &server{
-		f:            f,
-		vfs:          vfs.New(f, &vfsflags.Opt),
-		HTMLTemplate: htmlTemplate,
+	value := libhttp.CtxGetAuth(ctx)
+	if value == nil {
+		return nil, errors.New("no VFS found in context")
 	}
-	return s
+	VFS, ok := value.(*vfs.VFS)
+	if !ok {
+		return nil, fmt.Errorf("context value is not VFS: %#v", value)
+	}
+	return VFS, nil
 }
 
-func (s *server) Bind(router chi.Router) {
-	if m := auth.Auth(auth.Opt); m != nil {
-		router.Use(m)
+// auth does proxy authorization
+func (s *HTTP) auth(user, pass string) (value interface{}, err error) {
+	VFS, _, err := s.proxy.Call(user, pass, false)
+	if err != nil {
+		return nil, err
 	}
+	return VFS, err
+}
+
+func run(ctx context.Context, f fs.Fs, opt Options) (s *HTTP, err error) {
+	s = &HTTP{
+		f:   f,
+		ctx: ctx,
+		opt: opt,
+	}
+
+	if proxyflags.Opt.AuthProxy != "" {
+		s.proxy = proxy.New(ctx, &proxyflags.Opt)
+		// override auth
+		s.opt.Auth.CustomAuthFn = s.auth
+	} else {
+		s._vfs = vfs.New(f, &vfsflags.Opt)
+	}
+
+	s.server, err = libhttp.NewServer(ctx,
+		libhttp.WithConfig(s.opt.HTTP),
+		libhttp.WithAuth(s.opt.Auth),
+		libhttp.WithTemplate(s.opt.Template),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init server: %w", err)
+	}
+
+	router := s.server.Router()
 	router.Use(
 		middleware.SetHeader("Accept-Ranges", "bytes"),
 		middleware.SetHeader("Server", "rclone/"+fs.Version),
 	)
 	router.Get("/*", s.handler)
 	router.Head("/*", s.handler)
+
+	s.server.Serve()
+
+	return s, nil
 }
 
 // handler reads incoming requests and dispatches them
-func (s *server) handler(w http.ResponseWriter, r *http.Request) {
+func (s *HTTP) handler(w http.ResponseWriter, r *http.Request) {
 	isDir := strings.HasSuffix(r.URL.Path, "/")
 	remote := strings.Trim(r.URL.Path, "/")
 	if isDir {
@@ -119,9 +177,15 @@ func (s *server) handler(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveDir serves a directory index at dirRemote
-func (s *server) serveDir(w http.ResponseWriter, r *http.Request, dirRemote string) {
+func (s *HTTP) serveDir(w http.ResponseWriter, r *http.Request, dirRemote string) {
+	VFS, err := s.getVFS(r.Context())
+	if err != nil {
+		http.Error(w, "Root directory not found", http.StatusNotFound)
+		fs.Errorf(nil, "Failed to serve directory: %v", err)
+		return
+	}
 	// List the directory
-	node, err := s.vfs.Stat(dirRemote)
+	node, err := VFS.Stat(dirRemote)
 	if err == vfs.ENOENT {
 		http.Error(w, "Directory not found", http.StatusNotFound)
 		return
@@ -141,7 +205,7 @@ func (s *server) serveDir(w http.ResponseWriter, r *http.Request, dirRemote stri
 	}
 
 	// Make the entries for display
-	directory := serve.NewDirectory(dirRemote, s.HTMLTemplate)
+	directory := serve.NewDirectory(dirRemote, s.server.HTMLTemplate())
 	for _, node := range dirEntries {
 		if vfsflags.Opt.NoModTime {
 			directory.AddHTMLEntry(node.Path(), node.IsDir(), node.Size(), time.Time{})
@@ -161,8 +225,15 @@ func (s *server) serveDir(w http.ResponseWriter, r *http.Request, dirRemote stri
 }
 
 // serveFile serves a file object at remote
-func (s *server) serveFile(w http.ResponseWriter, r *http.Request, remote string) {
-	node, err := s.vfs.Stat(remote)
+func (s *HTTP) serveFile(w http.ResponseWriter, r *http.Request, remote string) {
+	VFS, err := s.getVFS(r.Context())
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		fs.Errorf(nil, "Failed to serve file: %v", err)
+		return
+	}
+
+	node, err := VFS.Stat(remote)
 	if err == vfs.ENOENT {
 		fs.Infof(remote, "%s: File not found", r.RemoteAddr)
 		http.Error(w, "File not found", http.StatusNotFound)

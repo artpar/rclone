@@ -1,9 +1,11 @@
 ---
 title: "Chunker"
 description: "Split-chunking overlay remote"
+versionIntroduced: "v1.50"
+status: Beta
 ---
 
-# {{< icon "fa fa-cut" >}}Chunker (BETA)
+# {{< icon "fa fa-cut" >}} Chunker
 
 The `chunker` overlay transparently splits large files into smaller chunks
 during upload to wrapped remote and transparently assembles them back
@@ -255,7 +257,7 @@ style or chunk naming scheme is to:
 - Create another directory (most probably on the same cloud storage)
   and configure a new remote with desired metadata format,
   hash type, chunk naming etc.
-- Now run `rclone sync -i oldchunks: newchunks:` and all your data
+- Now run `rclone sync --interactive oldchunks: newchunks:` and all your data
   will be transparently converted in transfer.
   This may take some time, yet chunker will try server-side
   copy if possible.

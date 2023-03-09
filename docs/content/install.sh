@@ -106,6 +106,12 @@ case "$OS_type" in
   aarch64|arm64)
     OS_type='arm64'
     ;;
+  armv7*)
+    OS_type='arm-v7'
+    ;;
+  armv6*)
+    OS_type='arm-v6'
+    ;;
   arm*)
     OS_type='arm'
     ;;

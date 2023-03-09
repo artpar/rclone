@@ -1,6 +1,7 @@
 ---
 title: "Bisync"
 description: "Bidirectional cloud sync solution in rclone"
+versionIntroduced: "v1.58"
 ---
 
 ## Getting started {#getting-started}
@@ -15,7 +16,7 @@ description: "Bidirectional cloud sync solution in rclone"
 - For successive sync runs, leave off the `--resync` flag.
 - Consider using a [filters file](#filtering) for excluding
   unnecessary files and directories from the sync.
-- Consider setting up the [--check-access](#check-access-option) feature
+- Consider setting up the [--check-access](#check-access) feature
   for safety.
 - On Linux, consider setting up a [crontab entry](#cron). bisync can
   safely run in concurrent cron jobs thanks to lock files it maintains.
@@ -145,9 +146,9 @@ The base directories on the both Path1 and Path2 filesystems must exist
 or bisync will fail. This is required for safety - that bisync can verify
 that both paths are valid.
 
-When using `--resync` a newer version of a file on the Path2 filesystem
-will be overwritten by the Path1 filesystem version.
-Carefully evaluate deltas using [--dry-run](/flags/#non-backend-flags).
+When using `--resync`, a newer version of a file either on Path1 or Path2
+filesystem, will overwrite the file on the other path (only the last version
+will be kept). Carefully evaluate deltas using [--dry-run](/flags/#non-backend-flags).
 
 For a resync run, one of the paths may be empty (no files in the path tree).
 The resync run should result in files on both paths, else a normal non-resync
@@ -163,14 +164,27 @@ deleting **everything** in the other path.
 Access check files are an additional safety measure against data loss.
 bisync will ensure it can find matching `RCLONE_TEST` files in the same places
 in the Path1 and Path2 filesystems.
+`RCLONE_TEST` files are not generated automatically.
+For `--check-access`to succeed, you must first either:
+**A)** Place one or more `RCLONE_TEST` files in the Path1 or Path2 filesystem
+and then do either a run without `--check-access` or a [--resync](#resync) to
+set matching files on both filesystems, or
+**B)** Set `--check-filename` to a filename already in use in various locations
+throughout your sync'd fileset.
 Time stamps and file contents are not important, just the names and locations.
-Place one or more `RCLONE_TEST` files in the Path1 or Path2 filesystem and
-then do either a run without `--check-access` or a `--resync` to set
-matching files on both filesystems.
 If you have symbolic links in your sync tree it is recommended to place
 `RCLONE_TEST` files in the linked-to directory tree to protect against
 bisync assuming a bunch of deleted files if the linked-to tree should not be
-accessible. Also see the `--check-filename` flag.
+accessible.
+See also the [--check-filename](--check-filename) flag.
+
+#### --check-filename
+
+Name of the file(s) used in access health validation.
+The default `--check-filename` is `RCLONE_TEST`.
+One or more files having this filename must exist, synchronized between your
+source and destination filesets, in order for `--check-access` to succeed.
+See [--check-access](#check-access) for additional details.
 
 #### --max-delete
 
@@ -323,7 +337,7 @@ Most of these events come up due to a error status from an internal call.
 On such a critical error the `{...}.path1.lst` and `{...}.path2.lst`
 listing files are renamed to extension `.lst-err`, which blocks any future
 bisync runs (since the normal `.lst` files are not found).
-Bisync keeps them under `bisync` subdirectory of the rclone cache direcory,
+Bisync keeps them under `bisync` subdirectory of the rclone cache directory,
 typically at `${HOME}/.cache/rclone/bisync/` on Linux.
 
 Some errors are considered temporary and re-running the bisync is not blocked.
@@ -421,7 +435,7 @@ don't have spelling case differences (`Smile.jpg` vs. `smile.jpg`).
 ## Windows support {#windows}
 
 Bisync has been tested on Windows 8.1, Windows 10 Pro 64-bit and on Windows
-Github runners.
+GitHub runners.
 
 Drive letters are allowed, including drive letters mapped to network drives
 (`rclone bisync J:\localsync GDrive:`).
@@ -929,7 +943,7 @@ test command flags can be equally prefixed by a single `-` or double dash.
   synched tree even if there are check file mismatches in the test tree.
 - Some Dropbox tests can fail, notably printing the following message:
   `src and dst identical but can't set mod time without deleting and re-uploading`
-  This is expected and happens due a way Dropbox handles modificaion times.
+  This is expected and happens due a way Dropbox handles modification times.
   You should use the `-refresh-times` test flag to make up for this.
 - If Dropbox tests hit request limit for you and print error message
   `too_many_requests/...: Too many requests or write operations.`
@@ -939,7 +953,7 @@ test command flags can be equally prefixed by a single `-` or double dash.
 ### Updating golden results
 
 Sometimes even a slight change in the bisync source can cause little changes
-spread around many log files. Updating them manually would be a nighmare.
+spread around many log files. Updating them manually would be a nightmare.
 
 The `-golden` flag will store the `test.log` and `*.lst` listings from each
 test case into respective golden directories. Golden results will

@@ -19,16 +19,16 @@ import (
 // applyOptions configures volume from request options.
 //
 // There are 5 special options:
-// - "remote" aka "fs" determines existing remote from config file
-//   with a path or on-the-fly remote using the ":backend:" syntax.
-//   It is usually named "remote" in documentation but can be aliased as
-//   "fs" to avoid confusion with the "remote" option of some backends.
-// - "type" is equivalent to the ":backend:" syntax (optional).
-// - "path" provides explicit on-remote path for "type" (optional).
-// - "mount-type" can be "mount", "cmount" or "mount2", defaults to
-//   first found (optional).
-// - "persist" is reserved for future to create remotes persisted
-//   in rclone.conf similar to rcd (optional).
+//   - "remote" aka "fs" determines existing remote from config file
+//     with a path or on-the-fly remote using the ":backend:" syntax.
+//     It is usually named "remote" in documentation but can be aliased as
+//     "fs" to avoid confusion with the "remote" option of some backends.
+//   - "type" is equivalent to the ":backend:" syntax (optional).
+//   - "path" provides explicit on-remote path for "type" (optional).
+//   - "mount-type" can be "mount", "cmount" or "mount2", defaults to
+//     first found (optional).
+//   - "persist" is reserved for future to create remotes persisted
+//     in rclone.conf similar to rcd (optional).
 //
 // Unlike rcd we use the flat naming scheme for mount, vfs and backend
 // options without substructures. Dashes, underscores and mixed case
@@ -60,12 +60,14 @@ func (vol *Volume) applyOptions(volOpt VolOpts) error {
 		case "":
 			continue
 		case "remote", "fs":
-			p, err := fspath.Parse(str)
-			if err != nil || p.Name == ":" {
-				return fmt.Errorf("cannot parse path %q: %w", str, err)
+			if str != "" {
+				p, err := fspath.Parse(str)
+				if err != nil || p.Name == ":" {
+					return fmt.Errorf("cannot parse path %q: %w", str, err)
+				}
+				fsName, fsPath, fsOpt = p.Name, p.Path, p.Config
+				vol.Fs = str
 			}
-			fsName, fsPath, fsOpt = p.Name, p.Path, p.Config
-			vol.Fs = str
 		case "type":
 			fsType = str
 			vol.Type = str

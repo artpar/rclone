@@ -1,6 +1,7 @@
 ---
 title: "QingStor"
 description: "Rclone docs for QingStor Object Storage"
+versionIntroduced: "v1.38"
 ---
 
 # {{< icon "fas fa-hdd" >}} QingStor
@@ -91,7 +92,7 @@ List the contents of a bucket
 Sync `/home/local/directory` to the remote bucket, deleting any excess
 files in the bucket.
 
-    rclone sync -i /home/local/directory remote:bucket
+    rclone sync --interactive /home/local/directory remote:bucket
 
 ### --fast-list
 

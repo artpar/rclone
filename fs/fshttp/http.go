@@ -6,18 +6,18 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httputil"
+	"os"
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/lib/structs"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/lib/structs"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -63,25 +63,29 @@ func NewTransportCustom(ctx context.Context, customize func(*http.Transport)) ht
 	// Load client certs
 	if ci.ClientCert != "" || ci.ClientKey != "" {
 		if ci.ClientCert == "" || ci.ClientKey == "" {
-			log.Printf("Both --client-cert and --client-key must be set")
+			log.Fatalf("Both --client-cert and --client-key must be set")
 		}
 		cert, err := tls.LoadX509KeyPair(ci.ClientCert, ci.ClientKey)
 		if err != nil {
-			log.Printf("Failed to load --client-cert/--client-key pair: %v", err)
+			log.Fatalf("Failed to load --client-cert/--client-key pair: %v", err)
 		}
 		t.TLSClientConfig.Certificates = []tls.Certificate{cert}
 	}
 
-	// Load CA cert
-	if ci.CaCert != "" {
-		caCert, err := ioutil.ReadFile(ci.CaCert)
-		if err != nil {
-			log.Printf("Failed to read --ca-cert: %v", err)
-		}
+	// Load CA certs
+	if len(ci.CaCert) != 0 {
+
 		caCertPool := x509.NewCertPool()
-		ok := caCertPool.AppendCertsFromPEM(caCert)
-		if !ok {
-			log.Printf("Failed to add certificates from --ca-cert")
+
+		for _, cert := range ci.CaCert {
+			caCert, err := os.ReadFile(cert)
+			if err != nil {
+				log.Fatalf("Failed to read --ca-cert file %q : %v", cert, err)
+			}
+			ok := caCertPool.AppendCertsFromPEM(caCert)
+			if !ok {
+				log.Fatalf("Failed to add certificates from --ca-cert file %q", cert)
+			}
 		}
 		t.TLSClientConfig.RootCAs = caCertPool
 	}

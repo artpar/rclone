@@ -23,7 +23,7 @@ want to delete files from destination, use the
 **Important**: Since this can cause data loss, test first with the
 `--dry-run` or the `--interactive`/`-i` flag.
 
-    rclone sync -i SOURCE remote:DESTINATION
+    rclone sync --interactive SOURCE remote:DESTINATION
 
 Note that files in the destination won't be deleted if there were any
 errors at any point.  Duplicate objects (files with the same name, on
@@ -36,6 +36,11 @@ extended explanation in the [copy](/commands/rclone_copy/) command if unsure.
 
 If dest:path doesn't exist, it is created and the source:path contents
 go there.
+
+It is not possible to sync overlapping remotes. However, you may exclude
+the destination from the sync with a filter rule or by putting an 
+exclude-if-present file inside the destination directory and sync to a
+destination that is inside the source directory.
 
 **Note**: Use the `-P`/`--progress` flag to view real-time transfer statistics
 

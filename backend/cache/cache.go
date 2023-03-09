@@ -1,6 +1,7 @@
 //go:build !plan9 && !js
 // +build !plan9,!js
 
+// Package cache implements a virtual provider to cache existing remotes.
 package cache
 
 import (
@@ -1037,7 +1038,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 		}
 		fs.Debugf(dir, "list: remove entry: %v", entryRemote)
 	}
-	entries = nil
+	entries = nil //nolint:ineffassign
 
 	// and then iterate over the ones from source (temp Objects will override source ones)
 	var batchDirectories []*Directory

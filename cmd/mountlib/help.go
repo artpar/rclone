@@ -88,7 +88,7 @@ and experience unexpected program errors, freezes or other issues, consider moun
 as a network drive instead.
 
 When mounting as a fixed disk drive you can either mount to an unused drive letter,
-or to a path representing a **non-existent** subdirectory of an **existing** parent
+or to a path representing a **nonexistent** subdirectory of an **existing** parent
 directory or drive. Using the special value |*| will tell rclone to
 automatically assign the next available drive letter, starting with Z: and moving backward.
 Examples:
@@ -119,7 +119,7 @@ the mapped drive, shown in Windows Explorer etc, while the complete
 |\\server\share| will be reported as the remote UNC path by
 |net use| etc, just like a normal network drive mapping.
 
-If you specify a full network share UNC path with |--volname|, this will implicitely
+If you specify a full network share UNC path with |--volname|, this will implicitly
 set the |--network-mode| option, so the following two examples have same result:
 
     rclone @ remote:path/to/files X: --network-mode
@@ -128,7 +128,7 @@ set the |--network-mode| option, so the following two examples have same result:
 You may also specify the network share UNC path as the mountpoint itself. Then rclone
 will automatically assign a drive letter, same as with |*| and use that as
 mountpoint, and instead use the UNC path specified as the volume name, as if it were
-specified with the |--volname| option. This will also implicitely set
+specified with the |--volname| option. This will also implicitly set
 the |--network-mode| option. This means the following two examples have same result:
 
     rclone @ remote:path/to/files \\cloud\remote
@@ -159,38 +159,59 @@ group "Everyone" will be used to represent others. The user/group can be customi
 with FUSE options "UserName" and "GroupName",
 e.g. |-o UserName=user123 -o GroupName="Authenticated Users"|.
 The permissions on each entry will be set according to [options](#options)
-|--dir-perms| and |--file-perms|, which takes a value in traditional
+|--dir-perms| and |--file-perms|, which takes a value in traditional Unix
 [numeric notation](https://en.wikipedia.org/wiki/File-system_permissions#Numeric_notation).
 
 The default permissions corresponds to |--file-perms 0666 --dir-perms 0777|,
 i.e. read and write permissions to everyone. This means you will not be able
-to start any programs from the the mount. To be able to do that you must add
+to start any programs from the mount. To be able to do that you must add
 execute permissions, e.g. |--file-perms 0777 --dir-perms 0777| to add it
-to everyone. If the program needs to write files, chances are you will have
-to enable [VFS File Caching](#vfs-file-caching) as well (see also [limitations](#limitations)).
+to everyone. If the program needs to write files, chances are you will
+have to enable [VFS File Caching](#vfs-file-caching) as well (see also
+[limitations](#limitations)). Note that the default write permission have
+some restrictions for accounts other than the owner, specifically it lacks
+the "write extended attributes", as explained next.
 
-Note that the mapping of permissions is not always trivial, and the result
-you see in Windows Explorer may not be exactly like you expected.
-For example, when setting a value that includes write access, this will be
-mapped to individual permissions "write attributes", "write data" and "append data",
-but not "write extended attributes". Windows will then show this as basic
-permission "Special" instead of "Write", because "Write" includes the
-"write extended attributes" permission.
+The mapping of permissions is not always trivial, and the result you see in
+Windows Explorer may not be exactly like you expected. For example, when setting
+a value that includes write access for the group or others scope, this will be
+mapped to individual permissions "write attributes", "write data" and
+"append data", but not "write extended attributes". Windows will then show this
+as basic permission "Special" instead of "Write", because "Write" also covers
+the "write extended attributes" permission. When setting digit 0 for group or
+others, to indicate no permissions, they will still get individual permissions
+"read attributes", "read extended attributes" and "read permissions". This is
+done for compatibility reasons, e.g. to allow users without additional
+permissions to be able to read basic metadata about files like in Unix.
 
-If you set POSIX permissions for only allowing access to the owner, using
-|--file-perms 0600 --dir-perms 0700|, the user group and the built-in "Everyone"
-group will still be given some special permissions, such as "read attributes"
-and "read permissions", in Windows. This is done for compatibility reasons,
-e.g. to allow users without additional permissions to be able to read basic
-metadata about files like in UNIX. One case that may arise is that other programs
-(incorrectly) interprets this as the file being accessible by everyone. For example
-an SSH client may warn about "unprotected private key file".
-
-WinFsp 2021 (version 1.9) introduces a new FUSE option "FileSecurity",
+WinFsp 2021 (version 1.9) introduced a new FUSE option "FileSecurity",
 that allows the complete specification of file security descriptors using
 [SDDL](https://docs.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format).
-With this you can work around issues such as the mentioned "unprotected private key file"
-by specifying |-o FileSecurity="D:P(A;;FA;;;OW)"|, for file all access (FA) to the owner (OW).
+With this you get detailed control of the resulting permissions, compared
+to use of the POSIX permissions described above, and no additional permissions
+will be added automatically for compatibility with Unix. Some example use
+cases will following.
+
+If you set POSIX permissions for only allowing access to the owner,
+using |--file-perms 0600 --dir-perms 0700|, the user group and the built-in
+"Everyone" group will still be given some special permissions, as described
+above. Some programs may then (incorrectly) interpret this as the file being
+accessible by everyone, for example an SSH client may warn about "unprotected
+private key file". You can work around this by specifying
+|-o FileSecurity="D:P(A;;FA;;;OW)"|, which sets file all access (FA) to the
+owner (OW), and nothing else.
+
+When setting write permissions then, except for the owner, this does not
+include the "write extended attributes" permission, as mentioned above.
+This may prevent applications from writing to files, giving permission denied
+error instead. To set working write permissions for the built-in "Everyone"
+group, similar to what it gets by default but with the addition of the
+"write extended attributes", you can specify
+|-o FileSecurity="D:P(A;;FRFW;;;WD)"|, which sets file read (FR) and file
+write (FW) to everyone (WD). If file execute (FX) is also needed, then change
+to |-o FileSecurity="D:P(A;;FRFWFX;;;WD)"|, or set file all access (FA) to
+get full access permissions, including delete, with
+|-o FileSecurity="D:P(A;;FA;;;WD)"|.
 
 #### Windows caveats
 
@@ -219,10 +240,16 @@ processes as the SYSTEM account. Another alternative is to run the mount
 command from a Windows Scheduled Task, or a Windows Service, configured
 to run as the SYSTEM account. A third alternative is to use the
 [WinFsp.Launcher infrastructure](https://github.com/winfsp/winfsp/wiki/WinFsp-Service-Architecture)).
+Read more in the [install documentation](https://rclone.org/install/).
 Note that when running rclone as another user, it will not use
 the configuration file from your profile unless you tell it to
 with the [|--config|](https://rclone.org/docs/#config-config-file) option.
-Read more in the [install documentation](https://rclone.org/install/).
+Note also that it is now the SYSTEM account that will have the owner
+permissions, and other accounts will have permissions according to the
+group or others scopes. As mentioned above, these will then not get the
+"write extended attributes" permission, and this may prevent writing to
+files. You can work around this with the FileSecurity option, see
+example above.
 
 Note that mapping to a directory path, instead of a drive letter,
 does not suffer from the same limitations.
@@ -235,8 +262,8 @@ applications won't work with their files on an rclone mount without
 |--vfs-cache-mode writes| or |--vfs-cache-mode full|.
 See the [VFS File Caching](#vfs-file-caching) section for more info.
 
-The bucket-based remotes (e.g. Swift, S3, Google Compute Storage, B2,
-Hubic) do not support the concept of empty directories, so empty
+The bucket-based remotes (e.g. Swift, S3, Google Compute Storage, B2)
+do not support the concept of empty directories, so empty
 directories will have a tendency to disappear once they fall out of
 the directory cache.
 
