@@ -1193,7 +1193,8 @@ func fixMimeType(mimeTypeIn string) string {
 		mimeTypeOut = mime.FormatMediaType(mediaType, param)
 	}
 	if mimeTypeOut == "" {
-		panic(fmt.Errorf("unable to fix MIME type %q", mimeTypeIn))
+		//panic(fmt.Errorf("unable to fix MIME type %q", mimeTypeIn))
+		return mimeTypeOut
 	}
 	return mimeTypeOut
 }

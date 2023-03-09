@@ -9,8 +9,8 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/artpar/rclone/fs"
 	colorable "github.com/mattn/go-colorable"
-	"github.com/rclone/rclone/fs"
 )
 
 // VT100 codes

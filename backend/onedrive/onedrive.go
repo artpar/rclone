@@ -986,7 +986,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	}
 
 	// Disable change polling in China region
-	// See: https://github.com/rclone/rclone/issues/6444
+	// See: https://github.com/artpar/rclone/issues/6444
 	if f.opt.Region == regionCN {
 		f.features.ChangeNotify = nil
 	}

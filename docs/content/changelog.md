@@ -665,7 +665,7 @@ description: "Rclone Changelog"
 
 ## v1.61.1 - 2022-12-23
 
-[See commits](https://github.com/rclone/rclone/compare/v1.61.0...v1.61.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.61.0...v1.61.1)
 
 * Bug Fixes
     * docs:
@@ -686,7 +686,7 @@ description: "Rclone Changelog"
 
 ## v1.61.0 - 2022-12-20
 
-[See commits](https://github.com/rclone/rclone/compare/v1.60.0...v1.61.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.60.0...v1.61.0)
 
 * New backends
     * New S3 providers
@@ -781,7 +781,7 @@ description: "Rclone Changelog"
 
 ## v1.60.1 - 2022-11-17
 
-[See commits](https://github.com/rclone/rclone/compare/v1.60.0...v1.60.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.60.0...v1.60.1)
 
 * Bug Fixes
     * lib/cache: Fix alias backend shutting down too soon (Nick Craig-Wood)
@@ -815,7 +815,7 @@ description: "Rclone Changelog"
 
 ## v1.60.0 - 2022-10-21
 
-[See commits](https://github.com/rclone/rclone/compare/v1.59.0...v1.60.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.59.0...v1.60.0)
 
 * New backends
     * [Oracle object storage](/oracleobjectstorage/) (Manoj Ghosh)
@@ -891,7 +891,7 @@ description: "Rclone Changelog"
 
 ## v1.59.2 - 2022-09-15
 
-[See commits](https://github.com/rclone/rclone/compare/v1.59.1...v1.59.2)
+[See commits](https://github.com/artpar/rclone/compare/v1.59.1...v1.59.2)
 
 * Bug Fixes
     * config: Move locking to fix fatal error: concurrent map read and map write (Nick Craig-Wood)
@@ -906,7 +906,7 @@ description: "Rclone Changelog"
 
 ## v1.59.1 - 2022-08-08
 
-[See commits](https://github.com/rclone/rclone/compare/v1.59.0...v1.59.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.59.0...v1.59.1)
 
 * Bug Fixes
     * accounting: Fix panic in core/stats-reset with unknown group (Nick Craig-Wood)
@@ -943,7 +943,7 @@ description: "Rclone Changelog"
 
 ## v1.59.0 - 2022-07-09
 
-[See commits](https://github.com/rclone/rclone/compare/v1.58.0...v1.59.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.58.0...v1.59.0)
 
 * New backends
     * [Combine](/combine) multiple remotes in one directory tree (Nick Craig-Wood)
@@ -1004,7 +1004,7 @@ description: "Rclone Changelog"
     * Fix fs cache unpin (Martin Czygan)
     * Set proper exit code for errors that are not low-level retried (e.g. size/timestamp changing) (albertony)
 * Mount
-    * Support `windows/arm64` (may still be problems - see [#5828](https://github.com/rclone/rclone/issues/5828)) (Nick Craig-Wood)
+    * Support `windows/arm64` (may still be problems - see [#5828](https://github.com/artpar/rclone/issues/5828)) (Nick Craig-Wood)
     * Log IO errors at ERROR level (Nick Craig-Wood)
     * Ignore `_netdev` mount argument (Hugal31)
 * VFS
@@ -1102,7 +1102,7 @@ description: "Rclone Changelog"
 
 ## v1.58.1 - 2022-04-29
 
-[See commits](https://github.com/rclone/rclone/compare/v1.58.0...v1.58.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.58.0...v1.58.1)
 
 * Bug Fixes
     * build: Update github.com/billziss-gh to github.com/winfsp (Nick Craig-Wood)
@@ -1144,7 +1144,7 @@ description: "Rclone Changelog"
 
 ## v1.58.0 - 2022-03-18
 
-[See commits](https://github.com/rclone/rclone/compare/v1.57.0...v1.58.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.57.0...v1.58.0)
 
 * New backends
     * [Akamai Netstorage](/netstorage) (Nil Alexandrov)
@@ -1172,7 +1172,7 @@ description: "Rclone Changelog"
 * Bug Fixes
     * build
         * Fix ARM architecture version in .deb packages after nfpm change (Nick Craig-Wood)
-        * Hard fork `github.com/jlaffaye/ftp` to fix `go get github.com/rclone/rclone` (Nick Craig-Wood)
+        * Hard fork `github.com/jlaffaye/ftp` to fix `go get github.com/artpar/rclone` (Nick Craig-Wood)
     * oauthutil: Fix crash when webbrowser requests `/robots.txt` (Nick Craig-Wood)
     * operations: Fix goroutine leak in case of copy retry (Ankur Gupta)
     * rc:
@@ -1276,7 +1276,7 @@ description: "Rclone Changelog"
 
 ## v1.57.0 - 2021-11-01
 
-[See commits](https://github.com/rclone/rclone/compare/v1.56.0...v1.57.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.56.0...v1.57.0)
 
 * New backends
     * Sia: for Sia decentralized cloud (Ian Levesque, Matthew Sevey, Ivan Andreev)
@@ -1402,7 +1402,7 @@ description: "Rclone Changelog"
 
 ## v1.56.2 - 2021-10-01
 
-[See commits](https://github.com/rclone/rclone/compare/v1.56.1...v1.56.2)
+[See commits](https://github.com/artpar/rclone/compare/v1.56.1...v1.56.2)
 
 * Bug Fixes
     * serve http: Re-add missing auth to http service (Nolan Woods)
@@ -1412,7 +1412,7 @@ description: "Rclone Changelog"
 
 ## v1.56.1 - 2021-09-19
 
-[See commits](https://github.com/rclone/rclone/compare/v1.56.0...v1.56.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.56.0...v1.56.1)
 
 * Bug Fixes
     * accounting: Fix maximum bwlimit by scaling scale max token bucket size (Nick Craig-Wood)
@@ -1449,7 +1449,7 @@ description: "Rclone Changelog"
 
 ## v1.56.0 - 2021-07-20
 
-[See commits](https://github.com/rclone/rclone/compare/v1.55.0...v1.56.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.55.0...v1.56.0)
 
 * New backends
     * [Uptobox](/uptobox/) (buengese)
@@ -1592,7 +1592,7 @@ description: "Rclone Changelog"
 
 ## v1.55.1 - 2021-04-26
 
-[See commits](https://github.com/rclone/rclone/compare/v1.55.0...v1.55.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.55.0...v1.55.1)
 
 * Bug Fixes
     * selfupdate
@@ -1630,7 +1630,7 @@ description: "Rclone Changelog"
 
 ## v1.55.0 - 2021-03-31
 
-[See commits](https://github.com/rclone/rclone/compare/v1.54.0...v1.55.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.54.0...v1.55.0)
 
 * New commands
     * [selfupdate](/commands/rclone_selfupdate/) (Ivan Andreev)
@@ -1784,7 +1784,7 @@ description: "Rclone Changelog"
 
 ## v1.54.1 - 2021-03-08
 
-[See commits](https://github.com/rclone/rclone/compare/v1.54.0...v1.54.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.54.0...v1.54.1)
 
 * Bug Fixes
     * accounting: Fix --bwlimit when up or down is off (Nick Craig-Wood)
@@ -1821,7 +1821,7 @@ description: "Rclone Changelog"
 
 ## v1.54.0 - 2021-02-02
 
-[See commits](https://github.com/rclone/rclone/compare/v1.53.0...v1.54.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.53.0...v1.54.0)
 
 * New backends
     * Compression remote (experimental) (buengese)
@@ -2028,7 +2028,7 @@ description: "Rclone Changelog"
 
 ## v1.53.4 - 2021-01-20
 
-[See commits](https://github.com/rclone/rclone/compare/v1.53.3...v1.53.4)
+[See commits](https://github.com/artpar/rclone/compare/v1.53.3...v1.53.4)
 
 * Bug Fixes
     * accounting: Fix data race in Transferred() (Maciej Zimnoch)
@@ -2072,12 +2072,12 @@ description: "Rclone Changelog"
 
 ## v1.53.3 - 2020-11-19
 
-[See commits](https://github.com/rclone/rclone/compare/v1.53.2...v1.53.3)
+[See commits](https://github.com/artpar/rclone/compare/v1.53.2...v1.53.3)
 
 * Bug Fixes
     * random: Fix incorrect use of math/rand instead of crypto/rand CVE-2020-28924 (Nick Craig-Wood)
         * Passwords you have generated with `rclone config` may be insecure
-        * See [issue #4783](https://github.com/rclone/rclone/issues/4783) for more details and a checking tool
+        * See [issue #4783](https://github.com/artpar/rclone/issues/4783) for more details and a checking tool
     * random: Seed math/rand in one place with crypto strong seed (Nick Craig-Wood)
 * VFS
     * Fix vfs/refresh calls with fs= parameter (Nick Craig-Wood)
@@ -2086,7 +2086,7 @@ description: "Rclone Changelog"
 
 ## v1.53.2 - 2020-10-26
 
-[See commits](https://github.com/rclone/rclone/compare/v1.53.1...v1.53.2)
+[See commits](https://github.com/artpar/rclone/compare/v1.53.1...v1.53.2)
 
 * Bug Fixes
     * accounting
@@ -2136,7 +2136,7 @@ description: "Rclone Changelog"
 
 ## v1.53.1 - 2020-09-13
 
-[See commits](https://github.com/rclone/rclone/compare/v1.53.0...v1.53.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.53.0...v1.53.1)
 
 * Bug Fixes
     * accounting: Remove new line from end of --stats-one-line display (Nick Craig-Wood)
@@ -2166,7 +2166,7 @@ description: "Rclone Changelog"
 
 ## v1.53.0 - 2020-09-02
 
-[See commits](https://github.com/rclone/rclone/compare/v1.52.0...v1.53.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.52.0...v1.53.0)
 
 * New Features
     * The [VFS layer](/commands/rclone_mount/#vfs-virtual-file-system) was heavily reworked for this release - see below for more details
@@ -2343,7 +2343,7 @@ description: "Rclone Changelog"
 
 ## v1.52.3 - 2020-08-07
 
-[See commits](https://github.com/rclone/rclone/compare/v1.52.2...v1.52.3)
+[See commits](https://github.com/artpar/rclone/compare/v1.52.2...v1.52.3)
 
 * Bug Fixes
     * docs
@@ -2373,7 +2373,7 @@ description: "Rclone Changelog"
 
 ## v1.52.2 - 2020-06-24
 
-[See commits](https://github.com/rclone/rclone/compare/v1.52.1...v1.52.2)
+[See commits](https://github.com/artpar/rclone/compare/v1.52.1...v1.52.2)
 
 * Bug Fixes
     * build
@@ -2400,7 +2400,7 @@ description: "Rclone Changelog"
 
 ## v1.52.1 - 2020-06-10
 
-[See commits](https://github.com/rclone/rclone/compare/v1.52.0...v1.52.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.52.0...v1.52.1)
 
 * Bug Fixes
     * lib/file: Fix SetSparse on Windows 7 which fixes downloads of files > 250MB (Nick Craig-Wood)
@@ -2436,7 +2436,7 @@ description: "Rclone Changelog"
 Special thanks to Martin Michlmayr for proof reading and correcting
 all the docs and Edward Barker for helping re-write the front page.
 
-[See commits](https://github.com/rclone/rclone/compare/v1.51.0...v1.52.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.51.0...v1.52.0)
 
 * New backends
     * [Tardigrade](/tardigrade/) backend for use with storj.io (Caleb Case)

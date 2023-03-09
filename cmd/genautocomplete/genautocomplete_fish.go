@@ -40,7 +40,7 @@ If output_file is "-", then the output will be written to stdout.
 			if args[0] == "-" {
 				err := cmd.Root.GenFishCompletion(os.Stdout, true)
 				if err != nil {
-					log.Fatal(err)
+					log.Printf("%v", err)
 				}
 				return
 			}
