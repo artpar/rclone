@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"reflect"
 	"strings"
 	"time"
@@ -242,7 +243,8 @@ func fields(opt interface{}) (pipeTags string, err error) {
 func mustFields(opt interface{}) string {
 	tags, err := fields(opt)
 	if err != nil {
-		panic(err)
+		log.Printf("Error %v", err)
+		//panic(err)
 	}
 	return tags
 }

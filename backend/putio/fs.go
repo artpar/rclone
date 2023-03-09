@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/putdotio/go-putio/putio"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/config/configmap"
 	"github.com/artpar/rclone/fs/config/configstruct"
@@ -24,6 +23,7 @@ import (
 	"github.com/artpar/rclone/lib/oauthutil"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/readers"
+	"github.com/putdotio/go-putio/putio"
 )
 
 // Fs represents a remote Putio server
@@ -134,7 +134,7 @@ func itoa(i int64) string {
 func atoi(a string) int64 {
 	i, err := strconv.ParseInt(a, 10, 64)
 	if err != nil {
-		panic(err)
+		fmt.Printf("Failed atoi [%v]", a)
 	}
 	return i
 }

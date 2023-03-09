@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jlaffaye/ftp"
 	"github.com/artpar/rclone/fs"
 	"github.com/artpar/rclone/fs/accounting"
 	"github.com/artpar/rclone/fs/config"
@@ -29,6 +28,7 @@ import (
 	"github.com/artpar/rclone/lib/env"
 	"github.com/artpar/rclone/lib/pacer"
 	"github.com/artpar/rclone/lib/readers"
+	"github.com/jlaffaye/ftp"
 )
 
 var (
@@ -367,7 +367,7 @@ func (f *Fs) ftpConnection(ctx context.Context) (c *ftp.ServerConn, err error) {
 		tlsConn := tls.Client(conn, f.tlsConf)
 		// Do the initial handshake - tls.Client doesn't do it for us
 		// If we do this then connections to proftpd/pureftpd lock up
-		// See: https://github.com/rclone/rclone/issues/6426
+		// See: https://github.com/artpar/rclone/issues/6426
 		// See: https://github.com/jlaffaye/ftp/issues/282
 		if false {
 			err = tlsConn.HandshakeContext(ctx)

@@ -16,14 +16,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rclone/rclone/backend/b2/api"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/chunksize"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/lib/atexit"
-	"github.com/rclone/rclone/lib/pool"
-	"github.com/rclone/rclone/lib/rest"
+	"github.com/artpar/rclone/backend/b2/api"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/chunksize"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/atexit"
+	"github.com/artpar/rclone/lib/pool"
+	"github.com/artpar/rclone/lib/rest"
 	"golang.org/x/sync/errgroup"
 )
 

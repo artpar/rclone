@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fstest/testy"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest/testy"
 	"github.com/stretchr/testify/assert"
 )
 

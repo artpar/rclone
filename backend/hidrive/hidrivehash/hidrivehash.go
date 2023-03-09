@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"log"
 
 	"github.com/artpar/rclone/backend/hidrive/hidrivehash/internal"
 )
@@ -230,7 +231,7 @@ func (h *hidriveHash) aggregateToLevel(index int, sum []byte) {
 		_, err := h.levels[i].Write(sum)
 		copy(h.lastSumWritten[:], sum)
 		if err != nil {
-			panic(fmt.Errorf("level-hash should not have produced an error: %w", err))
+			log.Printf("%v", fmt.Errorf("level-hash should not have produced an error: %w", err))
 		}
 		if !h.levels[i].IsFull() {
 			break

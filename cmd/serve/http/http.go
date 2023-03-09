@@ -14,16 +14,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/cmd/serve/proxy"
+	"github.com/artpar/rclone/cmd/serve/proxy/proxyflags"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	libhttp "github.com/artpar/rclone/lib/http"
+	"github.com/artpar/rclone/lib/http/serve"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfsflags"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/cmd/serve/proxy"
-	"github.com/rclone/rclone/cmd/serve/proxy/proxyflags"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	libhttp "github.com/rclone/rclone/lib/http"
-	"github.com/rclone/rclone/lib/http/serve"
-	"github.com/rclone/rclone/vfs"
-	"github.com/rclone/rclone/vfs/vfsflags"
 	"github.com/spf13/cobra"
 )
 
@@ -84,7 +84,7 @@ control the stats printing.
 		cmd.Run(false, true, command, func() error {
 			s, err := run(context.Background(), f, Opt)
 			if err != nil {
-				log.Fatal(err)
+				log.Printf("%v", err)
 			}
 
 			s.server.Wait()

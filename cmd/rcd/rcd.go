@@ -6,12 +6,12 @@ import (
 	"log"
 	"sync"
 
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs/rc/rcflags"
+	"github.com/artpar/rclone/fs/rc/rcserver"
+	"github.com/artpar/rclone/lib/atexit"
+	libhttp "github.com/artpar/rclone/lib/http"
 	sysdnotify "github.com/iguanesolutions/go-systemd/v5/notify"
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/fs/rc/rcflags"
-	"github.com/rclone/rclone/fs/rc/rcserver"
-	"github.com/rclone/rclone/lib/atexit"
-	libhttp "github.com/rclone/rclone/lib/http"
 	"github.com/spf13/cobra"
 )
 
@@ -53,7 +53,7 @@ See the [rc documentation](/rc/) for more info on the rc flags.
 			log.Fatalf("Failed to start remote control: %v", err)
 		}
 		if s == nil {
-			log.Fatal("rc server not configured")
+			log.Printf("%v", err)
 		}
 
 		// Notify stopping on exit

@@ -29,7 +29,7 @@ These flags are available for every command.
       --client-key string                    Client SSL private key (PEM) for mutual TLS auth
       --color string                         When to show colors (and other ANSI codes) AUTO|NEVER|ALWAYS (default "AUTO")
       --compare-dest stringArray             Include additional comma separated server-side paths during comparison
-      --config string                        Config file (default "$HOME/.config/rclone/rclone.conf")
+      --config string                        Config file (default "$HOME/.config/artpar/rclone.conf")
       --contimeout Duration                  Connect timeout (default 1m0s)
       --copy-dest stringArray                Implies --compare-dest but also copies files from paths into destination
       --cpuprofile string                    Write cpu profile to file
@@ -136,7 +136,7 @@ These flags are available for every command.
       --rc-server-write-timeout Duration     Timeout for server writing data (default 1h0m0s)
       --rc-template string                   User-specified template
       --rc-user string                       User name for authentication
-      --rc-web-fetch-url string              URL to fetch the releases for webgui (default "https://api.github.com/repos/rclone/rclone-webui-react/releases/latest")
+      --rc-web-fetch-url string              URL to fetch the releases for webgui (default "https://api.github.com/repos/artpar/rclone-webui-react/releases/latest")
       --rc-web-gui                           Launch WebGUI on localhost
       --rc-web-gui-force-update              Force update to latest version of web gui
       --rc-web-gui-no-open-browser           Don't open the browser automatically

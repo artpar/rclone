@@ -364,11 +364,11 @@ The :latest tag will always point to the latest stable release. You can
 use the :beta tag to get the latest build from master. You can also use
 version tags, e.g. :1.49.1, :1.49 or :1.
 
-    $ docker pull rclone/rclone:latest
-    latest: Pulling from rclone/rclone
+    $ docker pull artpar/rclone:latest
+    latest: Pulling from artpar/rclone
     Digest: sha256:0e0ced72671989bb837fea8e88578b3fc48371aa45d209663683e24cfdaa0e11
     ...
-    $ docker run --rm rclone/rclone:latest version
+    $ docker run --rm artpar/rclone:latest version
     rclone v1.49.1
     - os/arch: linux/amd64
     - go version: go1.12.9
@@ -410,7 +410,7 @@ Docker container from the rclone image.
 
 Here are some commands tested on an Ubuntu 18.04.3 host:
 
-    # config on host at ~/.config/rclone/rclone.conf
+    # config on host at ~/.config/artpar/rclone.conf
     # data on host at ~/data
 
     # make sure the config is ok by listing the remotes
@@ -418,7 +418,7 @@ Here are some commands tested on an Ubuntu 18.04.3 host:
         --volume ~/.config/rclone:/config/rclone \
         --volume ~/data:/data:shared \
         --user $(id -u):$(id -g) \
-        rclone/rclone \
+        artpar/rclone \
         listremotes
 
     # perform mount inside Docker container, expose result to host
@@ -429,7 +429,7 @@ Here are some commands tested on an Ubuntu 18.04.3 host:
         --user $(id -u):$(id -g) \
         --volume /etc/passwd:/etc/passwd:ro --volume /etc/group:/etc/group:ro \
         --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined \
-        rclone/rclone \
+        artpar/rclone \
         mount dropbox:Photos /data/mount &
     ls ~/data/mount
     kill %1
@@ -441,7 +441,7 @@ required, latest release is recommended. You can get it from your
 package manager, or download it from golang.org/dl. Then you can run the
 following:
 
-    git clone https://github.com/rclone/rclone.git
+    git clone https://github.com/artpar/rclone.git
     cd rclone
     go build
 
@@ -504,13 +504,13 @@ GOPATH bin folder ($(go env GOPATH)/bin, which corresponds to
 
 With Go version 1.17 or newer:
 
-    go install github.com/rclone/rclone@latest
+    go install github.com/artpar/rclone@latest
 
 With Go versions older than 1.17 (do not use the -u flag, it causes Go
 to try to update the dependencies that rclone uses and sometimes these
 don't work with the current version):
 
-    go get github.com/rclone/rclone
+    go get github.com/artpar/rclone
 
 Ansible installation
 
@@ -8817,17 +8817,17 @@ The exact default is a bit complex to describe, due to changes
 introduced through different versions of rclone while preserving
 backwards compatibility, but in most cases it is as simple as:
 
--   %APPDATA%/rclone/rclone.conf on Windows
--   ~/.config/rclone/rclone.conf on other
+-   %APPDATA%/artpar/rclone.conf on Windows
+-   ~/.config/artpar/rclone.conf on other
 
 The complete logic is as follows: Rclone will look for an existing
 configuration file in any of the following locations, in priority order:
 
 1.  rclone.conf (in program directory, where rclone executable is)
-2.  %APPDATA%/rclone/rclone.conf (only on Windows)
-3.  $XDG_CONFIG_HOME/rclone/rclone.conf (on all systems, including
+2.  %APPDATA%/artpar/rclone.conf (only on Windows)
+3.  $XDG_CONFIG_HOME/artpar/rclone.conf (on all systems, including
     Windows)
-4.  ~/.config/rclone/rclone.conf (see below for explanation of ~ symbol)
+4.  ~/.config/artpar/rclone.conf (see below for explanation of ~ symbol)
 5.  ~/.rclone.conf
 
 If no existing configuration file is found, then a new one will be
@@ -11398,7 +11398,7 @@ the GUI in a web browser.
 This will produce logs like this and rclone needs to continue to run to
 serve the GUI:
 
-    2019/08/25 11:40:14 NOTICE: A new release for gui is present at https://github.com/rclone/rclone-webui-react/releases/download/v0.0.6/currentbuild.zip
+    2019/08/25 11:40:14 NOTICE: A new release for gui is present at https://github.com/artpar/rclone-webui-react/releases/download/v0.0.6/currentbuild.zip
     2019/08/25 11:40:14 NOTICE: Downloading webgui binary. Please wait. [Size: 3813937, Path :  /home/USER/.cache/rclone/webgui/v0.0.6.zip]
     2019/08/25 11:40:16 NOTICE: Unzipping
     2019/08/25 11:40:16 NOTICE: Serving remote control on http://127.0.0.1:5572/
@@ -11488,7 +11488,7 @@ Or instead of htpasswd if you just want a single user and password:
 
 Project
 
-The GUI is being developed in the: rclone/rclone-webui-react repository.
+The GUI is being developed in the: artpar/rclone-webui-react repository.
 
 Bug reports and contributions are very welcome :-)
 
@@ -11608,7 +11608,7 @@ Default is IP address on which rc is running.
 Set the URL to fetch the rclone-web-gui files from.
 
 Default
-https://api.github.com/repos/rclone/rclone-webui-react/releases/latest.
+https://api.github.com/repos/artpar/rclone-webui-react/releases/latest.
 
 --rc-web-gui-update
 
@@ -13013,7 +13013,7 @@ Used for adding a plugin to the webgui.
 This takes the following parameters:
 
 -   url - http url of the github repo where the plugin is hosted
-    (http://github.com/rclone/rclone-webui-react).
+    (http://github.com/artpar/rclone-webui-react).
 
 Example:
 
@@ -13099,7 +13099,7 @@ This takes the following parameters:
 
 Example:
 
-    rclone rc pluginsctl/removeTestPlugin name=rclone/rclone-webui-react
+    rclone rc pluginsctl/removeTestPlugin name=artpar/rclone-webui-react
 
 Authentication is required for this call.
 
@@ -13445,14 +13445,14 @@ You can also use the -text flag to produce a textual summary
     $ go tool pprof -text http://localhost:5572/debug/pprof/heap
     Showing nodes accounting for 1537.03kB, 100% of 1537.03kB total
           flat  flat%   sum%        cum   cum%
-     1024.03kB 66.62% 66.62%  1024.03kB 66.62%  github.com/rclone/rclone/vendor/golang.org/x/net/http2/hpack.addDecoderNode
+     1024.03kB 66.62% 66.62%  1024.03kB 66.62%  github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.addDecoderNode
          513kB 33.38%   100%      513kB 33.38%  net/http.newBufioWriterSize
-             0     0%   100%  1024.03kB 66.62%  github.com/rclone/rclone/cmd/all.init
-             0     0%   100%  1024.03kB 66.62%  github.com/rclone/rclone/cmd/serve.init
-             0     0%   100%  1024.03kB 66.62%  github.com/rclone/rclone/cmd/serve/restic.init
-             0     0%   100%  1024.03kB 66.62%  github.com/rclone/rclone/vendor/golang.org/x/net/http2.init
-             0     0%   100%  1024.03kB 66.62%  github.com/rclone/rclone/vendor/golang.org/x/net/http2/hpack.init
-             0     0%   100%  1024.03kB 66.62%  github.com/rclone/rclone/vendor/golang.org/x/net/http2/hpack.init.0
+             0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/cmd/all.init
+             0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/cmd/serve.init
+             0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/cmd/serve/restic.init
+             0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/vendor/golang.org/x/net/http2.init
+             0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.init
+             0     0%   100%  1024.03kB 66.62%  github.com/artpar/rclone/vendor/golang.org/x/net/http2/hpack.init.0
              0     0%   100%  1024.03kB 66.62%  main.init
              0     0%   100%      513kB 33.38%  net/http.(*conn).readRequest
              0     0%   100%      513kB 33.38%  net/http.(*conn).serve
@@ -14143,7 +14143,7 @@ These flags are available for every command.
           --client-key string                    Client SSL private key (PEM) for mutual TLS auth
           --color string                         When to show colors (and other ANSI codes) AUTO|NEVER|ALWAYS (default "AUTO")
           --compare-dest stringArray             Include additional comma separated server-side paths during comparison
-          --config string                        Config file (default "$HOME/.config/rclone/rclone.conf")
+          --config string                        Config file (default "$HOME/.config/artpar/rclone.conf")
           --contimeout Duration                  Connect timeout (default 1m0s)
           --copy-dest stringArray                Implies --compare-dest but also copies files from paths into destination
           --cpuprofile string                    Write cpu profile to file
@@ -14250,7 +14250,7 @@ These flags are available for every command.
           --rc-server-write-timeout Duration     Timeout for server writing data (default 1h0m0s)
           --rc-template string                   User-specified template
           --rc-user string                       User name for authentication
-          --rc-web-fetch-url string              URL to fetch the releases for webgui (default "https://api.github.com/repos/rclone/rclone-webui-react/releases/latest")
+          --rc-web-fetch-url string              URL to fetch the releases for webgui (default "https://api.github.com/repos/artpar/rclone-webui-react/releases/latest")
           --rc-web-gui                           Launch WebGUI on localhost
           --rc-web-gui-force-update              Force update to latest version of web gui
           --rc-web-gui-no-open-browser           Don't open the browser automatically
@@ -19885,8 +19885,8 @@ backend and HTTP/2. HTTP/2 is enabled by default for the s3 backend but
 can be disabled here. When the issue is solved this flag will be
 removed.
 
-See: https://github.com/rclone/rclone/issues/4673,
-https://github.com/rclone/rclone/issues/3631
+See: https://github.com/artpar/rclone/issues/4673,
+https://github.com/artpar/rclone/issues/3631
 
 Properties:
 
@@ -23684,9 +23684,9 @@ on them.
 Any reports or feedback on how cache behaves on this OS is greatly
 appreciated.
 
--   https://github.com/rclone/rclone/issues/1935
--   https://github.com/rclone/rclone/issues/1907
--   https://github.com/rclone/rclone/issues/1834
+-   https://github.com/artpar/rclone/issues/1935
+-   https://github.com/artpar/rclone/issues/1907
+-   https://github.com/artpar/rclone/issues/1834
 
 Risk of throttling
 
@@ -23706,8 +23706,8 @@ the file in the cache at the same time if configured to do so.
 
 Future enhancements:
 
--   https://github.com/rclone/rclone/issues/1937
--   https://github.com/rclone/rclone/issues/1936
+-   https://github.com/artpar/rclone/issues/1937
+-   https://github.com/artpar/rclone/issues/1936
 
 cache and crypt
 
@@ -28898,7 +28898,7 @@ HTTP/2. HTTP/2 is therefore disabled by default for the drive backend
 but can be re-enabled here. When the issue is solved this flag will be
 removed.
 
-See: https://github.com/rclone/rclone/issues/3631
+See: https://github.com/artpar/rclone/issues/3631
 
 Properties:
 
@@ -28920,7 +28920,7 @@ in-progress sync.
 Note that this detection is relying on error message strings which
 Google don't document so it may break in the future.
 
-See: https://github.com/rclone/rclone/issues/3857
+See: https://github.com/artpar/rclone/issues/3857
 
 Properties:
 
@@ -29885,7 +29885,7 @@ Run rclone config:
 Manual configuration
 
 Run rclone config path to see the path of current active config file,
-usually YOURHOME/.config/rclone/rclone.conf. Open it in your favorite
+usually YOURHOME/.config/artpar/rclone.conf. Open it in your favorite
 text editor, find section for the base remote and create new section for
 hasher like in the following examples:
 
@@ -30239,7 +30239,7 @@ tests:
 
 If you want to build the docker image
 
-    git clone https://github.com/rclone/rclone.git
+    git clone https://github.com/artpar/rclone.git
     cd rclone/fstest/testserver/images/test-hdfs
     docker build --rm -t rclone/test-hdfs .
 
@@ -42034,7 +42034,7 @@ See commits
         -   Fix ARM architecture version in .deb packages after nfpm
             change (Nick Craig-Wood)
         -   Hard fork github.com/jlaffaye/ftp to fix
-            go get github.com/rclone/rclone (Nick Craig-Wood)
+            go get github.com/artpar/rclone (Nick Craig-Wood)
     -   oauthutil: Fix crash when webbrowser requests /robots.txt (Nick
         Craig-Wood)
     -   operations: Fix goroutine leak in case of copy retry (Ankur
@@ -47939,7 +47939,7 @@ GitHub repository
 
 The project's repository is located at:
 
--   https://github.com/rclone/rclone
+-   https://github.com/artpar/rclone
 
 There you can file bug reports or contribute with pull requests.
 

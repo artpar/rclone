@@ -21,16 +21,16 @@ import (
 	"github.com/buengese/sgzip"
 	"github.com/gabriel-vasile/mimetype"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/chunkedreader"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/configstruct"
-	"github.com/rclone/rclone/fs/fspath"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/log"
-	"github.com/rclone/rclone/fs/object"
-	"github.com/rclone/rclone/fs/operations"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/chunkedreader"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/fspath"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/fs/object"
+	"github.com/artpar/rclone/fs/operations"
 )
 
 // Globals
@@ -1349,7 +1349,7 @@ func (f *Fs) wrapInfo(src fs.ObjectInfo, newRemote string, size int64) *ObjectIn
 // Fs returns read only access to the Fs that this object is part of
 func (o *ObjectInfo) Fs() fs.Info {
 	if o.fs == nil {
-		panic("stub ObjectInfo")
+		//panic("stub ObjectInfo")
 	}
 	return o.fs
 }

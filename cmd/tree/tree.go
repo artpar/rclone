@@ -12,14 +12,14 @@ import (
 	"time"
 
 	"github.com/a8m/tree"
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/flags"
-	"github.com/rclone/rclone/fs/dirtree"
-	"github.com/rclone/rclone/fs/log"
-	"github.com/rclone/rclone/fs/walk"
-	"github.com/rclone/rclone/lib/encoder"
-	"github.com/rclone/rclone/lib/terminal"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs/dirtree"
+	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/fs/walk"
+	"github.com/artpar/rclone/lib/encoder"
+	"github.com/artpar/rclone/lib/terminal"
 	"github.com/spf13/cobra"
 )
 

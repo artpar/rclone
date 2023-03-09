@@ -415,7 +415,7 @@ func initConfig() {
 	// Load filters
 	err := filterflags.Reload(ctx)
 	if err != nil {
-		log.Fatalf("Failed to load filters: %v", err)
+		log.Printf("Failed to load filters: %v", err)
 	}
 
 	// Write the args for debug purposes
@@ -443,7 +443,7 @@ func initConfig() {
 		err = pprof.StartCPUProfile(f)
 		if err != nil {
 			err = fs.CountError(err)
-			log.Fatal(err)
+			log.Printf("%v", err)
 		}
 		atexit.Register(func() {
 			pprof.StopCPUProfile()
@@ -457,17 +457,17 @@ func initConfig() {
 			f, err := os.Create(*memProfile)
 			if err != nil {
 				err = fs.CountError(err)
-				log.Fatal(err)
+				log.Printf("%v", err)
 			}
 			err = pprof.WriteHeapProfile(f)
 			if err != nil {
 				err = fs.CountError(err)
-				log.Fatal(err)
+				log.Printf("%v", err)
 			}
 			err = f.Close()
 			if err != nil {
 				err = fs.CountError(err)
-				log.Fatal(err)
+				log.Printf("%v", err)
 			}
 		})
 	}
@@ -482,7 +482,7 @@ func initConfig() {
 
 func resolveExitCode(err error) {
 	//ci := fs.GetConfig(context.Background())
-	return;
+	return
 	//atexit.Run()
 	//if err == nil {
 	//	if ci.ErrorOnNoTransfer {
