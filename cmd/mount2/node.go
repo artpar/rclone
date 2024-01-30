@@ -11,10 +11,10 @@ import (
 
 	fusefs "github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
-	"github.com/rclone/rclone/cmd/mountlib"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/log"
-	"github.com/rclone/rclone/vfs"
+	"github.com/artpar/rclone/cmd/mountlib"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/vfs"
 )
 
 // Node represents a directory or file

@@ -80,7 +80,7 @@ func (e Position) String() string {
 		e &= ^PositionRight
 	}
 	if e != PositionNone {
-		panic("invalid position")
+		fmt.Printf("invalid position")
 	}
 	return buf.String()
 }
@@ -126,7 +126,8 @@ func (e Presence) String() string {
 	case Multiple:
 		return "multiple"
 	default:
-		panic("invalid presence")
+		fmt.Printf("invalid presence")
+		return "invalid presence"
 	}
 }
 

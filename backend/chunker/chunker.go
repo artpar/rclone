@@ -21,14 +21,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/cache"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/configstruct"
-	"github.com/rclone/rclone/fs/fspath"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/operations"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/cache"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/fspath"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/operations"
 )
 
 // Chunker's composite files have one or more chunks
@@ -556,12 +556,12 @@ func (f *Fs) makeChunkName(filePath string, chunkNo int, ctrlType, xactID string
 	case chunkNo < 0 && ctrlTypeRegexp.MatchString(ctrlType):
 		name = fmt.Sprintf(f.ctrlNameFmt, parentName, ctrlType)
 	default:
-		panic("makeChunkName: invalid argument") // must not produce something we can't consume
+		fmt.Printf("makeChunkName: invalid argument") // must not produce something we can't consume
 	}
 	if xactID != "" {
 		tempSuffix = fmt.Sprintf(tempSuffixFormat, xactID)
 		if !tempSuffixRegexp.MatchString(tempSuffix) {
-			panic("makeChunkName: invalid argument")
+			fmt.Printf("makeChunkName: invalid argument")
 		}
 	}
 	return dir + name + tempSuffix
@@ -2057,7 +2057,8 @@ func (o *Object) mainChunk() fs.Object {
 	if o.chunks != nil {
 		return o.chunks[0] // first chunk of a chunked composite file
 	}
-	panic("invalid chunked object") // very unlikely
+	fmt.Printf("invalid chunked object") // very unlikely
+	return nil
 }
 
 func (o *Object) isComposite() bool {
@@ -2322,7 +2323,7 @@ func (f *Fs) wrapInfo(src fs.ObjectInfo, newRemote string, totalSize int64) *Obj
 // Fs returns read only access to the Fs that this object is part of
 func (oi *ObjectInfo) Fs() fs.Info {
 	if oi.fs == nil {
-		panic("stub ObjectInfo")
+		fmt.Printf("stub ObjectInfo")
 	}
 	return oi.fs
 }

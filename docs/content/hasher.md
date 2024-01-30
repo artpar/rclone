@@ -72,7 +72,7 @@ y/e/d> y
 ### Manual configuration
 
 Run `rclone config path` to see the path of current active config file,
-usually `YOURHOME/.config/rclone/rclone.conf`.
+usually `YOURHOME/.config/artpar/rclone.conf`.
 Open it in your favorite text editor, find section for the base remote
 and create new section for hasher like in the following examples:
 

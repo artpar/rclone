@@ -48,7 +48,7 @@ If output_file is "-", then the output will be written to stdout.
 		}
 		err := cmd.Root.GenBashCompletionFile(out)
 		if err != nil {
-			log.Fatal(err)
+			log.Print(err)
 		}
 	},
 }

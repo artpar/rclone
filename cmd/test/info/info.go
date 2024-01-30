@@ -20,14 +20,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/cmd/test"
-	"github.com/rclone/rclone/cmd/test/info/internal"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/flags"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/object"
-	"github.com/rclone/rclone/lib/random"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/cmd/test"
+	"github.com/artpar/rclone/cmd/test/info/internal"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/object"
+	"github.com/artpar/rclone/lib/random"
 	"github.com/spf13/cobra"
 )
 
@@ -240,7 +240,7 @@ func (r *results) checkStringPositions(k, s string) {
 		case internal.PositionRight:
 			path = fmt.Sprintf("position-right-%0X-%s", s, s)
 		default:
-			panic("invalid position: " + pos.String())
+			fmt.Printf("invalid position: " + pos.String())
 		}
 		_, writeError := r.writeFile(path)
 		if writeError != nil {

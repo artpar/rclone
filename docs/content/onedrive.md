@@ -144,7 +144,7 @@ Supply the app ID and password as Client ID and Secret, respectively. rclone wil
 The access_scopes option allows you to configure the permissions requested by rclone.
 See [Microsoft Docs](https://docs.microsoft.com/en-us/graph/permissions-reference#files-permissions) for more information about the different scopes.
 
-The `Sites.Read.All` permission is required if you need to [search SharePoint sites when configuring the remote](https://github.com/rclone/rclone/pull/5883). However, if that permission is not assigned, you need to exclude `Sites.Read.All` from your access scopes or set `disable_site_permission` option to true in the advanced options.
+The `Sites.Read.All` permission is required if you need to [search SharePoint sites when configuring the remote](https://github.com/artpar/rclone/pull/5883). However, if that permission is not assigned, you need to exclude `Sites.Read.All` from your access scopes or set `disable_site_permission` option to true in the advanced options.
 
 #### Creating Client ID for OneDrive Business
 
@@ -159,7 +159,7 @@ You may try to [verify you account](https://docs.microsoft.com/en-us/azure/activ
 4. In the rclone config, set `auth_url` to `https://login.microsoftonline.com/YOUR_TENANT_ID/oauth2/v2.0/authorize`.
 5. In the rclone config, set `token_url` to `https://login.microsoftonline.com/YOUR_TENANT_ID/oauth2/v2.0/token`.
 
-Note: If you have a special region, you may need a different host in step 4 and 5. Here are [some hints](https://github.com/rclone/rclone/blob/bc23bf11db1c78c6ebbf8ea538fbebf7058b4176/backend/onedrive/onedrive.go#L86).
+Note: If you have a special region, you may need a different host in step 4 and 5. Here are [some hints](https://github.com/artpar/rclone/blob/bc23bf11db1c78c6ebbf8ea538fbebf7058b4176/backend/onedrive/onedrive.go#L86).
 
 
 ### Modification times and hashes

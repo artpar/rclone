@@ -12,16 +12,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/fs/config/flags"
-	"github.com/rclone/rclone/fs/rc"
-	"github.com/rclone/rclone/lib/atexit"
-	"github.com/rclone/rclone/lib/daemonize"
-	"github.com/rclone/rclone/vfs"
-	"github.com/rclone/rclone/vfs/vfscommon"
-	"github.com/rclone/rclone/vfs/vfsflags"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs/rc"
+	"github.com/artpar/rclone/lib/atexit"
+	"github.com/artpar/rclone/lib/daemonize"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfscommon"
+	"github.com/artpar/rclone/vfs/vfsflags"
 
 	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/spf13/cobra"
@@ -230,7 +230,7 @@ func NewMountCommand(commandName string, hidden bool, mount MountFn) *cobra.Comm
 					err = mnt.Wait()
 				}
 				if err != nil {
-					log.Fatalf("Fatal error: %v", err)
+					log.Printf("Fatal error: %v", err)
 				}
 				return
 			}

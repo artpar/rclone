@@ -264,7 +264,7 @@ by rclone config in version 1.49.0 (released 2019-08-26) to 1.53.2
 (released 2020-10-26) are not considered secure and should be changed.
 If you made up your own password, or used rclone version older than 1.49.0 or
 newer than 1.53.2 to generate it, you are *not* affected by this issue.
-See [issue #4783](https://github.com/rclone/rclone/issues/4783) for more
+See [issue #4783](https://github.com/artpar/rclone/issues/4783) for more
 details, and a tool you can use to check if you are affected.
 
 ### Example

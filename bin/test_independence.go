@@ -21,11 +21,11 @@ func findTests(packageToTest string) (tests []string) {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		_, _ = os.Stderr.Write(out)
-		log.Fatal(err)
+		log.Print(err)
 	}
 	results := matchLine.FindAllSubmatch(out, -1)
 	if results == nil {
-		log.Fatal("No tests found")
+		log.Print("No tests found")
 	}
 	for _, line := range results {
 		tests = append(tests, string(line[1]))
@@ -49,7 +49,7 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 	if len(args) != 1 {
-		log.Fatalf("Syntax: %s <test_to_run>", os.Args[0])
+		log.Printf("Syntax: %s <test_to_run>", os.Args[0])
 	}
 	packageToTest := args[0]
 	testNames := findTests(packageToTest)

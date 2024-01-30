@@ -23,16 +23,16 @@ with the [latest beta of rclone](https://beta.rclone.org/):
 If you find a bug that you'd like to fix, or a new feature that you'd
 like to implement then please submit a pull request via GitHub.
 
-If it is a big feature, then [make an issue](https://github.com/rclone/rclone/issues) first so it can be discussed.
+If it is a big feature, then [make an issue](https://github.com/artpar/rclone/issues) first so it can be discussed.
 
 To prepare your pull request first press the fork button on [rclone's GitHub
-page](https://github.com/rclone/rclone).
+page](https://github.com/artpar/rclone).
 
 Then [install Git](https://git-scm.com/downloads) and set your public contribution [name](https://docs.github.com/en/github/getting-started-with-github/setting-your-username-in-git) and [email](https://docs.github.com/en/github/setting-up-and-managing-your-github-user-account/setting-your-commit-email-address#setting-your-commit-email-address-in-git).
 
 Next open your terminal, change directory to your preferred folder and initialise your local rclone project:
 
-    git clone https://github.com/rclone/rclone.git
+    git clone https://github.com/artpar/rclone.git
     cd rclone
     git remote rename origin upstream
       # if you have SSH keys setup in your GitHub account:
@@ -117,7 +117,7 @@ Your previously pushed commits are replaced by:
 
 ### Basing your changes on the latest master
 
-To base your changes on the latest version of the [rclone master](https://github.com/rclone/rclone/tree/master) (upstream):
+To base your changes on the latest version of the [rclone master](https://github.com/artpar/rclone/tree/master) (upstream):
 
     git checkout master
     git fetch upstream
@@ -151,7 +151,7 @@ Tip: You may like to use `git rebase -i master` if you are experienced or have a
 
 ### GitHub Continuous Integration
 
-rclone currently uses [GitHub Actions](https://github.com/rclone/rclone/actions) to build and test the project, which should be automatically available for your fork too from the `Actions` tab in your repository.
+rclone currently uses [GitHub Actions](https://github.com/artpar/rclone/actions) to build and test the project, which should be automatically available for your fork too from the `Actions` tab in your repository.
 
 ## Testing
 
@@ -208,7 +208,7 @@ If you want to use the integration test framework to run these tests
 altogether with an HTML report and test retries then from the
 project root:
 
-    go install github.com/rclone/rclone/fstest/test_all
+    go install github.com/artpar/rclone/fstest/test_all
     test_all -backend drive
 
 ### Full integration testing

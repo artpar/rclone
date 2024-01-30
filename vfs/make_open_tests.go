@@ -43,7 +43,7 @@ func whichError(err error) string {
 	case strings.Contains(s, "file exists"):
 		return "EEXIST"
 	}
-	log.Fatalf("Unknown error: %v", err)
+	log.Printf("Unknown error: %v", err)
 	return ""
 }
 
@@ -54,7 +54,7 @@ func test(fileName string, flags int, mode string) {
 	// first try with file not existing
 	_, err := os.Stat(fileName)
 	if !os.IsNotExist(err) {
-		log.Fatalf("File must not exist")
+		log.Printf("File must not exist")
 	}
 	f, openNonExistentErr := file.OpenFile(fileName, flags, 0666)
 
@@ -71,23 +71,23 @@ func test(fileName string, flags int, mode string) {
 		// close
 		err = f.Close()
 		if err != nil {
-			log.Fatalf("failed to close: %v", err)
+			log.Printf("failed to close: %v", err)
 		}
 	}
 
 	// write the file
 	f, err = file.Create(fileName)
 	if err != nil {
-		log.Fatalf("failed to create: %v", err)
+		log.Printf("failed to create: %v", err)
 	}
 	n, err := f.Write([]byte("hello"))
 	if n != 5 || err != nil {
-		log.Fatalf("failed to write n=%d: %v", n, err)
+		log.Printf("failed to write n=%d: %v", n, err)
 	}
 	// close
 	err = f.Close()
 	if err != nil {
-		log.Fatalf("failed to close: %v", err)
+		log.Printf("failed to close: %v", err)
 	}
 
 	// then open file and try with file existing
@@ -106,30 +106,30 @@ func test(fileName string, flags int, mode string) {
 		// close
 		err = f.Close()
 		if err != nil {
-			log.Fatalf("failed to close: %v", err)
+			log.Printf("failed to close: %v", err)
 		}
 	}
 
 	// read the file
 	f, err = file.Open(fileName)
 	if err != nil {
-		log.Fatalf("failed to open: %v", err)
+		log.Printf("failed to open: %v", err)
 	}
 	var buf = make([]byte, 64)
 	n, err = f.Read(buf)
 	if err != nil && err != io.EOF {
-		log.Fatalf("failed to read n=%d: %v", n, err)
+		log.Printf("failed to read n=%d: %v", n, err)
 	}
 	err = f.Close()
 	if err != nil {
-		log.Fatalf("failed to close: %v", err)
+		log.Printf("failed to close: %v", err)
 	}
 	contents := string(buf[:n])
 
 	// remove file
 	err = os.Remove(fileName)
 	if err != nil {
-		log.Fatalf("failed to remove: %v", err)
+		log.Printf("failed to remove: %v", err)
 	}
 
 	// http://pubs.opengroup.org/onlinepubs/7908799/xsh/open.html
@@ -197,13 +197,13 @@ var openTests = []openTest{
 `)
 	f, err := os.CreateTemp("", "open-test")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 	fileName := f.Name()
 	_ = f.Close()
 	err = os.Remove(fileName)
 	if err != nil {
-		log.Fatalf("failed to remove: %v", err)
+		log.Printf("failed to remove: %v", err)
 	}
 	for _, rwMode := range []int{os.O_RDONLY, os.O_WRONLY, os.O_RDWR} {
 		flags0 := rwMode

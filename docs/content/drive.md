@@ -1146,7 +1146,7 @@ the in-progress sync.
 Note that this detection is relying on error message strings which
 Google don't document so it may break in the future.
 
-See: https://github.com/rclone/rclone/issues/3857
+See: https://github.com/artpar/rclone/issues/3857
 
 
 Properties:

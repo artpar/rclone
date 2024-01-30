@@ -14,6 +14,9 @@ import (
 	"io"
 	"strings"
 
+	_ "github.com/artpar/rclone/backend/dropbox/dbhash"
+	_ "github.com/artpar/rclone/backend/mailru/mrhash"
+	_ "github.com/artpar/rclone/backend/onedrive/quickxorhash"
 	"github.com/jzelinskie/whirlpool"
 )
 

@@ -15,7 +15,7 @@ func main() {
 	var in map[string]string
 	err := json.NewDecoder(os.Stdin).Decode(&in)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 
 	// Write the output
@@ -25,7 +25,7 @@ func main() {
 		case "user":
 			v += "-test"
 		case "error":
-			log.Fatal(v)
+			log.Print(v)
 		}
 		out[k] = v
 	}
@@ -37,6 +37,6 @@ func main() {
 	}
 	json.NewEncoder(os.Stdout).Encode(&out)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 }

@@ -12,7 +12,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatalf("Syntax: %s <root>", os.Args[0])
+		log.Printf("Syntax: %s <root>", os.Args[0])
 	}
 	root := os.Args[1]
 
@@ -20,7 +20,7 @@ func main() {
 	var in map[string]string
 	err := json.NewDecoder(os.Stdin).Decode(&in)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 
 	// Write the output
@@ -31,6 +31,6 @@ func main() {
 	}
 	json.NewEncoder(os.Stdout).Encode(&out)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 }

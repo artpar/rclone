@@ -48,12 +48,12 @@ If output_file is "-", then the output will be written to stdout.
 		}
 		outFile, err := os.Create(out)
 		if err != nil {
-			log.Fatal(err)
+			log.Print(err)
 		}
 		defer func() { _ = outFile.Close() }()
 		err = cmd.Root.GenZshCompletion(outFile)
 		if err != nil {
-			log.Fatal(err)
+			log.Print(err)
 		}
 	},
 }

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	liberrors "github.com/rclone/rclone/lib/errors"
+	liberrors "github.com/artpar/rclone/lib/errors"
 )
 
 // State represents the public Pacer state that will be passed to the

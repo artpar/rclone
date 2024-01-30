@@ -389,7 +389,7 @@ If your names have spaces in you need to put them in `"`, e.g.
     rclone copy "E:\folder name\folder name\folder name" remote:backup
 
 If you are using the root directory on its own then don't quote it
-(see [#464](https://github.com/rclone/rclone/issues/464) for why), e.g.
+(see [#464](https://github.com/artpar/rclone/issues/464) for why), e.g.
 
     rclone copy E:\ remote:backup
 
@@ -885,16 +885,16 @@ The exact default is a bit complex to describe, due to changes
 introduced through different versions of rclone while preserving
 backwards compatibility, but in most cases it is as simple as:
 
- - `%APPDATA%/rclone/rclone.conf` on Windows
- - `~/.config/rclone/rclone.conf` on other
+ - `%APPDATA%/artpar/rclone.conf` on Windows
+ - `~/.config/artpar/rclone.conf` on other
 
 The complete logic is as follows: Rclone will look for an existing
 configuration file in any of the following locations, in priority order:
 
   1. `rclone.conf` (in program directory, where rclone executable is)
-  2. `%APPDATA%/rclone/rclone.conf` (only on Windows)
-  3. `$XDG_CONFIG_HOME/rclone/rclone.conf` (on all systems, including Windows)
-  4. `~/.config/rclone/rclone.conf` (see below for explanation of ~ symbol)
+  2. `%APPDATA%/artpar/rclone.conf` (only on Windows)
+  3. `$XDG_CONFIG_HOME/artpar/rclone.conf` (on all systems, including Windows)
+  4. `~/.config/artpar/rclone.conf` (see below for explanation of ~ symbol)
   5. `~/.rclone.conf`
 
 If no existing configuration file is found, then a new one will be created
@@ -1173,7 +1173,7 @@ add multiple headers.
 rclone sync --interactive s3:test/src ~/dst --header-download "X-Amz-Meta-Test: Foo" --header-download "X-Amz-Meta-Test2: Bar"
 ```
 
-See the GitHub issue [here](https://github.com/rclone/rclone/issues/59) for
+See the GitHub issue [here](https://github.com/artpar/rclone/issues/59) for
 currently supported backends.
 
 ### --header-upload ###
@@ -1185,7 +1185,7 @@ multiple headers.
 rclone sync --interactive ~/src s3:test/dst --header-upload "Content-Disposition: attachment; filename='cool.html'" --header-upload "X-Amz-Meta-Test: FooBar"
 ```
 
-See the GitHub issue [here](https://github.com/rclone/rclone/issues/59) for
+See the GitHub issue [here](https://github.com/artpar/rclone/issues/59) for
 currently supported backends.
 
 ### --human-readable ###
@@ -1261,7 +1261,7 @@ after transfer.
 
 This can be useful for transferring files to and from OneDrive which
 occasionally misreports the size of image files (see
-[#399](https://github.com/rclone/rclone/issues/399) for more info).
+[#399](https://github.com/artpar/rclone/issues/399) for more info).
 
 ### -I, --ignore-times ###
 
@@ -1892,7 +1892,7 @@ Eg
 
 See the [Configuration Encryption](#configuration-encryption) for more info.
 
-See a [Windows PowerShell example on the Wiki](https://github.com/rclone/rclone/wiki/Windows-Powershell-use-rclone-password-command-for-Config-file-password).
+See a [Windows PowerShell example on the Wiki](https://github.com/artpar/rclone/wiki/Windows-Powershell-use-rclone-password-command-for-Config-file-password).
 
 ### -P, --progress ###
 

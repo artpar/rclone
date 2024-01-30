@@ -7,7 +7,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/rclone/rclone/lib/exitcode"
+	"github.com/artpar/rclone/lib/exitcode"
 )
 
 var exitSignals = []os.Signal{syscall.SIGINT, syscall.SIGTERM} // Not syscall.SIGQUIT as we want the default behaviour

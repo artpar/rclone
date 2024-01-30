@@ -4,8 +4,8 @@ package zoho_test
 import (
 	"testing"
 
-	"github.com/rclone/rclone/backend/zoho"
-	"github.com/rclone/rclone/fstest/fstests"
+	"github.com/artpar/rclone/backend/zoho"
+	"github.com/artpar/rclone/fstest/fstests"
 )
 
 // TestIntegration runs integration tests against the remote

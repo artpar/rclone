@@ -12,7 +12,7 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/clearsign"
-	"github.com/rclone/rclone/fs"
+	"github.com/artpar/rclone/fs"
 )
 
 var ncwPublicKeyPGP = `-----BEGIN PGP PUBLIC KEY BLOCK-----

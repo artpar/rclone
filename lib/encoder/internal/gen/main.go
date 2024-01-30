@@ -428,13 +428,13 @@ var testCasesDoubleEdge = []testCase{
 
 func fatal(err error, s ...interface{}) {
 	if err != nil {
-		log.Fatalln(append(s, err))
+		log.Println(append(s, err))
 	}
 }
 func fatalW(_ int, err error) func(...interface{}) {
 	if err != nil {
 		return func(s ...interface{}) {
-			log.Fatalln(append(s, err))
+			log.Println(append(s, err))
 		}
 	}
 	return func(s ...interface{}) {}

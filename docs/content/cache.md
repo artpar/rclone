@@ -13,7 +13,7 @@ and its data for long running tasks like `rclone mount`.
 ## Status
 
 The cache backend code is working but it currently doesn't
-have a maintainer so there are [outstanding bugs](https://github.com/rclone/rclone/issues?q=is%3Aopen+is%3Aissue+label%3Abug+label%3A%22Remote%3A+Cache%22) which aren't getting fixed.
+have a maintainer so there are [outstanding bugs](https://github.com/artpar/rclone/issues?q=is%3Aopen+is%3Aissue+label%3Abug+label%3A%22Remote%3A+Cache%22) which aren't getting fixed.
 
 The cache backend is due to be phased out in favour of the VFS caching
 layer eventually which is more tightly integrated into rclone.

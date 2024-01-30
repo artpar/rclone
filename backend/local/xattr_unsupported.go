@@ -4,7 +4,7 @@
 // The pkg/xattr module doesn't compile for openbsd or plan9
 package local
 
-import "github.com/rclone/rclone/fs"
+import "github.com/artpar/rclone/fs"
 
 const (
 	xattrSupported = false

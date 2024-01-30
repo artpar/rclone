@@ -11,7 +11,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/rclone/rclone/lib/terminal"
+	"github.com/artpar/rclone/lib/terminal"
 )
 
 // ReadPassword reads a password without echoing it to the terminal.
@@ -23,7 +23,7 @@ func ReadPassword() string {
 	line, err := terminal.ReadPassword(stdin)
 	_, _ = fmt.Fprintln(os.Stderr)
 	if err != nil {
-		log.Fatalf("Failed to read password: %v", err)
+		log.Printf("Failed to read password: %v", err)
 	}
 	return string(line)
 }

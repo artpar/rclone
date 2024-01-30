@@ -22,18 +22,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rclone/rclone/backend/cache"
-	"github.com/rclone/rclone/backend/crypt"
-	_ "github.com/rclone/rclone/backend/drive"
-	"github.com/rclone/rclone/backend/local"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/object"
-	"github.com/rclone/rclone/fstest"
-	"github.com/rclone/rclone/fstest/testy"
-	"github.com/rclone/rclone/lib/random"
-	"github.com/rclone/rclone/vfs/vfsflags"
+	"github.com/artpar/rclone/backend/cache"
+	"github.com/artpar/rclone/backend/crypt"
+	_ "github.com/artpar/rclone/backend/drive"
+	"github.com/artpar/rclone/backend/local"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/object"
+	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/fstest/testy"
+	"github.com/artpar/rclone/lib/random"
+	"github.com/artpar/rclone/vfs/vfsflags"
 	"github.com/stretchr/testify/require"
 )
 
@@ -814,7 +814,7 @@ func newRun() *run {
 	// Read in all the defaults for all the options
 	fsInfo, err := fs.Find("cache")
 	if err != nil {
-		panic(fmt.Sprintf("Couldn't find cache remote: %v", err))
+		log.Info("Couldn't find cache remote: %v", err)
 	}
 	r.runDefaultCfgMap = configmap.Simple{}
 	for _, option := range fsInfo.Options {
@@ -824,7 +824,7 @@ func newRun() *run {
 	if uploadDir == "" {
 		r.tmpUploadDir, err = os.MkdirTemp("", "rclonecache-tmp")
 		if err != nil {
-			panic(fmt.Sprintf("Failed to create temp dir: %v", err))
+			fmt.Printf("Failed to create temp dir: %v", err))
 		}
 	} else {
 		r.tmpUploadDir = uploadDir

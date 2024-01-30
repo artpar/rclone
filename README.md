@@ -11,10 +11,10 @@
 [Installation](https://rclone.org/install/) |
 [Forum](https://forum.rclone.org/)
 
-[![Build Status](https://github.com/rclone/rclone/workflows/build/badge.svg)](https://github.com/rclone/rclone/actions?query=workflow%3Abuild)
-[![Go Report Card](https://goreportcard.com/badge/github.com/rclone/rclone)](https://goreportcard.com/report/github.com/rclone/rclone)
-[![GoDoc](https://godoc.org/github.com/rclone/rclone?status.svg)](https://godoc.org/github.com/rclone/rclone)
-[![Docker Pulls](https://img.shields.io/docker/pulls/rclone/rclone)](https://hub.docker.com/r/rclone/rclone)
+[![Build Status](https://github.com/artpar/rclone/workflows/build/badge.svg)](https://github.com/artpar/rclone/actions?query=workflow%3Abuild)
+[![Go Report Card](https://goreportcard.com/badge/github.com/artpar/rclone)](https://goreportcard.com/report/github.com/artpar/rclone)
+[![GoDoc](https://godoc.org/github.com/artpar/rclone?status.svg)](https://godoc.org/github.com/artpar/rclone)
+[![Docker Pulls](https://img.shields.io/docker/pulls/artpar/rclone)](https://hub.docker.com/r/artpar/rclone)
 
 # Rclone
 

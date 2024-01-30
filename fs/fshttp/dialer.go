@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
 )

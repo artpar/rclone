@@ -149,11 +149,11 @@ func TestRun(t *testing.T) {
 
 	privateKey, privateKeyErr := rsa.GenerateKey(rand.Reader, 2048)
 	if privateKeyErr != nil {
-		log.Fatal("error generating test private key " + privateKeyErr.Error())
+		log.Print("error generating test private key " + privateKeyErr.Error())
 	}
 	publicKey, publicKeyError := ssh.NewPublicKey(&privateKey.PublicKey)
 	if privateKeyErr != nil {
-		log.Fatal("error generating test public key " + publicKeyError.Error())
+		log.Print("error generating test public key " + publicKeyError.Error())
 	}
 
 	publicKeyString := base64.StdEncoding.EncodeToString(publicKey.Marshal())

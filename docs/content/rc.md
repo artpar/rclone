@@ -1627,7 +1627,7 @@ Used for adding a plugin to the webgui.
 
 This takes the following parameters:
 
-- url - http url of the github repo where the plugin is hosted (http://github.com/rclone/rclone-webui-react).
+- url - http url of the github repo where the plugin is hosted (http://github.com/artpar/rclone-webui-react).
 
 Example:
 
@@ -1708,7 +1708,7 @@ This takes the following parameters:
 
 Example:
 
-    rclone rc pluginsctl/removeTestPlugin name=rclone/rclone-webui-react
+    rclone rc pluginsctl/removeTestPlugin name=artpar/rclone-webui-react
 
 **Authentication is required for this call.**
 

@@ -9,12 +9,12 @@ import (
 	"log"
 	"time"
 
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/flags"
-	"github.com/rclone/rclone/fs/fspath"
-	"github.com/rclone/rclone/fs/object"
-	"github.com/rclone/rclone/fs/operations"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs/fspath"
+	"github.com/artpar/rclone/fs/object"
+	"github.com/artpar/rclone/fs/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -87,7 +87,8 @@ then add the ` + "`--localtime`" + ` flag.
 func newFsDst(args []string) (f fs.Fs, remote string) {
 	root, remote, err := fspath.Split(args[0])
 	if err != nil {
-		log.Fatalf("Parsing %q failed: %v", args[0], err)
+		log.Printf("Parsing %q failed: %v", args[0], err)
+		return
 	}
 	if root == "" {
 		root = "."

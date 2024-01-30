@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/lib/readers"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/readers"
 )
 
 const (
