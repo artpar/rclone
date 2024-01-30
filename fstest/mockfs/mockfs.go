@@ -9,9 +9,9 @@ import (
 	"path"
 	"time"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/hash"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/hash"
 )
 
 // Register with Fs

@@ -40,25 +40,25 @@ import (
 	"sync"
 	"time"
 
+	"github.com/artpar/rclone/backend/pikpak/api"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/encoder"
+	"github.com/artpar/rclone/lib/oauthutil"
+	"github.com/artpar/rclone/lib/pacer"
+	"github.com/artpar/rclone/lib/random"
+	"github.com/artpar/rclone/lib/rest"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/rclone/rclone/backend/pikpak/api"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/configstruct"
-	"github.com/rclone/rclone/fs/config/obscure"
-	"github.com/rclone/rclone/fs/fserrors"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/lib/dircache"
-	"github.com/rclone/rclone/lib/encoder"
-	"github.com/rclone/rclone/lib/oauthutil"
-	"github.com/rclone/rclone/lib/pacer"
-	"github.com/rclone/rclone/lib/random"
-	"github.com/rclone/rclone/lib/rest"
 	"golang.org/x/oauth2"
 )
 
@@ -496,7 +496,7 @@ func NewFs(ctx context.Context, name, path string, m configmap.Mapper) (fs.Fs, e
 		f.features.Fill(ctx, &tempF)
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
-		// See https://github.com/rclone/rclone/issues/2182
+		// See https://github.com/artpar/rclone/issues/2182
 		f.dirCache = tempF.dirCache
 		f.root = tempF.root
 		// return an error with an fs which points to the parent

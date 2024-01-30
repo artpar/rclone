@@ -1,3 +1,4 @@
+//go:build !plan9 && !solaris && !js && go1.14
 // +build !plan9,!solaris,!js,go1.14
 
 package azureblob
@@ -12,9 +13,9 @@ import (
 	"net/http"
 
 	"github.com/Azure/go-autorest/autorest/adal"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/fshttp"
 	"github.com/pkg/errors"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/fshttp"
 )
 
 const (

@@ -10,9 +10,9 @@ import (
 	"sync"
 
 	"github.com/Unknwon/goconfig" //nolint:misspell // Don't include misspell when running golangci-lint
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/lib/file"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/lib/file"
 )
 
 // Install installs the config file handler

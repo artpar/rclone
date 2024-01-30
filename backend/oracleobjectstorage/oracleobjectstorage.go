@@ -13,16 +13,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fs/walk"
+	"github.com/artpar/rclone/lib/bucket"
+	"github.com/artpar/rclone/lib/pacer"
 	"github.com/oracle/oci-go-sdk/v65/common"
 	"github.com/oracle/oci-go-sdk/v65/objectstorage"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/configstruct"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/operations"
-	"github.com/rclone/rclone/fs/walk"
-	"github.com/rclone/rclone/lib/bucket"
-	"github.com/rclone/rclone/lib/pacer"
 )
 
 // Register with Fs

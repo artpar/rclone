@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/rclone/rclone/fs"
+	"github.com/artpar/rclone/fs"
 	"github.com/sirupsen/logrus"
 )
 
@@ -119,7 +119,7 @@ func InitLogging() {
 		f, err := os.OpenFile(Opt.File, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
 		if err != nil {
 			log.Printf("Failed to open log file: %v", err)
-			return 
+			return
 		}
 		_, err = f.Seek(0, io.SeekEnd)
 		if err != nil {

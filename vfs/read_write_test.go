@@ -717,7 +717,7 @@ func TestRWCacheRename(t *testing.T) {
 
 // Test the cache reading a file that is updated externally
 //
-// See: https://github.com/rclone/rclone/issues/6053
+// See: https://github.com/artpar/rclone/issues/6053
 func TestRWCacheUpdate(t *testing.T) {
 	opt := vfscommon.DefaultOpt
 	opt.CacheMode = vfscommon.CacheModeFull

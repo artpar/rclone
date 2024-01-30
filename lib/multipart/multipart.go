@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/lib/atexit"
-	"github.com/rclone/rclone/lib/pacer"
-	"github.com/rclone/rclone/lib/pool"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/lib/atexit"
+	"github.com/artpar/rclone/lib/pacer"
+	"github.com/artpar/rclone/lib/pool"
 	"golang.org/x/sync/errgroup"
 )
 

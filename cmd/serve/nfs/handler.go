@@ -7,9 +7,7 @@ import (
 	"context"
 	"net"
 
-	"github.com/go-git/go-billy/v5"
-	"github.com/rclone/rclone/vfs"
-	"github.com/willscott/go-nfs"
+	"github.com/artpar/rclone/vfs"
 	nfshelper "github.com/willscott/go-nfs/helpers"
 )
 

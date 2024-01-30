@@ -8,8 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/rclone/rclone/lib/rest"
-	"gopkg.in/validator.v2"
+	"github.com/artpar/rclone/lib/rest"
 )
 
 // FilesOrFolderParam struct is a parameter type to ListFiles() function to search / list media library files.

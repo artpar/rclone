@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fstest"
-	"github.com/rclone/rclone/fstest/fstests"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/fstest/fstests"
 )
 
 func SetupS3Test(t *testing.T) (context.Context, *Options, *http.Client) {

@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/rclone/rclone/backend/pikpak/api"
-	"github.com/rclone/rclone/lib/rest"
+	"github.com/artpar/rclone/backend/pikpak/api"
+	"github.com/artpar/rclone/lib/rest"
 )
 
 // Globals

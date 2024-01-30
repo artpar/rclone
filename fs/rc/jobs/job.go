@@ -10,12 +10,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/cache"
+	"github.com/artpar/rclone/fs/filter"
+	"github.com/artpar/rclone/fs/rc"
 	"github.com/google/uuid"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/cache"
-	"github.com/rclone/rclone/fs/filter"
-	"github.com/rclone/rclone/fs/rc"
 )
 
 // Fill in these to avoid circular dependencies

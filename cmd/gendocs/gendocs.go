@@ -13,9 +13,9 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/fs/config/flags"
-	"github.com/rclone/rclone/lib/file"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/lib/file"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 )

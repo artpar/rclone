@@ -14,16 +14,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncw/swift/v2"
-	"github.com/rclone/rclone/lib/multipart"
-	"github.com/rclone/rclone/lib/pool"
+	"github.com/artpar/rclone/lib/multipart"
+	"github.com/artpar/rclone/lib/pool"
 	"golang.org/x/net/http/httpguts"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/chunksize"
+	"github.com/artpar/rclone/fs/hash"
 	"github.com/oracle/oci-go-sdk/v65/common"
 	"github.com/oracle/oci-go-sdk/v65/objectstorage"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/chunksize"
-	"github.com/rclone/rclone/fs/hash"
 )
 
 var warnStreamUpload sync.Once
