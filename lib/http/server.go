@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/lib/atexit"
 	"github.com/go-chi/chi/v5"
-	"github.com/rclone/rclone/fs/config/flags"
-	"github.com/rclone/rclone/lib/atexit"
 	"github.com/spf13/pflag"
 )
 

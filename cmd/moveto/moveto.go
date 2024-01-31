@@ -4,9 +4,9 @@ package moveto
 import (
 	"context"
 
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/fs/operations"
-	"github.com/rclone/rclone/fs/sync"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fs/sync"
 	"github.com/spf13/cobra"
 )
 

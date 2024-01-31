@@ -17,14 +17,14 @@ import (
 
 	"github.com/mitchellh/go-homedir"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/cache"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/obscure"
-	"github.com/rclone/rclone/fs/fspath"
-	"github.com/rclone/rclone/fs/rc"
-	"github.com/rclone/rclone/lib/file"
-	"github.com/rclone/rclone/lib/random"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/cache"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fs/fspath"
+	"github.com/artpar/rclone/fs/rc"
+	"github.com/artpar/rclone/lib/file"
+	"github.com/artpar/rclone/lib/random"
 )
 
 const (
@@ -70,7 +70,7 @@ const (
 // persistent storage. Rclone provides a default implementation to
 // load and save to a config file when this is imported
 //
-// import "github.com/rclone/rclone/fs/config/configfile"
+// import "github.com/artpar/rclone/fs/config/configfile"
 // configfile.Install()
 type Storage interface {
 	// GetSectionList returns a slice of strings with names for all the
@@ -163,7 +163,7 @@ func findLocalConfig() (configDir string, configFile string) {
 }
 
 // Get path to Windows AppData config subdirectory for rclone and look for existing rclone.conf there
-// ($AppData/rclone/rclone.conf)
+// ($AppData/artpar/rclone.conf)
 func findAppDataConfig() (configDir string, configFile string) {
 	if appDataDir := os.Getenv("APPDATA"); appDataDir != "" {
 		configDir = filepath.Join(appDataDir, "rclone")
@@ -186,7 +186,7 @@ func findXDGConfig() (configDir string, configFile string) {
 }
 
 // Get path to .config subdirectory for rclone and look for existing rclone.conf there
-// (~/.config/rclone/rclone.conf)
+// (~/.config/artpar/rclone.conf)
 func findDotConfigConfig(home string) (configDir string, configFile string) {
 	if home != "" {
 		configDir = filepath.Join(home, ".config", "rclone")
@@ -219,14 +219,14 @@ func makeConfigPath() string {
 	if _, configFile = findLocalConfig(); configFile != "" {
 		return configFile
 	}
-	// Windows: $AppData/rclone/rclone.conf
+	// Windows: $AppData/artpar/rclone.conf
 	// This is also the default location for new config when no existing is found
 	if runtime.GOOS == "windows" {
 		if primaryConfigDir, configFile = findAppDataConfig(); configFile != "" {
 			return configFile
 		}
 	}
-	// $XDG_CONFIG_HOME/rclone/rclone.conf
+	// $XDG_CONFIG_HOME/artpar/rclone.conf
 	// Also looking for this on Windows, for backwards compatibility reasons.
 	if configDir, configFile = findXDGConfig(); configFile != "" {
 		return configFile
@@ -235,7 +235,7 @@ func makeConfigPath() string {
 		// On Unix this is also the default location for new config when no existing is found
 		primaryConfigDir = configDir
 	}
-	// ~/.config/rclone/rclone.conf
+	// ~/.config/artpar/rclone.conf
 	// This is also the fallback location for new config
 	// (when $AppData on Windows and $XDG_CONFIG_HOME on Unix is not defined)
 	homeDir, homeDirErr := findHomeDir()

@@ -8,12 +8,12 @@ import (
 	"net/http"
 
 	"github.com/Mikubill/gofakes3"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/hash"
+	httplib "github.com/artpar/rclone/lib/http"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfsflags"
 	"github.com/go-chi/chi/v5"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/hash"
-	httplib "github.com/rclone/rclone/lib/http"
-	"github.com/rclone/rclone/vfs"
-	"github.com/rclone/rclone/vfs/vfsflags"
 )
 
 // Options contains options for the http Server

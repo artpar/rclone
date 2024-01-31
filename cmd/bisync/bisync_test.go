@@ -23,29 +23,29 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/rclone/rclone/cmd/bisync"
-	"github.com/rclone/rclone/cmd/bisync/bilib"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/cache"
-	"github.com/rclone/rclone/fs/filter"
-	"github.com/rclone/rclone/fs/fspath"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/object"
-	"github.com/rclone/rclone/fs/operations"
-	"github.com/rclone/rclone/fs/sync"
-	"github.com/rclone/rclone/fstest"
-	"github.com/rclone/rclone/lib/atexit"
-	"github.com/rclone/rclone/lib/encoder"
-	"github.com/rclone/rclone/lib/random"
-	"github.com/rclone/rclone/lib/terminal"
+	"github.com/artpar/rclone/cmd/bisync"
+	"github.com/artpar/rclone/cmd/bisync/bilib"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/cache"
+	"github.com/artpar/rclone/fs/filter"
+	"github.com/artpar/rclone/fs/fspath"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/object"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fs/sync"
+	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/lib/atexit"
+	"github.com/artpar/rclone/lib/encoder"
+	"github.com/artpar/rclone/lib/random"
+	"github.com/artpar/rclone/lib/terminal"
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	_ "github.com/rclone/rclone/backend/all" // for integration tests
+	_ "github.com/artpar/rclone/backend/all" // for integration tests
 )
 
 const (

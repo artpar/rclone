@@ -33,14 +33,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/cache"
+	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/fs/rc"
+	"github.com/artpar/rclone/fs/walk"
+	"github.com/artpar/rclone/vfs/vfscache"
+	"github.com/artpar/rclone/vfs/vfscommon"
 	"github.com/go-git/go-billy/v5"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/cache"
-	"github.com/rclone/rclone/fs/log"
-	"github.com/rclone/rclone/fs/rc"
-	"github.com/rclone/rclone/fs/walk"
-	"github.com/rclone/rclone/vfs/vfscache"
-	"github.com/rclone/rclone/vfs/vfscommon"
 )
 
 // Help for the VFS.

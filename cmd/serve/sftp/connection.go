@@ -13,12 +13,12 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/terminal"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfsflags"
 	"github.com/pkg/sftp"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/lib/terminal"
-	"github.com/rclone/rclone/vfs"
-	"github.com/rclone/rclone/vfs/vfsflags"
 	"golang.org/x/crypto/ssh"
 )
 

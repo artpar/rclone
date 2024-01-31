@@ -2,7 +2,7 @@
 package vfscommon
 
 import (
-	"github.com/rclone/rclone/fs"
+	"github.com/artpar/rclone/fs"
 )
 
 type cacheModeChoices struct{}

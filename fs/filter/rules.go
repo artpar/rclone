@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/rclone/rclone/fs"
+	"github.com/artpar/rclone/fs"
 )
 
 // RulesOpt is configuration for a rule set

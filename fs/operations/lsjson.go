@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rclone/rclone/backend/crypt"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/walk"
+	"github.com/artpar/rclone/backend/crypt"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/walk"
 )
 
 // ListJSONItem in the struct which gets marshalled for each line

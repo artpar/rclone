@@ -9,9 +9,9 @@ import (
 
 	nfs "github.com/willscott/go-nfs"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/vfs"
-	"github.com/rclone/rclone/vfs/vfscommon"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfscommon"
 )
 
 // Server contains everything to run the Server

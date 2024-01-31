@@ -14,13 +14,13 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/configstruct"
-	"github.com/rclone/rclone/fs/config/obscure"
-	"github.com/rclone/rclone/fs/driveletter"
-	"github.com/rclone/rclone/fs/fspath"
-	"github.com/rclone/rclone/lib/terminal"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fs/driveletter"
+	"github.com/artpar/rclone/fs/fspath"
+	"github.com/artpar/rclone/lib/terminal"
 	"golang.org/x/text/unicode/norm"
 )
 

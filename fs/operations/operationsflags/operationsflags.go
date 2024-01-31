@@ -3,9 +3,9 @@
 package operationsflags
 
 import (
-	"github.com/rclone/rclone/fs/config/flags"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/operations"
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/operations"
 	"github.com/spf13/pflag"
 )
 

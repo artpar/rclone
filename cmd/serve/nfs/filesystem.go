@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfscommon"
 	billy "github.com/go-git/go-billy/v5"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/vfs"
-	"github.com/rclone/rclone/vfs/vfscommon"
 )
 
 // FS is our wrapper around the VFS to properly support billy.Filesystem interface

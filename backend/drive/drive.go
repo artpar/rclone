@@ -26,25 +26,25 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/cache"
-	"github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/configstruct"
-	"github.com/rclone/rclone/fs/config/obscure"
-	"github.com/rclone/rclone/fs/filter"
-	"github.com/rclone/rclone/fs/fserrors"
-	"github.com/rclone/rclone/fs/fshttp"
-	"github.com/rclone/rclone/fs/fspath"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/operations"
-	"github.com/rclone/rclone/fs/walk"
-	"github.com/rclone/rclone/lib/dircache"
-	"github.com/rclone/rclone/lib/encoder"
-	"github.com/rclone/rclone/lib/env"
-	"github.com/rclone/rclone/lib/oauthutil"
-	"github.com/rclone/rclone/lib/pacer"
-	"github.com/rclone/rclone/lib/readers"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/cache"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fs/filter"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/fshttp"
+	"github.com/artpar/rclone/fs/fspath"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fs/walk"
+	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/encoder"
+	"github.com/artpar/rclone/lib/env"
+	"github.com/artpar/rclone/lib/oauthutil"
+	"github.com/artpar/rclone/lib/pacer"
+	"github.com/artpar/rclone/lib/readers"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	drive_v2 "google.golang.org/api/drive/v2"
@@ -580,7 +580,7 @@ HTTP/2.  HTTP/2 is therefore disabled by default for the drive backend
 but can be re-enabled here.  When the issue is solved this flag will
 be removed.
 
-See: https://github.com/rclone/rclone/issues/3631
+See: https://github.com/artpar/rclone/issues/3631
 
 `,
 			Advanced: true,
@@ -598,7 +598,7 @@ the in-progress sync.
 Note that this detection is relying on error message strings which
 Google don't document so it may break in the future.
 
-See: https://github.com/rclone/rclone/issues/3857
+See: https://github.com/artpar/rclone/issues/3857
 `,
 			Advanced: true,
 		}, {
@@ -1478,7 +1478,7 @@ func NewFs(ctx context.Context, name, path string, m configmap.Mapper) (fs.Fs, e
 		}
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
-		// See https://github.com/rclone/rclone/issues/2182
+		// See https://github.com/artpar/rclone/issues/2182
 		f.dirCache = tempF.dirCache
 		f.root = tempF.root
 		return f, fs.ErrorIsFile
@@ -2706,7 +2706,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 		return nil, err
 	}
 	// Google docs aren't preserving their mod time after copy, so set them explicitly
-	// See: https://github.com/rclone/rclone/issues/4517
+	// See: https://github.com/artpar/rclone/issues/4517
 	//
 	// FIXME remove this when google fixes the problem!
 	if isDoc {

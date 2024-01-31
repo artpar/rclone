@@ -15,12 +15,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/fserrors"
-	"github.com/rclone/rclone/fs/fshttp"
-	"github.com/rclone/rclone/lib/random"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/fshttp"
+	"github.com/artpar/rclone/lib/random"
 	"github.com/skratchdot/open-golang/open"
 	"golang.org/x/oauth2"
 )

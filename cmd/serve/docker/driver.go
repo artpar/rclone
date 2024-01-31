@@ -12,14 +12,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/artpar/rclone/cmd/mountlib"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/lib/atexit"
+	"github.com/artpar/rclone/lib/file"
+	"github.com/artpar/rclone/vfs/vfscommon"
+	"github.com/artpar/rclone/vfs/vfsflags"
 	"github.com/coreos/go-systemd/v22/daemon"
-	"github.com/rclone/rclone/cmd/mountlib"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/lib/atexit"
-	"github.com/rclone/rclone/lib/file"
-	"github.com/rclone/rclone/vfs/vfscommon"
-	"github.com/rclone/rclone/vfs/vfsflags"
 )
 
 // Driver implements docker driver api

@@ -13,15 +13,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/pacer"
 	"github.com/colinmarc/hdfs/v2"
 	krb "github.com/jcmturner/gokrb5/v8/client"
 	"github.com/jcmturner/gokrb5/v8/config"
 	"github.com/jcmturner/gokrb5/v8/credentials"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/configstruct"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/lib/pacer"
 )
 
 // Fs represents a HDFS server

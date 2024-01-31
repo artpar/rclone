@@ -11,9 +11,9 @@ import (
 	"sync"
 
 	"github.com/Mikubill/gofakes3"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/vfs"
 	"github.com/ncw/swift/v2"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/vfs"
 )
 
 var (

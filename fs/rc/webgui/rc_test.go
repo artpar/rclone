@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rclone/rclone/fs/rc"
-	"github.com/rclone/rclone/fs/rc/rcflags"
+	"github.com/artpar/rclone/fs/rc"
+	"github.com/artpar/rclone/fs/rc/rcflags"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

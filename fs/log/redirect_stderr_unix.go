@@ -9,7 +9,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/rclone/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config"
 	"golang.org/x/sys/unix"
 )
 

@@ -10,10 +10,10 @@ import (
 	"path"
 	"time"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/readers"
 	"github.com/colinmarc/hdfs/v2"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/lib/readers"
 )
 
 // Object describes an HDFS file

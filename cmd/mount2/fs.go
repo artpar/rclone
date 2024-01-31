@@ -9,12 +9,12 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/artpar/rclone/cmd/mountlib"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/vfs"
 	"github.com/hanwen/go-fuse/v2/fuse"
-	"github.com/rclone/rclone/cmd/mountlib"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/fserrors"
-	"github.com/rclone/rclone/fs/log"
-	"github.com/rclone/rclone/vfs"
 )
 
 // FS represents the top level filing system
