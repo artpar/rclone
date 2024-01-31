@@ -30,15 +30,12 @@ import (
 	"github.com/artpar/rclone/fs/config/flags"
 	"github.com/artpar/rclone/fs/filter"
 	"github.com/artpar/rclone/fs/filter/filterflags"
-	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/artpar/rclone/fs/fspath"
 	fslog "github.com/artpar/rclone/fs/log"
 	"github.com/artpar/rclone/fs/rc/rcflags"
 	"github.com/artpar/rclone/fs/rc/rcserver"
-	fssync "github.com/artpar/rclone/fs/sync"
 	"github.com/artpar/rclone/lib/atexit"
 	"github.com/artpar/rclone/lib/buildinfo"
-	"github.com/artpar/rclone/lib/exitcode"
 	"github.com/artpar/rclone/lib/terminal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -481,37 +478,37 @@ func initConfig() {
 }
 
 func resolveExitCode(err error) {
-	ci := fs.GetConfig(context.Background())
+	//ci := fs.GetConfig(context.Background())
 	atexit.Run()
-	if err == nil {
-		if ci.ErrorOnNoTransfer {
-			if accounting.GlobalStats().GetTransfers() == 0 {
-				os.Exit(exitcode.NoFilesTransferred)
-			}
-		}
-		os.Exit(exitcode.Success)
-	}
+	//if err == nil {
+	//	if ci.ErrorOnNoTransfer {
+	//		if accounting.GlobalStats().GetTransfers() == 0 {
+	//			os.Exit(exitcode.NoFilesTransferred)
+	//		}
+	//	}
+	//	os.Exit(exitcode.Success)
+	//}
 
-	switch {
-	case errors.Is(err, fs.ErrorDirNotFound):
-		os.Exit(exitcode.DirNotFound)
-	case errors.Is(err, fs.ErrorObjectNotFound):
-		os.Exit(exitcode.FileNotFound)
-	case errors.Is(err, errorUncategorized):
-		os.Exit(exitcode.UncategorizedError)
-	case errors.Is(err, accounting.ErrorMaxTransferLimitReached):
-		os.Exit(exitcode.TransferExceeded)
-	case errors.Is(err, fssync.ErrorMaxDurationReached):
-		os.Exit(exitcode.DurationExceeded)
-	case fserrors.ShouldRetry(err):
-		os.Exit(exitcode.RetryError)
-	case fserrors.IsNoRetryError(err), fserrors.IsNoLowLevelRetryError(err):
-		os.Exit(exitcode.NoRetryError)
-	case fserrors.IsFatalError(err):
-		os.Exit(exitcode.FatalError)
-	default:
-		os.Exit(exitcode.UsageError)
-	}
+	//switch {
+	//case errors.Is(err, fs.ErrorDirNotFound):
+	//	os.Exit(exitcode.DirNotFound)
+	//case errors.Is(err, fs.ErrorObjectNotFound):
+	//	os.Exit(exitcode.FileNotFound)
+	//case errors.Is(err, errorUncategorized):
+	//	os.Exit(exitcode.UncategorizedError)
+	//case errors.Is(err, accounting.ErrorMaxTransferLimitReached):
+	//	os.Exit(exitcode.TransferExceeded)
+	//case errors.Is(err, fssync.ErrorMaxDurationReached):
+	//	os.Exit(exitcode.DurationExceeded)
+	//case fserrors.ShouldRetry(err):
+	//	os.Exit(exitcode.RetryError)
+	//case fserrors.IsNoRetryError(err), fserrors.IsNoLowLevelRetryError(err):
+	//	os.Exit(exitcode.NoRetryError)
+	//case fserrors.IsFatalError(err):
+	//	os.Exit(exitcode.FatalError)
+	//default:
+	//	os.Exit(exitcode.UsageError)
+	//}
 }
 
 var backendFlags map[string]struct{}
