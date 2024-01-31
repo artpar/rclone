@@ -40,7 +40,7 @@ If output_file is "-", then the output will be written to stdout.
 			if args[0] == "-" {
 				err := cmd.Root.GenBashCompletion(os.Stdout)
 				if err != nil {
-					log.Fatal(err)
+					log.Println(err)
 				}
 				return
 			}
@@ -48,7 +48,7 @@ If output_file is "-", then the output will be written to stdout.
 		}
 		err := cmd.Root.GenBashCompletionFile(out)
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
 	},
 }

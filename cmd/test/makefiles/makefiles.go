@@ -148,7 +148,7 @@ func commonInit() {
 	}
 	randSource = rand.New(rand.NewSource(seed))
 	if bool2int(zero)+bool2int(sparse)+bool2int(ascii)+bool2int(pattern)+bool2int(chargen) > 1 {
-		log.Fatal("Can only supply one of --zero, --sparse, --ascii, --pattern or --chargen")
+		log.Println("Can only supply one of --zero, --sparse, --ascii, --pattern or --chargen")
 	}
 	switch {
 	case zero, sparse:
