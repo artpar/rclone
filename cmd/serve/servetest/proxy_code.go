@@ -19,7 +19,7 @@ func main() {
 	var in map[string]string
 	err := json.NewDecoder(os.Stdin).Decode(&in)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	// Write the output
@@ -30,6 +30,6 @@ func main() {
 	}
 	json.NewEncoder(os.Stdout).Encode(&out)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 }

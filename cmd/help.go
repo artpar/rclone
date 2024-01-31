@@ -267,7 +267,7 @@ func quoteString(v interface{}) string {
 func showBackend(name string) {
 	backend, err := fs.Find(name)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	var standardOptions, advancedOptions fs.Options
 	done := map[string]struct{}{}

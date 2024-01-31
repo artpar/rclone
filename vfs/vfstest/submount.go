@@ -59,7 +59,7 @@ func (r *Run) startMountSubProcess() {
 
 	opts, err := json.Marshal(&opt)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	// Re-run this executable with a new option -run-mount
@@ -68,15 +68,15 @@ func (r *Run) startMountSubProcess() {
 	r.cmd.Stderr = os.Stderr
 	r.out, err = r.cmd.StdinPipe()
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	r.in, err = r.cmd.StdoutPipe()
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	err = r.cmd.Start()
 	if err != nil {
-		log.Fatal("startMountSubProcess failed", err)
+		log.Println("startMountSubProcess failed", err)
 	}
 	r.scanner = bufio.NewScanner(r.in)
 

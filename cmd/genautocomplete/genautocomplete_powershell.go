@@ -32,13 +32,13 @@ If output_file is "-" or missing, then the output will be written to stdout.
 		if len(args) == 0 || (len(args) > 0 && args[0] == "-") {
 			err := cmd.Root.GenPowerShellCompletion(os.Stdout)
 			if err != nil {
-				log.Fatal(err)
+				log.Println(err)
 			}
 			return
 		}
 		err := cmd.Root.GenPowerShellCompletionFile(args[0])
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
 	},
 }

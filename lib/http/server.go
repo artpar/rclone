@@ -77,7 +77,7 @@ certificate authority certificate.
 `
 	tmpl, err := template.New("server help").Parse(help)
 	if err != nil {
-		log.Fatal("Fatal error parsing template", err)
+		log.Println("Fatal error parsing template", err)
 	}
 
 	data := struct {
@@ -88,7 +88,7 @@ certificate authority certificate.
 	buf := &bytes.Buffer{}
 	err = tmpl.Execute(buf, data)
 	if err != nil {
-		log.Fatal("Fatal error executing template", err)
+		log.Println("Fatal error executing template", err)
 	}
 	return buf.String()
 }

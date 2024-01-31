@@ -196,7 +196,7 @@ var openTests = []openTest{
 `)
 	f, err := os.CreateTemp("", "open-test")
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	fileName := f.Name()
 	_ = f.Close()

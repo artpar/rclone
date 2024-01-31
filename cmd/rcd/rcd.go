@@ -52,7 +52,7 @@ See the [rc documentation](/rc/) for more info on the rc flags.
 			log.Fatalf("Failed to start remote control: %v", err)
 		}
 		if s == nil {
-			log.Fatal("rc server not configured")
+			log.Println("rc server not configured")
 		}
 
 		// Notify stopping on exit

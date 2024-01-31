@@ -69,7 +69,7 @@ func main() {
 	conf, err := NewConfig(*configFile)
 	if err != nil {
 		log.Println("test_all should be run from the root of the rclone source code")
-		log.Fatal(err)
+		log.Println(err)
 	}
 	configfile.Install()
 

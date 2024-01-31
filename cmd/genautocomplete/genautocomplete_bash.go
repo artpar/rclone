@@ -51,7 +51,7 @@ current shell.
 			if args[0] == "-" {
 				err := cmd.Root.GenBashCompletionV2(os.Stdout, false)
 				if err != nil {
-					log.Fatal(err)
+					log.Println(err)
 				}
 				return
 			}
@@ -59,7 +59,7 @@ current shell.
 		}
 		err := cmd.Root.GenBashCompletionFileV2(out, false)
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
 	},
 }

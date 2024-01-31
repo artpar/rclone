@@ -91,7 +91,7 @@ control the stats printing.
 		cmd.Run(false, true, command, func() error {
 			s, err := run(context.Background(), f, Opt)
 			if err != nil {
-				log.Fatal(err)
+				log.Println(err)
 			}
 
 			defer systemd.Notify()()
