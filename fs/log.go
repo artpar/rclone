@@ -134,7 +134,7 @@ func LogPrintf(level LogLevel, o interface{}, text string, args ...interface{}) 
 		case LogLevelCritical:
 			logrus.WithFields(fields).Error(out)
 		case LogLevelEmergency, LogLevelAlert:
-			logrus.WithFields(fields).Panic(out)
+			logrus.WithFields(fields).Error(out)
 		}
 	} else {
 		if o != nil {
