@@ -731,7 +731,7 @@ func (s *StatsInfo) Error(err error) error {
 	fserrors.Count(err)
 	switch {
 	case fserrors.IsFatalError(err):
-		s.fatalError = true
+		s.fatalError = false
 	case fserrors.IsRetryAfterError(err):
 		retryAfter := fserrors.RetryAfterErrorTime(err)
 		if s.retryAfter.IsZero() || retryAfter.Sub(s.retryAfter) > 0 {
