@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/artpar/artpar/cmd/bisync/bilib"
-	"github.com/artpar/artpar/fs"
+	"github.com/artpar/rclone/cmd/bisync/bilib"
+	"github.com/artpar/rclone/fs"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"
 )

@@ -8,8 +8,8 @@ import (
 	"net"
 	"strings"
 
-	"github.com/artpar/artpar/fs"
-	"github.com/artpar/artpar/vfs"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/vfs"
 	"github.com/go-git/go-billy/v5"
 	"github.com/willscott/go-nfs"
 	nfshelper "github.com/willscott/go-nfs/helpers"

@@ -60,7 +60,7 @@ the backend supports it. If metadata syncing is required then use the
 |--metadata| flag.
 
 Note that the modification time and metadata for the root directory
-will **not** be synced. See https://github.com/artpar/artpar/issues/7652
+will **not** be synced. See https://github.com/artpar/rclone/issues/7652
 for more info.
 
 **Important**: Since this can cause data loss, test first with the

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	_ "github.com/artpar/artpar/backend/local"
-	"github.com/artpar/artpar/fs/operations"
-	"github.com/artpar/artpar/fstest"
-	"github.com/artpar/artpar/fstest/fstests"
+	_ "github.com/artpar/rclone/backend/local"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/fstest/fstests"
 	"github.com/stretchr/testify/require"
 )
 

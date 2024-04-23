@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/artpar/artpar/fs"
+	"github.com/artpar/rclone/fs"
 	"golang.org/x/sys/windows"
 )
 

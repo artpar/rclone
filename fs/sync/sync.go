@@ -11,14 +11,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/artpar/fs"
-	"github.com/artpar/artpar/fs/accounting"
-	"github.com/artpar/artpar/fs/filter"
-	"github.com/artpar/artpar/fs/fserrors"
-	"github.com/artpar/artpar/fs/hash"
-	"github.com/artpar/artpar/fs/march"
-	"github.com/artpar/artpar/fs/operations"
-	"github.com/artpar/artpar/lib/errcount"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/filter"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/march"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/lib/errcount"
 	"golang.org/x/sync/errgroup"
 )
 

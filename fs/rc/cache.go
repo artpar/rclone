@@ -7,11 +7,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/artpar/artpar/fs"
-	"github.com/artpar/artpar/fs/cache"
-	"github.com/artpar/artpar/fs/config/configmap"
-	"github.com/artpar/artpar/fs/filter"
-	"github.com/artpar/artpar/fs/fspath"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/cache"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/filter"
+	"github.com/artpar/rclone/fs/fspath"
 )
 
 // getFsName gets an fs name from fsName either from the cache or direct

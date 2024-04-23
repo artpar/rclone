@@ -23,20 +23,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artpar/artpar/fs"
-	"github.com/artpar/artpar/fs/cache"
-	"github.com/artpar/artpar/fs/config"
-	"github.com/artpar/artpar/fs/fserrors"
-	"github.com/artpar/artpar/fs/fspath"
-	"github.com/artpar/artpar/fs/hash"
-	"github.com/artpar/artpar/fs/object"
-	"github.com/artpar/artpar/fs/operations"
-	"github.com/artpar/artpar/fs/walk"
-	"github.com/artpar/artpar/fstest"
-	"github.com/artpar/artpar/fstest/testserver"
-	"github.com/artpar/artpar/lib/encoder"
-	"github.com/artpar/artpar/lib/random"
-	"github.com/artpar/artpar/lib/readers"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/cache"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/fspath"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/object"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fs/walk"
+	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/fstest/testserver"
+	"github.com/artpar/rclone/lib/encoder"
+	"github.com/artpar/rclone/lib/random"
+	"github.com/artpar/rclone/lib/readers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1939,7 +1939,7 @@ func Run(t *testing.T, opt *Opt) {
 							return
 						}
 						// For OneDrive Personal, link expiry is a premium feature
-						// Don't let it fail the test (https://github.com/artpar/artpar/issues/5420)
+						// Don't let it fail the test (https://github.com/artpar/rclone/issues/5420)
 						if fsInfo.Name == "onedrive" && strings.Contains(err.Error(), "accountUpgradeRequired") {
 							t.Log("treating accountUpgradeRequired as success for PublicLink")
 							link, err = "bogus link to "+remote, nil
@@ -2397,7 +2397,7 @@ func Run(t *testing.T, opt *Opt) {
 		// an object in that folder, whose name is taken from a directory that
 		// exists in the absolute root.
 		// This test is added after
-		// https://github.com/artpar/artpar/issues/3164.
+		// https://github.com/artpar/rclone/issues/3164.
 		t.Run("FsRootCollapse", func(t *testing.T) {
 			deepRemoteName := subRemoteName + "/deeper/nonexisting/directory"
 			deepRemote, err := fs.NewFs(context.Background(), deepRemoteName)

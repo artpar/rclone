@@ -11,13 +11,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/artpar/artpar/fs"
-	"github.com/artpar/artpar/fs/dirtree"
-	"github.com/artpar/artpar/fs/list"
-	"github.com/artpar/artpar/fs/log"
-	"github.com/artpar/artpar/fs/operations"
-	"github.com/artpar/artpar/fs/walk"
-	"github.com/artpar/artpar/vfs/vfscommon"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/dirtree"
+	"github.com/artpar/rclone/fs/list"
+	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fs/walk"
+	"github.com/artpar/rclone/vfs/vfscommon"
 	"golang.org/x/text/unicode/norm"
 )
 

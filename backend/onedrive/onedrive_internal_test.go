@@ -7,20 +7,20 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/artpar/artpar/backend/local"
-	"github.com/artpar/artpar/backend/onedrive/api"
-	"github.com/artpar/artpar/fs"
-	"github.com/artpar/artpar/fs/operations"
-	"github.com/artpar/artpar/fstest"
-	"github.com/artpar/artpar/fstest/fstests"
-	"github.com/artpar/artpar/lib/random"
+	_ "github.com/artpar/rclone/backend/local"
+	"github.com/artpar/rclone/backend/onedrive/api"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/fstest/fstests"
+	"github.com/artpar/rclone/lib/random"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices" // replace with slices after go1.21 is the minimum version
 )
 
-// go test -timeout 30m -run ^TestIntegration/FsMkdir/FsPutFiles/Internal$ github.com/artpar/artpar/backend/onedrive -remote TestOneDrive:meta -v
-// go test -timeout 30m -run ^TestIntegration/FsMkdir/FsPutFiles/Internal$ github.com/artpar/artpar/backend/onedrive -remote TestOneDriveBusiness:meta -v
+// go test -timeout 30m -run ^TestIntegration/FsMkdir/FsPutFiles/Internal$ github.com/artpar/rclone/backend/onedrive -remote TestOneDrive:meta -v
+// go test -timeout 30m -run ^TestIntegration/FsMkdir/FsPutFiles/Internal$ github.com/artpar/rclone/backend/onedrive -remote TestOneDriveBusiness:meta -v
 // go run ./fstest/test_all -remotes TestOneDriveBusiness:meta,TestOneDrive:meta -verbose -maxtries 1
 
 var (

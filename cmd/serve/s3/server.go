@@ -7,11 +7,11 @@ import (
 	"math/rand"
 	"net/http"
 
-	"github.com/artpar/artpar/fs"
-	"github.com/artpar/artpar/fs/hash"
-	httplib "github.com/artpar/artpar/lib/http"
-	"github.com/artpar/artpar/vfs"
-	"github.com/artpar/artpar/vfs/vfsflags"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/hash"
+	httplib "github.com/artpar/rclone/lib/http"
+	"github.com/artpar/rclone/vfs"
+	"github.com/artpar/rclone/vfs/vfsflags"
 	"github.com/go-chi/chi/v5"
 	"github.com/rclone/gofakes3"
 )

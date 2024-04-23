@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artpar/artpar/backend/ulozto/api"
-	"github.com/artpar/artpar/fs"
-	"github.com/artpar/artpar/fs/hash"
-	"github.com/artpar/artpar/fs/operations"
-	"github.com/artpar/artpar/fstest"
+	"github.com/artpar/rclone/backend/ulozto/api"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fstest"
 	"github.com/stretchr/testify/require"
 
-	"github.com/artpar/artpar/fstest/fstests"
+	"github.com/artpar/rclone/fstest/fstests"
 )
 
 // TestIntegration runs integration tests against the remote

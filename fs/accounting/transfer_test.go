@@ -6,9 +6,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/artpar/artpar/fs/rc"
-	"github.com/artpar/artpar/fstest/mockfs"
-	"github.com/artpar/artpar/fstest/mockobject"
+	"github.com/artpar/rclone/fs/rc"
+	"github.com/artpar/rclone/fstest/mockfs"
+	"github.com/artpar/rclone/fstest/mockobject"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

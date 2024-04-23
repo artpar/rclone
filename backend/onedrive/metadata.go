@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/artpar/backend/onedrive/api"
-	"github.com/artpar/artpar/fs"
-	"github.com/artpar/artpar/lib/dircache"
-	"github.com/artpar/artpar/lib/errcount"
+	"github.com/artpar/rclone/backend/onedrive/api"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/errcount"
 	"golang.org/x/exp/slices" // replace with slices after go1.21 is the minimum version
 )
 

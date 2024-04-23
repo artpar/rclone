@@ -20,26 +20,26 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/artpar/backend/onedrive/api"
-	"github.com/artpar/artpar/backend/onedrive/quickxorhash"
-	"github.com/artpar/artpar/fs"
-	"github.com/artpar/artpar/fs/config"
-	"github.com/artpar/artpar/fs/config/configmap"
-	"github.com/artpar/artpar/fs/config/configstruct"
-	"github.com/artpar/artpar/fs/config/obscure"
-	"github.com/artpar/artpar/fs/fserrors"
-	"github.com/artpar/artpar/fs/fshttp"
-	"github.com/artpar/artpar/fs/hash"
-	"github.com/artpar/artpar/fs/log"
-	"github.com/artpar/artpar/fs/operations"
-	"github.com/artpar/artpar/fs/walk"
-	"github.com/artpar/artpar/lib/atexit"
-	"github.com/artpar/artpar/lib/dircache"
-	"github.com/artpar/artpar/lib/encoder"
-	"github.com/artpar/artpar/lib/oauthutil"
-	"github.com/artpar/artpar/lib/pacer"
-	"github.com/artpar/artpar/lib/readers"
-	"github.com/artpar/artpar/lib/rest"
+	"github.com/artpar/rclone/backend/onedrive/api"
+	"github.com/artpar/rclone/backend/onedrive/quickxorhash"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/config/obscure"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/fshttp"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/fs/log"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fs/walk"
+	"github.com/artpar/rclone/lib/atexit"
+	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/encoder"
+	"github.com/artpar/rclone/lib/oauthutil"
+	"github.com/artpar/rclone/lib/pacer"
+	"github.com/artpar/rclone/lib/readers"
+	"github.com/artpar/rclone/lib/rest"
 	"golang.org/x/oauth2"
 )
 
@@ -1032,7 +1032,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	}
 
 	// Disable change polling in China region
-	// See: https://github.com/artpar/artpar/issues/6444
+	// See: https://github.com/artpar/rclone/issues/6444
 	if f.opt.Region == regionCN {
 		f.features.ChangeNotify = nil
 	}
@@ -1087,7 +1087,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		}
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
-		// See https://github.com/artpar/artpar/issues/2182
+		// See https://github.com/artpar/rclone/issues/2182
 		f.dirCache = tempF.dirCache
 		f.root = tempF.root
 		// return an error with an fs which points to the parent

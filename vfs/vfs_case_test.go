@@ -5,9 +5,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/artpar/artpar/fs"
-	"github.com/artpar/artpar/fstest"
-	"github.com/artpar/artpar/vfs/vfscommon"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/vfs/vfscommon"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/unicode/norm"

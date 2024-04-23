@@ -9,9 +9,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/artpar/artpar/fs"
-	"github.com/artpar/artpar/fs/hash"
-	"github.com/artpar/artpar/vfs"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/vfs"
 	"github.com/rclone/gofakes3"
 )
 
