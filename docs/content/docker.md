@@ -462,8 +462,8 @@ sudo apt-get -y install fuse
 ```
 
 Download two systemd configuration files:
-[docker-volume-rclone.service](https://raw.githubusercontent.com/rclone/rclone/master/contrib/docker-plugin/systemd/docker-volume-rclone.service)
-and [docker-volume-rclone.socket](https://raw.githubusercontent.com/rclone/rclone/master/contrib/docker-plugin/systemd/docker-volume-rclone.socket).
+[docker-volume-rclone.service](https://raw.githubusercontent.com/artpar/artpar/master/contrib/docker-plugin/systemd/docker-volume-rclone.service)
+and [docker-volume-rclone.socket](https://raw.githubusercontent.com/artpar/artpar/master/contrib/docker-plugin/systemd/docker-volume-rclone.socket).
 
 Put them to the `/etc/systemd/system/` directory:
 ```

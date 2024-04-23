@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/cache"
-	"github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/fs/fspath"
+	"github.com/artpar/artpar/fs"
+	"github.com/artpar/artpar/fs/cache"
+	"github.com/artpar/artpar/fs/config"
+	"github.com/artpar/artpar/fs/fspath"
 	"github.com/spf13/cobra"
 )
 

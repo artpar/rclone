@@ -144,7 +144,7 @@ Supply the app ID and password as Client ID and Secret, respectively. rclone wil
 The access_scopes option allows you to configure the permissions requested by rclone.
 See [Microsoft Docs](https://docs.microsoft.com/en-us/graph/permissions-reference#files-permissions) for more information about the different scopes.
 
-The `Sites.Read.All` permission is required if you need to [search SharePoint sites when configuring the remote](https://github.com/rclone/rclone/pull/5883). However, if that permission is not assigned, you need to exclude `Sites.Read.All` from your access scopes or set `disable_site_permission` option to true in the advanced options.
+The `Sites.Read.All` permission is required if you need to [search SharePoint sites when configuring the remote](https://github.com/artpar/artpar/pull/5883). However, if that permission is not assigned, you need to exclude `Sites.Read.All` from your access scopes or set `disable_site_permission` option to true in the advanced options.
 
 #### Creating Client ID for OneDrive Business
 
@@ -159,7 +159,7 @@ You may try to [verify you account](https://docs.microsoft.com/en-us/azure/activ
 4. In the rclone config, set `auth_url` to `https://login.microsoftonline.com/YOUR_TENANT_ID/oauth2/v2.0/authorize`.
 5. In the rclone config, set `token_url` to `https://login.microsoftonline.com/YOUR_TENANT_ID/oauth2/v2.0/token`.
 
-Note: If you have a special region, you may need a different host in step 4 and 5. Here are [some hints](https://github.com/rclone/rclone/blob/bc23bf11db1c78c6ebbf8ea538fbebf7058b4176/backend/onedrive/onedrive.go#L86).
+Note: If you have a special region, you may need a different host in step 4 and 5. Here are [some hints](https://github.com/artpar/artpar/blob/bc23bf11db1c78c6ebbf8ea538fbebf7058b4176/backend/onedrive/onedrive.go#L86).
 
 
 ### Modification times and hashes
@@ -912,7 +912,7 @@ The entire path, including the file name, must contain fewer than 400 characters
 OneDrive seems to be OK with at least 50,000 files in a folder, but at
 100,000 rclone will get errors listing the directory like `couldn’t
 list files: UnknownError:`.  See
-[#2707](https://github.com/rclone/rclone/issues/2707) for more info.
+[#2707](https://github.com/artpar/artpar/issues/2707) for more info.
 
 An official document about the limitations for different types of OneDrive can be found [here](https://support.office.com/en-us/article/invalid-file-names-and-file-types-in-onedrive-onedrive-for-business-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa).
 
@@ -1066,7 +1066,7 @@ permissions as an admin, take a look at the docs:
 
 ### Can not access `Shared` with me files
 
-Shared with me files is not supported by rclone [currently](https://github.com/rclone/rclone/issues/4062), but there is a workaround:
+Shared with me files is not supported by rclone [currently](https://github.com/artpar/artpar/issues/4062), but there is a workaround:
 
 1. Visit [https://onedrive.live.com](https://onedrive.live.com/)
 2. Right click a item in `Shared`, then click `Add shortcut to My files` in the context

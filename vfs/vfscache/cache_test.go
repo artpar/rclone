@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/rclone/rclone/backend/local" // import the local backend
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/fstest"
-	"github.com/rclone/rclone/lib/diskusage"
-	"github.com/rclone/rclone/vfs/vfscommon"
+	_ "github.com/artpar/rclone/backend/local" // import the local backend
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/lib/diskusage"
+	"github.com/artpar/rclone/vfs/vfscommon"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

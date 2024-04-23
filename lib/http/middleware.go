@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	goauth "github.com/abbot/go-http-auth"
-	"github.com/rclone/rclone/fs"
+	"github.com/artpar/rclone/fs"
 )
 
 // parseAuthorization parses the Authorization header into user, pass

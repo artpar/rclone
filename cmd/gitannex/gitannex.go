@@ -16,7 +16,7 @@
 // [git-annex]: https://git-annex.branchable.com/
 // [external special remote protocol]: https://git-annex.branchable.com/design/external_special_remote_protocol/
 // [simple export interface]: https://git-annex.branchable.com/design/external_special_remote_protocol/export_and_import_appendix/
-// [issue #7625]: https://github.com/rclone/rclone/issues/7625
+// [issue #7625]: https://github.com/artpar/artpar/issues/7625
 package gitannex
 
 import (
@@ -30,10 +30,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/cache"
-	"github.com/rclone/rclone/fs/operations"
+	"github.com/artpar/artpar/cmd"
+	"github.com/artpar/artpar/fs"
+	"github.com/artpar/artpar/fs/cache"
+	"github.com/artpar/artpar/fs/operations"
 	"github.com/spf13/cobra"
 )
 

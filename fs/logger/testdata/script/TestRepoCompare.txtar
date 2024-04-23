@@ -4,8 +4,8 @@
 # (has lots of files with same name but different content)
 
 # Filling src and dst with two different versions of rclone source!:
-exec rclone copyurl https://github.com/rclone/rclone/archive/refs/tags/v1.49.1.zip $SRC/src.zip
-exec rclone copyurl https://github.com/rclone/rclone/archive/refs/tags/v1.54.1.zip $DST/dst.zip
+exec rclone copyurl https://github.com/artpar/artpar/archive/refs/tags/v1.49.1.zip $SRC/src.zip
+exec rclone copyurl https://github.com/artpar/artpar/archive/refs/tags/v1.54.1.zip $DST/dst.zip
 exec unzip $SRC/src.zip -d $SRC
 exec unzip $DST/dst.zip -d $DST
 

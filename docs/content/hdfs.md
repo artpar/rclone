@@ -101,7 +101,7 @@ or use the docker image from the tests:
 If you want to build the docker image
 
 ```
-git clone https://github.com/rclone/rclone.git
+git clone https://github.com/artpar/artpar.git
 cd rclone/fstest/testserver/images/test-hdfs
 docker build --rm -t rclone/test-hdfs .
 ```

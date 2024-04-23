@@ -19,7 +19,7 @@ with a public key compiled into the rclone binary.
 You may obtain the release signing key from:
 
 - From [KEYS](/KEYS) on this website - this file contains all past signing keys also.
-- The git repository hosted on GitHub - https://github.com/rclone/rclone/blob/master/docs/content/KEYS
+- The git repository hosted on GitHub - https://github.com/artpar/artpar/blob/master/docs/content/KEYS
 - `gpg --keyserver hkps://keys.openpgp.org --search nick@craig-wood.com`
 - `gpg --keyserver hkps://keyserver.ubuntu.com --search nick@craig-wood.com`
 - https://www.craig-wood.com/nick/pub/pgp-key.txt
@@ -32,7 +32,7 @@ the domains listed below. By cross-checking the integrity of the
 fingerprint across multiple domains you can be confident that you
 obtained the correct key.
 
-- The [source for this page on GitHub](https://github.com/rclone/rclone/blob/master/docs/content/release_signing.md).
+- The [source for this page on GitHub](https://github.com/artpar/artpar/blob/master/docs/content/release_signing.md).
 - Through DNS `dig key.rclone.org txt`
 
 If you find anything that doesn't not match, please contact the

@@ -14,8 +14,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/lib/atexit"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/lib/atexit"
 	qs "github.com/yunify/qingstor-sdk-go/v3/service"
 )
 

@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/rclone/rclone/vfs/vfscommon"
+	"github.com/artpar/rclone/vfs/vfscommon"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 )

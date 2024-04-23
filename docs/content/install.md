@@ -71,7 +71,7 @@ Run `rclone config` to setup. See [rclone config docs](/docs/) for more details.
     brew install rclone
 
 NOTE: This version of rclone will not support `mount` any more (see
-[#5373](https://github.com/rclone/rclone/issues/5373)). If mounting is wanted
+[#5373](https://github.com/artpar/artpar/issues/5373)). If mounting is wanted
 on macOS, either install a precompiled binary or enable the relevant option
 when [installing from source](#source).
 
@@ -223,7 +223,7 @@ package is here.
 
 ## Docker installation {#docker}
 
-The rclone developers maintain a [docker image for rclone](https://hub.docker.com/r/rclone/rclone).
+The rclone developers maintain a [docker image for rclone](https://hub.docker.com/r/artpar/artpar).
 
 These images are built as part of the release process based on a
 minimal Alpine Linux.
@@ -233,11 +233,11 @@ can use the `:beta` tag to get the latest build from master.  You can
 also use version tags, e.g. `:1.49.1`, `:1.49` or `:1`.
 
 ```
-$ docker pull rclone/rclone:latest
-latest: Pulling from rclone/rclone
+$ docker pull artpar/artpar:latest
+latest: Pulling from artpar/artpar
 Digest: sha256:0e0ced72671989bb837fea8e88578b3fc48371aa45d209663683e24cfdaa0e11
 ...
-$ docker run --rm rclone/rclone:latest version
+$ docker run --rm artpar/artpar:latest version
 rclone v1.49.1
 - os/arch: linux/amd64
 - go version: go1.12.9
@@ -276,21 +276,21 @@ from the rclone image.
 Here are some commands tested on an Ubuntu 18.04.3 host:
 
 ```
-# config on host at ~/.config/rclone/rclone.conf
+# config on host at ~/.config/artpar/artpar.conf
 # data on host at ~/data
 
 # add a remote interactively
 docker run --rm -it \
     --volume ~/.config/rclone:/config/rclone \
     --user $(id -u):$(id -g) \
-    rclone/rclone \
+    artpar/artpar \
     config
 
 # make sure the config is ok by listing the remotes
 docker run --rm \
     --volume ~/.config/rclone:/config/rclone \
     --user $(id -u):$(id -g) \
-    rclone/rclone \
+    artpar/artpar \
     listremotes
 
 # perform mount inside Docker container, expose result to host
@@ -301,7 +301,7 @@ docker run --rm \
     --user $(id -u):$(id -g) \
     --volume /etc/passwd:/etc/passwd:ro --volume /etc/group:/etc/group:ro \
     --device /dev/fuse --cap-add SYS_ADMIN --security-opt apparmor:unconfined \
-    rclone/rclone \
+    artpar/artpar \
     mount dropbox:Photos /data/mount &
 ls ~/data/mount
 kill %1
@@ -338,7 +338,7 @@ You can get it from your package manager, or download it from
 [golang.org/dl](https://golang.org/dl/). Then you can run the following:
 
 ```
-git clone https://github.com/rclone/rclone.git
+git clone https://github.com/artpar/artpar.git
 cd rclone
 go build
 ```
@@ -389,7 +389,7 @@ This can be done from the build command, by adding to the `-ldflags`
 argument value as shown below.
 
 ```
-go build -trimpath -ldflags "-s -X github.com/rclone/rclone/fs.Version=v9.9.9-test" -tags cmount
+go build -trimpath -ldflags "-s -X github.com/artpar/artpar/fs.Version=v9.9.9-test" -tags cmount
 ```
 
 On Windows, the official executables also have the version information,
@@ -434,8 +434,8 @@ make GOTAGS=cmount
 There are other make targets that can be used for more advanced builds,
 such as cross-compiling for all supported os/architectures, and packaging
 results into release artifacts.
-See [Makefile](https://github.com/rclone/rclone/blob/master/Makefile)
-and [cross-compile.go](https://github.com/rclone/rclone/blob/master/bin/cross-compile.go)
+See [Makefile](https://github.com/artpar/artpar/blob/master/Makefile)
+and [cross-compile.go](https://github.com/artpar/artpar/blob/master/bin/cross-compile.go)
 for details.
 
 Another alternative method for source installation is to download the source,
@@ -445,7 +445,7 @@ executable will be in your GOPATH bin folder (`$(go env GOPATH)/bin`,
 which corresponds to `~/go/bin/rclone` by default).
 
 ```
-go install github.com/rclone/rclone@latest
+go install github.com/artpar/artpar@latest
 ```
 
 ## Ansible installation {#ansible}
@@ -592,7 +592,7 @@ into its own launcher service, as kind of "child services". This has the additio
 advantage that it also implements a network provider that integrates into
 Windows standard methods for managing network drives. This is currently not
 officially supported by Rclone, but with WinFsp version 2019.3 B2 / v1.5B2 or later
-it should be possible through path rewriting as described [here](https://github.com/rclone/rclone/issues/3340).
+it should be possible through path rewriting as described [here](https://github.com/artpar/artpar/issues/3340).
 
 ##### Third-party service integration
 

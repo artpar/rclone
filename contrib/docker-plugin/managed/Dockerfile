@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=rclone/rclone:latest
+ARG BASE_IMAGE=artpar/artpar:latest
 FROM ${BASE_IMAGE} as binaries
 
 # build plugin image

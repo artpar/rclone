@@ -17,17 +17,17 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/configstruct"
-	"github.com/rclone/rclone/fs/filter"
-	"github.com/rclone/rclone/fs/fserrors"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/lib/encoder"
-	"github.com/rclone/rclone/lib/file"
-	"github.com/rclone/rclone/lib/readers"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/accounting"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/configstruct"
+	"github.com/artpar/rclone/fs/filter"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/fs/hash"
+	"github.com/artpar/rclone/lib/encoder"
+	"github.com/artpar/rclone/lib/file"
+	"github.com/artpar/rclone/lib/readers"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -151,7 +151,7 @@ are being uploaded and aborts with a message which starts "can't copy -
 source file is being updated" if the file changes during upload.
 
 However on some file systems this modification time check may fail (e.g.
-[Glusterfs #2206](https://github.com/rclone/rclone/issues/2206)) so this
+[Glusterfs #2206](https://github.com/artpar/rclone/issues/2206)) so this
 check can be disabled with this flag.
 
 If this flag is set, rclone will use its best efforts to transfer a

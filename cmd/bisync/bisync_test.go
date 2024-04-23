@@ -23,30 +23,30 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/rclone/rclone/cmd/bisync"
-	"github.com/rclone/rclone/cmd/bisync/bilib"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/cache"
-	"github.com/rclone/rclone/fs/filter"
-	"github.com/rclone/rclone/fs/fspath"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/object"
-	"github.com/rclone/rclone/fs/operations"
-	"github.com/rclone/rclone/fs/sync"
-	"github.com/rclone/rclone/fs/walk"
-	"github.com/rclone/rclone/fstest"
-	"github.com/rclone/rclone/lib/atexit"
-	"github.com/rclone/rclone/lib/encoder"
-	"github.com/rclone/rclone/lib/random"
-	"github.com/rclone/rclone/lib/terminal"
+	"github.com/artpar/artpar/cmd/bisync"
+	"github.com/artpar/artpar/cmd/bisync/bilib"
+	"github.com/artpar/artpar/fs"
+	"github.com/artpar/artpar/fs/accounting"
+	"github.com/artpar/artpar/fs/cache"
+	"github.com/artpar/artpar/fs/filter"
+	"github.com/artpar/artpar/fs/fspath"
+	"github.com/artpar/artpar/fs/hash"
+	"github.com/artpar/artpar/fs/object"
+	"github.com/artpar/artpar/fs/operations"
+	"github.com/artpar/artpar/fs/sync"
+	"github.com/artpar/artpar/fs/walk"
+	"github.com/artpar/artpar/fstest"
+	"github.com/artpar/artpar/lib/atexit"
+	"github.com/artpar/artpar/lib/encoder"
+	"github.com/artpar/artpar/lib/random"
+	"github.com/artpar/artpar/lib/terminal"
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	_ "github.com/rclone/rclone/backend/all" // for integration tests
+	_ "github.com/artpar/artpar/backend/all" // for integration tests
 )
 
 const (
@@ -67,8 +67,8 @@ var initDate = time.Date(2000, time.January, 1, 0, 0, 0, 0, bisync.TZ)
 // go test ./cmd/bisync -remote local -case extended_filenames
 // go run ./fstest/test_all -run '^TestBisync.*$' -timeout 3h -verbose -maxtries 5
 // go run ./fstest/test_all -remotes local,TestCrypt:,TestDrive:,TestOneDrive:,TestOneDriveBusiness:,TestDropbox:,TestCryptDrive:,TestOpenDrive:,TestChunker:,:memory:,TestCryptNoEncryption:,TestCombine:DirA,TestFTPRclone:,TestWebdavRclone:,TestS3Rclone:,TestSFTPRclone:,TestSFTPRcloneSSH:,TestNextcloud:,TestChunkerNometaLocal:,TestChunkerChunk3bLocal:,TestChunkerLocal:,TestChunkerChunk3bNometaLocal:,TestStorj: -run '^TestBisync.*$' -timeout 3h -verbose -maxtries 5
-// go test -timeout 3h -run '^TestBisync.*$' github.com/rclone/rclone/cmd/bisync -remote TestDrive:Bisync -v
-// go test -timeout 3h -run '^TestBisyncRemoteRemote/basic$' github.com/rclone/rclone/cmd/bisync -remote TestDropbox:Bisync -v
+// go test -timeout 3h -run '^TestBisync.*$' github.com/artpar/artpar/cmd/bisync -remote TestDrive:Bisync -v
+// go test -timeout 3h -run '^TestBisyncRemoteRemote/basic$' github.com/artpar/artpar/cmd/bisync -remote TestDropbox:Bisync -v
 // TestFTPProftpd:,TestFTPPureftpd:,TestFTPRclone:,TestFTPVsftpd:,TestHdfs:,TestS3Minio:,TestS3MinioEdge:,TestS3Rclone:,TestSeafile:,TestSeafileEncrypted:,TestSeafileV6:,TestSFTPOpenssh:,TestSFTPRclone:,TestSFTPRcloneSSH:,TestSia:,TestSwiftAIO:,TestWebdavNextcloud:,TestWebdavOwncloud:,TestWebdavRclone:
 
 // logReplacements make modern test logs comparable with golden dir.
@@ -924,17 +924,17 @@ func (b *bisyncTest) checkPreReqs(ctx context.Context, opt *bisync.Options) (con
 		fs.GetConfig(ctx).RefreshTimes = true // https://rclone.org/bisync/#notes-about-testing
 	}
 	if strings.HasPrefix(b.fs1.String(), "Dropbox") {
-		b.fs1.Features().Disable("Copy") // https://github.com/rclone/rclone/issues/6199#issuecomment-1570366202
+		b.fs1.Features().Disable("Copy") // https://github.com/artpar/artpar/issues/6199#issuecomment-1570366202
 	}
 	if strings.HasPrefix(b.fs2.String(), "Dropbox") {
-		b.fs2.Features().Disable("Copy") // https://github.com/rclone/rclone/issues/6199#issuecomment-1570366202
+		b.fs2.Features().Disable("Copy") // https://github.com/artpar/artpar/issues/6199#issuecomment-1570366202
 	}
 	if strings.HasPrefix(b.fs1.String(), "OneDrive") {
-		b.fs1.Features().Disable("Copy") // API has longstanding bug for conflictBehavior=replace https://github.com/rclone/rclone/issues/4590
+		b.fs1.Features().Disable("Copy") // API has longstanding bug for conflictBehavior=replace https://github.com/artpar/artpar/issues/4590
 		b.fs1.Features().Disable("Move")
 	}
 	if strings.HasPrefix(b.fs2.String(), "OneDrive") {
-		b.fs2.Features().Disable("Copy") // API has longstanding bug for conflictBehavior=replace https://github.com/rclone/rclone/issues/4590
+		b.fs2.Features().Disable("Copy") // API has longstanding bug for conflictBehavior=replace https://github.com/artpar/artpar/issues/4590
 		b.fs2.Features().Disable("Move")
 	}
 	if (!b.fs1.Features().CanHaveEmptyDirectories || !b.fs2.Features().CanHaveEmptyDirectories) && (b.testCase == "createemptysrcdirs" || b.testCase == "rmdirs") {

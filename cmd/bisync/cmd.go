@@ -14,13 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/cmd/bisync/bilib"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/fs/config/flags"
-	"github.com/rclone/rclone/fs/filter"
-	"github.com/rclone/rclone/fs/hash"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/cmd/bisync/bilib"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config"
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs/filter"
+	"github.com/artpar/rclone/fs/hash"
 
 	"github.com/spf13/cobra"
 )
@@ -193,7 +193,7 @@ var commandDefinition = &cobra.Command{
 		cmd.Run(false, true, command, func() error {
 			err := Bisync(ctx, fs1, fs2, &opt)
 			if err == ErrBisyncAborted {
-				os.Exit(2)
+				return nil
 			}
 			return err
 		})

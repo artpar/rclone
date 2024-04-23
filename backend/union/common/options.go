@@ -3,7 +3,7 @@
 // These need to be defined in a separate package to avoid import loops
 package common
 
-import "github.com/rclone/rclone/fs"
+import "github.com/artpar/rclone/fs"
 
 // Options defines the configuration for this backend
 type Options struct {

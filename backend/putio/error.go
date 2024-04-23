@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/lib/pacer"
 	"github.com/putdotio/go-putio/putio"
-	"github.com/rclone/rclone/fs/fserrors"
-	"github.com/rclone/rclone/lib/pacer"
 )
 
 func checkStatusCode(resp *http.Response, expected ...int) error {

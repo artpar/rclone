@@ -7,13 +7,13 @@ import (
 	"math/rand"
 	"net/http"
 
+	"github.com/artpar/artpar/fs"
+	"github.com/artpar/artpar/fs/hash"
+	httplib "github.com/artpar/artpar/lib/http"
+	"github.com/artpar/artpar/vfs"
+	"github.com/artpar/artpar/vfs/vfsflags"
 	"github.com/go-chi/chi/v5"
 	"github.com/rclone/gofakes3"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/hash"
-	httplib "github.com/rclone/rclone/lib/http"
-	"github.com/rclone/rclone/vfs"
-	"github.com/rclone/rclone/vfs/vfsflags"
 )
 
 // Options contains options for the http Server

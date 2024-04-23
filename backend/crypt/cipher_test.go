@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/Max-Sum/base32768"
-	"github.com/rclone/rclone/backend/crypt/pkcs7"
-	"github.com/rclone/rclone/lib/readers"
+	"github.com/artpar/rclone/backend/crypt/pkcs7"
+	"github.com/artpar/rclone/lib/readers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

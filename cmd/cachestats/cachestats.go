@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/rclone/rclone/backend/cache"
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/fs"
+	"github.com/artpar/rclone/backend/cache"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs"
 	"github.com/spf13/cobra"
 )
 

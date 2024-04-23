@@ -21,15 +21,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/cache"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/configstruct"
-	"github.com/rclone/rclone/fs/fspath"
-	"github.com/rclone/rclone/fs/hash"
-	"github.com/rclone/rclone/fs/operations"
-	"github.com/rclone/rclone/lib/encoder"
+	"github.com/artpar/artpar/fs"
+	"github.com/artpar/artpar/fs/accounting"
+	"github.com/artpar/artpar/fs/cache"
+	"github.com/artpar/artpar/fs/config/configmap"
+	"github.com/artpar/artpar/fs/config/configstruct"
+	"github.com/artpar/artpar/fs/fspath"
+	"github.com/artpar/artpar/fs/hash"
+	"github.com/artpar/artpar/fs/operations"
+	"github.com/artpar/artpar/lib/encoder"
 )
 
 // Chunker's composite files have one or more chunks

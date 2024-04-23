@@ -5,10 +5,10 @@ import (
 	"context"
 	"strings"
 
-	"github.com/rclone/rclone/cmd"
-	"github.com/rclone/rclone/fs/config/flags"
-	"github.com/rclone/rclone/fs/operations"
-	"github.com/rclone/rclone/fs/sync"
+	"github.com/artpar/rclone/cmd"
+	"github.com/artpar/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs/operations"
+	"github.com/artpar/rclone/fs/sync"
 	"github.com/spf13/cobra"
 )
 
@@ -85,7 +85,7 @@ the backend supports it. If metadata syncing is required then use the
 |--metadata| flag.
 
 Note that the modification time and metadata for the root directory
-will **not** be synced. See https://github.com/rclone/rclone/issues/7652
+will **not** be synced. See https://github.com/artpar/artpar/issues/7652
 for more info.
 
 **Note**: Use the |-P|/|--progress| flag to view real-time transfer statistics.

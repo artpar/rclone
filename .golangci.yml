@@ -31,7 +31,7 @@ issues:
 
     - linters:
       - staticcheck
-      text: 'SA1019: "github.com/rclone/rclone/cmd/serve/httplib" is deprecated'
+      text: 'SA1019: "github.com/artpar/artpar/cmd/serve/httplib" is deprecated'
 
   # don't disable the revive messages about comments on exported functions
   include:

@@ -65,11 +65,11 @@ configuration file in a accessible location that rclone program can read.
 ```shell
 
 [opc@base-inst-boot ~]$ mkdir -p /etc/rclone
-[opc@base-inst-boot ~]$ sudo touch /etc/rclone/rclone.conf
+[opc@base-inst-boot ~]$ sudo touch /etc/artpar/artpar.conf
  
  
-# add below contents to /etc/rclone/rclone.conf
-[opc@base-inst-boot ~]$ cat /etc/rclone/rclone.conf
+# add below contents to /etc/artpar/artpar.conf
+[opc@base-inst-boot ~]$ cat /etc/artpar/artpar.conf
  
  
 [ossa]
@@ -95,7 +95,7 @@ compartment = ocid1.compartment.oc1..aaaaaaaa...compartment-c
 region = us-ashburn-1
  
 # List remotes
-[opc@base-inst-boot ~]$ rclone --config /etc/rclone/rclone.conf listremotes
+[opc@base-inst-boot ~]$ rclone --config /etc/artpar/artpar.conf listremotes
 ossa:
 ossb:
 ossc:
@@ -104,7 +104,7 @@ ossc:
 # i.e you should fix the settings to see if namespace, compartment, bucket name are all correct. 
 # and you must have a dynamic group policy to allow the instance to use object-family in compartment.
  
-[opc@base-inst-boot ~]$ rclone --config /etc/rclone/rclone.conf ls ossa:
+[opc@base-inst-boot ~]$ rclone --config /etc/artpar/artpar.conf ls ossa:
 2023/04/07 19:09:21 Failed to ls: Error returned by ObjectStorage Service. Http Status Code: 404. Error Code: NamespaceNotFound. Opc request id: iad-1:kVVAb0knsVXDvu9aHUGHRs3gSNBOFO2_334B6co82LrPMWo2lM5PuBKNxJOTmZsS. Message: You do not have authorization to perform this request, or the requested resource could not be found.
 Operation Name: ListBuckets
 Timestamp: 2023-04-07 19:09:21 +0000 GMT
@@ -198,7 +198,7 @@ First lets understand the rclone mount flags and some global flags for troublesh
 rclone mount \
     ossa:bucket-a \                     # Remote:bucket-name
     /opt/mnt/bucket-a \                 # Local mount folder
-    --config /etc/rclone/rclone.conf \  # Path to rclone config file
+    --config /etc/artpar/artpar.conf \  # Path to rclone config file
     --allow-non-empty \                 # Allow mounting over a non-empty directory
     --dir-perms 0770 \                  # Directory permissions (default 0777)
     --file-perms 0660 \                 # File permissions (default 0666)
@@ -270,7 +270,7 @@ Fingerprints are made from:
 ### Step 6a: Run as a Service Daemon: Configure FSTAB entry for Rclone mount
 Add this entry in /etc/fstab :
 ```shell
-ossa:bucket-a /opt/mnt/bucket-a rclone rw,umask=0117,nofail,_netdev,args2env,config=/etc/rclone/rclone.conf,uid=1000,gid=4,
+ossa:bucket-a /opt/mnt/bucket-a rclone rw,umask=0117,nofail,_netdev,args2env,config=/etc/artpar/artpar.conf,uid=1000,gid=4,
 file_perms=0760,dir_perms=0760,allow_other,vfs_cache_mode=writes,cache_dir=/tmp/rclone/cache 0 0
 ```
 IMPORTANT: Please note in fstab entry arguments are specified as underscore instead of dash,

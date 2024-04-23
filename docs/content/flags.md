@@ -138,7 +138,7 @@ General configuration of rclone.
       --auto-confirm                        If enabled, do not request console confirmation
       --cache-dir string                    Directory rclone will use for caching (default "$HOME/.cache/rclone")
       --color AUTO|NEVER|ALWAYS             When to show colors (and other ANSI codes) AUTO|NEVER|ALWAYS (default AUTO)
-      --config string                       Config file (default "$HOME/.config/rclone/rclone.conf")
+      --config string                       Config file (default "$HOME/.config/artpar/artpar.conf")
       --default-time Time                   Time to show if modtime is unknown for files and directories (default 2000-01-01T00:00:00Z)
       --disable string                      Disable a comma separated list of features (use --disable help to see a list)
   -n, --dry-run                             Do a trial run with no permanent changes
@@ -286,7 +286,7 @@ Flags to control the Remote Control API.
       --rc-server-write-timeout Duration   Timeout for server writing data (default 1h0m0s)
       --rc-template string                 User-specified template
       --rc-user string                     User name for authentication
-      --rc-web-fetch-url string            URL to fetch the releases for webgui (default "https://api.github.com/repos/rclone/rclone-webui-react/releases/latest")
+      --rc-web-fetch-url string            URL to fetch the releases for webgui (default "https://api.github.com/repos/artpar/artpar-webui-react/releases/latest")
       --rc-web-gui                         Launch WebGUI on localhost
       --rc-web-gui-force-update            Force update to latest version of web gui
       --rc-web-gui-no-open-browser         Don't open the browser automatically

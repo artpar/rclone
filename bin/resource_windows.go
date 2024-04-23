@@ -27,9 +27,9 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/artpar/rclone/fs"
 	"github.com/coreos/go-semver/semver"
 	"github.com/josephspurrier/goversioninfo"
-	"github.com/rclone/rclone/fs"
 )
 
 func main() {

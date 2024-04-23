@@ -8,9 +8,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/vfs"
 	"github.com/pkg/sftp"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/vfs"
 )
 
 // vfsHandler converts the VFS to be served by SFTP

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/lib/errcount"
+	"github.com/artpar/artpar/fs"
+	"github.com/artpar/artpar/lib/errcount"
 	"golang.org/x/sync/errgroup"
 	drive "google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"

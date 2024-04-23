@@ -10,10 +10,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/artpar/artpar/fs"
+	"github.com/artpar/artpar/vfs"
 	"github.com/ncw/swift/v2"
 	"github.com/rclone/gofakes3"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/vfs"
 )
 
 var (

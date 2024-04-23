@@ -172,7 +172,7 @@ that both paths are valid.
 
 When using `--resync`, a newer version of a file on the Path2 filesystem
 will (by default) be overwritten by the Path1 filesystem version.
-(Note that this is [NOT entirely symmetrical](https://github.com/rclone/rclone/issues/5681#issuecomment-938761815), and more symmetrical options can be specified with the [`--resync-mode`](#resync-mode) flag.)
+(Note that this is [NOT entirely symmetrical](https://github.com/artpar/artpar/issues/5681#issuecomment-938761815), and more symmetrical options can be specified with the [`--resync-mode`](#resync-mode) flag.)
 Carefully evaluate deltas using [--dry-run](/flags/#non-backend-flags).
 
 For a resync run, one of the paths may be empty (no files in the path tree).
@@ -1085,7 +1085,7 @@ detect that Path1 and Path2 are in agreement.)
 Unlike most other rclone commands, bisync uses [`--fast-list`](/docs/#fast-list) by default, 
 for backends that support it. In many cases this is desirable, however, 
 there are some scenarios in which bisync could be faster *without* `--fast-list`, 
-and there is also a [known issue concerning Google Drive users with many empty directories](https://github.com/rclone/rclone/commit/cbf3d4356135814921382dd3285d859d15d0aa77). 
+and there is also a [known issue concerning Google Drive users with many empty directories](https://github.com/artpar/artpar/commit/cbf3d4356135814921382dd3285d859d15d0aa77). 
 For now, the recommended way to avoid using `--fast-list` is to add `--disable ListR` 
 to all bisync commands. The default behavior may change in a future version.
 

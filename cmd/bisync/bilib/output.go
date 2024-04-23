@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"log"
 
-	"github.com/rclone/rclone/fs"
+	"github.com/artpar/artpar/fs"
 	"github.com/sirupsen/logrus"
 )
 

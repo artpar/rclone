@@ -12,12 +12,12 @@ import (
 	"strings"
 	"testing"
 
+	_ "github.com/artpar/rclone/backend/local"
+	"github.com/artpar/rclone/cmd/serve/servetest"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/configmap"
+	"github.com/artpar/rclone/fs/config/obscure"
 	"github.com/pkg/sftp"
-	_ "github.com/rclone/rclone/backend/local"
-	"github.com/rclone/rclone/cmd/serve/servetest"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/obscure"
 	"github.com/stretchr/testify/require"
 )
 

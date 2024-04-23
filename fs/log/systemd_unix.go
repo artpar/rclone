@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/artpar/rclone/fs"
 	"github.com/coreos/go-systemd/v22/journal"
-	"github.com/rclone/rclone/fs"
 )
 
 // Enables systemd logs if configured or if auto-detected

@@ -174,7 +174,7 @@ Flags to control the Remote Control API.
       --rc-server-write-timeout Duration   Timeout for server writing data (default 1h0m0s)
       --rc-template string                 User-specified template
       --rc-user string                     User name for authentication
-      --rc-web-fetch-url string            URL to fetch the releases for webgui (default "https://api.github.com/repos/rclone/rclone-webui-react/releases/latest")
+      --rc-web-fetch-url string            URL to fetch the releases for webgui (default "https://api.github.com/repos/artpar/artpar-webui-react/releases/latest")
       --rc-web-gui                         Launch WebGUI on localhost
       --rc-web-gui-force-update            Force update to latest version of web gui
       --rc-web-gui-no-open-browser         Don't open the browser automatically

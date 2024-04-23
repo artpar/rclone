@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/lib/buildinfo"
+	"github.com/artpar/artpar/fs"
+	"github.com/artpar/artpar/lib/buildinfo"
 )
 
 // checkRcloneBinaryVersion runs whichever rclone is on the PATH and checks

@@ -1,7 +1,7 @@
 FROM golang:alpine AS builder
 
-COPY . /go/src/github.com/rclone/rclone/
-WORKDIR /go/src/github.com/rclone/rclone/
+COPY . /go/src/github.com/artpar/artpar/
+WORKDIR /go/src/github.com/artpar/artpar/
 
 RUN apk add --no-cache make bash gawk git
 RUN \
@@ -15,7 +15,7 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates fuse3 tzdata && \
   echo "user_allow_other" >> /etc/fuse.conf
 
-COPY --from=builder /go/src/github.com/rclone/rclone/rclone /usr/local/bin/
+COPY --from=builder /go/src/github.com/artpar/artpar/rclone /usr/local/bin/
 
 RUN addgroup -g 1009 rclone && adduser -u 1009 -Ds /bin/sh -G rclone rclone
 

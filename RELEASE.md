@@ -127,18 +127,18 @@ Cherry pick any changes back to master and the stable branch if it is active.
 To do a basic build of rclone's docker image to debug builds locally:
 
 ```
-docker buildx build --load -t rclone/rclone:testing --progress=plain .
-docker run --rm rclone/rclone:testing version
+docker buildx build --load -t artpar/artpar:testing --progress=plain .
+docker run --rm artpar/artpar:testing version
 ```
 
 To test the multipatform build
 
 ```
-docker buildx build -t rclone/rclone:testing --progress=plain --platform linux/amd64,linux/386,linux/arm64,linux/arm/v7,linux/arm/v6 .
+docker buildx build -t artpar/artpar:testing --progress=plain --platform linux/amd64,linux/386,linux/arm64,linux/arm/v7,linux/arm/v6 .
 ```
 
 To make a full build then set the tags correctly and add `--push`
 
 ```
-docker buildx build --platform linux/amd64,linux/386,linux/arm64,linux/arm/v7 -t rclone/rclone:1.54.1 -t rclone/rclone:1.54 -t rclone/rclone:1 -t rclone/rclone:latest --push .
+docker buildx build --platform linux/amd64,linux/386,linux/arm64,linux/arm/v7 -t artpar/artpar:1.54.1 -t artpar/artpar:1.54 -t artpar/artpar:1 -t artpar/artpar:latest --push .
 ```

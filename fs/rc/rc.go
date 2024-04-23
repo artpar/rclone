@@ -13,7 +13,7 @@ import (
 	_ "net/http/pprof" // install the pprof http handlers
 	"time"
 
-	libhttp "github.com/rclone/rclone/lib/http"
+	libhttp "github.com/artpar/rclone/lib/http"
 )
 
 // Options contains options for the remote control server

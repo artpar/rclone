@@ -5,8 +5,8 @@ import (
 	"log"
 	"sync"
 
+	"github.com/artpar/rclone/lib/atexit"
 	"github.com/coreos/go-systemd/v22/daemon"
-	"github.com/rclone/rclone/lib/atexit"
 )
 
 // Notify systemd that the service is starting. This returns a

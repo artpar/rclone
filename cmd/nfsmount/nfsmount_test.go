@@ -5,8 +5,8 @@ package nfsmount
 import (
 	"testing"
 
-	"github.com/rclone/rclone/vfs/vfscommon"
-	"github.com/rclone/rclone/vfs/vfstest"
+	"github.com/artpar/rclone/vfs/vfscommon"
+	"github.com/artpar/rclone/vfs/vfstest"
 )
 
 func TestMount(t *testing.T) {

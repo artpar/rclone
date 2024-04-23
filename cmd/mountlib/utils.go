@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/rclone/rclone/fs"
+	"github.com/artpar/rclone/fs"
 )
 
 // ClipBlocks clips the blocks pointed to the OS max
