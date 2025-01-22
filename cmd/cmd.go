@@ -87,7 +87,7 @@ func NewFsFile(remote string) (fs.Fs, string) {
 	_, fsPath, err := fspath.SplitFs(remote)
 	if err != nil {
 		err = fs.CountError(ctx, err)
-		fs.Fatalf(nil, "Failed to create file system for %q: %v", remote, err)
+		//fs.Fatalf(nil, "Failed to create file system for %q: %v", remote, err)
 	}
 	f, err := cache.Get(ctx, remote)
 	switch err {
@@ -99,7 +99,7 @@ func NewFsFile(remote string) (fs.Fs, string) {
 		return f, ""
 	default:
 		err = fs.CountError(ctx, err)
-		fs.Fatalf(nil, "Failed to create file system for %q: %v", remote, err)
+		//fs.Fatalf(nil, "Failed to create file system for %q: %v", remote, err)
 	}
 	return nil, ""
 }
@@ -116,13 +116,14 @@ func newFsFileAddFilter(remote string) (fs.Fs, string) {
 		if !fi.InActive() {
 			err := fmt.Errorf("can't limit to single files when using filters: %v", remote)
 			err = fs.CountError(ctx, err)
-			fs.Fatal(nil, err.Error())
+			fmt.Printf("%v", err.Error())
 		}
 		// Limit transfers to this file
 		err := fi.AddFile(fileName)
 		if err != nil {
 			err = fs.CountError(ctx, err)
-			fs.Fatalf(nil, "Failed to limit to single file %q: %v", remote, err)
+			fmt.Printf("Failed to limit to single file %q: %v", remote, err)
+
 		}
 	}
 	return f, fileName
@@ -145,7 +146,7 @@ func newFsDir(remote string) fs.Fs {
 	f, err := cache.Get(ctx, remote)
 	if err != nil {
 		err = fs.CountError(ctx, err)
-		fs.Fatalf(nil, "Failed to create file system for %q: %v", remote, err)
+		fmt.Printf("Failed to create file system for %q: %v", remote, err)
 	}
 	cache.Pin(f) // pin indefinitely since it was on the CLI
 	return f
@@ -188,24 +189,24 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 		var err error
 		dstRemote, dstFileName, err = fspath.Split(dstRemote)
 		if err != nil {
-			fs.Fatalf(nil, "Parsing %q failed: %v", args[1], err)
+			fmt.Printf("Parsing %q failed: %v", args[1], err)
 		}
 		if dstRemote == "" {
 			dstRemote = "."
 		}
 		if dstFileName == "" {
-			fs.Fatalf(nil, "%q is a directory", args[1])
+			fmt.Printf("%q is a directory", args[1])
 		}
 	}
 	fdst, err := cache.Get(ctx, dstRemote)
 	switch err {
 	case fs.ErrorIsFile:
 		_ = fs.CountError(ctx, err)
-		fs.Fatalf(nil, "Source doesn't exist or is a directory and destination is a file")
+		fmt.Printf("Source doesn't exist or is a directory and destination is a file")
 	case nil:
 	default:
 		_ = fs.CountError(ctx, err)
-		fs.Fatalf(nil, "Failed to create file system for destination %q: %v", dstRemote, err)
+		fmt.Printf("Failed to create file system for destination %q: %v", dstRemote, err)
 	}
 	cache.Pin(fdst) // pin indefinitely since it was on the CLI
 	return
@@ -215,13 +216,13 @@ func NewFsSrcDstFiles(args []string) (fsrc fs.Fs, srcFileName string, fdst fs.Fs
 func NewFsDstFile(args []string) (fdst fs.Fs, dstFileName string) {
 	dstRemote, dstFileName, err := fspath.Split(args[0])
 	if err != nil {
-		fs.Fatalf(nil, "Parsing %q failed: %v", args[0], err)
+		fmt.Printf("Parsing %q failed: %v", args[0], err)
 	}
 	if dstRemote == "" {
 		dstRemote = "."
 	}
 	if dstFileName == "" {
-		fs.Fatalf(nil, "%q is a directory", args[0])
+		fmt.Printf("%q is a directory", args[0])
 	}
 	fdst = newFsDir(dstRemote)
 	return
@@ -265,7 +266,7 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 			break
 		}
 		if accounting.GlobalStats().HadFatalError() {
-			fs.Errorf(nil, "Fatal error received - not attempting retries")
+			fmt.Printf("Fatal error received - not attempting retries")
 			break
 		}
 		if accounting.GlobalStats().Errored() && !accounting.GlobalStats().HadRetryError() {
@@ -386,7 +387,7 @@ func initConfig() {
 	// Set the global options from the flags
 	err := fs.GlobalOptionsInit()
 	if err != nil {
-		fs.Fatalf(nil, "Failed to initialise global options: %v", err)
+		fmt.Printf("Failed to initialise global options: %v", err)
 	}
 
 	ctx := context.Background()
@@ -490,31 +491,31 @@ func resolveExitCode(err error) {
 	if err == nil {
 		if ci.ErrorOnNoTransfer {
 			if accounting.GlobalStats().GetTransfers() == 0 {
-				os.Exit(exitcode.NoFilesTransferred)
+				fmt.Printf(exitcode.NoFilesTransferred)
 			}
 		}
-		os.Exit(exitcode.Success)
+		fmt.Printf(exitcode.Success)
 	}
 
 	switch {
 	case errors.Is(err, fs.ErrorDirNotFound):
-		os.Exit(exitcode.DirNotFound)
+		fmt.Printf(exitcode.DirNotFound)
 	case errors.Is(err, fs.ErrorObjectNotFound):
-		os.Exit(exitcode.FileNotFound)
+		fmt.Printf(exitcode.FileNotFound)
 	case errors.Is(err, accounting.ErrorMaxTransferLimitReached):
-		os.Exit(exitcode.TransferExceeded)
+		fmt.Printf(exitcode.TransferExceeded)
 	case errors.Is(err, fssync.ErrorMaxDurationReached):
-		os.Exit(exitcode.DurationExceeded)
+		fmt.Printf(exitcode.DurationExceeded)
 	case fserrors.ShouldRetry(err):
-		os.Exit(exitcode.RetryError)
+		fmt.Printf(exitcode.RetryError)
 	case fserrors.IsNoRetryError(err), fserrors.IsNoLowLevelRetryError(err):
-		os.Exit(exitcode.NoRetryError)
+		fmt.Printf(exitcode.NoRetryError)
 	case fserrors.IsFatalError(err):
-		os.Exit(exitcode.FatalError)
+		fmt.Printf(exitcode.FatalError)
 	case errors.Is(err, errorCommandNotFound), errors.Is(err, errorNotEnoughArguments), errors.Is(err, errorTooManyArguments):
-		os.Exit(exitcode.UsageError)
+		fmt.Printf(exitcode.UsageError)
 	default:
-		os.Exit(exitcode.UncategorizedError)
+		fmt.Printf(exitcode.UncategorizedError)
 	}
 }
 
@@ -543,6 +544,6 @@ func Main() {
 			Root.PrintErrf("You could use '%s selfupdate' to get latest features.\n\n", Root.CommandPath())
 		}
 		fs.Logf(nil, "Fatal error: %v", err)
-		os.Exit(exitcode.UsageError)
+		fmt.Printf(exitcode.UsageError)
 	}
 }

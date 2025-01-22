@@ -200,7 +200,7 @@ func Panic(o interface{}, text string) {
 	if GetConfig(context.TODO()).LogLevel >= LogLevelAlert {
 		LogPrint(LogLevelAlert, o, text)
 	}
-	panic(text)
+	//panic(text)
 }
 
 // Panicf writes alert log output for this Object or Fs and calls panic().
@@ -209,7 +209,7 @@ func Panicf(o interface{}, text string, args ...interface{}) {
 	if GetConfig(context.TODO()).LogLevel >= LogLevelAlert {
 		LogPrintf(LogLevelAlert, o, text, args...)
 	}
-	panic(fmt.Sprintf(text, args...))
+	//panic(fmt.Sprintf(text, args...))
 }
 
 // Fatal writes critical log output for this Object or Fs and calls os.Exit(1).
@@ -218,7 +218,7 @@ func Fatal(o interface{}, text string) {
 	if GetConfig(context.TODO()).LogLevel >= LogLevelCritical {
 		LogPrint(LogLevelCritical, o, text)
 	}
-	os.Exit(1)
+	//os.Exit(1)
 }
 
 // Fatalf writes critical log output for this Object or Fs and calls os.Exit(1).
@@ -227,7 +227,7 @@ func Fatalf(o interface{}, text string, args ...interface{}) {
 	if GetConfig(context.TODO()).LogLevel >= LogLevelCritical {
 		LogPrintf(LogLevelCritical, o, text, args...)
 	}
-	os.Exit(1)
+	//os.Exit(1)
 }
 
 // Error writes error log output for this Object or Fs.  It
