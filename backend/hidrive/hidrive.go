@@ -17,21 +17,20 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/artpar/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/encoder"
 
-	"github.com/artpar/rclone/backend/hidrive/api"
-	"github.com/artpar/rclone/backend/hidrive/hidrivehash"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/rest"
-	"golang.org/x/oauth2"
+	"github.com/rclone/rclone/backend/hidrive/api"
+	"github.com/rclone/rclone/backend/hidrive/hidrivehash"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/rest"
 )
 
 const (
@@ -48,11 +47,9 @@ const (
 // Globals
 var (
 	// Description of how to auth for this app.
-	oauthConfig = &oauth2.Config{
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://my.hidrive.com/client/authorize",
-			TokenURL: "https://my.hidrive.com/oauth2/token",
-		},
+	oauthConfig = &oauthutil.Config{
+		AuthURL:      "https://my.hidrive.com/client/authorize",
+		TokenURL:     "https://my.hidrive.com/oauth2/token",
 		ClientID:     rcloneClientID,
 		ClientSecret: obscure.MustReveal(rcloneEncryptedClientSecret),
 		RedirectURL:  oauthutil.TitleBarRedirectURL,

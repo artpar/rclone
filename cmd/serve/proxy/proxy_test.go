@@ -6,13 +6,13 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
-	"log"
 	"strings"
 	"testing"
 
-	_ "github.com/artpar/rclone/backend/local"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/obscure"
+	_ "github.com/rclone/rclone/backend/local"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/obscure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -149,11 +149,11 @@ func TestRun(t *testing.T) {
 
 	privateKey, privateKeyErr := rsa.GenerateKey(rand.Reader, 2048)
 	if privateKeyErr != nil {
-		log.Fatal("error generating test private key " + privateKeyErr.Error())
+		fs.Fatal(nil, "error generating test private key "+privateKeyErr.Error())
 	}
 	publicKey, publicKeyError := ssh.NewPublicKey(&privateKey.PublicKey)
 	if privateKeyErr != nil {
-		log.Fatal("error generating test public key " + publicKeyError.Error())
+		fs.Fatal(nil, "error generating test public key "+publicKeyError.Error())
 	}
 
 	publicKeyString := base64.StdEncoding.EncodeToString(publicKey.Marshal())

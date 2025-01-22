@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/shirou/gopsutil/v3/host"
+	"github.com/shirou/gopsutil/v4/host"
 	"golang.org/x/sys/windows"
 )
 
@@ -93,5 +93,5 @@ func getRegistryVersionString(name string) string {
 		return ""
 	}
 
-	return windows.UTF16ToString(regBuf[:])
+	return windows.UTF16ToString(regBuf)
 }

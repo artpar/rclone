@@ -23,16 +23,16 @@ with the [latest beta of rclone](https://beta.rclone.org/):
 If you find a bug that you'd like to fix, or a new feature that you'd
 like to implement then please submit a pull request via GitHub.
 
-If it is a big feature, then [make an issue](https://github.com/artpar/artpar/issues) first so it can be discussed.
+If it is a big feature, then [make an issue](https://github.com/rclone/rclone/issues) first so it can be discussed.
 
 To prepare your pull request first press the fork button on [rclone's GitHub
-page](https://github.com/artpar/artpar).
+page](https://github.com/rclone/rclone).
 
 Then [install Git](https://git-scm.com/downloads) and set your public contribution [name](https://docs.github.com/en/github/getting-started-with-github/setting-your-username-in-git) and [email](https://docs.github.com/en/github/setting-up-and-managing-your-github-user-account/setting-your-commit-email-address#setting-your-commit-email-address-in-git).
 
 Next open your terminal, change directory to your preferred folder and initialise your local rclone project:
 
-    git clone https://github.com/artpar/artpar.git
+    git clone https://github.com/rclone/rclone.git
     cd rclone
     git remote rename origin upstream
       # if you have SSH keys setup in your GitHub account:
@@ -117,7 +117,7 @@ Your previously pushed commits are replaced by:
 
 ### Basing your changes on the latest master
 
-To base your changes on the latest version of the [rclone master](https://github.com/artpar/artpar/tree/master) (upstream):
+To base your changes on the latest version of the [rclone master](https://github.com/rclone/rclone/tree/master) (upstream):
 
     git checkout master
     git fetch upstream
@@ -151,7 +151,7 @@ Tip: You may like to use `git rebase -i master` if you are experienced or have a
 
 ### GitHub Continuous Integration
 
-rclone currently uses [GitHub Actions](https://github.com/artpar/artpar/actions) to build and test the project, which should be automatically available for your fork too from the `Actions` tab in your repository.
+rclone currently uses [GitHub Actions](https://github.com/rclone/rclone/actions) to build and test the project, which should be automatically available for your fork too from the `Actions` tab in your repository.
 
 ## Testing
 
@@ -208,8 +208,8 @@ If you want to use the integration test framework to run these tests
 altogether with an HTML report and test retries then from the
 project root:
 
-    go install github.com/artpar/artpar/fstest/test_all
-    test_all -backend drive
+    go install github.com/rclone/rclone/fstest/test_all
+    test_all -backends drive
 
 ### Full integration testing
 
@@ -437,9 +437,9 @@ remote or an fs.
     - box is a good one to start from if you have a directory-based remote (and shows how to use the directory cache)
     - b2 is a good one to start from if you have a bucket-based remote
 - Add your remote to the imports in `backend/all/all.go`
-- HTTP based remotes are easiest to maintain if they use rclone's [lib/rest](https://pkg.go.dev/github.com/artpar/artpar/lib/rest) module, but if there is a really good Go SDK from the provider then use that instead.
+- HTTP based remotes are easiest to maintain if they use rclone's [lib/rest](https://pkg.go.dev/github.com/rclone/rclone/lib/rest) module, but if there is a really good Go SDK from the provider then use that instead.
 - Try to implement as many optional methods as possible as it makes the remote more usable.
-- Use [lib/encoder](https://pkg.go.dev/github.com/artpar/artpar/lib/encoder) to make sure we can encode any path name and `rclone info` to help determine the encodings needed
+- Use [lib/encoder](https://pkg.go.dev/github.com/rclone/rclone/lib/encoder) to make sure we can encode any path name and `rclone info` to help determine the encodings needed
     - `rclone purge -v TestRemote:rclone-info`
     - `rclone test info --all --remote-encoding None -vv --write-json remote.json TestRemote:rclone-info`
     - `go run cmd/test/info/internal/build_csv/main.go -o remote.csv remote.json`
@@ -447,8 +447,8 @@ remote or an fs.
 
 ### Guidelines for a speedy merge
 
-- **Do** use [lib/rest](https://pkg.go.dev/github.com/artpar/artpar/lib/rest) if you are implementing a REST like backend and parsing XML/JSON in the backend.
-- **Do** use rclone's Client or Transport from [fs/fshttp](https://pkg.go.dev/github.com/artpar/artpar/fs/fshttp) if your backend is HTTP based - this adds features like `--dump bodies`, `--tpslimit`, `--user-agent` without you having to code anything!
+- **Do** use [lib/rest](https://pkg.go.dev/github.com/rclone/rclone/lib/rest) if you are implementing a REST like backend and parsing XML/JSON in the backend.
+- **Do** use rclone's Client or Transport from [fs/fshttp](https://pkg.go.dev/github.com/rclone/rclone/fs/fshttp) if your backend is HTTP based - this adds features like `--dump bodies`, `--tpslimit`, `--user-agent` without you having to code anything!
 - **Do** follow your example backend exactly - use the same code order, function names, layout, structure. **Don't** move stuff around and **Don't** delete the comments.
 - **Do not** split your backend up into `fs.go` and `object.go` (there are a few backends like that - don't follow them!)
 - **Do** put your API type definitions in a separate file - by preference `api/types.go`
@@ -490,7 +490,7 @@ alphabetical order of full name of remote (e.g. `drive` is ordered as
 - `docs/content/remote.md` - main docs page (note the backend options are automatically added to this file with `make backenddocs`)
     - make sure this has the `autogenerated options` comments in (see your reference backend docs)
     - update them in your backend with `bin/make_backend_docs.py remote`
-- `docs/content/overview.md` - overview docs
+- `docs/content/overview.md` - overview docs - add an entry into the Features table and the Optional Features table.
 - `docs/content/docs.md` - list of remotes in config section
 - `docs/content/_index.md` - front page of rclone.org
 - `docs/layouts/chrome/navbar.html` - add it to the website navigation
@@ -508,7 +508,7 @@ You'll need to modify the following files
 - `backend/s3/s3.go`
     - Add the provider to `providerOption` at the top of the file
     - Add endpoints and other config for your provider gated on the provider in `fs.RegInfo`.
-    - Exclude your provider from genric config questions (eg `region` and `endpoint).
+    - Exclude your provider from generic config questions (eg `region` and `endpoint).
     - Add the provider to the `setQuirks` function - see the documentation there.
 - `docs/content/s3.md`
     - Add the provider at the top of the page.
@@ -537,7 +537,7 @@ in the names so if these fail and the provider doesn't support
 `urlEncodeListings` in the quirks then ignore them. Note that the
 `SetTier` test may also fail on non AWS providers.
 
-For an example of adding an s3 provider see [eb3082a1](https://github.com/artpar/artpar/commit/eb3082a1ebdb76d5625f14cedec3f5154a5e7b10).
+For an example of adding an s3 provider see [eb3082a1](https://github.com/rclone/rclone/commit/eb3082a1ebdb76d5625f14cedec3f5154a5e7b10).
 
 ## Writing a plugin
 
@@ -569,6 +569,6 @@ Check `rclone --version` and make sure that the plugin's rclone dependency and h
 
 Then, run `go build -buildmode=plugin -o PLUGIN_NAME.so .` to build the plugin.
 
-[Go reference](https://godoc.org/github.com/artpar/artpar/lib/plugin)
+[Go reference](https://godoc.org/github.com/rclone/rclone/lib/plugin)
 
 [Minimal example](https://gist.github.com/terorie/21b517ee347828e899e1913efc1d684f)

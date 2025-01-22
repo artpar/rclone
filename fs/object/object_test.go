@@ -34,6 +34,7 @@ func TestStaticObject(t *testing.T) {
 	o = object.NewStaticObjectInfo(remote, now, size, true, nil, nil)
 	_, err = o.Hash(context.Background(), hash.MD5)
 	assert.Equal(t, hash.ErrUnsupported, err)
+	assert.Equal(t, object.MemoryFs, o.Fs())
 
 	hs := map[hash.Type]string{
 		hash.MD5: "potato",
@@ -141,7 +142,7 @@ func TestMemoryObject(t *testing.T) {
 	assert.NoError(t, err)
 	checkContent(o, "Rutabaga")
 	assert.Equal(t, newNow, o.ModTime(context.Background()))
-	assert.Equal(t, "Rutaba", string(content)) // check we re-used the buffer
+	assert.Equal(t, "Rutaba", string(content)) // check we reused the buffer
 
 	// not within the buffer
 	newStr := "0123456789"

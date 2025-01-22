@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -57,11 +58,6 @@ func NewLoggedBasicAuthenticator(realm string, secrets goauth.SecretProvider) *L
 func basicAuth(authenticator *LoggedBasicAuth) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// skip auth for unix socket
-			if IsUnixSocket(r) {
-				next.ServeHTTP(w, r)
-				return
-			}
 			// skip auth for CORS preflight
 			if r.Method == "OPTIONS" {
 				next.ServeHTTP(w, r)
@@ -123,11 +119,6 @@ func MiddlewareAuthBasic(user, pass, realm, salt string) Middleware {
 func MiddlewareAuthCustom(fn CustomAuthFn, realm string, userFromContext bool) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// skip auth for unix socket
-			if IsUnixSocket(r) {
-				next.ServeHTTP(w, r)
-				return
-			}
 			// skip auth for CORS preflight
 			if r.Method == "OPTIONS" {
 				next.ServeHTTP(w, r)
@@ -163,6 +154,26 @@ func MiddlewareAuthCustom(fn CustomAuthFn, realm string, userFromContext bool) M
 	}
 }
 
+var validUsernameRegexp = regexp.MustCompile(`^[\p{L}\d@._-]+$`)
+
+// MiddlewareAuthGetUserFromHeader middleware that bypasses authentication and extracts the user via a specified HTTP header(ideal for proxied setups).
+func MiddlewareAuthGetUserFromHeader(header string) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			username := strings.TrimSpace(r.Header.Get(header))
+			if username != "" && validUsernameRegexp.MatchString(username) {
+				r = r.WithContext(context.WithValue(r.Context(), ctxKeyUser, username))
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			code := http.StatusUnauthorized
+			w.Header().Set("Content-Type", "text/plain")
+			http.Error(w, http.StatusText(code), code)
+		})
+	}
+}
+
 var onlyOnceWarningAllowOrigin sync.Once
 
 // MiddlewareCORS instantiates middleware that handles basic CORS protections for rcd
@@ -175,11 +186,6 @@ func MiddlewareCORS(allowOrigin string) Middleware {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// skip cors for unix sockets
-			if IsUnixSocket(r) {
-				next.ServeHTTP(w, r)
-				return
-			}
 
 			if allowOrigin != "" {
 				w.Header().Add("Access-Control-Allow-Origin", allowOrigin)

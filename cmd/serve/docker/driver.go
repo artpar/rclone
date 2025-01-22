@@ -12,14 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/cmd/mountlib"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/lib/atexit"
-	"github.com/artpar/rclone/lib/file"
-	"github.com/artpar/rclone/vfs/vfscommon"
-	"github.com/artpar/rclone/vfs/vfsflags"
 	"github.com/coreos/go-systemd/v22/daemon"
+	"github.com/rclone/rclone/cmd/mountlib"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/lib/atexit"
+	"github.com/rclone/rclone/lib/file"
+	"github.com/rclone/rclone/vfs/vfscommon"
 )
 
 // Driver implements docker driver api
@@ -55,7 +54,7 @@ func NewDriver(ctx context.Context, root string, mntOpt *mountlib.Options, vfsOp
 		mntOpt = &mountlib.Opt
 	}
 	if vfsOpt == nil {
-		vfsOpt = &vfsflags.Opt
+		vfsOpt = &vfscommon.Opt
 	}
 	drv := &Driver{
 		root:      root,

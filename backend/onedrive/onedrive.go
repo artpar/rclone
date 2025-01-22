@@ -20,27 +20,26 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/backend/onedrive/api"
-	"github.com/artpar/rclone/backend/onedrive/quickxorhash"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/log"
-	"github.com/artpar/rclone/fs/operations"
-	"github.com/artpar/rclone/fs/walk"
-	"github.com/artpar/rclone/lib/atexit"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/encoder"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/readers"
-	"github.com/artpar/rclone/lib/rest"
-	"golang.org/x/oauth2"
+	"github.com/rclone/rclone/backend/onedrive/api"
+	"github.com/rclone/rclone/backend/onedrive/quickxorhash"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/log"
+	"github.com/rclone/rclone/fs/operations"
+	"github.com/rclone/rclone/fs/walk"
+	"github.com/rclone/rclone/lib/atexit"
+	"github.com/rclone/rclone/lib/dircache"
+	"github.com/rclone/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/readers"
+	"github.com/rclone/rclone/lib/rest"
 )
 
 const (
@@ -65,14 +64,21 @@ const (
 
 // Globals
 var (
-	authPath  = "/common/oauth2/v2.0/authorize"
-	tokenPath = "/common/oauth2/v2.0/token"
+
+	// Define the paths used for token operations
+	commonPathPrefix = "/common" // prefix for the paths if tenant isn't known
+	authPath         = "/oauth2/v2.0/authorize"
+	tokenPath        = "/oauth2/v2.0/token"
 
 	scopeAccess             = fs.SpaceSepList{"Files.Read", "Files.ReadWrite", "Files.Read.All", "Files.ReadWrite.All", "Sites.Read.All", "offline_access"}
 	scopeAccessWithoutSites = fs.SpaceSepList{"Files.Read", "Files.ReadWrite", "Files.Read.All", "Files.ReadWrite.All", "offline_access"}
 
-	// Description of how to auth for this app for a business account
-	oauthConfig = &oauth2.Config{
+	// When using client credential OAuth flow, scope of .default is required in order
+	// to use the permissions configured for the application within the tenant
+	scopeAccessClientCred = fs.SpaceSepList{".default"}
+
+	// Base config for how to auth
+	oauthConfig = &oauthutil.Config{
 		Scopes:       scopeAccess,
 		ClientID:     rcloneClientID,
 		ClientSecret: obscure.MustReveal(rcloneEncryptedClientSecret),
@@ -125,7 +131,7 @@ func init() {
 					Help:  "Microsoft Cloud for US Government",
 				}, {
 					Value: regionDE,
-					Help:  "Microsoft Cloud Germany",
+					Help:  "Microsoft Cloud Germany (deprecated - try " + regionGlobal + " region first).",
 				}, {
 					Value: regionCN,
 					Help:  "Azure and Office 365 operated by Vnet Group in China",
@@ -184,6 +190,14 @@ Choose or manually enter a custom space separated list with all scopes, that rcl
 				},
 			},
 		}, {
+			Name: "tenant",
+			Help: `ID of the service principal's tenant. Also called its directory ID.
+
+Set this if using
+- Client Credential flow
+`,
+			Sensitive: true,
+		}, {
 			Name: "disable_site_permission",
 			Help: `Disable the request for Sites.Read.All permission.
 
@@ -241,6 +255,18 @@ modification time and removes all but the last version.
 this flag there.
 `,
 			Advanced: true,
+		}, {
+			Name: "hard_delete",
+			Help: `Permanently delete files on removal.
+
+Normally files will get sent to the recycle bin on deletion. Setting
+this flag causes them to be permanently deleted. Use with care.
+
+OneDrive personal accounts do not support the permanentDelete API,
+it only applies to OneDrive for Business and SharePoint document libraries.
+`,
+			Advanced: true,
+			Default:  false,
 		}, {
 			Name:     "link_scope",
 			Default:  "anonymous",
@@ -515,28 +541,54 @@ func chooseDrive(ctx context.Context, name string, m configmap.Mapper, srv *rest
 	})
 }
 
-// Config the backend
-func Config(ctx context.Context, name string, m configmap.Mapper, config fs.ConfigIn) (*fs.ConfigOut, error) {
-	region, graphURL := getRegionURL(m)
+// Make the oauth config for the backend
+func makeOauthConfig(ctx context.Context, opt *Options) (*oauthutil.Config, error) {
+	// Copy the default oauthConfig
+	oauthConfig := *oauthConfig
 
-	if config.State == "" {
-		var accessScopes fs.SpaceSepList
-		accessScopesString, _ := m.Get("access_scopes")
-		err := accessScopes.Set(accessScopesString)
+	// Set the scopes
+	oauthConfig.Scopes = opt.AccessScopes
+	if opt.DisableSitePermission {
+		oauthConfig.Scopes = scopeAccessWithoutSites
+	}
+
+	// Construct the auth URLs
+	prefix := commonPathPrefix
+	if opt.Tenant != "" {
+		prefix = "/" + opt.Tenant
+	}
+	oauthConfig.TokenURL = authEndpoint[opt.Region] + prefix + tokenPath
+	oauthConfig.AuthURL = authEndpoint[opt.Region] + prefix + authPath
+
+	// Check to see if we are using client credentials flow
+	if opt.ClientCredentials {
+		// Override scope to .default
+		oauthConfig.Scopes = scopeAccessClientCred
+		if opt.Tenant == "" {
+			return nil, fmt.Errorf("tenant parameter must be set when using %s", config.ConfigClientCredentials)
+		}
+	}
+
+	return &oauthConfig, nil
+}
+
+// Config the backend
+func Config(ctx context.Context, name string, m configmap.Mapper, conf fs.ConfigIn) (*fs.ConfigOut, error) {
+	opt := new(Options)
+	err := configstruct.Set(m, opt)
+	if err != nil {
+		return nil, err
+	}
+	_, graphURL := getRegionURL(m)
+
+	// Check to see if this is the start of the state machine execution
+	if conf.State == "" {
+		conf, err := makeOauthConfig(ctx, opt)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse access_scopes: %w", err)
-		}
-		oauthConfig.Scopes = []string(accessScopes)
-		disableSitePermission, _ := m.Get("disable_site_permission")
-		if disableSitePermission == "true" {
-			oauthConfig.Scopes = scopeAccessWithoutSites
-		}
-		oauthConfig.Endpoint = oauth2.Endpoint{
-			AuthURL:  authEndpoint[region] + authPath,
-			TokenURL: authEndpoint[region] + tokenPath,
+			return nil, err
 		}
 		return oauthutil.ConfigOut("choose_type", &oauthutil.Options{
-			OAuth2Config: oauthConfig,
+			OAuth2Config: conf,
 		})
 	}
 
@@ -544,9 +596,11 @@ func Config(ctx context.Context, name string, m configmap.Mapper, config fs.Conf
 	if err != nil {
 		return nil, fmt.Errorf("failed to configure OneDrive: %w", err)
 	}
+
+	// Create a REST client, build on the OAuth client created above
 	srv := rest.NewClient(oAuthClient)
 
-	switch config.State {
+	switch conf.State {
 	case "choose_type":
 		return fs.ConfigChooseExclusiveFixed("choose_type_done", "config_type", "Type of connection", []fs.OptionExample{{
 			Value: "onedrive",
@@ -572,7 +626,7 @@ func Config(ctx context.Context, name string, m configmap.Mapper, config fs.Conf
 		}})
 	case "choose_type_done":
 		// Jump to next state according to config chosen
-		return fs.ConfigGoto(config.Result)
+		return fs.ConfigGoto(conf.Result)
 	case "onedrive":
 		return chooseDrive(ctx, name, m, srv, chooseDriveOpt{
 			opts: rest.Opts{
@@ -590,16 +644,22 @@ func Config(ctx context.Context, name string, m configmap.Mapper, config fs.Conf
 			},
 		})
 	case "driveid":
-		return fs.ConfigInput("driveid_end", "config_driveid_fixed", "Drive ID")
+		out, err := fs.ConfigInput("driveid_end", "config_driveid_fixed", "Drive ID")
+		if err != nil {
+			return out, err
+		}
+		// Default the drive_id to the previous version in the config
+		out.Option.Default, _ = m.Get("drive_id")
+		return out, nil
 	case "driveid_end":
 		return chooseDrive(ctx, name, m, srv, chooseDriveOpt{
-			finalDriveID: config.Result,
+			finalDriveID: conf.Result,
 		})
 	case "siteid":
 		return fs.ConfigInput("siteid_end", "config_siteid", "Site ID")
 	case "siteid_end":
 		return chooseDrive(ctx, name, m, srv, chooseDriveOpt{
-			siteID: config.Result,
+			siteID: conf.Result,
 		})
 	case "url":
 		return fs.ConfigInput("url_end", "config_site_url", `Site URL
@@ -610,7 +670,7 @@ Examples:
 - "https://XXX.sharepoint.com/teams/ID"
 `)
 	case "url_end":
-		siteURL := config.Result
+		siteURL := conf.Result
 		re := regexp.MustCompile(`https://.*\.sharepoint\.com(/.*)`)
 		match := re.FindStringSubmatch(siteURL)
 		if len(match) == 2 {
@@ -625,12 +685,12 @@ Examples:
 		return fs.ConfigInput("path_end", "config_sharepoint_url", `Server-relative URL`)
 	case "path_end":
 		return chooseDrive(ctx, name, m, srv, chooseDriveOpt{
-			relativePath: config.Result,
+			relativePath: conf.Result,
 		})
 	case "search":
 		return fs.ConfigInput("search_end", "config_search_term", `Search term`)
 	case "search_end":
-		searchTerm := config.Result
+		searchTerm := conf.Result
 		opts := rest.Opts{
 			Method:  "GET",
 			RootURL: graphURL,
@@ -652,10 +712,10 @@ Examples:
 		})
 	case "search_sites":
 		return chooseDrive(ctx, name, m, srv, chooseDriveOpt{
-			siteID: config.Result,
+			siteID: conf.Result,
 		})
 	case "driveid_final":
-		finalDriveID := config.Result
+		finalDriveID := conf.Result
 
 		// Test the driveID and get drive type
 		opts := rest.Opts{
@@ -674,12 +734,12 @@ Examples:
 
 		return fs.ConfigConfirm("driveid_final_end", true, "config_drive_ok", fmt.Sprintf("Drive OK?\n\nFound drive %q of type %q\nURL: %s\n", rootItem.Name, rootItem.ParentReference.DriveType, rootItem.WebURL))
 	case "driveid_final_end":
-		if config.Result == "true" {
+		if conf.Result == "true" {
 			return nil, nil
 		}
 		return fs.ConfigGoto("choose_type")
 	}
-	return nil, fmt.Errorf("unknown state %q", config.State)
+	return nil, fmt.Errorf("unknown state %q", conf.State)
 }
 
 // Options defines the configuration for this backend
@@ -690,11 +750,14 @@ type Options struct {
 	DriveType               string               `config:"drive_type"`
 	RootFolderID            string               `config:"root_folder_id"`
 	DisableSitePermission   bool                 `config:"disable_site_permission"`
+	ClientCredentials       bool                 `config:"client_credentials"`
 	AccessScopes            fs.SpaceSepList      `config:"access_scopes"`
+	Tenant                  string               `config:"tenant"`
 	ExposeOneNoteFiles      bool                 `config:"expose_onenote_files"`
 	ServerSideAcrossConfigs bool                 `config:"server_side_across_configs"`
 	ListChunk               int64                `config:"list_chunk"`
 	NoVersions              bool                 `config:"no_versions"`
+	HardDelete              bool                 `config:"hard_delete"`
 	LinkScope               string               `config:"link_scope"`
 	LinkType                string               `config:"link_type"`
 	LinkPassword            string               `config:"link_password"`
@@ -814,7 +877,7 @@ func shouldRetry(ctx context.Context, resp *http.Response, err error) (bool, err
 				retry = true
 				fs.Debugf(nil, "HTTP 401: Unable to initialize RPS. Trying again.")
 			}
-		case 429: // Too Many Requests.
+		case 429, 503: // Too Many Requests, Server Too Busy
 			// see https://docs.microsoft.com/en-us/sharepoint/dev/general-development/how-to-avoid-getting-throttled-or-blocked-in-sharepoint-online
 			if values := resp.Header["Retry-After"]; len(values) == 1 && values[0] != "" {
 				retryAfter, parseErr := strconv.Atoi(values[0])
@@ -929,7 +992,8 @@ func errorHandler(resp *http.Response) error {
 	// Decode error response
 	errResponse := new(api.Error)
 	err := rest.DecodeJSON(resp, &errResponse)
-	if err != nil {
+	// Redirects have no body so don't report an error
+	if err != nil && resp.Header.Get("Location") == "" {
 		fs.Debugf(nil, "Couldn't decode error response: %v", err)
 	}
 	if errResponse.ErrorInfo.Code == "" {
@@ -976,13 +1040,10 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	}
 
 	rootURL := graphAPIEndpoint[opt.Region] + "/v1.0" + "/drives/" + opt.DriveID
-	oauthConfig.Scopes = opt.AccessScopes
-	if opt.DisableSitePermission {
-		oauthConfig.Scopes = scopeAccessWithoutSites
-	}
-	oauthConfig.Endpoint = oauth2.Endpoint{
-		AuthURL:  authEndpoint[opt.Region] + authPath,
-		TokenURL: authEndpoint[opt.Region] + tokenPath,
+
+	oauthConfig, err := makeOauthConfig(ctx, opt)
+	if err != nil {
+		return nil, err
 	}
 
 	client := fshttp.NewClient(ctx)
@@ -1032,7 +1093,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	}
 
 	// Disable change polling in China region
-	// See: https://github.com/artpar/rclone/issues/6444
+	// See: https://github.com/rclone/rclone/issues/6444
 	if f.opt.Region == regionCN {
 		f.features.ChangeNotify = nil
 	}
@@ -1087,7 +1148,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		}
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
-		// See https://github.com/artpar/rclone/issues/2182
+		// See https://github.com/rclone/rclone/issues/2182
 		f.dirCache = tempF.dirCache
 		f.root = tempF.root
 		// return an error with an fs which points to the parent
@@ -1479,7 +1540,12 @@ func (f *Fs) Mkdir(ctx context.Context, dir string) error {
 
 // deleteObject removes an object by ID
 func (f *Fs) deleteObject(ctx context.Context, id string) error {
-	opts := f.newOptsCall(id, "DELETE", "")
+	var opts rest.Opts
+	if f.opt.HardDelete {
+		opts = f.newOptsCall(id, "POST", "/permanentDelete")
+	} else {
+		opts = f.newOptsCall(id, "DELETE", "")
+	}
 	opts.NoResponse = true
 
 	return f.pacer.Call(func() (bool, error) {
@@ -1526,9 +1592,12 @@ func (f *Fs) Rmdir(ctx context.Context, dir string) error {
 
 // Precision return the precision of this Fs
 func (f *Fs) Precision() time.Duration {
-	if f.driveType == driveTypePersonal {
-		return time.Millisecond
-	}
+	// While this is true for some OneDrive personal accounts, it
+	// isn't true for all of them. See #8101 for details
+	//
+	// if f.driveType == driveTypePersonal {
+	// 	return time.Millisecond
+	// }
 	return time.Second
 }
 
@@ -1587,7 +1656,7 @@ func (f *Fs) waitForJob(ctx context.Context, location string, o *Object) error {
 // Will only be called if src.Fs().Name() == f.Name()
 //
 // If it isn't possible then return fs.ErrorCantCopy
-func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object, error) {
+func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (dst fs.Object, err error) {
 	srcObj, ok := src.(*Object)
 	if !ok {
 		fs.Debugf(src, "Can't copy - not same remote type")
@@ -1602,10 +1671,17 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 		return nil, fs.ErrorCantCopy
 	}
 
-	err := srcObj.readMetaData(ctx)
+	err = srcObj.readMetaData(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	// Find and remove existing object
+	cleanup, err := operations.RemoveExisting(ctx, f, remote, "server side copy")
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup(&err)
 
 	// Check we aren't overwriting a file on the same remote
 	if srcObj.fs == f {
@@ -1909,7 +1985,7 @@ func (f *Fs) PublicLink(ctx context.Context, remote string, expire fs.Duration, 
 		return shareURL, nil
 	}
 
-	cnvFailMsg := "Don't know how to convert share link to direct link - returning the link as is"
+	const cnvFailMsg = "Don't know how to convert share link to direct link - returning the link as is"
 	directURL := ""
 	segments := strings.Split(shareURL, "/")
 	switch f.driveType {
@@ -2520,6 +2596,9 @@ func (o *Object) uploadSinglepart(ctx context.Context, in io.Reader, src fs.Obje
 	}
 	// Set the mod time now and read metadata
 	info, err = o.fs.fetchAndUpdateMetadata(ctx, src, options, o)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch and update metadata: %w", err)
+	}
 	return info, o.setMetaData(info)
 }
 
@@ -2531,8 +2610,11 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 		return errors.New("can't upload content to a OneNote file")
 	}
 
-	o.fs.tokenRenewer.Start()
-	defer o.fs.tokenRenewer.Stop()
+	// Only start the renewer if we have a valid one
+	if o.fs.tokenRenewer != nil {
+		o.fs.tokenRenewer.Start()
+		defer o.fs.tokenRenewer.Stop()
+	}
 
 	size := src.Size()
 

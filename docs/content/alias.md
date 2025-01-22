@@ -56,10 +56,11 @@ Remote or path to alias.
 Can be "myremote:path/to/dir", "myremote:bucket", "myremote:" or "/local/path".
 remote> /mnt/storage/backup
 Remote config
---------------------
-[remote]
-remote = /mnt/storage/backup
---------------------
+Configuration complete.
+Options:
+- type: alias
+- remote: /mnt/storage/backup
+Keep this "remote" remote?
 y) Yes this is OK
 e) Edit this remote
 d) Delete this remote
@@ -118,7 +119,7 @@ Here are the Advanced options specific to alias (Alias for an existing remote).
 
 #### --alias-description
 
-Description of the remote
+Description of the remote.
 
 Properties:
 

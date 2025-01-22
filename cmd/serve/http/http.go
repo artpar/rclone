@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path"
@@ -14,17 +13,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/cmd/serve/proxy"
-	"github.com/artpar/rclone/cmd/serve/proxy/proxyflags"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	libhttp "github.com/artpar/rclone/lib/http"
-	"github.com/artpar/rclone/lib/http/serve"
-	"github.com/artpar/rclone/lib/systemd"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/cmd/serve/proxy"
+	"github.com/rclone/rclone/cmd/serve/proxy/proxyflags"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	libhttp "github.com/rclone/rclone/lib/http"
+	"github.com/rclone/rclone/lib/http/serve"
+	"github.com/rclone/rclone/lib/systemd"
+	"github.com/rclone/rclone/vfs"
+	"github.com/rclone/rclone/vfs/vfscommon"
+	"github.com/rclone/rclone/vfs/vfsflags"
 	"github.com/spf13/cobra"
 )
 
@@ -91,7 +91,7 @@ control the stats printing.
 		cmd.Run(false, true, command, func() error {
 			s, err := run(context.Background(), f, Opt)
 			if err != nil {
-				log.Println(err)
+				fs.Fatal(nil, fmt.Sprint(err))
 			}
 
 			defer systemd.Notify()()
@@ -148,7 +148,7 @@ func run(ctx context.Context, f fs.Fs, opt Options) (s *HTTP, err error) {
 		// override auth
 		s.opt.Auth.CustomAuthFn = s.auth
 	} else {
-		s._vfs = vfs.New(f, &vfsflags.Opt)
+		s._vfs = vfs.New(f, &vfscommon.Opt)
 	}
 
 	s.server, err = libhttp.NewServer(ctx,
@@ -186,6 +186,7 @@ func (s *HTTP) handler(w http.ResponseWriter, r *http.Request) {
 
 // serveDir serves a directory index at dirRemote
 func (s *HTTP) serveDir(w http.ResponseWriter, r *http.Request, dirRemote string) {
+	ctx := r.Context()
 	VFS, err := s.getVFS(r.Context())
 	if err != nil {
 		http.Error(w, "Root directory not found", http.StatusNotFound)
@@ -198,7 +199,7 @@ func (s *HTTP) serveDir(w http.ResponseWriter, r *http.Request, dirRemote string
 		http.Error(w, "Directory not found", http.StatusNotFound)
 		return
 	} else if err != nil {
-		serve.Error(dirRemote, w, "Failed to list directory", err)
+		serve.Error(ctx, dirRemote, w, "Failed to list directory", err)
 		return
 	}
 	if !node.IsDir() {
@@ -208,14 +209,14 @@ func (s *HTTP) serveDir(w http.ResponseWriter, r *http.Request, dirRemote string
 	dir := node.(*vfs.Dir)
 	dirEntries, err := dir.ReadDirAll()
 	if err != nil {
-		serve.Error(dirRemote, w, "Failed to list directory", err)
+		serve.Error(ctx, dirRemote, w, "Failed to list directory", err)
 		return
 	}
 
 	// Make the entries for display
 	directory := serve.NewDirectory(dirRemote, s.server.HTMLTemplate())
 	for _, node := range dirEntries {
-		if vfsflags.Opt.NoModTime {
+		if vfscommon.Opt.NoModTime {
 			directory.AddHTMLEntry(node.Path(), node.IsDir(), node.Size(), time.Time{})
 		} else {
 			directory.AddHTMLEntry(node.Path(), node.IsDir(), node.Size(), node.ModTime().UTC())
@@ -234,6 +235,7 @@ func (s *HTTP) serveDir(w http.ResponseWriter, r *http.Request, dirRemote string
 
 // serveFile serves a file object at remote
 func (s *HTTP) serveFile(w http.ResponseWriter, r *http.Request, remote string) {
+	ctx := r.Context()
 	VFS, err := s.getVFS(r.Context())
 	if err != nil {
 		http.Error(w, "File not found", http.StatusNotFound)
@@ -247,7 +249,7 @@ func (s *HTTP) serveFile(w http.ResponseWriter, r *http.Request, remote string) 
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	} else if err != nil {
-		serve.Error(remote, w, "Failed to find file", err)
+		serve.Error(ctx, remote, w, "Failed to find file", err)
 		return
 	}
 	if !node.IsFile() {
@@ -287,7 +289,7 @@ func (s *HTTP) serveFile(w http.ResponseWriter, r *http.Request, remote string) 
 	// open the object
 	in, err := file.Open(os.O_RDONLY)
 	if err != nil {
-		serve.Error(remote, w, "Failed to open file", err)
+		serve.Error(ctx, remote, w, "Failed to open file", err)
 		return
 	}
 	defer func() {

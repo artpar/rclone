@@ -83,21 +83,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/artpar/rclone/backend/sharefile/api"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/encoder"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/random"
-	"github.com/artpar/rclone/lib/rest"
-	"golang.org/x/oauth2"
+	"github.com/rclone/rclone/backend/sharefile/api"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/dircache"
+	"github.com/rclone/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/oauthutil"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/random"
+	"github.com/rclone/rclone/lib/rest"
 )
 
 const (
@@ -115,13 +114,11 @@ const (
 )
 
 // Generate a new oauth2 config which we will update when we know the TokenURL
-func newOauthConfig(tokenURL string) *oauth2.Config {
-	return &oauth2.Config{
-		Scopes: nil,
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://secure.sharefile.com/oauth/authorize",
-			TokenURL: tokenURL,
-		},
+func newOauthConfig(tokenURL string) *oauthutil.Config {
+	return &oauthutil.Config{
+		Scopes:       nil,
+		AuthURL:      "https://secure.sharefile.com/oauth/authorize",
+		TokenURL:     tokenURL,
 		ClientID:     rcloneClientID,
 		ClientSecret: obscure.MustReveal(rcloneEncryptedClientSecret),
 		RedirectURL:  oauthutil.RedirectPublicSecureURL,
@@ -136,7 +133,7 @@ func init() {
 		NewFs:       NewFs,
 		Config: func(ctx context.Context, name string, m configmap.Mapper, config fs.ConfigIn) (*fs.ConfigOut, error) {
 			oauthConfig := newOauthConfig("")
-			checkAuth := func(oauthConfig *oauth2.Config, auth *oauthutil.AuthResult) error {
+			checkAuth := func(oauthConfig *oauthutil.Config, auth *oauthutil.AuthResult) error {
 				if auth == nil || auth.Form == nil {
 					return errors.New("endpoint not found in response")
 				}
@@ -147,7 +144,7 @@ func init() {
 				}
 				endpoint := "https://" + subdomain + "." + apicp
 				m.Set("endpoint", endpoint)
-				oauthConfig.Endpoint.TokenURL = endpoint + tokenPath
+				oauthConfig.TokenURL = endpoint + tokenPath
 				return nil
 			}
 			return oauthutil.ConfigOut("", &oauthutil.Options{
@@ -528,7 +525,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		f.features.Fill(ctx, &tempF)
 		// XXX: update the old f here instead of returning tempF, since
 		// `features` were already filled with functions having *f as a receiver.
-		// See https://github.com/artpar/rclone/issues/2182
+		// See https://github.com/rclone/rclone/issues/2182
 		f.dirCache = tempF.dirCache
 		f.root = tempF.root
 		// return an error with an fs which points to the parent

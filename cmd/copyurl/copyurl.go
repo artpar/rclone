@@ -36,8 +36,7 @@ func init() {
 var commandDefinition = &cobra.Command{
 	Use:   "copyurl https://example.com dest:path",
 	Short: `Copy the contents of the URL supplied content to dest:path.`,
-	Long: strings.ReplaceAll(`
-Download a URL's content and copy it to the destination without saving
+	Long: strings.ReplaceAll(`Download a URL's content and copy it to the destination without saving
 it in temporary storage.
 
 Setting |--auto-filename| will attempt to automatically determine the
@@ -55,7 +54,7 @@ destination if there is one with the same name.
 Setting |--stdout| or making the output file name |-|
 will cause the output to be written to standard output.
 
-### Troublshooting
+### Troubleshooting
 
 If you can't get |rclone copyurl| to work then here are some things you can try:
 

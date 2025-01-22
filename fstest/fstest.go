@@ -10,7 +10,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -21,13 +20,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configfile"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/walk"
-	"github.com/artpar/rclone/lib/random"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configfile"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/walk"
+	"github.com/rclone/rclone/fstest/testy"
+	"github.com/rclone/rclone/lib/random"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/unicode/norm"
@@ -47,7 +47,7 @@ var (
 	// ListRetries is the number of times to retry a listing to overcome eventual consistency
 	ListRetries = flag.Int("list-retries", 3, "Number or times to retry listing")
 	// MatchTestRemote matches the remote names used for testing
-	MatchTestRemote = regexp.MustCompile(`^rclone-test-[abcdefghijklmnopqrstuvwxyz0123456789]{24}$`)
+	MatchTestRemote = regexp.MustCompile(`^rclone-test-[abcdefghijklmnopqrstuvwxyz0123456789]{12}$`)
 )
 
 // Initialise rclone for testing
@@ -98,7 +98,7 @@ func NewItem(Path, Content string, modTime time.Time) Item {
 	buf := bytes.NewBufferString(Content)
 	_, err := io.Copy(hash, buf)
 	if err != nil {
-		log.Fatalf("Failed to create item: %v", err)
+		fs.Fatalf(nil, "Failed to create item: %v", err)
 	}
 	i.Hashes = hash.Sums()
 	return i
@@ -265,7 +265,7 @@ func CheckListingWithRoot(t *testing.T, f fs.Fs, dir string, items []Item, expec
 	var objs []fs.Object
 	var dirs []fs.Directory
 	var err error
-	var retries = *ListRetries
+	retries := *ListRetries
 	sleep := time.Second / 2
 	wantListing := makeListingFromItems(items)
 	gotListing := "<unset>"
@@ -397,7 +397,7 @@ func CompareItems(t *testing.T, entries fs.DirEntries, items []Item, expectedDir
 func Time(timeString string) time.Time {
 	t, err := time.Parse(time.RFC3339Nano, timeString)
 	if err != nil {
-		log.Fatalf("Failed to parse time %q: %v", timeString, err)
+		fs.Fatalf(nil, "Failed to parse time %q: %v", timeString, err)
 	}
 	return t
 }
@@ -430,9 +430,9 @@ func RandomRemoteName(remoteName string) (string, string, error) {
 		if !strings.HasSuffix(remoteName, ":") {
 			remoteName += "/"
 		}
-		leafName = "rclone-test-" + random.String(24)
+		leafName = "rclone-test-" + random.String(12)
 		if !MatchTestRemote.MatchString(leafName) {
-			log.Fatalf("%q didn't match the test remote name regexp", leafName)
+			fs.Fatalf(nil, "%q didn't match the test remote name regexp", leafName)
 		}
 		remoteName += leafName
 	}
@@ -466,7 +466,7 @@ func RandomRemote() (fs.Fs, string, func(), error) {
 		if parentRemote != nil {
 			Purge(parentRemote)
 			if err != nil {
-				log.Printf("Failed to purge %v: %v", parentRemote, err)
+				fs.Logf(nil, "Failed to purge %v: %v", parentRemote, err)
 			}
 		}
 	}
@@ -498,7 +498,7 @@ func Purge(f fs.Fs) {
 				fs.Debugf(f, "Purge object %q", obj.Remote())
 				err = obj.Remove(ctx)
 				if err != nil {
-					log.Printf("purge failed to remove %q: %v", obj.Remote(), err)
+					fs.Logf(nil, "purge failed to remove %q: %v", obj.Remote(), err)
 				}
 			})
 			entries.ForDir(func(dir fs.Directory) {
@@ -512,12 +512,12 @@ func Purge(f fs.Fs) {
 			fs.Debugf(f, "Purge dir %q", dir)
 			err := f.Rmdir(ctx, dir)
 			if err != nil {
-				log.Printf("purge failed to rmdir %q: %v", dir, err)
+				fs.Logf(nil, "purge failed to rmdir %q: %v", dir, err)
 			}
 		}
 	}
 	if err != nil {
-		log.Printf("purge failed: %v", err)
+		fs.Logf(nil, "purge failed: %v", err)
 	}
 }
 
@@ -539,10 +539,12 @@ func NewObject(ctx context.Context, t *testing.T, f fs.Fs, remote string) fs.Obj
 	return obj
 }
 
-// NewDirectory finds the directory with remote in f
+// NewDirectoryRetries finds the directory with remote in f
+//
+// If directory can't be found it returns an error wrapping fs.ErrorDirNotFound
 //
 // One day this will be an rclone primitive
-func NewDirectory(ctx context.Context, t *testing.T, f fs.Fs, remote string) fs.Directory {
+func NewDirectoryRetries(ctx context.Context, t *testing.T, f fs.Fs, remote string, retries int) (fs.Directory, error) {
 	var err error
 	var dir fs.Directory
 	sleepTime := 1 * time.Second
@@ -550,7 +552,7 @@ func NewDirectory(ctx context.Context, t *testing.T, f fs.Fs, remote string) fs.
 	if root == "." {
 		root = ""
 	}
-	for i := 1; i <= *ListRetries; i++ {
+	for i := 1; i <= retries; i++ {
 		var entries fs.DirEntries
 		entries, err = f.List(ctx, root)
 		if err != nil {
@@ -560,14 +562,24 @@ func NewDirectory(ctx context.Context, t *testing.T, f fs.Fs, remote string) fs.
 			var ok bool
 			dir, ok = entry.(fs.Directory)
 			if ok && dir.Remote() == remote {
-				return dir
+				return dir, nil
 			}
 		}
-		err = fmt.Errorf("directory %q not found in %q", remote, root)
-		t.Logf("Sleeping for %v for findDir eventual consistency: %d/%d (%v)", sleepTime, i, *ListRetries, err)
-		time.Sleep(sleepTime)
-		sleepTime = (sleepTime * 3) / 2
+		err = fmt.Errorf("directory %q not found in %q: %w", remote, root, fs.ErrorDirNotFound)
+		if i < retries {
+			t.Logf("Sleeping for %v for NewDirectoryRetries eventual consistency: %d/%d (%v)", sleepTime, i, retries, err)
+			time.Sleep(sleepTime)
+			sleepTime = (sleepTime * 3) / 2
+		}
 	}
+	return dir, err
+}
+
+// NewDirectory finds the directory with remote in f
+//
+// One day this will be an rclone primitive
+func NewDirectory(ctx context.Context, t *testing.T, f fs.Fs, remote string) fs.Directory {
+	dir, err := NewDirectoryRetries(ctx, t, f, remote, *ListRetries)
 	require.NoError(t, err)
 	return dir
 }
@@ -608,7 +620,15 @@ func CheckDirModTime(ctx context.Context, t *testing.T, f fs.Fs, dir fs.Director
 		return
 	}
 	gotT := dir.ModTime(ctx)
-	AssertTimeEqualWithPrecision(t, dir.Remote(), wantT, gotT, f.Precision())
+	precision := f.Precision()
+	// For unknown reasons the precision of modification times of
+	// directories on the CI is about >15mS. The tests work fine
+	// when run in Virtualbox though so I conjecture this is
+	// something to do with the file system used there.
+	if runtime.GOOS == "windows" && testy.CI() {
+		precision = 100 * time.Millisecond
+	}
+	AssertTimeEqualWithPrecision(t, dir.Remote(), wantT, gotT, precision)
 }
 
 // Gz returns a compressed version of its input string

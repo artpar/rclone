@@ -8,19 +8,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"path"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/atexit"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/random"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/atexit"
+	"github.com/rclone/rclone/lib/pacer"
 )
 
 // State of the copy
@@ -87,7 +87,7 @@ func TruncateString(s string, n int) string {
 }
 
 // Check to see if we should be using a partial name and return the name for the copy and the inplace flag
-func (c *copy) checkPartial() (remoteForCopy string, inplace bool, err error) {
+func (c *copy) checkPartial(ctx context.Context) (remoteForCopy string, inplace bool, err error) {
 	remoteForCopy = c.remote
 	if c.ci.Inplace || c.dstFeatures.Move == nil || !c.dstFeatures.PartialUploads || strings.HasSuffix(c.remote, ".rclonelink") {
 		return remoteForCopy, true, nil
@@ -97,7 +97,11 @@ func (c *copy) checkPartial() (remoteForCopy string, inplace bool, err error) {
 	}
 	// Avoid making the leaf name longer if it's already lengthy to avoid
 	// trouble with file name length limits.
-	suffix := "." + random.String(8) + c.ci.PartialSuffix
+
+	// generate a stable random suffix by hashing the fingerprint
+	hash := crc32.ChecksumIEEE([]byte(fs.Fingerprint(ctx, c.src, true)))
+
+	suffix := fmt.Sprintf(".%x%s", hash, c.ci.PartialSuffix)
 	base := path.Base(remoteForCopy)
 	if len(base) > 100 {
 		remoteForCopy = TruncateString(remoteForCopy, len(remoteForCopy)-len(suffix)) + suffix
@@ -180,7 +184,11 @@ func (c *copy) rcat(ctx context.Context, in io.ReadCloser) (actionTaken string, 
 	}
 
 	// NB Rcat closes in0
-	newDst, err = Rcat(ctx, c.f, c.remoteForCopy, in, c.src.ModTime(ctx), meta)
+	fsrc, ok := c.src.Fs().(fs.Fs)
+	if !ok {
+		fsrc = nil
+	}
+	newDst, err = rcatSrc(ctx, c.f, c.remoteForCopy, in, c.src.ModTime(ctx), meta, fsrc)
 	if c.doUpdate {
 		actionTaken = "Copied (Rcat, replaced existing)"
 	} else {
@@ -323,7 +331,7 @@ func (c *copy) copy(ctx context.Context) (newDst fs.Object, err error) {
 		}
 	}
 	if err != nil {
-		err = fs.CountError(err)
+		err = fs.CountError(ctx, err)
 		fs.Errorf(c.src, "Failed to copy: %v", err)
 		if !c.inplace {
 			c.removeFailedPartialCopy(ctx, c.f, c.remoteForCopy)
@@ -335,7 +343,7 @@ func (c *copy) copy(ctx context.Context) (newDst fs.Object, err error) {
 	err = c.verify(ctx, newDst)
 	if err != nil {
 		fs.Errorf(newDst, "%v", err)
-		err = fs.CountError(err)
+		err = fs.CountError(ctx, err)
 		c.removeFailedCopy(ctx, newDst)
 		return nil, err
 	}
@@ -345,7 +353,7 @@ func (c *copy) copy(ctx context.Context) (newDst fs.Object, err error) {
 		movedNewDst, err := c.dstFeatures.Move(ctx, newDst, c.remote)
 		if err != nil {
 			fs.Errorf(newDst, "partial file rename failed: %v", err)
-			err = fs.CountError(err)
+			err = fs.CountError(ctx, err)
 			c.removeFailedCopy(ctx, newDst)
 			return nil, err
 		}
@@ -396,7 +404,7 @@ func Copy(ctx context.Context, f fs.Fs, dst fs.Object, remote string, src fs.Obj
 	// Are we using partials?
 	//
 	// If so set the flag and update the name we use for the copy
-	c.remoteForCopy, c.inplace, err = c.checkPartial()
+	c.remoteForCopy, c.inplace, err = c.checkPartial(ctx)
 	if err != nil {
 		return nil, err
 	}

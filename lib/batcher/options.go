@@ -32,7 +32,7 @@ a delay on quit.
 
 This sets the batch size of files to upload. It has to be less than %d.
 
-By default this is 0 which means rclone which calculate the batch size
+By default this is 0 which means rclone will calculate the batch size
 depending on the setting of batch_mode.
 
 - batch_mode: async - default batch_size is %d
@@ -66,8 +66,9 @@ default based on the batch_mode in use.
 		Advanced: true,
 	}, {
 		Name:     "batch_commit_timeout",
-		Help:     `Max time to wait for a batch to finish committing`,
+		Help:     `Max time to wait for a batch to finish committing. (no longer used)`,
 		Default:  fs.Duration(10 * time.Minute),
 		Advanced: true,
+		Hide:     fs.OptionHideBoth,
 	}}
 }

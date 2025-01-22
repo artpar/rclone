@@ -182,7 +182,7 @@ A long passphrase is recommended, or `rclone config` can generate a
 random one.
 
 The obscured password is created using AES-CTR with a static key. The
-salt is stored verbatim at the beginning of the obscured password. This
+IV (nonce) is stored verbatim at the beginning of the obscured password. This
 static key is shared between all versions of rclone.
 
 If you reconfigure rclone with the same passwords/passphrases
@@ -634,7 +634,7 @@ Properties:
 
 #### --crypt-description
 
-Description of the remote
+Description of the remote.
 
 Properties:
 
@@ -741,7 +741,7 @@ strong random number generator.  The nonce is incremented for each
 chunk read making sure each nonce is unique for each block written.
 The chance of a nonce being reused is minuscule.  If you wrote an
 exabyte of data (10¹⁸ bytes) you would have a probability of
-approximately 2×10⁻³² of re-using a nonce.
+approximately 2×10⁻³² of reusing a nonce.
 
 #### Chunk
 

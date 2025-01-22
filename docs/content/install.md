@@ -333,7 +333,7 @@ Note that this is controlled by [community maintainer](https://github.com/bouken
 ## Source installation {#source}
 
 Make sure you have git and [Go](https://golang.org/) installed.
-Go version 1.18 or newer is required, the latest release is recommended.
+Go version 1.22 or newer is required, the latest release is recommended.
 You can get it from your package manager, or download it from
 [golang.org/dl](https://golang.org/dl/). Then you can run the following:
 
@@ -447,6 +447,11 @@ which corresponds to `~/go/bin/rclone` by default).
 ```
 go install github.com/artpar/artpar@latest
 ```
+
+In some situations, rclone executable size might be too big for deployment
+in very restricted environments when all backends with large SDKs are included.
+To limit binary size unused backends can be commented out in `backends/all/all.go`
+and unused commands in `cmd/all/all.go` before building with `go build` or `make`
 
 ## Ansible installation {#ansible}
 

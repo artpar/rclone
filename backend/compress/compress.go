@@ -38,6 +38,7 @@ import (
 const (
 	initialChunkSize = 262144  // Initial and max sizes of chunks when reading parts of the file. Currently
 	maxChunkSize     = 8388608 // at 256 KiB and 8 MiB.
+	chunkStreams     = 0       // Streams to use for reading
 
 	bufferSize          = 8388608
 	heuristicBytes      = 1048576
@@ -1286,6 +1287,17 @@ func (o *Object) Metadata(ctx context.Context) (fs.Metadata, error) {
 	return do.Metadata(ctx)
 }
 
+// SetMetadata sets metadata for an Object
+//
+// It should return fs.ErrorNotImplemented if it can't set metadata
+func (o *Object) SetMetadata(ctx context.Context, metadata fs.Metadata) error {
+	do, ok := o.Object.(fs.SetMetadataer)
+	if !ok {
+		return fs.ErrorNotImplemented
+	}
+	return do.SetMetadata(ctx, metadata)
+}
+
 // Hash returns the selected checksum of the file
 // If no checksum is available it returns ""
 func (o *Object) Hash(ctx context.Context, ht hash.Type) (string, error) {
@@ -1351,7 +1363,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (rc io.Read
 		}
 	}
 	// Get a chunkedreader for the wrapped object
-	chunkedReader := chunkedreader.New(ctx, o.Object, initialChunkSize, maxChunkSize)
+	chunkedReader := chunkedreader.New(ctx, o.Object, initialChunkSize, maxChunkSize, chunkStreams)
 	// Get file handle
 	var file io.Reader
 	if offset != 0 {

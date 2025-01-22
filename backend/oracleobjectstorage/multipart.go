@@ -13,16 +13,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/lib/multipart"
-	"github.com/artpar/rclone/lib/pool"
 	"github.com/ncw/swift/v2"
+	"github.com/rclone/rclone/lib/multipart"
+	"github.com/rclone/rclone/lib/pool"
 	"golang.org/x/net/http/httpguts"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/chunksize"
-	"github.com/artpar/rclone/fs/hash"
 	"github.com/oracle/oci-go-sdk/v65/common"
 	"github.com/oracle/oci-go-sdk/v65/objectstorage"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/chunksize"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/hash"
 )
 
 var warnStreamUpload sync.Once
@@ -148,7 +149,7 @@ func (w *objectChunkWriter) WriteChunk(ctx context.Context, chunkNumber int, rea
 	}
 	md5sumBinary := m.Sum([]byte{})
 	w.addMd5(&md5sumBinary, int64(chunkNumber))
-	md5sum := base64.StdEncoding.EncodeToString(md5sumBinary[:])
+	md5sum := base64.StdEncoding.EncodeToString(md5sumBinary)
 
 	// Object storage requires 1 <= PartNumber <= 10000
 	ossPartNumber := chunkNumber + 1
@@ -182,6 +183,9 @@ func (w *objectChunkWriter) WriteChunk(ctx context.Context, chunkNumber int, rea
 		if err != nil {
 			if ossPartNumber <= 8 {
 				return shouldRetry(ctx, resp.HTTPResponse(), err)
+			}
+			if fserrors.ContextError(ctx, &err) {
+				return false, err
 			}
 			// retry all chunks once have done the first few
 			return true, err
@@ -279,7 +283,7 @@ func (w *objectChunkWriter) addMd5(md5binary *[]byte, chunkNumber int64) {
 	if extend := end - int64(len(w.md5s)); extend > 0 {
 		w.md5s = append(w.md5s, make([]byte, extend)...)
 	}
-	copy(w.md5s[start:end], (*md5binary)[:])
+	copy(w.md5s[start:end], (*md5binary))
 }
 
 func (o *Object) prepareUpload(ctx context.Context, src fs.ObjectInfo, options []fs.OpenOption) (ui uploadInfo, err error) {

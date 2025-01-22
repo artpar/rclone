@@ -84,13 +84,13 @@ Is that okay?
 y) Yes
 n) No
 y/n> y
---------------------
-[remote]
-type = onedrive
-token = {"access_token":"youraccesstoken","token_type":"Bearer","refresh_token":"yourrefreshtoken","expiry":"2018-08-26T22:39:52.486512262+08:00"}
-drive_id = b!Eqwertyuiopasdfghjklzxcvbnm-7mnbvcxzlkjhgfdsapoiuytrewqk
-drive_type = business
---------------------
+Configuration complete.
+Options:
+- type: onedrive
+- token: {"access_token":"youraccesstoken","token_type":"Bearer","refresh_token":"yourrefreshtoken","expiry":"2018-08-26T22:39:52.486512262+08:00"}
+- drive_id: b!Eqwertyuiopasdfghjklzxcvbnm-7mnbvcxzlkjhgfdsapoiuytrewqk
+- drive_type: business
+Keep this "remote" remote?
 y) Yes this is OK
 e) Edit this remote
 d) Delete this remote
@@ -161,6 +161,27 @@ You may try to [verify you account](https://docs.microsoft.com/en-us/azure/activ
 
 Note: If you have a special region, you may need a different host in step 4 and 5. Here are [some hints](https://github.com/artpar/artpar/blob/bc23bf11db1c78c6ebbf8ea538fbebf7058b4176/backend/onedrive/onedrive.go#L86).
 
+### Using OAuth Client Credential flow
+
+OAuth Client Credential flow will allow rclone to use permissions
+directly associated with the Azure AD Enterprise application, rather
+that adopting the context of an Azure AD user account.
+
+This flow can be enabled by following the steps below:
+
+1. Create the Enterprise App registration in the Azure AD portal and obtain a Client ID and Client Secret as described above.
+2. Ensure that the application has the appropriate permissions and they are assigned as *Application Permissions*
+3. Configure the remote, ensuring that *Client ID* and *Client Secret* are entered correctly.
+4. In the *Advanced Config* section, enter `true` for `client_credentials` and in the `tenant` section enter the tenant ID.
+
+When it comes to choosing the type of the connection work with the
+client credentials flow. In particular the "onedrive" option does not
+work. You can use the "sharepoint" option or if that does not find the
+correct drive ID type it in manually with the "driveid" option.
+
+**NOTE** Assigning permissions directly to the application means that
+anyone with the *Client ID* and *Client Secret* can access your
+OneDrive files. Take care to safeguard these credentials.
 
 ### Modification times and hashes
 
@@ -302,6 +323,21 @@ Properties:
     - "cn"
         - Azure and Office 365 operated by Vnet Group in China
 
+#### --onedrive-tenant
+
+ID of the service principal's tenant. Also called its directory ID.
+
+Set this if using
+- Client Credential flow
+
+
+Properties:
+
+- Config:      tenant
+- Env Var:     RCLONE_ONEDRIVE_TENANT
+- Type:        string
+- Required:    false
+
 ### Advanced options
 
 Here are the Advanced options specific to onedrive (Microsoft OneDrive).
@@ -342,6 +378,19 @@ Properties:
 - Env Var:     RCLONE_ONEDRIVE_TOKEN_URL
 - Type:        string
 - Required:    false
+
+#### --onedrive-client-credentials
+
+Use client credentials OAuth flow.
+
+This will use the OAUTH2 client Credentials Flow as described in RFC 6749.
+
+Properties:
+
+- Config:      client_credentials
+- Env Var:     RCLONE_ONEDRIVE_CLIENT_CREDENTIALS
+- Type:        bool
+- Default:     false
 
 #### --onedrive-chunk-size
 
@@ -458,9 +507,11 @@ Deprecated: use --server-side-across-configs instead.
 
 Allow server-side operations (e.g. copy) to work across different onedrive configs.
 
-This will only work if you are copying between two OneDrive *Personal* drives AND
-the files to copy are already shared between them.  In other cases, rclone will
-fall back to normal copy (which will be slightly slower).
+This will work if you are copying between two OneDrive *Personal* drives AND the files to
+copy are already shared between them. Additionally, it should also function for a user who
+has access permissions both between Onedrive for *business* and *SharePoint* under the *same
+tenant*, and between *SharePoint* and another *SharePoint* under the *same tenant*. In other
+cases, rclone will fall back to normal copy (which will be slightly slower).
 
 Properties:
 
@@ -500,6 +551,24 @@ Properties:
 
 - Config:      no_versions
 - Env Var:     RCLONE_ONEDRIVE_NO_VERSIONS
+- Type:        bool
+- Default:     false
+
+#### --onedrive-hard-delete
+
+Permanently delete files on removal.
+
+Normally files will get sent to the recycle bin on deletion. Setting
+this flag causes them to be permanently deleted. Use with care.
+
+OneDrive personal accounts do not support the permanentDelete API,
+it only applies to OneDrive for Business and SharePoint document libraries.
+
+
+Properties:
+
+- Config:      hard_delete
+- Env Var:     RCLONE_ONEDRIVE_HARD_DELETE
 - Type:        bool
 - Default:     false
 
@@ -567,7 +636,7 @@ all onedrive types. If an SHA1 hash is desired then set this option
 accordingly.
 
 From July 2023 QuickXorHash will be the only available hash for
-both OneDrive for Business and OneDriver Personal.
+both OneDrive for Business and OneDrive Personal.
 
 This can be set to "none" to not use any hashes.
 
@@ -680,6 +749,8 @@ Properties:
         - Write the value only
     - "read,write"
         - Read and Write the value.
+    - "failok"
+        - If writing fails log errors only, don't fail the transfer
 
 #### --onedrive-encoding
 
@@ -696,7 +767,7 @@ Properties:
 
 #### --onedrive-description
 
-Description of the remote
+Description of the remote.
 
 Properties:
 
@@ -713,11 +784,11 @@ differences between OneDrive Personal and Business (see table below for
 details).
 
 Permissions are also supported, if `--onedrive-metadata-permissions` is set. The
-accepted values for `--onedrive-metadata-permissions` are `read`, `write`,
-`read,write`, and `off` (the default). `write` supports adding new permissions,
+accepted values for `--onedrive-metadata-permissions` are "`read`", "`write`",
+"`read,write`", and "`off`" (the default). "`write`" supports adding new permissions,
 updating the "role" of existing permissions, and removing permissions. Updating
 and removing require the Permission ID to be known, so it is recommended to use
-`read,write` instead of `write` if you wish to update/remove permissions.
+"`read,write`" instead of "`write`" if you wish to update/remove permissions.
 
 Permissions are read/written in JSON format using the same schema as the
 [OneDrive API](https://learn.microsoft.com/en-us/onedrive/developer/rest-api/resources/permission?view=odsp-graph-online),
@@ -801,31 +872,14 @@ an ObjectID can be provided in `User.ID`. At least one valid recipient must be
 provided in order to add a permission for a user. Creating a Public Link is also
 supported, if `Link.Scope` is set to `"anonymous"`.
 
-Example request to add a "read" permission:
+Example request to add a "read" permission with `--metadata-mapper`:
 
 ```json
-[
-	{
-			"id": "",
-			"grantedTo": {
-					"user": {},
-					"application": {},
-					"device": {}
-			},
-			"grantedToIdentities": [
-					{
-							"user": {
-									"id": "ryan@contoso.com"
-							},
-							"application": {},
-							"device": {}
-					}
-			],
-			"roles": [
-					"read"
-			]
-	}
-]
+{
+    "Metadata": {
+        "permissions": "[{\"grantedToIdentities\":[{\"user\":{\"id\":\"ryan@contoso.com\"}}],\"roles\":[\"read\"]}]"
+    }
+}
 ```
 
 Note that adding a permission can fail if a conflicting permission already
@@ -835,7 +889,8 @@ To update an existing permission, include both the Permission ID and the new
 `roles` to be assigned. `roles` is the only property that can be changed.
 
 To remove permissions, pass in a blob containing only the permissions you wish
-to keep (which can be empty, to remove all.)
+to keep (which can be empty, to remove all.) Note that the `owner` role will be
+ignored, as it cannot be removed.
 
 Note that both reading and writing permissions requires extra API calls, so if
 you don't need to read or write permissions it is recommended to omit
@@ -880,6 +935,28 @@ Here are the possible system metadata items for the onedrive backend.
 See the [metadata](/docs/#metadata) docs for more info.
 
 {{< rem autogenerated options stop >}}
+
+### Impersonate other users as Admin
+
+Unlike Google Drive and impersonating any domain user via service accounts, OneDrive requires you to authenticate as an admin account, and manually setup a remote per user you wish to impersonate.
+
+1. In [Microsoft 365 Admin Center](https://admin.microsoft.com), open each user you need to "impersonate" and go to the OneDrive section. There is a heading called "Get access to files", you need to click to create the link, this creates the link of the format `https://{tenant}-my.sharepoint.com/personal/{user_name_domain_tld}/` but also changes the permissions so you your admin user has access.
+2. Then in powershell run the following commands:
+```console
+Install-Module Microsoft.Graph -Scope CurrentUser -Repository PSGallery -Force
+Import-Module Microsoft.Graph.Files
+Connect-MgGraph -Scopes "Files.ReadWrite.All"
+# Follow the steps to allow access to your admin user
+# Then run this for each user you want to impersonate to get the Drive ID
+Get-MgUserDefaultDrive -UserId '{emailaddress}'
+# This will give you output of the format:
+# Name     Id                                                                 DriveType CreatedDateTime
+# ----     --                                                                 --------- ---------------
+# OneDrive b!XYZ123                                                           business  14/10/2023 1:00:58 pm
+
+```
+3. Then in rclone add a onedrive remote type, and use the `Type in driveID` with the DriveID you got in the previous step. One remote per user. It will then confirm the drive ID, and hopefully give you a message of `Found drive "root" of type "business"` and then include the URL of the format `https://{tenant}-my.sharepoint.com/personal/{user_name_domain_tld}/Documents`
+
 
 ## Limitations
 

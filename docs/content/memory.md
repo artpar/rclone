@@ -37,10 +37,10 @@ Storage> memory
 
 Remote config
 
---------------------
-[remote]
-type = memory
---------------------
+Configuration complete.
+Options:
+- type: memory
+Keep this "remote" remote?
 y) Yes this is OK (default)
 e) Edit this remote
 d) Delete this remote
@@ -70,7 +70,7 @@ Here are the Advanced options specific to memory (In memory object storage syste
 
 #### --memory-description
 
-Description of the remote
+Description of the remote.
 
 Properties:
 

@@ -10,12 +10,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -97,6 +97,8 @@ var logReplacements = []string{
 	`^NOTICE:.*?Files of unknown size \(such as Google Docs\) do not sync reliably with --checksum or --size-only\. Consider using modtime instead \(the default\) or --drive-skip-gdocs.*?$`, dropMe,
 	// ignore cache backend cache expired messages
 	`^INFO  : .*cache expired.*$`, dropMe,
+	// ignore "Implicitly create directory" messages (TestnStorage:)
+	`^INFO  : .*Implicitly create directory.*$`, dropMe,
 	// ignore differences in backend features
 	`^.*?"HashType1":.*?$`, dropMe,
 	`^.*?"HashType2":.*?$`, dropMe,
@@ -108,6 +110,8 @@ var logReplacements = []string{
 	`^(INFO  : .*?: (Made directory with|Set directory) (metadata|modification time)).*$`, dropMe,
 	// ignore sizes in directory time updates
 	`^(NOTICE: .*?: Skipped set directory modification time as --dry-run is set).*$`, dropMe,
+	// ignore sizes in directory metadata updates
+	`^(NOTICE: .*?: Skipped update directory metadata as --dry-run is set).*$`, dropMe,
 }
 
 // Some dry-run messages differ depending on the particular remote.
@@ -204,15 +208,16 @@ type bisyncTest struct {
 	parent1  fs.Fs
 	parent2  fs.Fs
 	// global flags
-	argRemote1    string
-	argRemote2    string
-	noCompare     bool
-	noCleanup     bool
-	golden        bool
-	debug         bool
-	stopAt        int
-	TestFn        bisync.TestFunc
-	ignoreModtime bool // ignore modtimes when comparing final listings, for backends without support
+	argRemote1      string
+	argRemote2      string
+	noCompare       bool
+	noCleanup       bool
+	golden          bool
+	debug           bool
+	stopAt          int
+	TestFn          bisync.TestFunc
+	ignoreModtime   bool // ignore modtimes when comparing final listings, for backends without support
+	ignoreBlankHash bool // ignore blank hashes for backends where we allow them to be blank
 }
 
 var color = bisync.Color
@@ -228,7 +233,7 @@ func TestBisyncRemoteLocal(t *testing.T) {
 		t.Skip("path1 and path2 are the same remote")
 	}
 	_, remote, cleanup, err := fstest.RandomRemote()
-	log.Printf("remote: %v", remote)
+	fs.Logf(nil, "remote: %v", remote)
 	require.NoError(t, err)
 	defer cleanup()
 	testBisync(t, remote, *argRemote2)
@@ -240,7 +245,7 @@ func TestBisyncLocalRemote(t *testing.T) {
 		t.Skip("path1 and path2 are the same remote")
 	}
 	_, remote, cleanup, err := fstest.RandomRemote()
-	log.Printf("remote: %v", remote)
+	fs.Logf(nil, "remote: %v", remote)
 	require.NoError(t, err)
 	defer cleanup()
 	testBisync(t, *argRemote2, remote)
@@ -250,7 +255,7 @@ func TestBisyncLocalRemote(t *testing.T) {
 // (useful for testing server-side copy/move)
 func TestBisyncRemoteRemote(t *testing.T) {
 	_, remote, cleanup, err := fstest.RandomRemote()
-	log.Printf("remote: %v", remote)
+	fs.Logf(nil, "remote: %v", remote)
 	require.NoError(t, err)
 	defer cleanup()
 	testBisync(t, remote, remote)
@@ -446,13 +451,13 @@ func (b *bisyncTest) runTestCase(ctx context.Context, t *testing.T, testCase str
 	for _, dir := range srcDirs {
 		dirs = append(dirs, norm.NFC.String(dir.Remote()))
 	}
-	log.Printf("checking initFs %s", initFs)
+	fs.Logf(nil, "checking initFs %s", initFs)
 	fstest.CheckListingWithPrecision(b.t, initFs, items, dirs, initFs.Precision())
 	checkError(b.t, sync.CopyDir(ctxNoDsStore, b.fs1, initFs, true), "setting up path1")
-	log.Printf("checking Path1 %s", b.fs1)
+	fs.Logf(nil, "checking Path1 %s", b.fs1)
 	fstest.CheckListingWithPrecision(b.t, b.fs1, items, dirs, b.fs1.Precision())
 	checkError(b.t, sync.CopyDir(ctxNoDsStore, b.fs2, initFs, true), "setting up path2")
-	log.Printf("checking path2 %s", b.fs2)
+	fs.Logf(nil, "checking path2 %s", b.fs2)
 	fstest.CheckListingWithPrecision(b.t, b.fs2, items, dirs, b.fs2.Precision())
 
 	// Create log file
@@ -510,21 +515,21 @@ func (b *bisyncTest) runTestCase(ctx context.Context, t *testing.T, testCase str
 	require.NoError(b.t, err, "saving log file %s", savedLog)
 
 	if b.golden && !b.stopped {
-		log.Printf("Store results to golden directory")
+		fs.Logf(nil, "Store results to golden directory")
 		b.storeGolden()
 		return
 	}
 
 	errorCount := 0
 	if b.noCompare {
-		log.Printf("Skip comparing results with golden directory")
+		fs.Logf(nil, "Skip comparing results with golden directory")
 		errorCount = -2
 	} else {
 		errorCount = b.compareResults()
 	}
 
 	if b.noCleanup {
-		log.Printf("Skip cleanup")
+		fs.Logf(nil, "Skip cleanup")
 	} else {
 		b.cleanupCase(ctx)
 	}
@@ -937,8 +942,15 @@ func (b *bisyncTest) checkPreReqs(ctx context.Context, opt *bisync.Options) (con
 		b.fs2.Features().Disable("Copy") // API has longstanding bug for conflictBehavior=replace https://github.com/artpar/rclone/issues/4590
 		b.fs2.Features().Disable("Move")
 	}
+	if strings.Contains(strings.ToLower(fs.ConfigString(b.fs1)), "mailru") || strings.Contains(strings.ToLower(fs.ConfigString(b.fs2)), "mailru") {
+		fs.GetConfig(ctx).TPSLimit = 10 // https://github.com/rclone/rclone/issues/7768#issuecomment-2060888980
+	}
 	if (!b.fs1.Features().CanHaveEmptyDirectories || !b.fs2.Features().CanHaveEmptyDirectories) && (b.testCase == "createemptysrcdirs" || b.testCase == "rmdirs") {
 		b.t.Skip("skipping test as remote does not support empty dirs")
+	}
+	ignoreHashBackends := []string{"TestWebdavNextcloud", "TestWebdavOwncloud", "TestAzureFiles"} // backends that support hashes but allow them to be blank
+	if slices.ContainsFunc(ignoreHashBackends, func(prefix string) bool { return strings.HasPrefix(b.fs1.Name(), prefix) }) || slices.ContainsFunc(ignoreHashBackends, func(prefix string) bool { return strings.HasPrefix(b.fs2.Name(), prefix) }) {
+		b.ignoreBlankHash = true
 	}
 	if b.fs1.Precision() == fs.ModTimeNotSupported || b.fs2.Precision() == fs.ModTimeNotSupported {
 		if b.testCase != "nomodtime" {
@@ -1297,7 +1309,7 @@ func touchFiles(ctx context.Context, dateStr string, f fs.Fs, dir, glob string) 
 		return files, fmt.Errorf("invalid date %q: %w", dateStr, err)
 	}
 
-	matcher, firstErr := filter.GlobToRegexp(glob, false)
+	matcher, firstErr := filter.GlobPathToRegexp(glob, false)
 	if firstErr != nil {
 		return files, fmt.Errorf("invalid glob %q", glob)
 	}
@@ -1376,24 +1388,24 @@ func (b *bisyncTest) compareResults() int {
 	const divider = "----------------------------------------------------------"
 
 	if goldenNum != resultNum {
-		log.Print(divider)
-		log.Print(color(terminal.RedFg, "MISCOMPARE - Number of Golden and Results files do not match:"))
-		log.Printf("  Golden count: %d", goldenNum)
-		log.Printf("  Result count: %d", resultNum)
-		log.Printf("  Golden files: %s", strings.Join(goldenFiles, ", "))
-		log.Printf("  Result files: %s", strings.Join(resultFiles, ", "))
+		fs.Log(nil, divider)
+		fs.Log(nil, color(terminal.RedFg, "MISCOMPARE - Number of Golden and Results files do not match:"))
+		fs.Logf(nil, "  Golden count: %d", goldenNum)
+		fs.Logf(nil, "  Result count: %d", resultNum)
+		fs.Logf(nil, "  Golden files: %s", strings.Join(goldenFiles, ", "))
+		fs.Logf(nil, "  Result files: %s", strings.Join(resultFiles, ", "))
 	}
 
 	for _, file := range goldenFiles {
 		if !resultSet.Has(file) {
 			errorCount++
-			log.Printf("  File found in Golden but not in Results:  %s", file)
+			fs.Logf(nil, "  File found in Golden but not in Results:  %s", file)
 		}
 	}
 	for _, file := range resultFiles {
 		if !goldenSet.Has(file) {
 			errorCount++
-			log.Printf("  File found in Results but not in Golden:  %s", file)
+			fs.Logf(nil, "  File found in Results but not in Golden:  %s", file)
 		}
 	}
 
@@ -1426,15 +1438,15 @@ func (b *bisyncTest) compareResults() int {
 		text, err := difflib.GetUnifiedDiffString(diff)
 		require.NoError(b.t, err, "diff failed")
 
-		log.Print(divider)
-		log.Printf(color(terminal.RedFg, "| MISCOMPARE  -Golden vs +Results for  %s"), file)
+		fs.Log(nil, divider)
+		fs.Logf(nil, color(terminal.RedFg, "| MISCOMPARE  -Golden vs +Results for  %s"), file)
 		for _, line := range strings.Split(strings.TrimSpace(text), "\n") {
-			log.Printf("| %s", strings.TrimSpace(line))
+			fs.Logf(nil, "| %s", strings.TrimSpace(line))
 		}
 	}
 
 	if errorCount > 0 {
-		log.Print(divider)
+		fs.Log(nil, divider)
 	}
 	if errorCount == 0 && goldenNum != resultNum {
 		return -1
@@ -1457,7 +1469,7 @@ func (b *bisyncTest) storeGolden() {
 			continue
 		}
 		if fileName == "backupdirs" {
-			log.Printf("skipping: %v", fileName)
+			fs.Logf(nil, "skipping: %v", fileName)
 			continue
 		}
 		goldName := b.toGolden(fileName)
@@ -1482,7 +1494,7 @@ func (b *bisyncTest) storeGolden() {
 			continue
 		}
 		if fileName == "backupdirs" {
-			log.Printf("skipping: %v", fileName)
+			fs.Logf(nil, "skipping: %v", fileName)
 			continue
 		}
 		text := b.mangleResult(b.goldenDir, fileName, true)
@@ -1544,6 +1556,12 @@ func (b *bisyncTest) mangleResult(dir, file string, golden bool) string {
 
 	if b.fs1.Hashes() == hash.Set(hash.None) || b.fs2.Hashes() == hash.Set(hash.None) {
 		logReplacements = append(logReplacements, `^.*{hashtype} differ.*$`, dropMe)
+	}
+	if b.ignoreBlankHash {
+		logReplacements = append(logReplacements,
+			`^.*hash is missing.*$`, dropMe,
+			`^.*not equal on recheck.*$`, dropMe,
+		)
 	}
 	rep := logReplacements
 	if b.testCase == "dry_run" {
@@ -1735,8 +1753,8 @@ func (b *bisyncTest) newReplacer(mangle bool) *strings.Replacer {
 		b.path2, "{path2/}",
 		b.replaceHex(b.path1), "{path1/}",
 		b.replaceHex(b.path2), "{path2/}",
-		"//?/" + strings.TrimSuffix(strings.Replace(b.path1, slash, "/", -1), "/"), "{path1}", // fix windows-specific issue
-		"//?/" + strings.TrimSuffix(strings.Replace(b.path2, slash, "/", -1), "/"), "{path2}",
+		"//?/" + strings.TrimSuffix(strings.ReplaceAll(b.path1, slash, "/"), "/"), "{path1}", // fix windows-specific issue
+		"//?/" + strings.TrimSuffix(strings.ReplaceAll(b.path2, slash, "/"), "/"), "{path2}",
 		strings.TrimSuffix(b.path1, slash), "{path1}", // ensure it's still recognized without trailing slash
 		strings.TrimSuffix(b.path2, slash), "{path2}",
 		b.workDir, "{workdir}",
@@ -1842,7 +1860,7 @@ func fileType(fileName string) string {
 // logPrintf prints a message to stdout and to the test log
 func (b *bisyncTest) logPrintf(text string, args ...interface{}) {
 	line := fmt.Sprintf(text, args...)
-	log.Print(line)
+	fs.Log(nil, line)
 	if b.logFile != nil {
 		_, err := fmt.Fprintln(b.logFile, line)
 		require.NoError(b.t, err, "writing log file")

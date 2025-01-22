@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/artpar/rclone/cmd/mountlib"
@@ -35,24 +34,11 @@ func init() {
 	buildinfo.Tags = append(buildinfo.Tags, "cmount")
 }
 
-// Find the option string in the current options
-func findOption(name string, options []string) (found bool) {
-	for _, option := range options {
-		if option == "-o" {
-			continue
-		}
-		if strings.Contains(option, name) {
-			return true
-		}
-	}
-	return false
-}
-
 // mountOptions configures the options from the command line flags
 func mountOptions(VFS *vfs.VFS, device string, mountpoint string, opt *mountlib.Options) (options []string) {
 	// Options
 	options = []string{
-		"-o", fmt.Sprintf("attr_timeout=%g", opt.AttrTimeout.Seconds()),
+		"-o", fmt.Sprintf("attr_timeout=%g", time.Duration(opt.AttrTimeout).Seconds()),
 	}
 	if opt.DebugFUSE {
 		options = append(options, "-o", "debug")
@@ -79,7 +65,7 @@ func mountOptions(VFS *vfs.VFS, device string, mountpoint string, opt *mountlib.
 		// WinFSP so cmount must work with or without it.
 		options = append(options, "-o", "atomic_o_trunc")
 		if opt.DaemonTimeout != 0 {
-			options = append(options, "-o", fmt.Sprintf("daemon_timeout=%d", int(opt.DaemonTimeout.Seconds())))
+			options = append(options, "-o", fmt.Sprintf("daemon_timeout=%d", int(time.Duration(opt.DaemonTimeout).Seconds())))
 		}
 		if opt.AllowOther {
 			options = append(options, "-o", "allow_other")
@@ -93,9 +79,9 @@ func mountOptions(VFS *vfs.VFS, device string, mountpoint string, opt *mountlib.
 		if VFS.Opt.ReadOnly {
 			options = append(options, "-o", "ro")
 		}
-		if opt.WritebackCache {
-			// FIXME? options = append(options, "-o", WritebackCache())
-		}
+		//if opt.WritebackCache {
+		// FIXME? options = append(options, "-o", WritebackCache())
+		//}
 		if runtime.GOOS == "darwin" {
 			if opt.VolumeName != "" {
 				options = append(options, "-o", "volname="+opt.VolumeName)
@@ -111,9 +97,7 @@ func mountOptions(VFS *vfs.VFS, device string, mountpoint string, opt *mountlib.
 	for _, option := range opt.ExtraOptions {
 		options = append(options, "-o", option)
 	}
-	for _, option := range opt.ExtraFlags {
-		options = append(options, option)
-	}
+	options = append(options, opt.ExtraFlags...)
 	return options
 }
 

@@ -12,12 +12,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/lib/terminal"
-	"github.com/artpar/rclone/vfs"
-	"github.com/artpar/rclone/vfs/vfsflags"
 	"github.com/pkg/sftp"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/terminal"
+	"github.com/rclone/rclone/vfs"
+	"github.com/rclone/rclone/vfs/vfscommon"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -307,7 +307,7 @@ func serveStdio(f fs.Fs) error {
 		stdin:  os.Stdin,
 		stdout: os.Stdout,
 	}
-	handlers := newVFSHandler(vfs.New(f, &vfsflags.Opt))
+	handlers := newVFSHandler(vfs.New(f, &vfscommon.Opt))
 	return serveChannel(sshChannel, handlers, "stdio")
 }
 

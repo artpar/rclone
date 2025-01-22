@@ -130,12 +130,8 @@ This format requires absolute paths and the use of prefix `\\?\`,
 e.g. `\\?\D:\some\very\long\path`. For convenience rclone will automatically
 convert regular paths into the corresponding extended-length paths,
 so in most cases you do not have to worry about this (read more [below](#long-paths)).
-
-Note that Windows supports using the same prefix `\\?\` to
-specify path to volumes identified by their GUID, e.g.
-`\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\some\path`.
-This is *not* supported in rclone, due to an [issue](https://github.com/golang/go/issues/39785)
-in go.
+Using the same prefix `\\?\` it is also possible to specify path to volumes
+identified by their GUID, e.g. `\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\some\path`.
 
 #### Long paths ####
 
@@ -213,13 +209,13 @@ $ rclone -L ls /tmp/a
         6 b/one
 ```
 
-#### --links, -l 
+#### --local-links, --links, -l 
 
 Normally rclone will ignore symlinks or junction points (which behave
 like symlinks under Windows).
 
 If you supply this flag then rclone will copy symbolic links from the local storage,
-and store them as text files, with a '.rclonelink' suffix in the remote storage.
+and store them as text files, with a `.rclonelink` suffix in the remote storage.
 
 The text file will contain the target of the symbolic link (see example).
 
@@ -240,7 +236,7 @@ Copying the entire directory with '-l'
 $ rclone copy -l /tmp/a/ remote:/tmp/a/
 ```
 
-The remote files are created with a '.rclonelink' suffix
+The remote files are created with a `.rclonelink` suffix
 
 ```
 $ rclone ls remote:/tmp/a
@@ -278,7 +274,7 @@ $ tree /tmp/b
 /tmp/b
 ├── file1.rclonelink
 └── file2.rclonelink
-````
+```
 
 If you want to copy a single file with `-l` then you must use the `.rclonelink` suffix.
 
@@ -289,6 +285,10 @@ $ tree /tmp/c
 /tmp/c
 └── file1 -> ./file4
 ```
+
+Note that `--local-links` just enables this feature for the local
+backend. `--links` and `-l` enable the feature for all supported
+backends and the VFS.
 
 Note that this flag is incompatible with `-copy-links` / `-L`.
 
@@ -365,9 +365,9 @@ Properties:
 - Type:        bool
 - Default:     false
 
-#### --links / -l
+#### --local-links
 
-Translate symlinks to/from regular files with a '.rclonelink' extension.
+Translate symlinks to/from regular files with a '.rclonelink' extension for the local backend.
 
 Properties:
 
@@ -516,6 +516,32 @@ Properties:
 - Type:        bool
 - Default:     false
 
+#### --local-no-clone
+
+Disable reflink cloning for server-side copies.
+
+Normally, for local-to-local transfers, rclone will "clone" the file when
+possible, and fall back to "copying" only when cloning is not supported.
+
+Cloning creates a shallow copy (or "reflink") which initially shares blocks with
+the original file. Unlike a "hardlink", the two files are independent and
+neither will affect the other if subsequently modified.
+
+Cloning is usually preferable to copying, as it is much faster and is
+deduplicated by default (i.e. having two identical files does not consume more
+storage than having just one.)  However, for use cases where data redundancy is
+preferable, --local-no-clone can be used to disable cloning and force "deep" copies.
+
+Currently, cloning is only supported when using APFS on macOS (support for other
+platforms may be added in the future.)
+
+Properties:
+
+- Config:      no_clone
+- Env Var:     RCLONE_LOCAL_NO_CLONE
+- Type:        bool
+- Default:     false
+
 #### --local-no-preallocate
 
 Disable preallocation of disk space for transferred files.
@@ -566,6 +592,44 @@ Properties:
 - Type:        bool
 - Default:     false
 
+#### --local-time-type
+
+Set what kind of time is returned.
+
+Normally rclone does all operations on the mtime or Modification time.
+
+If you set this flag then rclone will return the Modified time as whatever
+you set here. So if you use "rclone lsl --local-time-type ctime" then
+you will see ctimes in the listing.
+
+If the OS doesn't support returning the time_type specified then rclone
+will silently replace it with the modification time which all OSes support.
+
+- mtime is supported by all OSes
+- atime is supported on all OSes except: plan9, js
+- btime is only supported on: Windows, macOS, freebsd, netbsd
+- ctime is supported on all Oses except: Windows, plan9, js
+
+Note that setting the time will still set the modified time so this is
+only useful for reading.
+
+
+Properties:
+
+- Config:      time_type
+- Env Var:     RCLONE_LOCAL_TIME_TYPE
+- Type:        mtime|atime|btime|ctime
+- Default:     mtime
+- Examples:
+    - "mtime"
+        - The last modification time.
+    - "atime"
+        - The last access time.
+    - "btime"
+        - The creation time.
+    - "ctime"
+        - The last status change time.
+
 #### --local-encoding
 
 The encoding for the backend.
@@ -581,7 +645,7 @@ Properties:
 
 #### --local-description
 
-Description of the remote
+Description of the remote.
 
 Properties:
 

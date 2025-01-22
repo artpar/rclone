@@ -210,6 +210,22 @@ keys instead of setting ` + "`service_principal_file`" + `.
 `,
 			Advanced: true,
 		}, {
+			Name: "disable_instance_discovery",
+			Help: `Skip requesting Microsoft Entra instance metadata
+
+This should be set true only by applications authenticating in
+disconnected clouds, or private clouds such as Azure Stack.
+
+It determines whether rclone requests Microsoft Entra instance
+metadata from ` + "`https://login.microsoft.com/`" + ` before
+authenticating.
+
+Setting this to true will skip this request, making you responsible
+for ensuring the configured authority is valid and trustworthy.
+`,
+			Default:  false,
+			Advanced: true,
+		}, {
 			Name: "use_msi",
 			Help: `Use a managed service identity to authenticate (only works in Azure).
 
@@ -241,6 +257,20 @@ msi_client_id, or msi_mi_res_id parameters.`,
 		}, {
 			Name:     "use_emulator",
 			Help:     "Uses local storage emulator if provided as 'true'.\n\nLeave blank if using real azure storage endpoint.",
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "use_az",
+			Help: `Use Azure CLI tool az for authentication
+
+Set to use the [Azure CLI tool az](https://learn.microsoft.com/en-us/cli/azure/)
+as the sole means of authentication.
+
+Setting this can be useful if you wish to use the az CLI on a host with
+a System Managed Identity that you do not want to use.
+
+Don't set env_auth at the same time.
+`,
 			Default:  false,
 			Advanced: true,
 		}, {
@@ -438,10 +468,12 @@ type Options struct {
 	Username                   string               `config:"username"`
 	Password                   string               `config:"password"`
 	ServicePrincipalFile       string               `config:"service_principal_file"`
+	DisableInstanceDiscovery   bool                 `config:"disable_instance_discovery"`
 	UseMSI                     bool                 `config:"use_msi"`
 	MSIObjectID                string               `config:"msi_object_id"`
 	MSIClientID                string               `config:"msi_client_id"`
 	MSIResourceID              string               `config:"msi_mi_res_id"`
+	UseAZ                      bool                 `config:"use_az"`
 	Endpoint                   string               `config:"endpoint"`
 	ChunkSize                  fs.SizeSuffix        `config:"chunk_size"`
 	UploadConcurrency          int                  `config:"upload_concurrency"`
@@ -487,6 +519,7 @@ type Object struct {
 	mimeType   string            // Content-Type of the object
 	accessTier blob.AccessTier   // Blob Access Tier
 	meta       map[string]string // blob metadata - take metadataMu when accessing
+	tags       map[string]string // blob tags
 }
 
 // ------------------------------------------------------------
@@ -711,10 +744,11 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		ClientOptions: policyClientOptions,
 	}
 
-	// Here we auth by setting one of cred, sharedKeyCred or f.svc
+	// Here we auth by setting one of cred, sharedKeyCred, f.svc or anonymous
 	var (
 		cred          azcore.TokenCredential
 		sharedKeyCred *service.SharedKeyCredential
+		anonymous     = false
 	)
 	switch {
 	case opt.EnvAuth:
@@ -724,7 +758,8 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		}
 		// Read credentials from the environment
 		options := azidentity.DefaultAzureCredentialOptions{
-			ClientOptions: policyClientOptions,
+			ClientOptions:            policyClientOptions,
+			DisableInstanceDiscovery: opt.DisableInstanceDiscovery,
 		}
 		cred, err = azidentity.NewDefaultAzureCredential(&options)
 		if err != nil {
@@ -874,6 +909,15 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		if err != nil {
 			return nil, fmt.Errorf("failed to acquire MSI token: %w", err)
 		}
+	case opt.UseAZ:
+		var options = azidentity.AzureCLICredentialOptions{}
+		cred, err = azidentity.NewAzureCLICredential(&options)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Azure CLI credentials: %w", err)
+		}
+	case opt.Account != "":
+		// Anonymous access
+		anonymous = true
 	default:
 		return nil, errors.New("no authentication method configured")
 	}
@@ -902,6 +946,12 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 			f.svc, err = service.NewClient(opt.Endpoint, cred, &clientOpt)
 			if err != nil {
 				return nil, fmt.Errorf("create client failed: %w", err)
+			}
+		} else if anonymous {
+			// Anonymous public access
+			f.svc, err = service.NewClientWithNoCredential(opt.Endpoint, &clientOpt)
+			if err != nil {
+				return nil, fmt.Errorf("create public client failed: %w", err)
 			}
 		}
 	}
@@ -1088,7 +1138,7 @@ func (f *Fs) list(ctx context.Context, containerName, directory, prefix string, 
 			isDirectory := isDirectoryMarker(*file.Properties.ContentLength, file.Metadata, remote)
 			if isDirectory {
 				// Don't insert the root directory
-				if remote == directory {
+				if remote == f.opt.Enc.ToStandardPath(directory) {
 					continue
 				}
 				// process directory markers as directories
@@ -1827,6 +1877,14 @@ func (o *Object) decodeMetaDataFromBlob(info *container.BlobItem) (err error) {
 	return nil
 }
 
+func (o *Object) getTags() (tags map[string]string) {
+	if o.tags != nil {
+		return o.tags
+	}
+
+	return map[string]string{}
+}
+
 // getBlobSVC creates a blob client
 func (o *Object) getBlobSVC() *blob.Client {
 	container, directory := o.split()
@@ -2084,7 +2142,6 @@ func (w *azChunkWriter) WriteChunk(ctx context.Context, chunkNumber int, reader 
 		return 0, nil
 	}
 	md5sum := m.Sum(nil)
-	transactionalMD5 := md5sum[:]
 
 	// increment the blockID and save the blocks for finalize
 	var binaryBlockID [8]byte // block counter as LSB first 8 bytes
@@ -2107,12 +2164,15 @@ func (w *azChunkWriter) WriteChunk(ctx context.Context, chunkNumber int, reader 
 		}
 		options := blockblob.StageBlockOptions{
 			// Specify the transactional md5 for the body, to be validated by the service.
-			TransactionalValidation: blob.TransferValidationTypeMD5(transactionalMD5),
+			TransactionalValidation: blob.TransferValidationTypeMD5(md5sum),
 		}
 		_, err = w.ui.blb.StageBlock(ctx, blockID, &readSeekCloser{Reader: reader, Seeker: reader}, &options)
 		if err != nil {
 			if chunkNumber <= 8 {
 				return w.f.shouldRetry(ctx, err)
+			}
+			if fserrors.ContextError(ctx, &err) {
+				return false, err
 			}
 			// retry all chunks once have done the first few
 			return true, err
@@ -2178,6 +2238,7 @@ func (w *azChunkWriter) Close(ctx context.Context) (err error) {
 
 	options := blockblob.CommitBlockListOptions{
 		Metadata:    w.o.getMetadata(),
+		Tags:        w.o.getTags(),
 		Tier:        parseTier(w.f.opt.AccessTier),
 		HTTPHeaders: &w.ui.httpHeaders,
 	}
@@ -2233,6 +2294,7 @@ func (o *Object) uploadSinglepart(ctx context.Context, in io.Reader, size int64,
 
 	options := blockblob.UploadOptions{
 		Metadata:    o.getMetadata(),
+		Tags:        o.getTags(),
 		Tier:        parseTier(o.fs.opt.AccessTier),
 		HTTPHeaders: &ui.httpHeaders,
 	}
@@ -2303,6 +2365,20 @@ func (o *Object) prepareUpload(ctx context.Context, src fs.ObjectInfo, options [
 		switch lowerKey {
 		case "":
 			// ignore
+		case "x-ms-tags":
+			if o.tags == nil {
+				o.tags = make(map[string]string)
+			}
+
+			tags := strings.Split(value, ",")
+			for _, tag := range tags {
+				parts := strings.SplitN(tag, "=", 2)
+				if len(parts) != 2 {
+					return ui, fmt.Errorf("invalid tag %q", tag)
+				}
+
+				o.tags[parts[0]] = parts[1]
+			}
 		case "cache-control":
 			ui.httpHeaders.BlobCacheControl = pString(value)
 		case "content-disposition":

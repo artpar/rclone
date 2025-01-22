@@ -121,6 +121,9 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		return nil, err
 	}
 
+	// Strip leading and trailing slashes, see https://github.com/rclone/rclone/issues/7796 for details.
+	root = strings.Trim(root, "/")
+
 	client := fshttp.NewClient(ctx)
 
 	f := &Fs{
@@ -1017,7 +1020,7 @@ func (f *Fs) CreateDir(ctx context.Context, parentSlug, leaf string) (newID stri
 	return folder.Slug, nil
 }
 
-func (f *Fs) newObjectWithInfo(ctx context.Context, remote string, info *api.File) (*Object, error) {
+func (f *Fs) newObjectWithInfo(ctx context.Context, remote string, info *api.File) (fs.Object, error) {
 	o := &Object{
 		fs:     f,
 		remote: remote,

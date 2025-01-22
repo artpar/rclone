@@ -127,6 +127,11 @@ func (f *Fs) Features() *fs.Features {
 func (f *Fs) Rmdir(ctx context.Context, dir string) error {
 	upstreams, err := f.action(ctx, dir)
 	if err != nil {
+		// If none of the backends can have empty directories then
+		// don't complain about directories not being found
+		if !f.features.CanHaveEmptyDirectories && err == fs.ErrorObjectNotFound {
+			return nil
+		}
 		return err
 	}
 	errs := Errors(make([]error, len(upstreams)))
@@ -898,7 +903,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	// Backward compatible to old config
 	if len(opt.Upstreams) == 0 && len(opt.Remotes) > 0 {
 		for i := 0; i < len(opt.Remotes)-1; i++ {
-			opt.Remotes[i] = opt.Remotes[i] + ":ro"
+			opt.Remotes[i] += ":ro"
 		}
 		opt.Upstreams = opt.Remotes
 	}

@@ -80,9 +80,10 @@ const (
 // Globals
 var (
 	// Description of how to auth for this app
-	driveConfig = &oauth2.Config{
+	driveConfig = &oauthutil.Config{
 		Scopes:       []string{scopePrefix + "drive"},
-		Endpoint:     google.Endpoint,
+		AuthURL:      google.Endpoint.AuthURL,
+		TokenURL:     google.Endpoint.TokenURL,
 		ClientID:     rcloneClientID,
 		ClientSecret: obscure.MustReveal(rcloneEncryptedClientSecret),
 		RedirectURL:  oauthutil.RedirectURL,
@@ -120,6 +121,7 @@ var (
 		"text/html":                 ".html",
 		"text/plain":                ".txt",
 		"text/tab-separated-values": ".tsv",
+		"text/markdown":             ".md",
 	}
 	_mimeTypeToExtensionLinks = map[string]string{
 		"application/x-link-desktop": ".desktop",
@@ -151,6 +153,7 @@ func (rwChoices) Choices() []fs.BitsChoicesInfo {
 		{Bit: uint64(rwOff), Name: "off"},
 		{Bit: uint64(rwRead), Name: "read"},
 		{Bit: uint64(rwWrite), Name: "write"},
+		{Bit: uint64(rwFailOK), Name: "failok"},
 	}
 }
 
@@ -160,6 +163,7 @@ type rwChoice = fs.Bits[rwChoices]
 const (
 	rwRead rwChoice = 1 << iota
 	rwWrite
+	rwFailOK
 	rwOff rwChoice = 0
 )
 
@@ -173,6 +177,9 @@ var rwExamples = fs.OptionExamples{{
 }, {
 	Value: rwWrite.String(),
 	Help:  "Write the value only",
+}, {
+	Value: rwFailOK.String(),
+	Help:  "If writing fails log errors only, don't fail the transfer",
 }, {
 	Value: (rwRead | rwWrite).String(),
 	Help:  "Read and Write the value.",
@@ -1747,10 +1754,9 @@ func (f *Fs) createDir(ctx context.Context, pathID, leaf string, metadata fs.Met
 	leaf = f.opt.Enc.FromStandardName(leaf)
 	pathID = actualID(pathID)
 	createInfo := &drive.File{
-		Name:        leaf,
-		Description: leaf,
-		MimeType:    driveFolderType,
-		Parents:     []string{pathID},
+		Name:     leaf,
+		MimeType: driveFolderType,
+		Parents:  []string{pathID},
 	}
 	var updateMetadata updateMetadataFn
 	if len(metadata) > 0 {
@@ -2215,7 +2221,7 @@ func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (
 		case in <- job:
 		default:
 			overflow = append(overflow, job)
-			wg.Add(-1)
+			wg.Done()
 		}
 	}
 
@@ -2430,7 +2436,6 @@ func (f *Fs) createFileInfo(ctx context.Context, remote string, modTime time.Tim
 	// Define the metadata for the file we are going to create.
 	createInfo := &drive.File{
 		Name:         leaf,
-		Description:  leaf,
 		Parents:      []string{directoryID},
 		ModifiedTime: modTime.Format(timeFormatOut),
 	}
@@ -2830,7 +2835,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	// FIXME remove this when google fixes the problem!
 	if isDoc {
 		// A short sleep is needed here in order to make the
-		// change effective, without it is is ignored. This is
+		// change effective, without it is ignored. This is
 		// probably some eventual consistency nastiness.
 		sleepTime := 2 * time.Second
 		fs.Debugf(f, "Sleeping for %v before setting the modtime to work around drive bug - see #4517", sleepTime)
@@ -3520,14 +3525,14 @@ func (f *Fs) unTrashDir(ctx context.Context, dir string, recurse bool) (r unTras
 	return f.unTrash(ctx, dir, directoryID, true)
 }
 
-// copy file with id to dest
-func (f *Fs) copyID(ctx context.Context, id, dest string) (err error) {
+// copy or move file with id to dest
+func (f *Fs) copyOrMoveID(ctx context.Context, operation string, id, dest string) (err error) {
 	info, err := f.getFile(ctx, id, f.getFileFields(ctx))
 	if err != nil {
 		return fmt.Errorf("couldn't find id: %w", err)
 	}
 	if info.MimeType == driveFolderType {
-		return fmt.Errorf("can't copy directory use: rclone copy --drive-root-folder-id %s %s %s", id, fs.ConfigString(f), dest)
+		return fmt.Errorf("can't %s directory use: rclone %s --drive-root-folder-id %s %s %s", operation, operation, id, fs.ConfigString(f), dest)
 	}
 	info.Name = f.opt.Enc.ToStandardName(info.Name)
 	o, err := f.newObjectWithInfo(ctx, info.Name, info)
@@ -3548,14 +3553,21 @@ func (f *Fs) copyID(ctx context.Context, id, dest string) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = operations.Copy(ctx, dstFs, nil, destLeaf, o)
-	if err != nil {
-		return fmt.Errorf("copy failed: %w", err)
+
+	var opErr error
+	if operation == "moveid" {
+		_, opErr = operations.Move(ctx, dstFs, nil, destLeaf, o)
+	} else {
+		_, opErr = operations.Copy(ctx, dstFs, nil, destLeaf, o)
+	}
+	if opErr != nil {
+		return fmt.Errorf("%s failed: %w", operation, opErr)
 	}
 	return nil
 }
 
-func (f *Fs) query(ctx context.Context, query string) (entries []*drive.File, err error) {
+// Run the drive query calling fn on each entry found
+func (f *Fs) queryFn(ctx context.Context, query string, fn func(*drive.File)) (err error) {
 	list := f.svc.Files.List()
 	if query != "" {
 		list.Q(query)
@@ -3574,10 +3586,7 @@ func (f *Fs) query(ctx context.Context, query string) (entries []*drive.File, er
 	if f.rootFolderID == "appDataFolder" {
 		list.Spaces("appDataFolder")
 	}
-
 	fields := fmt.Sprintf("files(%s),nextPageToken,incompleteSearch", f.getFileFields(ctx))
-
-	var results []*drive.File
 	for {
 		var files *drive.FileList
 		err = f.pacer.Call(func() (bool, error) {
@@ -3585,18 +3594,64 @@ func (f *Fs) query(ctx context.Context, query string) (entries []*drive.File, er
 			return f.shouldRetry(ctx, err)
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to execute query: %w", err)
+			return fmt.Errorf("failed to execute query: %w", err)
 		}
 		if files.IncompleteSearch {
 			fs.Errorf(f, "search result INCOMPLETE")
 		}
-		results = append(results, files.Files...)
+		for _, item := range files.Files {
+			fn(item)
+		}
 		if files.NextPageToken == "" {
 			break
 		}
 		list.PageToken(files.NextPageToken)
 	}
+	return nil
+}
+
+// Run the drive query returning the entries found
+func (f *Fs) query(ctx context.Context, query string) (entries []*drive.File, err error) {
+	var results []*drive.File
+	err = f.queryFn(ctx, query, func(item *drive.File) {
+		results = append(results, item)
+	})
+	if err != nil {
+		return nil, err
+	}
 	return results, nil
+}
+
+// Rescue, list or delete orphaned files
+func (f *Fs) rescue(ctx context.Context, dirID string, delete bool) (err error) {
+	return f.queryFn(ctx, "'me' in owners and trashed=false", func(item *drive.File) {
+		if len(item.Parents) != 0 {
+			return
+		}
+		// Have found an orphaned entry
+		if delete {
+			fs.Infof(item.Name, "Deleting orphan %q into trash", item.Id)
+			err = f.delete(ctx, item.Id, true)
+			if err != nil {
+				fs.Errorf(item.Name, "Failed to delete orphan %q: %v", item.Id, err)
+			}
+		} else if dirID == "" {
+			operations.SyncPrintf("%q, %q\n", item.Name, item.Id)
+		} else {
+			fs.Infof(item.Name, "Rescuing orphan %q", item.Id)
+			err = f.pacer.Call(func() (bool, error) {
+				_, err = f.svc.Files.Update(item.Id, nil).
+					AddParents(dirID).
+					Fields(f.getFileFields(ctx)).
+					SupportsAllDrives(true).
+					Context(ctx).Do()
+				return f.shouldRetry(ctx, err)
+			})
+			if err != nil {
+				fs.Errorf(item.Name, "Failed to rescue orphan %q: %v", item.Id, err)
+			}
+		}
+	})
 }
 
 var commandHelp = []fs.CommandHelp{{
@@ -3744,6 +3799,28 @@ attempted if possible.
 Use the --interactive/-i or --dry-run flag to see what would be copied before copying.
 `,
 }, {
+	Name:  "moveid",
+	Short: "Move files by ID",
+	Long: `This command moves files by ID
+
+Usage:
+
+    rclone backend moveid drive: ID path
+    rclone backend moveid drive: ID1 path1 ID2 path2
+
+It moves the drive file with ID given to the path (an rclone path which
+will be passed internally to rclone moveto).
+
+The path should end with a / to indicate move the file as named to
+this directory. If it doesn't end with a / then the last path
+component will be used as the file name.
+
+If the destination is a drive backend then server-side moving will be
+attempted if possible.
+
+Use the --interactive/-i or --dry-run flag to see what would be moved beforehand.
+`,
+}, {
 	Name:  "exportformats",
 	Short: "Dump the export formats for debug purposes",
 }, {
@@ -3773,7 +3850,7 @@ file named "foo ' \.txt":
 
 The result is a JSON array of matches, for example:
 
-[
+    [
 	{
 		"createdTime": "2017-06-29T19:58:28.537Z",
 		"id": "0AxBe_CDEF4zkGHI4d0FjYko2QkD",
@@ -3789,7 +3866,38 @@ The result is a JSON array of matches, for example:
 		"size": "311",
 		"webViewLink": "https://drive.google.com/file/d/0AxBe_CDEF4zkGHI4d0FjYko2QkD/view?usp=drivesdk\u0026resourcekey=0-ABCDEFGHIXJQpIGqBJq3MC"
 	}
-]`,
+    ]`,
+}, {
+	Name:  "rescue",
+	Short: "Rescue or delete any orphaned files",
+	Long: `This command rescues or deletes any orphaned files or directories.
+
+Sometimes files can get orphaned in Google Drive. This means that they
+are no longer in any folder in Google Drive.
+
+This command finds those files and either rescues them to a directory
+you specify or deletes them.
+
+Usage:
+
+This can be used in 3 ways.
+
+First, list all orphaned files
+
+    rclone backend rescue drive:
+
+Second rescue all orphaned files to the directory indicated
+
+    rclone backend rescue drive: "relative/path/to/rescue/directory"
+
+e.g. To rescue all orphans to a directory called "Orphans" in the top level
+
+    rclone backend rescue drive: Orphans
+
+Third delete all orphaned files to the trash
+
+    rclone backend rescue drive: -o delete
+`,
 }}
 
 // Command the backend to run a named command
@@ -3890,16 +3998,16 @@ func (f *Fs) Command(ctx context.Context, name string, arg []string, opt map[str
 			dir = arg[0]
 		}
 		return f.unTrashDir(ctx, dir, true)
-	case "copyid":
+	case "copyid", "moveid":
 		if len(arg)%2 != 0 {
 			return nil, errors.New("need an even number of arguments")
 		}
 		for len(arg) > 0 {
 			id, dest := arg[0], arg[1]
 			arg = arg[2:]
-			err = f.copyID(ctx, id, dest)
+			err = f.copyOrMoveID(ctx, name, id, dest)
 			if err != nil {
-				return nil, fmt.Errorf("failed copying %q to %q: %w", id, dest, err)
+				return nil, fmt.Errorf("failed %s %q to %q: %w", name, id, dest, err)
 			}
 		}
 		return nil, nil
@@ -3918,6 +4026,22 @@ func (f *Fs) Command(ctx context.Context, name string, arg []string, opt map[str
 		} else {
 			return nil, errors.New("need a query argument")
 		}
+	case "rescue":
+		dirID := ""
+		_, delete := opt["delete"]
+		if len(arg) == 0 {
+			// no arguments - list only
+		} else if !delete && len(arg) == 1 {
+			dir := arg[0]
+			dirID, err = f.dirCache.FindDir(ctx, dir, true)
+			if err != nil {
+				return nil, fmt.Errorf("failed to find or create rescue directory %q: %w", dir, err)
+			}
+			fs.Infof(f, "Rescuing orphans into %q", dir)
+		} else {
+			return nil, errors.New("syntax error: need 0 or 1 args or -o delete")
+		}
+		return nil, f.rescue(ctx, dirID, delete)
 	default:
 		return nil, fs.ErrorCommandNotFound
 	}
@@ -3962,7 +4086,7 @@ func (o *Object) Hash(ctx context.Context, t hash.Type) (string, error) {
 	return "", hash.ErrUnsupported
 }
 func (o *baseObject) Hash(ctx context.Context, t hash.Type) (string, error) {
-	if t != hash.MD5 {
+	if t != hash.MD5 && t != hash.SHA1 && t != hash.SHA256 {
 		return "", hash.ErrUnsupported
 	}
 	return "", nil

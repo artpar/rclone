@@ -13,7 +13,7 @@ import (
 	"github.com/artpar/rclone/vfs/vfstest"
 )
 
-// TestExt runs more functional tests all the tests against all the
+// TestFunctional runs more functional tests all the tests against all the
 // VFS cache modes
 func TestFunctional(t *testing.T) {
 	if *fstest.RemoteName != "" {

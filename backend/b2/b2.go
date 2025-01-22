@@ -21,22 +21,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/artpar/rclone/backend/b2/api"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/configstruct"
-	"github.com/artpar/rclone/fs/fserrors"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/walk"
-	"github.com/artpar/rclone/lib/bucket"
-	"github.com/artpar/rclone/lib/encoder"
-	"github.com/artpar/rclone/lib/multipart"
-	"github.com/artpar/rclone/lib/pacer"
-	"github.com/artpar/rclone/lib/pool"
-	"github.com/artpar/rclone/lib/rest"
+	"github.com/rclone/rclone/backend/b2/api"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/operations"
+	"github.com/rclone/rclone/fs/walk"
+	"github.com/rclone/rclone/lib/bucket"
+	"github.com/rclone/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/multipart"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/pool"
+	"github.com/rclone/rclone/lib/rest"
 )
 
 const (
@@ -102,7 +103,7 @@ below will cause b2 to return specific errors:
   * "force_cap_exceeded"
 
 These will be set in the "X-Bz-Test-Mode" header which is documented
-in the [b2 integrations checklist](https://www.backblaze.com/b2/docs/integration_checklist.html).`,
+in the [b2 integrations checklist](https://www.backblaze.com/docs/cloud-storage-integration-checklist).`,
 			Default:  "",
 			Hide:     fs.OptionHideConfigurator,
 			Advanced: true,
@@ -244,7 +245,7 @@ See: [rclone backend lifecycle](#lifecycle) for setting lifecycles after bucket 
 			Name:     config.ConfigEncoding,
 			Help:     config.ConfigEncodingHelp,
 			Advanced: true,
-			// See: https://www.backblaze.com/b2/docs/files.html
+			// See: https://www.backblaze.com/docs/cloud-storage-files
 			// Encode invalid UTF-8 bytes as json doesn't handle them properly.
 			// FIXME: allow /, but not leading, trailing or double
 			Default: (encoder.Display |
@@ -299,13 +300,14 @@ type Fs struct {
 
 // Object describes a b2 object
 type Object struct {
-	fs       *Fs       // what this object is part of
-	remote   string    // The remote path
-	id       string    // b2 id of the file
-	modTime  time.Time // The modified time of the object if known
-	sha1     string    // SHA-1 hash if known
-	size     int64     // Size of the object
-	mimeType string    // Content-Type of the object
+	fs       *Fs               // what this object is part of
+	remote   string            // The remote path
+	id       string            // b2 id of the file
+	modTime  time.Time         // The modified time of the object if known
+	sha1     string            // SHA-1 hash if known
+	size     int64             // Size of the object
+	mimeType string            // Content-Type of the object
+	meta     map[string]string // The object metadata if known - may be nil - with lower case keys
 }
 
 // ------------------------------------------------------------
@@ -1317,16 +1319,22 @@ func (f *Fs) purge(ctx context.Context, dir string, oldOnly bool, deleteHidden b
 				// Check current version of the file
 				if deleteHidden && object.Action == "hide" {
 					fs.Debugf(remote, "Deleting current version (id %q) as it is a hide marker", object.ID)
-					toBeDeleted <- object
+					if !operations.SkipDestructive(ctx, object.Name, "remove hide marker") {
+						toBeDeleted <- object
+					}
 				} else if deleteUnfinished && object.Action == "start" && isUnfinishedUploadStale(object.UploadTimestamp) {
 					fs.Debugf(remote, "Deleting current version (id %q) as it is a start marker (upload started at %s)", object.ID, time.Time(object.UploadTimestamp).Local())
-					toBeDeleted <- object
+					if !operations.SkipDestructive(ctx, object.Name, "remove pending upload") {
+						toBeDeleted <- object
+					}
 				} else {
 					fs.Debugf(remote, "Not deleting current version (id %q) %q dated %v (%v ago)", object.ID, object.Action, time.Time(object.UploadTimestamp).Local(), time.Since(time.Time(object.UploadTimestamp)))
 				}
 			} else {
 				fs.Debugf(remote, "Deleting (id %q)", object.ID)
-				toBeDeleted <- object
+				if !operations.SkipDestructive(ctx, object.Name, "delete") {
+					toBeDeleted <- object
+				}
 			}
 			last = remote
 			tr.Done(ctx, nil)
@@ -1566,7 +1574,7 @@ func (o *Object) Size() int64 {
 //
 // Make sure it is lower case.
 //
-// Remove unverified prefix - see https://www.backblaze.com/b2/docs/uploading.html
+// Remove unverified prefix - see https://www.backblaze.com/docs/cloud-storage-upload-files-with-the-native-api
 // Some tools (e.g. Cyberduck) use this
 func cleanSHA1(sha1 string) string {
 	const unverified = "unverified:"
@@ -1593,7 +1601,14 @@ func (o *Object) decodeMetaDataRaw(ID, SHA1 string, Size int64, UploadTimestamp 
 	o.size = Size
 	// Use the UploadTimestamp if can't get file info
 	o.modTime = time.Time(UploadTimestamp)
-	return o.parseTimeString(Info[timeKey])
+	err = o.parseTimeString(Info[timeKey])
+	if err != nil {
+		return err
+	}
+	// For now, just set "mtime" in metadata
+	o.meta = make(map[string]string, 1)
+	o.meta["mtime"] = o.modTime.Format(time.RFC3339Nano)
+	return nil
 }
 
 // decodeMetaData sets the metadata in the object from an api.File
@@ -1695,6 +1710,16 @@ func timeString(modTime time.Time) string {
 	return strconv.FormatInt(modTime.UnixNano()/1e6, 10)
 }
 
+// parseTimeStringHelper converts a decimal string number of milliseconds
+// elapsed since January 1, 1970 UTC into a time.Time
+func parseTimeStringHelper(timeString string) (time.Time, error) {
+	unixMilliseconds, err := strconv.ParseInt(timeString, 10, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Unix(unixMilliseconds/1e3, (unixMilliseconds%1e3)*1e6).UTC(), nil
+}
+
 // parseTimeString converts a decimal string number of milliseconds
 // elapsed since January 1, 1970 UTC into a time.Time and stores it in
 // the modTime variable.
@@ -1702,12 +1727,12 @@ func (o *Object) parseTimeString(timeString string) (err error) {
 	if timeString == "" {
 		return nil
 	}
-	unixMilliseconds, err := strconv.ParseInt(timeString, 10, 64)
+	modTime, err := parseTimeStringHelper(timeString)
 	if err != nil {
 		fs.Debugf(o, "Failed to parse mod time string %q: %v", timeString, err)
 		return nil
 	}
-	o.modTime = time.Unix(unixMilliseconds/1e3, (unixMilliseconds%1e3)*1e6).UTC()
+	o.modTime = modTime
 	return nil
 }
 
@@ -1861,6 +1886,14 @@ func (o *Object) getOrHead(ctx context.Context, method string, options []fs.Open
 		ContentType:     resp.Header.Get("Content-Type"),
 		Info:            Info,
 	}
+
+	// Embryonic metadata support - just mtime
+	o.meta = make(map[string]string, 1)
+	modTime, err := parseTimeStringHelper(info.Info[timeKey])
+	if err == nil {
+		o.meta["mtime"] = modTime.Format(time.RFC3339Nano)
+	}
+
 	// When reading files from B2 via cloudflare using
 	// --b2-download-url cloudflare strips the Content-Length
 	// headers (presumably so it can inject stuff) so use the old
@@ -1958,7 +1991,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 
 		if err == nil {
 			fs.Debugf(o, "File is big enough for chunked streaming")
-			up, err := o.fs.newLargeUpload(ctx, o, in, src, o.fs.opt.ChunkSize, false, nil)
+			up, err := o.fs.newLargeUpload(ctx, o, in, src, o.fs.opt.ChunkSize, false, nil, options...)
 			if err != nil {
 				o.fs.putRW(rw)
 				return err
@@ -1990,7 +2023,10 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 		return o.decodeMetaDataFileInfo(up.info)
 	}
 
-	modTime := src.ModTime(ctx)
+	modTime, err := o.getModTime(ctx, src, options)
+	if err != nil {
+		return err
+	}
 
 	calculatedSha1, _ := src.Hash(ctx, hash.SHA1)
 	if calculatedSha1 == "" {
@@ -2095,6 +2131,36 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 	return o.decodeMetaDataFileInfo(&response)
 }
 
+// Get modTime from the source; if --metadata is set, fetch the src metadata and get it from there.
+// When metadata support is added to b2, this method will need a more generic name
+func (o *Object) getModTime(ctx context.Context, src fs.ObjectInfo, options []fs.OpenOption) (time.Time, error) {
+	modTime := src.ModTime(ctx)
+
+	// Fetch metadata if --metadata is in use
+	meta, err := fs.GetMetadataOptions(ctx, o.fs, src, options)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to read metadata from source object: %w", err)
+	}
+	// merge metadata into request and user metadata
+	for k, v := range meta {
+		k = strings.ToLower(k)
+		// For now, the only metadata we're concerned with is "mtime"
+		switch k {
+		case "mtime":
+			// mtime in meta overrides source ModTime
+			metaModTime, err := time.Parse(time.RFC3339Nano, v)
+			if err != nil {
+				fs.Debugf(o, "failed to parse metadata %s: %q: %v", k, v, err)
+			} else {
+				modTime = metaModTime
+			}
+		default:
+			// Do nothing for now
+		}
+	}
+	return modTime, nil
+}
+
 // OpenChunkWriter returns the chunk size and a ChunkWriter
 //
 // Pass in the remote and the src object
@@ -2126,7 +2192,7 @@ func (f *Fs) OpenChunkWriter(ctx context.Context, remote string, src fs.ObjectIn
 		Concurrency: o.fs.opt.UploadConcurrency,
 		//LeavePartsOnError: o.fs.opt.LeavePartsOnError,
 	}
-	up, err := f.newLargeUpload(ctx, o, nil, src, f.opt.ChunkSize, false, nil)
+	up, err := f.newLargeUpload(ctx, o, nil, src, f.opt.ChunkSize, false, nil, options...)
 	return info, up, err
 }
 
@@ -2172,6 +2238,7 @@ This will dump something like this showing the lifecycle rules.
         {
             "daysFromHidingToDeleting": 1,
             "daysFromUploadingToHiding": null,
+            "daysFromStartingToCancelingUnfinishedLargeFiles": null,
             "fileNamePrefix": ""
         }
     ]
@@ -2198,8 +2265,9 @@ overwrites will still cause versions to be made.
 See: https://www.backblaze.com/docs/cloud-storage-lifecycle-rules
 `,
 	Opts: map[string]string{
-		"daysFromHidingToDeleting":  "After a file has been hidden for this many days it is deleted. 0 is off.",
-		"daysFromUploadingToHiding": "This many days after uploading a file is hidden",
+		"daysFromHidingToDeleting":                        "After a file has been hidden for this many days it is deleted. 0 is off.",
+		"daysFromUploadingToHiding":                       "This many days after uploading a file is hidden",
+		"daysFromStartingToCancelingUnfinishedLargeFiles": "Cancels any unfinished large file versions after this many days",
 	},
 }
 
@@ -2219,14 +2287,23 @@ func (f *Fs) lifecycleCommand(ctx context.Context, name string, arg []string, op
 		}
 		newRule.DaysFromUploadingToHiding = &days
 	}
+	if daysStr := opt["daysFromStartingToCancelingUnfinishedLargeFiles"]; daysStr != "" {
+		days, err := strconv.Atoi(daysStr)
+		if err != nil {
+			return nil, fmt.Errorf("bad daysFromStartingToCancelingUnfinishedLargeFiles: %w", err)
+		}
+		newRule.DaysFromStartingToCancelingUnfinishedLargeFiles = &days
+	}
 	bucketName, _ := f.split("")
 	if bucketName == "" {
 		return nil, errors.New("bucket required")
 
 	}
 
+	skip := operations.SkipDestructive(ctx, name, "update lifecycle rules")
+
 	var bucket *api.Bucket
-	if newRule.DaysFromHidingToDeleting != nil || newRule.DaysFromUploadingToHiding != nil {
+	if !skip && (newRule.DaysFromHidingToDeleting != nil || newRule.DaysFromUploadingToHiding != nil || newRule.DaysFromStartingToCancelingUnfinishedLargeFiles != nil) {
 		bucketID, err := f.getBucketID(ctx, bucketName)
 		if err != nil {
 			return nil, err

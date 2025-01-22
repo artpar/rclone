@@ -3,12 +3,12 @@ package dedupe
 
 import (
 	"context"
-	"log"
+	"fmt"
 
-	"github.com/artpar/rclone/cmd"
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config/flags"
-	"github.com/artpar/rclone/fs/operations"
+	"github.com/rclone/rclone/cmd"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config/flags"
+	"github.com/rclone/rclone/fs/operations"
 	"github.com/spf13/cobra"
 )
 
@@ -27,9 +27,7 @@ func init() {
 var commandDefinition = &cobra.Command{
 	Use:   "dedupe [mode] remote:path",
 	Short: `Interactively find duplicate filenames and delete/rename them.`,
-	Long: `
-
-By default ` + "`dedupe`" + ` interactively finds files with duplicate
+	Long: `By default ` + "`dedupe`" + ` interactively finds files with duplicate
 names and offers to delete all but one or rename them to be
 different. This is known as deduping by name.
 
@@ -144,7 +142,7 @@ Or
 		if len(args) > 1 {
 			err := dedupeMode.Set(args[0])
 			if err != nil {
-				log.Println(err)
+				fs.Fatal(nil, fmt.Sprint(err))
 			}
 			args = args[1:]
 		}

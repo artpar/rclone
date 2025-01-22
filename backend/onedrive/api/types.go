@@ -42,6 +42,8 @@ var _ error = (*Error)(nil)
 type Identity struct {
 	DisplayName string `json:"displayName,omitempty"`
 	ID          string `json:"id,omitempty"`
+	Email       string `json:"email,omitempty"`     // not officially documented, but seems to sometimes exist
+	LoginName   string `json:"loginName,omitempty"` // SharePoint only
 }
 
 // IdentitySet is a keyed collection of Identity objects. It is used
@@ -51,6 +53,9 @@ type IdentitySet struct {
 	User        Identity `json:"user,omitempty"`
 	Application Identity `json:"application,omitempty"`
 	Device      Identity `json:"device,omitempty"`
+	Group       Identity `json:"group,omitempty"`
+	SiteGroup   Identity `json:"siteGroup,omitempty"` // The SharePoint group associated with this action. Optional.
+	SiteUser    Identity `json:"siteUser,omitempty"`  // The SharePoint user associated with this action. Optional.
 }
 
 // Quota groups storage space quota-related information on OneDrive into a single structure.
@@ -197,9 +202,14 @@ type SharingLinkType struct {
 type LinkType string
 
 const (
-	ViewLinkType  LinkType = "view"  // ViewLinkType (role: read) A view-only sharing link, allowing read-only access.
-	EditLinkType  LinkType = "edit"  // EditLinkType (role: write) An edit sharing link, allowing read-write access.
-	EmbedLinkType LinkType = "embed" // EmbedLinkType (role: read) A view-only sharing link that can be used to embed content into a host webpage. Embed links are not available for OneDrive for Business or SharePoint.
+	// ViewLinkType (role: read) A view-only sharing link, allowing read-only access.
+	ViewLinkType LinkType = "view"
+	// EditLinkType (role: write) An edit sharing link, allowing read-write access.
+	EditLinkType LinkType = "edit"
+	// EmbedLinkType (role: read) A view-only sharing link that can be used to embed
+	// content into a host webpage. Embed links are not available for OneDrive for
+	// Business or SharePoint.
+	EmbedLinkType LinkType = "embed"
 )
 
 // LinkScope represents the scope of the link represented by this permission.
@@ -207,32 +217,41 @@ const (
 type LinkScope string
 
 const (
-	AnonymousScope    LinkScope = "anonymous"    // AnonymousScope = Anyone with the link has access, without needing to sign in. This may include people outside of your organization.
-	OrganizationScope LinkScope = "organization" // OrganizationScope = Anyone signed into your organization (tenant) can use the link to get access. Only available in OneDrive for Business and SharePoint.
-
+	// AnonymousScope = Anyone with the link has access, without needing to sign in.
+	// This may include people outside of your organization.
+	AnonymousScope LinkScope = "anonymous"
+	// OrganizationScope = Anyone signed into your organization (tenant) can use the
+	// link to get access. Only available in OneDrive for Business and SharePoint.
+	OrganizationScope LinkScope = "organization"
 )
 
 // PermissionsType provides information about a sharing permission granted for a DriveItem resource.
 // Sharing permissions have a number of different forms. The Permission resource represents these different forms through facets on the resource.
 type PermissionsType struct {
-	ID                  string                 `json:"id"`                            // The unique identifier of the permission among all permissions on the item. Read-only.
-	GrantedTo           *IdentitySet           `json:"grantedTo,omitempty"`           // For user type permissions, the details of the users & applications for this permission. Read-only.
-	GrantedToIdentities []*IdentitySet         `json:"grantedToIdentities,omitempty"` // For link type permissions, the details of the users to whom permission was granted. Read-only.
-	Invitation          *SharingInvitationType `json:"invitation,omitempty"`          // Details of any associated sharing invitation for this permission. Read-only.
-	InheritedFrom       *ItemReference         `json:"inheritedFrom,omitempty"`       // Provides a reference to the ancestor of the current permission, if it is inherited from an ancestor. Read-only.
-	Link                *SharingLinkType       `json:"link,omitempty"`                // Provides the link details of the current permission, if it is a link type permissions. Read-only.
-	Roles               []Role                 `json:"roles,omitempty"`               // The type of permission (read, write, owner, member). Read-only.
-	ShareID             string                 `json:"shareId,omitempty"`             // A unique token that can be used to access this shared item via the shares API. Read-only.
+	ID                    string                 `json:"id"`                              // The unique identifier of the permission among all permissions on the item. Read-only.
+	GrantedTo             *IdentitySet           `json:"grantedTo,omitempty"`             // For user type permissions, the details of the users & applications for this permission. Read-only. Deprecated on OneDrive Business only.
+	GrantedToIdentities   []*IdentitySet         `json:"grantedToIdentities,omitempty"`   // For link type permissions, the details of the users to whom permission was granted. Read-only. Deprecated on OneDrive Business only.
+	GrantedToV2           *IdentitySet           `json:"grantedToV2,omitempty"`           // For user type permissions, the details of the users & applications for this permission. Read-only. Not available for OneDrive Personal.
+	GrantedToIdentitiesV2 []*IdentitySet         `json:"grantedToIdentitiesV2,omitempty"` // For link type permissions, the details of the users to whom permission was granted. Read-only. Not available for OneDrive Personal.
+	Invitation            *SharingInvitationType `json:"invitation,omitempty"`            // Details of any associated sharing invitation for this permission. Read-only.
+	InheritedFrom         *ItemReference         `json:"inheritedFrom,omitempty"`         // Provides a reference to the ancestor of the current permission, if it is inherited from an ancestor. Read-only.
+	Link                  *SharingLinkType       `json:"link,omitempty"`                  // Provides the link details of the current permission, if it is a link type permissions. Read-only.
+	Roles                 []Role                 `json:"roles,omitempty"`                 // The type of permission (read, write, owner, member). Read-only.
+	ShareID               string                 `json:"shareId,omitempty"`               // A unique token that can be used to access this shared item via the shares API. Read-only.
 }
 
 // Role represents the type of permission (read, write, owner, member)
 type Role string
 
 const (
-	ReadRole   Role = "read"   // ReadRole provides the ability to read the metadata and contents of the item.
-	WriteRole  Role = "write"  // WriteRole provides the ability to read and modify the metadata and contents of the item.
-	OwnerRole  Role = "owner"  // OwnerRole represents the owner role for SharePoint and OneDrive for Business.
-	MemberRole Role = "member" // MemberRole represents the member role for SharePoint and OneDrive for Business.
+	// ReadRole provides the ability to read the metadata and contents of the item.
+	ReadRole Role = "read"
+	// WriteRole provides the ability to read and modify the metadata and contents of the item.
+	WriteRole Role = "write"
+	// OwnerRole represents the owner role for SharePoint and OneDrive for Business.
+	OwnerRole Role = "owner"
+	// MemberRole represents the member role for SharePoint and OneDrive for Business.
+	MemberRole Role = "member"
 )
 
 // PermissionsResponse is the response to the list permissions method
@@ -591,4 +610,26 @@ type SiteResource struct {
 // SiteResponse is returned from "/sites/root:"
 type SiteResponse struct {
 	Sites []SiteResource `json:"value"`
+}
+
+// GetGrantedTo returns the GrantedTo property.
+// This is to get around the odd problem of
+// GrantedTo being deprecated on OneDrive Business, while
+// GrantedToV2 is unavailable on OneDrive Personal.
+func (p *PermissionsType) GetGrantedTo(driveType string) *IdentitySet {
+	if driveType == "personal" {
+		return p.GrantedTo
+	}
+	return p.GrantedToV2
+}
+
+// GetGrantedToIdentities returns the GrantedToIdentities property.
+// This is to get around the odd problem of
+// GrantedToIdentities being deprecated on OneDrive Business, while
+// GrantedToIdentitiesV2 is unavailable on OneDrive Personal.
+func (p *PermissionsType) GetGrantedToIdentities(driveType string) []*IdentitySet {
+	if driveType == "personal" {
+		return p.GrantedToIdentities
+	}
+	return p.GrantedToIdentitiesV2
 }

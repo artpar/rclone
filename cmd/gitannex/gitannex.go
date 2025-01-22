@@ -96,23 +96,44 @@ func (m *messageParser) nextSpaceDelimitedParameter() (string, error) {
 }
 
 // finalParameter consumes the final parameter, which may contain spaces.
-func (m *messageParser) finalParameter() (string, error) {
+func (m *messageParser) finalParameter() string {
 	m.line = strings.TrimRight(m.line, "\r\n")
 	if len(m.line) == 0 {
-		return "", errors.New("nothing remains to parse")
+		return ""
 	}
 
 	param := m.line
 	m.line = ""
-	return param, nil
+	return param
 }
 
 // configDefinition describes a configuration value required by this command. We
 // use "GETCONFIG" messages to query git-annex for these values at runtime.
 type configDefinition struct {
-	name        string
-	description string
-	destination *string
+	names        []string
+	description  string
+	destination  *string
+	defaultValue *string
+}
+
+func (c *configDefinition) getCanonicalName() string {
+	if len(c.names) < 1 {
+		panic(fmt.Errorf("configDefinition must have at least one name: %v", c))
+	}
+	return c.names[0]
+}
+
+// fullDescription returns a single-line, human-readable description for this
+// config. The returned string begins with a list of synonyms and ends with
+// `c.description`.
+func (c *configDefinition) fullDescription() string {
+	if len(c.names) <= 1 {
+		return c.description
+	}
+	// Exclude the canonical name from the list of synonyms.
+	synonyms := c.names[1:len(c.names)]
+	commaSeparatedSynonyms := strings.Join(synonyms, ", ")
+	return fmt.Sprintf("(synonyms: %s) %s", commaSeparatedSynonyms, c.description)
 }
 
 // server contains this command's current state.
@@ -132,10 +153,11 @@ type server struct {
 	configsDone            bool
 	configPrefix           string
 	configRcloneRemoteName string
+	configRcloneLayout     string
 }
 
 func (s *server) sendMsg(msg string) {
-	msg = msg + "\n"
+	msg += "\n"
 	if _, err := io.WriteString(s.writer, msg); err != nil {
 		panic(err)
 	}
@@ -203,11 +225,7 @@ func (s *server) run() error {
 		case "REMOVE":
 			err = s.handleRemove(message)
 		case "ERROR":
-			errorMessage, parseErr := message.finalParameter()
-			if parseErr != nil {
-				err = fmt.Errorf("error while parsing ERROR message from git-annex: %w", parseErr)
-				break
-			}
+			errorMessage := message.finalParameter()
 			err = fmt.Errorf("received error message from git-annex: %s", errorMessage)
 
 		//
@@ -271,20 +289,33 @@ func (s *server) handleInitRemote() error {
 
 // Get a list of configs with pointers to fields of `s`.
 func (s *server) getRequiredConfigs() []configDefinition {
+	defaultRclonePrefix := "git-annex-rclone"
+	defaultRcloneLayout := "nodir"
+
 	return []configDefinition{
 		{
-			"rcloneremotename",
+			[]string{"rcloneremotename", "target"},
 			"Name of the rclone remote to use. " +
 				"Must match a remote known to rclone. " +
 				"(Note that rclone remotes are a distinct concept from git-annex remotes.)",
 			&s.configRcloneRemoteName,
+			nil,
 		},
 		{
-			"rcloneprefix",
+			[]string{"rcloneprefix", "prefix"},
 			"Directory where rclone will write git-annex content. " +
-				"If not specified, defaults to \"git-annex-rclone\". " +
-				"This directory be created on init if it does not exist.",
+				fmt.Sprintf("If not specified, defaults to %q. ", defaultRclonePrefix) +
+				"This directory will be created on init if it does not exist.",
 			&s.configPrefix,
+			&defaultRclonePrefix,
+		},
+		{
+			[]string{"rclonelayout", "rclone_layout"},
+			"Defines where, within the rcloneprefix directory, rclone will write git-annex content. " +
+				fmt.Sprintf("Must be one of %v. ", allLayoutModes()) +
+				fmt.Sprintf("If empty, defaults to %q.", defaultRcloneLayout),
+			&s.configRcloneLayout,
+			&defaultRcloneLayout,
 		},
 	}
 }
@@ -298,24 +329,35 @@ func (s *server) queryConfigs() error {
 	// Send a "GETCONFIG" message for each required config and parse git-annex's
 	// "VALUE" response.
 	for _, config := range s.getRequiredConfigs() {
-		s.sendMsg(fmt.Sprintf("GETCONFIG %s", config.name))
+		var valueReceived bool
+		// Try each of the config's names in sequence, starting with the
+		// canonical name.
+		for _, configName := range config.names {
+			s.sendMsg(fmt.Sprintf("GETCONFIG %s", configName))
 
-		message, err := s.getMsg()
-		if err != nil {
-			return err
+			message, err := s.getMsg()
+			if err != nil {
+				return err
+			}
+
+			valueKeyword, err := message.nextSpaceDelimitedParameter()
+			if err != nil || valueKeyword != "VALUE" {
+				return fmt.Errorf("failed to parse config value: %s %s", valueKeyword, message.line)
+			}
+
+			value := message.finalParameter()
+			if value != "" {
+				*config.destination = value
+				valueReceived = true
+				break
+			}
 		}
-
-		valueKeyword, err := message.nextSpaceDelimitedParameter()
-		if err != nil || valueKeyword != "VALUE" {
-			return fmt.Errorf("failed to parse config value: %s %s", valueKeyword, message.line)
+		if !valueReceived {
+			if config.defaultValue == nil {
+				return fmt.Errorf("did not receive a non-empty config value for %q", config.getCanonicalName())
+			}
+			*config.destination = *config.defaultValue
 		}
-
-		value, err := message.finalParameter()
-		if err != nil || value == "" {
-			return fmt.Errorf("config value of %q must not be empty", config.name)
-		}
-
-		*config.destination = value
 	}
 
 	s.configsDone = true
@@ -335,7 +377,7 @@ func (s *server) handlePrepare() error {
 // in sync with `handlePrepare()`.
 func (s *server) handleListConfigs() {
 	for _, config := range s.getRequiredConfigs() {
-		s.sendMsg(fmt.Sprintf("CONFIG %s %s", config.name, config.description))
+		s.sendMsg(fmt.Sprintf("CONFIG %s %s", config.getCanonicalName(), config.fullDescription()))
 	}
 	s.sendMsg("CONFIGEND")
 }
@@ -351,10 +393,10 @@ func (s *server) handleTransfer(message *messageParser) error {
 		s.sendMsg("TRANSFER-FAILURE failed to parse key")
 		return fmt.Errorf("malformed arguments for TRANSFER: %w", err)
 	}
-	argFile, err := message.finalParameter()
-	if err != nil {
-		s.sendMsg("TRANSFER-FAILURE failed to parse file")
-		return fmt.Errorf("malformed arguments for TRANSFER: %w", err)
+	argFile := message.finalParameter()
+	if argFile == "" {
+		s.sendMsg("TRANSFER-FAILURE failed to parse file path")
+		return errors.New("failed to parse file path")
 	}
 
 	if err := s.queryConfigs(); err != nil {
@@ -362,7 +404,19 @@ func (s *server) handleTransfer(message *messageParser) error {
 		return fmt.Errorf("error getting configs: %w", err)
 	}
 
-	remoteFs, err := cache.Get(context.TODO(), fmt.Sprintf("%s:%s", s.configRcloneRemoteName, s.configPrefix))
+	layout := parseLayoutMode(s.configRcloneLayout)
+	if layout == layoutModeUnknown {
+		s.sendMsg(fmt.Sprintf("TRANSFER-FAILURE %s", argKey))
+		return fmt.Errorf("error parsing layout mode: %q", s.configRcloneLayout)
+	}
+
+	remoteFsString, err := buildFsString(s.queryDirhash, layout, argKey, s.configRcloneRemoteName, s.configPrefix)
+	if err != nil {
+		s.sendMsg(fmt.Sprintf("TRANSFER-FAILURE %s", argKey))
+		return fmt.Errorf("error building fs string: %w", err)
+	}
+
+	remoteFs, err := cache.Get(context.TODO(), remoteFsString)
 	if err != nil {
 		s.sendMsg(fmt.Sprintf("TRANSFER-FAILURE %s %s failed to get remote fs", argMode, argKey))
 		return err
@@ -409,9 +463,9 @@ func (s *server) handleTransfer(message *messageParser) error {
 }
 
 func (s *server) handleCheckPresent(message *messageParser) error {
-	argKey, err := message.finalParameter()
-	if err != nil {
-		return err
+	argKey := message.finalParameter()
+	if argKey == "" {
+		return errors.New("failed to parse response for CHECKPRESENT")
 	}
 
 	if err := s.queryConfigs(); err != nil {
@@ -419,7 +473,19 @@ func (s *server) handleCheckPresent(message *messageParser) error {
 		return fmt.Errorf("error getting configs: %s", err)
 	}
 
-	remoteFs, err := cache.Get(context.TODO(), fmt.Sprintf("%s:%s", s.configRcloneRemoteName, s.configPrefix))
+	layout := parseLayoutMode(s.configRcloneLayout)
+	if layout == layoutModeUnknown {
+		s.sendMsg(fmt.Sprintf("CHECKPRESENT-FAILURE %s", argKey))
+		return fmt.Errorf("error parsing layout mode: %q", s.configRcloneLayout)
+	}
+
+	remoteFsString, err := buildFsString(s.queryDirhash, layout, argKey, s.configRcloneRemoteName, s.configPrefix)
+	if err != nil {
+		s.sendMsg(fmt.Sprintf("CHECKPRESENT-FAILURE %s", argKey))
+		return fmt.Errorf("error building fs string: %w", err)
+	}
+
+	remoteFs, err := cache.Get(context.TODO(), remoteFsString)
 	if err != nil {
 		s.sendMsg(fmt.Sprintf("CHECKPRESENT-UNKNOWN %s failed to get remote fs", argKey))
 		return err
@@ -439,13 +505,45 @@ func (s *server) handleCheckPresent(message *messageParser) error {
 	return nil
 }
 
-func (s *server) handleRemove(message *messageParser) error {
-	argKey, err := message.finalParameter()
+func (s *server) queryDirhash(msg string) (string, error) {
+	s.sendMsg(msg)
+	parser, err := s.getMsg()
 	if err != nil {
-		return err
+		return "", err
+	}
+	keyword, err := parser.nextSpaceDelimitedParameter()
+	if err != nil {
+		return "", err
+	}
+	if keyword != "VALUE" {
+		return "", fmt.Errorf("expected VALUE keyword, but got %q", keyword)
+	}
+	dirhash, err := parser.nextSpaceDelimitedParameter()
+	if err != nil {
+		return "", fmt.Errorf("failed to parse dirhash: %w", err)
+	}
+	return dirhash, nil
+}
+
+func (s *server) handleRemove(message *messageParser) error {
+	argKey := message.finalParameter()
+	if argKey == "" {
+		return errors.New("failed to parse key for REMOVE")
 	}
 
-	remoteFs, err := cache.Get(context.TODO(), fmt.Sprintf("%s:%s", s.configRcloneRemoteName, s.configPrefix))
+	layout := parseLayoutMode(s.configRcloneLayout)
+	if layout == layoutModeUnknown {
+		s.sendMsg(fmt.Sprintf("REMOVE-FAILURE %s", argKey))
+		return fmt.Errorf("error parsing layout mode: %q", s.configRcloneLayout)
+	}
+
+	remoteFsString, err := buildFsString(s.queryDirhash, layout, argKey, s.configRcloneRemoteName, s.configPrefix)
+	if err != nil {
+		s.sendMsg(fmt.Sprintf("REMOVE-FAILURE %s", argKey))
+		return fmt.Errorf("error building fs string: %w", err)
+	}
+
+	remoteFs, err := cache.Get(context.TODO(), remoteFsString)
 	if err != nil {
 		s.sendMsg(fmt.Sprintf("REMOVE-FAILURE %s", argKey))
 		return fmt.Errorf("error getting remote fs: %w", err)

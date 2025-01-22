@@ -6,14 +6,13 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/config"
-	"github.com/artpar/rclone/fs/config/configmap"
-	"github.com/artpar/rclone/fs/config/obscure"
-	"github.com/artpar/rclone/lib/dircache"
-	"github.com/artpar/rclone/lib/encoder"
-	"github.com/artpar/rclone/lib/oauthutil"
-	"golang.org/x/oauth2"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/lib/dircache"
+	"github.com/rclone/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/oauthutil"
 )
 
 /*
@@ -41,12 +40,10 @@ const (
 
 var (
 	// Description of how to auth for this app
-	putioConfig = &oauth2.Config{
-		Scopes: []string{},
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://api.put.io/v2/oauth2/authenticate",
-			TokenURL: "https://api.put.io/v2/oauth2/access_token",
-		},
+	putioConfig = &oauthutil.Config{
+		Scopes:       []string{},
+		AuthURL:      "https://api.put.io/v2/oauth2/authenticate",
+		TokenURL:     "https://api.put.io/v2/oauth2/access_token",
 		ClientID:     rcloneClientID,
 		ClientSecret: obscure.MustReveal(rcloneObscuredClientSecret),
 		RedirectURL:  oauthutil.RedirectLocalhostURL,

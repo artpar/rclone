@@ -53,12 +53,12 @@ y) Yes
 n) No (default)
 y/n> n
 Remote config
---------------------
-[remote]
-type = hdfs
-namenode = namenode.hadoop:8020
-username = root
---------------------
+Configuration complete.
+Options:
+- type: hdfs
+- namenode: namenode.hadoop:8020
+- username: root
+Keep this "remote" remote?
 y) Yes this is OK (default)
 e) Edit this remote
 d) Delete this remote
@@ -234,7 +234,7 @@ Properties:
 
 #### --hdfs-description
 
-Description of the remote
+Description of the remote.
 
 Properties:
 

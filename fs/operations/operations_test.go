@@ -33,15 +33,16 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/artpar/rclone/backend/all" // import all backends
-	"github.com/artpar/rclone/fs"
-	"github.com/artpar/rclone/fs/accounting"
-	"github.com/artpar/rclone/fs/filter"
-	"github.com/artpar/rclone/fs/fshttp"
-	"github.com/artpar/rclone/fs/hash"
-	"github.com/artpar/rclone/fs/operations"
-	"github.com/artpar/rclone/fstest"
-	"github.com/artpar/rclone/fstest/fstests"
+	_ "github.com/rclone/rclone/backend/all" // import all backends
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/filter"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/operations"
+	"github.com/rclone/rclone/fstest"
+	"github.com/rclone/rclone/fstest/fstests"
+	"github.com/rclone/rclone/lib/pacer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/cases"
@@ -491,6 +492,23 @@ func TestMaxDeleteSize(t *testing.T) {
 	assert.Equal(t, int64(1), objects) // 10 or 100 bytes
 }
 
+func TestReadFile(t *testing.T) {
+	ctx := context.Background()
+	r := fstest.NewRun(t)
+	defer r.Finalise()
+
+	contents := "A file to read the contents."
+	file := r.WriteObject(ctx, "ReadFile", contents, t1)
+	r.CheckRemoteItems(t, file)
+
+	o, err := r.Fremote.NewObject(ctx, file.Path)
+	require.NoError(t, err)
+
+	buf, err := operations.ReadFile(ctx, o)
+	require.NoError(t, err)
+	assert.Equal(t, contents, string(buf))
+}
+
 func TestRetry(t *testing.T) {
 	ctx := context.Background()
 
@@ -504,12 +522,12 @@ func TestRetry(t *testing.T) {
 		return err
 	}
 
-	i, err = 3, io.EOF
+	i, err = 3, fmt.Errorf("Wrapped EOF is retriable: %w", io.EOF)
 	assert.Equal(t, nil, operations.Retry(ctx, nil, 5, fn))
 	assert.Equal(t, 0, i)
 
-	i, err = 10, io.EOF
-	assert.Equal(t, io.EOF, operations.Retry(ctx, nil, 5, fn))
+	i, err = 10, pacer.RetryAfterError(errors.New("BANG"), 10*time.Millisecond)
+	assert.Equal(t, err, operations.Retry(ctx, nil, 5, fn))
 	assert.Equal(t, 5, i)
 
 	i, err = 10, fs.ErrorObjectNotFound
@@ -1865,4 +1883,77 @@ func TestDirsEqual(t *testing.T) {
 	opt.SetDirMetadata, opt.SetDirModtime = false, false
 	equal = operations.DirsEqual(ctx, src, dst, opt)
 	assert.True(t, equal)
+}
+
+func TestRemoveExisting(t *testing.T) {
+	ctx := context.Background()
+	r := fstest.NewRun(t)
+	if r.Fremote.Features().Move == nil {
+		t.Skip("Skipping as remote can't Move")
+	}
+
+	file1 := r.WriteObject(ctx, "sub dir/test remove existing", "hello world", t1)
+	file2 := r.WriteObject(ctx, "sub dir/test remove existing with long name 123456789012345678901234567890123456789012345678901234567890123456789", "hello long name world", t1)
+
+	r.CheckRemoteItems(t, file1, file2)
+
+	var returnedError error
+
+	// Check not found first
+	cleanup, err := operations.RemoveExisting(ctx, r.Fremote, "not found", "TEST")
+	assert.Equal(t, err, nil)
+	r.CheckRemoteItems(t, file1, file2)
+	cleanup(&returnedError)
+	r.CheckRemoteItems(t, file1, file2)
+
+	// Remove file1
+	cleanup, err = operations.RemoveExisting(ctx, r.Fremote, file1.Path, "TEST")
+	assert.Equal(t, err, nil)
+	//r.CheckRemoteItems(t, file1, file2)
+
+	// Check file1 with temporary name exists
+	var buf bytes.Buffer
+	err = operations.List(ctx, r.Fremote, &buf)
+	require.NoError(t, err)
+	res := buf.String()
+	assert.NotContains(t, res, "       11 "+file1.Path+"\n")
+	assert.Contains(t, res, "       11 "+file1.Path+".")
+	assert.Contains(t, res, "       21 "+file2.Path+"\n")
+
+	cleanup(&returnedError)
+	r.CheckRemoteItems(t, file2)
+
+	// Remove file2 with an error
+	cleanup, err = operations.RemoveExisting(ctx, r.Fremote, file2.Path, "TEST")
+	assert.Equal(t, err, nil)
+
+	// Check file2 with truncated temporary name exists
+	buf.Reset()
+	err = operations.List(ctx, r.Fremote, &buf)
+	require.NoError(t, err)
+	res = buf.String()
+	assert.NotContains(t, res, "       21 "+file2.Path+"\n")
+	assert.NotContains(t, res, "       21 "+file2.Path+".")
+	assert.Contains(t, res, "       21 "+file2.Path[:100])
+
+	returnedError = errors.New("BOOM")
+	cleanup(&returnedError)
+	r.CheckRemoteItems(t, file2)
+
+	// Remove file2
+	cleanup, err = operations.RemoveExisting(ctx, r.Fremote, file2.Path, "TEST")
+	assert.Equal(t, err, nil)
+
+	// Check file2 with truncated temporary name exists
+	buf.Reset()
+	err = operations.List(ctx, r.Fremote, &buf)
+	require.NoError(t, err)
+	res = buf.String()
+	assert.NotContains(t, res, "       21 "+file2.Path+"\n")
+	assert.NotContains(t, res, "       21 "+file2.Path+".")
+	assert.Contains(t, res, "       21 "+file2.Path[:100])
+
+	returnedError = nil
+	cleanup(&returnedError)
+	r.CheckRemoteItems(t)
 }

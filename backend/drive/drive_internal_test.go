@@ -95,7 +95,7 @@ func TestInternalParseExtensions(t *testing.T) {
 		wantErr error
 	}{
 		{"doc", []string{".doc"}, nil},
-		{" docx ,XLSX, 	pptx,svg", []string{".docx", ".xlsx", ".pptx", ".svg"}, nil},
+		{" docx ,XLSX, 	pptx,svg,md", []string{".docx", ".xlsx", ".pptx", ".svg", ".md"}, nil},
 		{"docx,svg,Docx", []string{".docx", ".svg"}, nil},
 		{"docx,potato,docx", []string{".docx"}, errors.New(`couldn't find MIME type for extension ".potato"`)},
 	} {
@@ -479,8 +479,8 @@ func (f *Fs) InternalTestUnTrash(t *testing.T) {
 	require.NoError(t, f.Purge(ctx, "trashDir"))
 }
 
-// TestIntegration/FsMkdir/FsPutFiles/Internal/CopyID
-func (f *Fs) InternalTestCopyID(t *testing.T) {
+// TestIntegration/FsMkdir/FsPutFiles/Internal/CopyOrMoveID
+func (f *Fs) InternalTestCopyOrMoveID(t *testing.T) {
 	ctx := context.Background()
 	obj, err := f.NewObject(ctx, existingFile)
 	require.NoError(t, err)
@@ -498,7 +498,7 @@ func (f *Fs) InternalTestCopyID(t *testing.T) {
 	}
 
 	t.Run("BadID", func(t *testing.T) {
-		err = f.copyID(ctx, "ID-NOT-FOUND", dir+"/")
+		err = f.copyOrMoveID(ctx, "moveid", "ID-NOT-FOUND", dir+"/")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "couldn't find id")
 	})
@@ -506,19 +506,31 @@ func (f *Fs) InternalTestCopyID(t *testing.T) {
 	t.Run("Directory", func(t *testing.T) {
 		rootID, err := f.dirCache.RootID(ctx, false)
 		require.NoError(t, err)
-		err = f.copyID(ctx, rootID, dir+"/")
+		err = f.copyOrMoveID(ctx, "moveid", rootID, dir+"/")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "can't copy directory")
+		assert.Contains(t, err.Error(), "can't moveid directory")
 	})
 
-	t.Run("WithoutDestName", func(t *testing.T) {
-		err = f.copyID(ctx, o.id, dir+"/")
+	t.Run("MoveWithoutDestName", func(t *testing.T) {
+		err = f.copyOrMoveID(ctx, "moveid", o.id, dir+"/")
 		require.NoError(t, err)
 		checkFile(path.Base(existingFile))
 	})
 
-	t.Run("WithDestName", func(t *testing.T) {
-		err = f.copyID(ctx, o.id, dir+"/potato.txt")
+	t.Run("CopyWithoutDestName", func(t *testing.T) {
+		err = f.copyOrMoveID(ctx, "copyid", o.id, dir+"/")
+		require.NoError(t, err)
+		checkFile(path.Base(existingFile))
+	})
+
+	t.Run("MoveWithDestName", func(t *testing.T) {
+		err = f.copyOrMoveID(ctx, "moveid", o.id, dir+"/potato.txt")
+		require.NoError(t, err)
+		checkFile("potato.txt")
+	})
+
+	t.Run("CopyWithDestName", func(t *testing.T) {
+		err = f.copyOrMoveID(ctx, "copyid", o.id, dir+"/potato.txt")
 		require.NoError(t, err)
 		checkFile("potato.txt")
 	})
@@ -551,9 +563,11 @@ func (f *Fs) InternalTestQuery(t *testing.T) {
 
 			results, err := f.query(ctx, fmt.Sprintf("%strashed=false and name='%s'", parent, escapedItem))
 			require.NoError(t, err)
-			require.Len(t, results, 1)
-			assert.Len(t, results[0].Id, 33)
-			assert.Equal(t, results[0].Name, item)
+			require.True(t, len(results) > 0)
+			for _, result := range results {
+				assert.True(t, len(result.Id) > 0)
+				assert.Equal(t, result.Name, item)
+			}
 			parent = fmt.Sprintf("'%s' in parents and ", results[0].Id)
 		}
 	})
@@ -564,7 +578,7 @@ func (f *Fs) InternalTestAgeQuery(t *testing.T) {
 	// Check set up for filtering
 	assert.True(t, f.Features().FilterAware)
 
-	opt := &filter.Opt{}
+	opt := &filter.Options{}
 	err := opt.MaxAge.Set("1h")
 	assert.NoError(t, err)
 	flt, err := filter.NewFilter(opt)
@@ -645,7 +659,7 @@ func (f *Fs) InternalTest(t *testing.T) {
 	})
 	t.Run("Shortcuts", f.InternalTestShortcuts)
 	t.Run("UnTrash", f.InternalTestUnTrash)
-	t.Run("CopyID", f.InternalTestCopyID)
+	t.Run("CopyOrMoveID", f.InternalTestCopyOrMoveID)
 	t.Run("Query", f.InternalTestQuery)
 	t.Run("AgeQuery", f.InternalTestAgeQuery)
 	t.Run("ShouldRetry", f.InternalTestShouldRetry)

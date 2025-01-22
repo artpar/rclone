@@ -9,7 +9,7 @@ import (
 	"github.com/artpar/rclone/cmd/bisync/bilib"
 	"github.com/artpar/rclone/fs"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 const configFile = "../../fstest/test_all/config.yaml"
