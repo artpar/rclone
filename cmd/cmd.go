@@ -491,31 +491,31 @@ func resolveExitCode(err error) {
 	if err == nil {
 		if ci.ErrorOnNoTransfer {
 			if accounting.GlobalStats().GetTransfers() == 0 {
-				fmt.Printf(exitcode.NoFilesTransferred)
+				fmt.Printf("exitcode - %v", exitcode.NoFilesTransferred)
 			}
 		}
-		fmt.Printf(exitcode.Success)
+		fmt.Printf("exitcode - %v", exitcode.Success)
 	}
 
 	switch {
 	case errors.Is(err, fs.ErrorDirNotFound):
-		fmt.Printf(exitcode.DirNotFound)
+		fmt.Printf("exitcode - %v", exitcode.DirNotFound)
 	case errors.Is(err, fs.ErrorObjectNotFound):
-		fmt.Printf(exitcode.FileNotFound)
+		fmt.Printf("exitcode - %v", exitcode.FileNotFound)
 	case errors.Is(err, accounting.ErrorMaxTransferLimitReached):
-		fmt.Printf(exitcode.TransferExceeded)
+		fmt.Printf("exitcode - %v", exitcode.TransferExceeded)
 	case errors.Is(err, fssync.ErrorMaxDurationReached):
-		fmt.Printf(exitcode.DurationExceeded)
+		fmt.Printf("exitcode - %v", exitcode.DurationExceeded)
 	case fserrors.ShouldRetry(err):
-		fmt.Printf(exitcode.RetryError)
+		fmt.Printf("exitcode - %v", exitcode.RetryError)
 	case fserrors.IsNoRetryError(err), fserrors.IsNoLowLevelRetryError(err):
-		fmt.Printf(exitcode.NoRetryError)
+		fmt.Printf("exitcode - %v", exitcode.NoRetryError)
 	case fserrors.IsFatalError(err):
-		fmt.Printf(exitcode.FatalError)
+		fmt.Printf("exitcode - %v", exitcode.FatalError)
 	case errors.Is(err, errorCommandNotFound), errors.Is(err, errorNotEnoughArguments), errors.Is(err, errorTooManyArguments):
-		fmt.Printf(exitcode.UsageError)
+		fmt.Printf("exitcode - %v", exitcode.UsageError)
 	default:
-		fmt.Printf(exitcode.UncategorizedError)
+		fmt.Printf("exitcode - %v", exitcode.UncategorizedError)
 	}
 }
 
@@ -544,6 +544,6 @@ func Main() {
 			Root.PrintErrf("You could use '%s selfupdate' to get latest features.\n\n", Root.CommandPath())
 		}
 		fs.Logf(nil, "Fatal error: %v", err)
-		fmt.Printf(exitcode.UsageError)
+		fmt.Printf("%v", exitcode.UsageError)
 	}
 }
