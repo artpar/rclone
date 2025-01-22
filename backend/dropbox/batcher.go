@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/artpar/rclone/fs/fserrors"
 	"github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/files"
 )
 
