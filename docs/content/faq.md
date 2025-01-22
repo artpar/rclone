@@ -236,7 +236,7 @@ The most common cause of rclone using lots of memory is a single
 directory with millions of files in. Rclone has to load this entirely
 into memory as rclone objects. Each rclone object takes 0.5k-1k of
 memory. There is
-[a workaround for this](https://github.com/rclone/rclone/wiki/Big-syncs-with-millions-of-files)
+[a workaround for this](https://github.com/artpar/rclone/wiki/Big-syncs-with-millions-of-files)
 which involves a bit of scripting.
 
 ### Rclone changes fullwidth Unicode punctuation marks in file names

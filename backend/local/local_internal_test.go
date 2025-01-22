@@ -306,7 +306,7 @@ func TestMetadata(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check that operating on the symlink didn't change the file it was pointing to
-	// See: https://github.com/rclone/rclone/security/advisories/GHSA-hrxh-9w67-g4cv
+	// See: https://github.com/artpar/rclone/security/advisories/GHSA-hrxh-9w67-g4cv
 	assert.Equal(t, oMeta, oMetaNew, "metadata setting on symlink messed up file")
 
 	// Now run the same tests on the file

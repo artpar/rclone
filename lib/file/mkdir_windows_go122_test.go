@@ -66,7 +66,7 @@ func TestMkdirAllOnDrive(t *testing.T) {
 // "mkdir \\?\A:\: The system cannot find the path specified."
 // or, starting with go1.21.4:
 // "mkdir \\?\A:: The system cannot find the path specified."
-// See https://github.com/rclone/rclone/pull/5401.
+// See https://github.com/artpar/rclone/pull/5401.
 // Starting with go1.22 golang's os.MkdirAll have similar improvements that made
 // our custom version no longer necessary.
 func TestMkdirAllOnUnusedDrive(t *testing.T) {
@@ -99,7 +99,7 @@ func TestMkdirAllOnUnusedDrive(t *testing.T) {
 // "mkdir \\?\UNC\\: The filename, directory name, or volume label syntax is incorrect."
 // Our version stopped the recursion at level before this, and reports:
 // "mkdir \\?\UNC\0.0.0.0: The specified path is invalid."
-// See https://github.com/rclone/rclone/pull/6420.
+// See https://github.com/artpar/rclone/pull/6420.
 // Starting with go1.22 golang's os.MkdirAll have similar improvements that made
 // our custom version no longer necessary.
 func TestMkdirAllOnUnusedNetworkHost(t *testing.T) {

@@ -5,8 +5,8 @@ package iclouddrive_test
 import (
 	"testing"
 
-	"github.com/rclone/rclone/backend/iclouddrive"
-	"github.com/rclone/rclone/fstest/fstests"
+	"github.com/artpar/rclone/backend/iclouddrive"
+	"github.com/artpar/rclone/fstest/fstests"
 )
 
 // TestIntegration runs integration tests against the remote

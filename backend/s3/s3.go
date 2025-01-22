@@ -3436,7 +3436,7 @@ func setQuirks(opt *Options) {
 		useAlreadyExists = false
 		// useMultipartUploads = false - set this manually
 		// rclone serve doesn't support multi-part server side copy:
-		// See: https://github.com/rclone/rclone/issues/7454
+		// See: https://github.com/artpar/rclone/issues/7454
 		// So make cutoff very large which it does support
 		opt.CopyCutoff = math.MaxInt64
 	case "Scaleway":

@@ -13,8 +13,8 @@ import (
 	_ "net/http/pprof" // install the pprof http handlers
 	"time"
 
-	"github.com/rclone/rclone/fs"
-	libhttp "github.com/rclone/rclone/lib/http"
+	"github.com/artpar/rclone/fs"
+	libhttp "github.com/artpar/rclone/lib/http"
 )
 
 // OptionsInfo describes the Options in use
@@ -65,7 +65,7 @@ var OptionsInfo = fs.Options{{
 	Groups:  "RC",
 }, {
 	Name:    "rc_web_fetch_url",
-	Default: "https://api.github.com/repos/rclone/rclone-webui-react/releases/latest",
+	Default: "https://api.github.com/repos/artpar/rclone-webui-react/releases/latest",
 	Help:    "URL to fetch the releases for webgui",
 	Groups:  "RC",
 }, {

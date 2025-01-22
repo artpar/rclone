@@ -4,8 +4,8 @@ package dlnaflags
 import (
 	"time"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/flags"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/flags"
 	"github.com/spf13/pflag"
 )
 

@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fstest"
-	"github.com/rclone/rclone/fstest/fstests"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fstest"
+	"github.com/artpar/rclone/fstest/fstests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

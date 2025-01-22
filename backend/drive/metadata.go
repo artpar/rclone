@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/fserrors"
-	"github.com/rclone/rclone/lib/errcount"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/lib/errcount"
 	"golang.org/x/sync/errgroup"
 	drive "google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"

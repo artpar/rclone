@@ -6035,7 +6035,7 @@ The VFS will correctly resolve `linked-dir` but not
 but may be for other commands.
 
 **Note** that there is an outstanding issue with symlink support
-[issue #8245](https://github.com/rclone/rclone/issues/8245) with duplicate
+[issue #8245](https://github.com/artpar/rclone/issues/8245) with duplicate
 files being created when symlinks are moved into directories where
 there is a file of the same name (or vice versa).
 
@@ -7297,7 +7297,7 @@ The VFS will correctly resolve `linked-dir` but not
 but may be for other commands.
 
 **Note** that there is an outstanding issue with symlink support
-[issue #8245](https://github.com/rclone/rclone/issues/8245) with duplicate
+[issue #8245](https://github.com/artpar/rclone/issues/8245) with duplicate
 files being created when symlinks are moved into directories where
 there is a file of the same name (or vice versa).
 
@@ -8425,7 +8425,7 @@ The VFS will correctly resolve `linked-dir` but not
 but may be for other commands.
 
 **Note** that there is an outstanding issue with symlink support
-[issue #8245](https://github.com/rclone/rclone/issues/8245) with duplicate
+[issue #8245](https://github.com/artpar/rclone/issues/8245) with duplicate
 files being created when symlinks are moved into directories where
 there is a file of the same name (or vice versa).
 
@@ -8980,7 +8980,7 @@ The VFS will correctly resolve `linked-dir` but not
 but may be for other commands.
 
 **Note** that there is an outstanding issue with symlink support
-[issue #8245](https://github.com/rclone/rclone/issues/8245) with duplicate
+[issue #8245](https://github.com/artpar/rclone/issues/8245) with duplicate
 files being created when symlinks are moved into directories where
 there is a file of the same name (or vice versa).
 
@@ -9537,7 +9537,7 @@ The VFS will correctly resolve `linked-dir` but not
 but may be for other commands.
 
 **Note** that there is an outstanding issue with symlink support
-[issue #8245](https://github.com/rclone/rclone/issues/8245) with duplicate
+[issue #8245](https://github.com/artpar/rclone/issues/8245) with duplicate
 files being created when symlinks are moved into directories where
 there is a file of the same name (or vice versa).
 
@@ -10275,7 +10275,7 @@ The VFS will correctly resolve `linked-dir` but not
 but may be for other commands.
 
 **Note** that there is an outstanding issue with symlink support
-[issue #8245](https://github.com/rclone/rclone/issues/8245) with duplicate
+[issue #8245](https://github.com/artpar/rclone/issues/8245) with duplicate
 files being created when symlinks are moved into directories where
 there is a file of the same name (or vice versa).
 
@@ -10952,7 +10952,7 @@ The VFS will correctly resolve `linked-dir` but not
 but may be for other commands.
 
 **Note** that there is an outstanding issue with symlink support
-[issue #8245](https://github.com/rclone/rclone/issues/8245) with duplicate
+[issue #8245](https://github.com/artpar/rclone/issues/8245) with duplicate
 files being created when symlinks are moved into directories where
 there is a file of the same name (or vice versa).
 
@@ -11908,7 +11908,7 @@ The VFS will correctly resolve `linked-dir` but not
 but may be for other commands.
 
 **Note** that there is an outstanding issue with symlink support
-[issue #8245](https://github.com/rclone/rclone/issues/8245) with duplicate
+[issue #8245](https://github.com/artpar/rclone/issues/8245) with duplicate
 files being created when symlinks are moved into directories where
 there is a file of the same name (or vice versa).
 
@@ -12502,7 +12502,7 @@ The VFS will correctly resolve `linked-dir` but not
 but may be for other commands.
 
 **Note** that there is an outstanding issue with symlink support
-[issue #8245](https://github.com/rclone/rclone/issues/8245) with duplicate
+[issue #8245](https://github.com/artpar/rclone/issues/8245) with duplicate
 files being created when symlinks are moved into directories where
 there is a file of the same name (or vice versa).
 
@@ -13283,7 +13283,7 @@ The VFS will correctly resolve `linked-dir` but not
 but may be for other commands.
 
 **Note** that there is an outstanding issue with symlink support
-[issue #8245](https://github.com/rclone/rclone/issues/8245) with duplicate
+[issue #8245](https://github.com/artpar/rclone/issues/8245) with duplicate
 files being created when symlinks are moved into directories where
 there is a file of the same name (or vice versa).
 
@@ -30478,7 +30478,7 @@ for large directories.
 To sync a directory with 100,000,000 files in you would need approximately
 100 GB of memory. At some point the amount of memory becomes difficult
 to provide so there is
-[a workaround for this](https://github.com/rclone/rclone/wiki/Big-syncs-with-millions-of-files)
+[a workaround for this](https://github.com/artpar/rclone/wiki/Big-syncs-with-millions-of-files)
 which involves a bit of scripting.
 
 At some point rclone will gain a sync mode which is effectively this
@@ -56511,7 +56511,7 @@ Options:
 
 ## v1.69.0 - 2025-01-12
 
-[See commits](https://github.com/rclone/rclone/compare/v1.68.0...v1.69.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.68.0...v1.69.0)
 
 * New backends
     * [ICloud Drive](https://rclone.org/iclouddrive/) (lostb1t)
@@ -56644,12 +56644,12 @@ Options:
 
 ## v1.68.2 - 2024-11-15
 
-[See commits](https://github.com/rclone/rclone/compare/v1.68.1...v1.68.2)
+[See commits](https://github.com/artpar/rclone/compare/v1.68.1...v1.68.2)
 
 * Security fixes
     * local backend: CVE-2024-52522: fix permission and ownership on symlinks with `--links` and `--metadata` (Nick Craig-Wood)
         * Only affects users using `--metadata` and `--links` and copying files to the local backend
-        * See https://github.com/rclone/rclone/security/advisories/GHSA-hrxh-9w67-g4cv
+        * See https://github.com/artpar/rclone/security/advisories/GHSA-hrxh-9w67-g4cv
     * build: bump github.com/golang-jwt/jwt/v4 from 4.5.0 to 4.5.1 (dependabot)
         * This is an issue in a dependency which is used for JWT certificates
         * See https://github.com/golang-jwt/jwt/security/advisories/GHSA-29wx-vh33-7x7r
@@ -56674,7 +56674,7 @@ Options:
 
 ## v1.68.1 - 2024-09-24
 
-[See commits](https://github.com/rclone/rclone/compare/v1.68.0...v1.68.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.68.0...v1.68.1)
 
 * Bug Fixes
     * build: Fix docker release build (ttionya)
@@ -56693,7 +56693,7 @@ Options:
 
 ## v1.68.0 - 2024-09-08
 
-[See commits](https://github.com/rclone/rclone/compare/v1.67.0...v1.68.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.67.0...v1.68.0)
 
 * New backends
     * [Files.com](/filescom) (Sam Harrison)
@@ -56702,7 +56702,7 @@ Options:
 * Changed backends
     * [S3](https://rclone.org/s3/) backend updated to use [AWS SDKv2](https://github.com/aws/aws-sdk-go-v2) as v1 is now unsupported.
         * The matrix of providers and auth methods is huge and there could be problems with obscure combinations.
-        * Please report problems in a [new issue](https://github.com/rclone/rclone/issues/new/choose) on Github. 
+        * Please report problems in a [new issue](https://github.com/artpar/rclone/issues/new/choose) on Github. 
 * New commands
     * [config encryption](https://rclone.org/commands/rclone_config_encryption/): set, remove and check to manage config file encryption (Nick Craig-Wood)
 * New Features
@@ -56815,7 +56815,7 @@ Options:
 
 ## v1.67.0 - 2024-06-14
 
-[See commits](https://github.com/rclone/rclone/compare/v1.66.0...v1.67.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.66.0...v1.67.0)
 
 * New backends
     * [uloz.to](https://rclone.org/ulozto/) (iotmaestro)
@@ -62384,7 +62384,7 @@ The most common cause of rclone using lots of memory is a single
 directory with millions of files in. Rclone has to load this entirely
 into memory as rclone objects. Each rclone object takes 0.5k-1k of
 memory. There is
-[a workaround for this](https://github.com/rclone/rclone/wiki/Big-syncs-with-millions-of-files)
+[a workaround for this](https://github.com/artpar/rclone/wiki/Big-syncs-with-millions-of-files)
 which involves a bit of scripting.
 
 ### Rclone changes fullwidth Unicode punctuation marks in file names

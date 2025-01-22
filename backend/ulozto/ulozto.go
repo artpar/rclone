@@ -121,7 +121,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		return nil, err
 	}
 
-	// Strip leading and trailing slashes, see https://github.com/rclone/rclone/issues/7796 for details.
+	// Strip leading and trailing slashes, see https://github.com/artpar/rclone/issues/7796 for details.
 	root = strings.Trim(root, "/")
 
 	client := fshttp.NewClient(ctx)

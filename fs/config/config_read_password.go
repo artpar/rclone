@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/lib/terminal"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/lib/terminal"
 )
 
 // ReadPassword reads a password without echoing it to the terminal.

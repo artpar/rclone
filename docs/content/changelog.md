@@ -7,7 +7,7 @@ description: "Rclone Changelog"
 
 ## v1.69.0 - 2025-01-12
 
-[See commits](https://github.com/rclone/rclone/compare/v1.68.0...v1.69.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.68.0...v1.69.0)
 
 * New backends
     * [ICloud Drive](/iclouddrive/) (lostb1t)
@@ -140,12 +140,12 @@ description: "Rclone Changelog"
 
 ## v1.68.2 - 2024-11-15
 
-[See commits](https://github.com/rclone/rclone/compare/v1.68.1...v1.68.2)
+[See commits](https://github.com/artpar/rclone/compare/v1.68.1...v1.68.2)
 
 * Security fixes
     * local backend: CVE-2024-52522: fix permission and ownership on symlinks with `--links` and `--metadata` (Nick Craig-Wood)
         * Only affects users using `--metadata` and `--links` and copying files to the local backend
-        * See https://github.com/rclone/rclone/security/advisories/GHSA-hrxh-9w67-g4cv
+        * See https://github.com/artpar/rclone/security/advisories/GHSA-hrxh-9w67-g4cv
     * build: bump github.com/golang-jwt/jwt/v4 from 4.5.0 to 4.5.1 (dependabot)
         * This is an issue in a dependency which is used for JWT certificates
         * See https://github.com/golang-jwt/jwt/security/advisories/GHSA-29wx-vh33-7x7r
@@ -170,7 +170,7 @@ description: "Rclone Changelog"
 
 ## v1.68.1 - 2024-09-24
 
-[See commits](https://github.com/rclone/rclone/compare/v1.68.0...v1.68.1)
+[See commits](https://github.com/artpar/rclone/compare/v1.68.0...v1.68.1)
 
 * Bug Fixes
     * build: Fix docker release build (ttionya)
@@ -189,7 +189,7 @@ description: "Rclone Changelog"
 
 ## v1.68.0 - 2024-09-08
 
-[See commits](https://github.com/rclone/rclone/compare/v1.67.0...v1.68.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.67.0...v1.68.0)
 
 * New backends
     * [Files.com](/filescom) (Sam Harrison)
@@ -198,7 +198,7 @@ description: "Rclone Changelog"
 * Changed backends
     * [S3](/s3/) backend updated to use [AWS SDKv2](https://github.com/aws/aws-sdk-go-v2) as v1 is now unsupported.
         * The matrix of providers and auth methods is huge and there could be problems with obscure combinations.
-        * Please report problems in a [new issue](https://github.com/rclone/rclone/issues/new/choose) on Github. 
+        * Please report problems in a [new issue](https://github.com/artpar/rclone/issues/new/choose) on Github. 
 * New commands
     * [config encryption](/commands/rclone_config_encryption/): set, remove and check to manage config file encryption (Nick Craig-Wood)
 * New Features
@@ -311,7 +311,7 @@ description: "Rclone Changelog"
 
 ## v1.67.0 - 2024-06-14
 
-[See commits](https://github.com/rclone/rclone/compare/v1.66.0...v1.67.0)
+[See commits](https://github.com/artpar/rclone/compare/v1.66.0...v1.67.0)
 
 * New backends
     * [uloz.to](/ulozto/) (iotmaestro)

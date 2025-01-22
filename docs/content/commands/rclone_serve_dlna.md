@@ -382,7 +382,7 @@ The VFS will correctly resolve `linked-dir` but not
 but may be for other commands.
 
 **Note** that there is an outstanding issue with symlink support
-[issue #8245](https://github.com/rclone/rclone/issues/8245) with duplicate
+[issue #8245](https://github.com/artpar/rclone/issues/8245) with duplicate
 files being created when symlinks are moved into directories where
 there is a file of the same name (or vice versa).
 

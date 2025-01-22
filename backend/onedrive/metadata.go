@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rclone/rclone/backend/onedrive/api"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/fserrors"
-	"github.com/rclone/rclone/lib/dircache"
-	"github.com/rclone/rclone/lib/errcount"
+	"github.com/artpar/rclone/backend/onedrive/api"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/fserrors"
+	"github.com/artpar/rclone/lib/dircache"
+	"github.com/artpar/rclone/lib/errcount"
 )
 
 const (

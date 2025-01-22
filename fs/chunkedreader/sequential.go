@@ -5,8 +5,8 @@ import (
 	"io"
 	"sync"
 
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/hash"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/hash"
 )
 
 // sequential is a reader for an Object with the possibility

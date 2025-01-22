@@ -20,7 +20,7 @@ compile_command = ["go", "build", "--ldflags", "-s", "-trimpath"]
 # disable CGO as that makes a lot of difference to binary size
 os.environ["CGO_ENABLED"]="0"
 
-match_backend = re.compile(r'"github.com/rclone/rclone/backend/(.*?)"')
+match_backend = re.compile(r'"github.com/artpar/rclone/backend/(.*?)"')
 
 def read_backends():
     """
@@ -42,7 +42,7 @@ def write_all(orig_all, backend):
     """
     with open(all_backends, "w") as fd:
         for line in orig_all.split("\n"):
-            match = re.search(r'"github.com/rclone/rclone/backend/(.*?)"', line)
+            match = re.search(r'"github.com/artpar/rclone/backend/(.*?)"', line)
             # Comment out line matching backend
             if match and match.group(1) == backend:
                 line = "// " + line

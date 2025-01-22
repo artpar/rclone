@@ -186,7 +186,7 @@ With this approach no credentials have to be stored and managed.
 
 Sample rclone configuration file for Authentication Provider Instance Principal:
 
-    [opc@rclone ~]$ cat ~/.config/rclone/rclone.conf
+    [opc@rclone ~]$ cat ~/.config/artpar/rclone.conf
     [oos]
     type = oracleobjectstorage
     namespace = id<redacted>fn

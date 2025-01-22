@@ -17,10 +17,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	_ "github.com/rclone/rclone/backend/local"
-	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config/configfile"
-	"github.com/rclone/rclone/fs/rc"
+	_ "github.com/artpar/rclone/backend/local"
+	"github.com/artpar/rclone/fs"
+	"github.com/artpar/rclone/fs/config/configfile"
+	"github.com/artpar/rclone/fs/rc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

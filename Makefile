@@ -43,7 +43,7 @@ ifdef GOTAGS
 BUILDTAGS=-tags "$(GOTAGS)"
 LINTTAGS=--build-tags "$(GOTAGS)"
 endif
-LDFLAGS=--ldflags "-s -X github.com/rclone/rclone/fs.Version=$(TAG)"
+LDFLAGS=--ldflags "-s -X github.com/artpar/rclone/fs.Version=$(TAG)"
 
 .PHONY: rclone test_all vars version
 
@@ -60,7 +60,7 @@ endif
 	mv -v `go env GOPATH`/bin/rclone`go env GOEXE`.new `go env GOPATH`/bin/rclone`go env GOEXE`
 
 test_all:
-	go install $(LDFLAGS) $(BUILDTAGS) $(BUILD_ARGS) github.com/rclone/rclone/fstest/test_all
+	go install $(LDFLAGS) $(BUILDTAGS) $(BUILD_ARGS) github.com/artpar/rclone/fstest/test_all
 
 vars:
 	@echo SHELL="'$(SHELL)'"
@@ -71,11 +71,11 @@ vars:
 	@echo BETA_URL="'$(BETA_URL)'"
 
 btest:
-	@echo "[$(TAG)]($(BETA_URL)) on branch [$(BRANCH)](https://github.com/rclone/rclone/tree/$(BRANCH)) (uploaded in 15-30 mins)" | xclip -r -sel clip
+	@echo "[$(TAG)]($(BETA_URL)) on branch [$(BRANCH)](https://github.com/artpar/rclone/tree/$(BRANCH)) (uploaded in 15-30 mins)" | xclip -r -sel clip
 	@echo "Copied markdown of beta release to clip board"
 
 btesth:
-	@echo "<a href="$(BETA_URL)">$(TAG)</a> on branch <a href="https://github.com/rclone/rclone/tree/$(BRANCH)">$(BRANCH)</a> (uploaded in 15-30 mins)" | xclip -r -sel clip -t text/html
+	@echo "<a href="$(BETA_URL)">$(TAG)</a> on branch <a href="https://github.com/artpar/rclone/tree/$(BRANCH)">$(BRANCH)</a> (uploaded in 15-30 mins)" | xclip -r -sel clip -t text/html
 	@echo "Copied beta release in HTML to clip board"
 
 version:

@@ -12,7 +12,7 @@ RUN ./rclone version
 # Begin final image
 FROM alpine:latest
 
-LABEL org.opencontainers.image.source="https://github.com/rclone/rclone"
+LABEL org.opencontainers.image.source="https://github.com/artpar/rclone"
 
 RUN apk --no-cache add ca-certificates fuse3 tzdata && \
   echo "user_allow_other" >> /etc/fuse.conf
