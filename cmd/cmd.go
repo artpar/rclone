@@ -494,28 +494,28 @@ func resolveExitCode(err error) {
 				fmt.Printf("exitcode - %v", exitcode.NoFilesTransferred)
 			}
 		}
-		fmt.Printf("exitcode - %v", exitcode.Success)
+		//fmt.Printf("exitcode - %v", exitcode.Success)
 	}
 
 	switch {
 	case errors.Is(err, fs.ErrorDirNotFound):
-		fmt.Printf("exitcode - %v", exitcode.DirNotFound)
+		fmt.Printf("rclone session exitcode - %v\n", exitcode.DirNotFound)
 	case errors.Is(err, fs.ErrorObjectNotFound):
-		fmt.Printf("exitcode - %v", exitcode.FileNotFound)
+		fmt.Printf("rclone session exitcode - %v\n", exitcode.FileNotFound)
 	case errors.Is(err, accounting.ErrorMaxTransferLimitReached):
-		fmt.Printf("exitcode - %v", exitcode.TransferExceeded)
+		fmt.Printf("rclone session exitcode - %v\n", exitcode.TransferExceeded)
 	case errors.Is(err, fssync.ErrorMaxDurationReached):
-		fmt.Printf("exitcode - %v", exitcode.DurationExceeded)
+		fmt.Printf("rclone session exitcode - %v\n", exitcode.DurationExceeded)
 	case fserrors.ShouldRetry(err):
-		fmt.Printf("exitcode - %v", exitcode.RetryError)
+		fmt.Printf("rclone session exitcode - %v\n", exitcode.RetryError)
 	case fserrors.IsNoRetryError(err), fserrors.IsNoLowLevelRetryError(err):
-		fmt.Printf("exitcode - %v", exitcode.NoRetryError)
+		fmt.Printf("rclone session exitcode - %v\n", exitcode.NoRetryError)
 	case fserrors.IsFatalError(err):
-		fmt.Printf("exitcode - %v", exitcode.FatalError)
+		fmt.Printf("rclone session exitcode - %v\n", exitcode.FatalError)
 	case errors.Is(err, errorCommandNotFound), errors.Is(err, errorNotEnoughArguments), errors.Is(err, errorTooManyArguments):
-		fmt.Printf("exitcode - %v", exitcode.UsageError)
+		fmt.Printf("rclone session exitcode - %v\n", exitcode.UsageError)
 	default:
-		fmt.Printf("exitcode - %v", exitcode.UncategorizedError)
+		fmt.Printf("rclone session exitcode - %v\n", exitcode.UncategorizedError)
 	}
 }
 
